@@ -1,5 +1,4 @@
 import {
-  makeResourceStore,
   provideRequest,
   provideResponse,
   Server,
@@ -10,6 +9,7 @@ import {
   type Route,
 } from "@sunfall/arc-core";
 import {
+  makeRequestResourceStore,
   withResourceStore,
   withRuntimeServices,
   type AppDefinitionRegistry,
@@ -29,7 +29,9 @@ export const makeRequestRuntime = <
 >(
   app: StartServerApp<Routes, ServerServices, ServerError>,
 ): SunfallArcRuntime<ServerServices, ServerError> =>
-  withResourceStore(app.runtime, makeResourceStore());
+  // A request's store renders one response: it never follows change feeds
+  // (the browser runtime does, from the hydrated rows) and owns its app States.
+  withResourceStore(app.runtime, makeRequestResourceStore());
 
 /** Services a Request Runtime provides to render, preload, RPC, and action Effects. */
 export type RequestRuntimeProvidedRequirements<RuntimeServices> =

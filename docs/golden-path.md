@@ -868,9 +868,14 @@ To test what the screen shows, render the Component (see
   Test transitions with `State.step`.
 - **Bind a State per instance.** `Component.state(Definition)` starts one
   State per Component instance and stops it on unmount; key the Component on
-  an entity to get a fresh State per entity. `State.start(definition, {
-runtime })` is for headless or deliberately shared State, which on the
-  server is shared by every request.
+  an entity to get a fresh State per entity.
+- **Share a State across pages with `scope: "app"`.** A State the shell and
+  the pages both use (an undo toast, a cart) declares `scope: "app"`, and
+  every `Component.state(Definition)` binding gets the runtime's one instance:
+  it outlives the page that sent its message, and a server render gets one
+  per request. No Solid context, no module-level `State.start` (which on the
+  server would be shared by every request); `State.start` is for headless
+  code and tests.
 
 ## Go Deeper
 

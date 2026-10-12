@@ -13,7 +13,7 @@ import { route as BoardRoute } from "./routes/projects/$key/index.js";
 import { route as IssueListRoute } from "./routes/projects/$key/issues.js";
 import { route as NewIssueRoute } from "./routes/projects/$key/new.js";
 import { route as HomeRoute } from "./routes/index.js";
-import { ShellContext, UndoToast } from "./shell.js";
+import { UndoToast } from "./shell.js";
 import { TimelinePanel } from "./timeline-panel.js";
 import { Avatar } from "./ui.js";
 
@@ -165,141 +165,139 @@ const AppShell = Component.define("AppShell", function* () {
   });
 
   return () => (
-    <ShellContext value={{ deleted: (issue) => toast.send.Deleted({ issue }) }}>
-      <Show
-        when={user("current")}
-        fallback={
-          <main class="authLayout">
-            <RouterOutlet router={router} notFound={() => <NotFoundView />} />
-          </main>
-        }
-      >
-        {(me) => (
-          <div class="shell">
-            <header class="topBar">
-              <RouterLink route={HomeRoute} class="brand" aria-label="Tracker home">
-                <span class="brandMark" aria-hidden="true" />
-                <span class="brandName">Tracker</span>
-              </RouterLink>
-              <nav class="projectNav" aria-label="Projects">
-                <For each={projects("all")}>
-                  {(entry) => (
-                    <RouterLink
-                      route={BoardRoute}
-                      options={{ params: { key: entry.key } }}
-                      class={{ active: project() === entry.key }}
-                    >
-                      {entry.name}
-                    </RouterLink>
-                  )}
-                </For>
-              </nav>
-              <div class="topBarEnd">
-                <Show when={outbox.pending.get().length > 0}>
-                  <span class="syncPill" role="status" data-testid="sync-pending">
-                    {outbox.pending.get().length === 1
-                      ? "1 change waiting to sync"
-                      : `${outbox.pending.get().length} changes waiting to sync`}
-                  </span>
-                </Show>
-                <Show when={import.meta.env.DEV}>
-                  <button
-                    type="button"
-                    class="ghostButton small"
-                    aria-pressed={shortcuts.model().timeline ? "true" : "false"}
-                    onClick={shortcuts.send.ToggleTimeline}
+    <Show
+      when={user("current")}
+      fallback={
+        <main class="authLayout">
+          <RouterOutlet router={router} notFound={() => <NotFoundView />} />
+        </main>
+      }
+    >
+      {(me) => (
+        <div class="shell">
+          <header class="topBar">
+            <RouterLink route={HomeRoute} class="brand" aria-label="Tracker home">
+              <span class="brandMark" aria-hidden="true" />
+              <span class="brandName">Tracker</span>
+            </RouterLink>
+            <nav class="projectNav" aria-label="Projects">
+              <For each={projects("all")}>
+                {(entry) => (
+                  <RouterLink
+                    route={BoardRoute}
+                    options={{ params: { key: entry.key } }}
+                    class={{ active: project() === entry.key }}
                   >
-                    Timeline
-                  </button>
-                </Show>
+                    {entry.name}
+                  </RouterLink>
+                )}
+              </For>
+            </nav>
+            <div class="topBarEnd">
+              <Show when={outbox.pending.get().length > 0}>
+                <span class="syncPill" role="status" data-testid="sync-pending">
+                  {outbox.pending.get().length === 1
+                    ? "1 change waiting to sync"
+                    : `${outbox.pending.get().length} changes waiting to sync`}
+                </span>
+              </Show>
+              <Show when={import.meta.env.DEV}>
                 <button
                   type="button"
-                  class="ghostButton small keyHint"
-                  title="Keyboard shortcuts"
-                  onClick={shortcuts.send.ToggleHelp}
+                  class="ghostButton small"
+                  aria-pressed={shortcuts.model().timeline ? "true" : "false"}
+                  onClick={shortcuts.send.ToggleTimeline}
                 >
-                  ?
+                  Timeline
                 </button>
-                <form
-                  method={signOutForm.method}
-                  action={signOutForm.action}
-                  class="userMenu"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    leave();
-                  }}
-                >
-                  <For each={signOutForm.hiddenFields}>
-                    {(field) => <input type="hidden" name={field.name} value={field.value} />}
-                  </For>
-                  <Avatar user={me()} size="md" />
-                  <span class="userName">{me().name}</span>
-                  <button type="submit" class="linkButton">
-                    Sign out
-                  </button>
-                </form>
-              </div>
-            </header>
+              </Show>
+              <button
+                type="button"
+                class="ghostButton small keyHint"
+                title="Keyboard shortcuts"
+                onClick={shortcuts.send.ToggleHelp}
+              >
+                ?
+              </button>
+              <form
+                method={signOutForm.method}
+                action={signOutForm.action}
+                class="userMenu"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  leave();
+                }}
+              >
+                <For each={signOutForm.hiddenFields}>
+                  {(field) => <input type="hidden" name={field.name} value={field.value} />}
+                </For>
+                <Avatar user={me()} size="md" />
+                <span class="userName">{me().name}</span>
+                <button type="submit" class="linkButton">
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </header>
 
-            <div
-              class={["navProgress", { active: router.state()._tag === "Pending" }]}
-              aria-hidden="true"
+          <div
+            class={["navProgress", { active: router.state()._tag === "Pending" }]}
+            aria-hidden="true"
+          />
+          <main class="page">
+            <RouterOutlet
+              router={router}
+              pending={() => <div class="pageLoading" aria-busy="true" />}
+              notFound={() => <NotFoundView />}
+              failure={(state) => (
+                <FailureView
+                  message={
+                    state.error?._tag === "RoutePreloadError"
+                      ? describeError(state.error.cause)
+                      : "Something went wrong loading this page."
+                  }
+                />
+              )}
             />
-            <main class="page">
-              <RouterOutlet
-                router={router}
-                pending={() => <div class="pageLoading" aria-busy="true" />}
-                notFound={() => <NotFoundView />}
-                failure={(state) => (
-                  <FailureView
-                    message={
-                      state.error?._tag === "RoutePreloadError"
-                        ? describeError(state.error.cause)
-                        : "Something went wrong loading this page."
-                    }
-                  />
-                )}
-              />
-            </main>
+          </main>
 
-            <Show when={toast.model().deleted}>
-              {(deleted) => (
-                <div class="toast" role="status">
-                  <span>
-                    Deleted <strong>{deleted().id}</strong> {deleted().title}
-                  </span>
-                  <button type="button" class="linkButton" onClick={() => undo()}>
-                    Undo
-                  </button>
-                  <button
-                    type="button"
-                    class="iconButton"
-                    aria-label="Dismiss"
-                    onClick={toast.send.Dismiss}
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-            </Show>
-            <Show when={restore.failure()}>
-              {(cause) => (
-                <div class="toast error" role="alert">
-                  Undo failed: {describeError(Cause.squash(cause()))}
-                </div>
-              )}
-            </Show>
+          <Show when={toast.model().deleted}>
+            {(deleted) => (
+              <div class="toast" role="status">
+                <span>
+                  Deleted <strong>{deleted().id}</strong> {deleted().title}
+                </span>
+                <button type="button" class="linkButton" onClick={() => undo()}>
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  class="iconButton"
+                  aria-label="Dismiss"
+                  onClick={toast.send.Dismiss}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </Show>
+          <Show when={restore.failure()}>
+            {(cause) => (
+              <div class="toast error" role="alert">
+                Undo failed: {describeError(Cause.squash(cause()))}
+              </div>
+            )}
+          </Show>
 
-            <Show when={shortcuts.model().help}>
-              <ShortcutHelp onClose={shortcuts.send.CloseHelp} />
-            </Show>
-            <Show when={shortcuts.model().timeline}>
-              <Timeline />
-            </Show>
-          </div>
-        )}
-      </Show>
-    </ShellContext>
+          <Show when={shortcuts.model().help}>
+            <ShortcutHelp onClose={shortcuts.send.CloseHelp} />
+          </Show>
+          <Show when={shortcuts.model().timeline}>
+            <Timeline />
+          </Show>
+        </div>
+      )}
+    </Show>
   );
 }).pipe(Component.catchAll((error) => <FailureView message={describeError(error)} />));
 

@@ -31,7 +31,7 @@ import {
   Projects,
   Team,
 } from "../../resources.js";
-import { useShell } from "../../shell.js";
+import { UndoToast } from "../../shell.js";
 import { Avatar, PriorityIcon, StatusIcon, formatDate, formatDateTime } from "../../ui.js";
 import { route as BoardRoute } from "../projects/$key/index.js";
 import type { route } from "./$id.js";
@@ -76,7 +76,8 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
   const comment = yield* Component.action(AddComment);
   const remove = yield* Component.action(DeleteIssue);
   const router = useRouter();
-  const shell = useShell();
+  // The shell's toast: an app State, so it outlives this page.
+  const toast = yield* Component.state(UndoToast);
   const id = untrack(() => props.id);
   const projectKey = projectOf(id);
 
@@ -112,12 +113,8 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
   const deleteIssue = yield* Component.callback("delete", () => {
     const title = issue(id).title;
     return remove.submit({ id }).pipe(
-      Effect.tap(() =>
-        Effect.sync(() => {
-          shell.deleted({ id, title });
-          router.navigateHref(boardHref(projectKey));
-        }),
-      ),
+      Effect.tap(() => toast.dispatch({ _tag: "Deleted", issue: { id, title } })),
+      Effect.tap(() => Effect.sync(() => router.navigateHref(boardHref(projectKey)))),
       Effect.ignore,
     );
   });

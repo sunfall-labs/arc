@@ -197,7 +197,8 @@ const startResourceRowChanges = <I, A, E, R>(
 ): Effect.Effect<void, never, R> =>
   Effect.gen(function* () {
     const changes = ref.family.options.rows?.changes;
-    if (changes === undefined || entry.changesFiber !== undefined) {
+    // A server request's store renders one response: the browser follows.
+    if (changes === undefined || entry.changesFiber !== undefined || !store.followsChanges) {
       return;
     }
     const name = ref.family.options.name;

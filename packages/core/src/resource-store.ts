@@ -202,6 +202,12 @@ export interface MutableResourceStore extends ResourceStore {
   readonly events: PubSub.PubSub<ResourceStoreEvent>;
   /** @internal Scope owning store background work; closed by `disposeResourceStore`. */
   readonly scope: Scope.Closeable;
+  /**
+   * Whether entries follow their `rows.changes` feeds. A server request's
+   * store renders one response and never follows them; the browser runtime
+   * starts them when it hydrates.
+   */
+  readonly followsChanges: boolean;
 }
 
 /** Error raised when Resource Store disposal observes a module finalizer failure. */
@@ -219,7 +225,9 @@ export interface ResourceStoreModule {
 }
 
 /** @internal Creates an empty mutable Resource Store implementation. */
-export const makeMutableResourceStore = (): MutableResourceStore => {
+export const makeMutableResourceStore = (
+  options: { readonly followsChanges?: boolean } = {},
+): MutableResourceStore => {
   const families = new Map<string, unknown>();
   const tagIndex = new Map<string, Map<string, unknown>>();
   const refTags = new Map<string, Set<string>>();
@@ -281,11 +289,20 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     retainedRefs,
     events,
     scope,
+    followsChanges: options.followsChanges ?? true,
   };
 };
 
 /** Creates an empty Resource Store with event buffering and tracked fibers. */
 export const makeResourceStore = (): ResourceStore => makeMutableResourceStore();
+
+/**
+ * @internal The Resource Store of one server request: its entries load,
+ * render, and hydrate, but never follow `rows.changes` feeds (the browser
+ * runtime does, from the hydrated rows).
+ */
+export const makeRequestResourceStore = (): ResourceStore =>
+  makeMutableResourceStore({ followsChanges: false });
 
 /** @internal Narrows a public Resource Store to the mutable implementation used by core internals. */
 export const unsafeMutableResourceStore = (store: ResourceStore): MutableResourceStore => {

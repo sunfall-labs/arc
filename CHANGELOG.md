@@ -6,6 +6,33 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### App States: One State Shared Across Pages
+
+Found by building `examples/tracker`, whose undo toast is shown by the board
+and the issue page but rendered by the shell.
+
+- `State.define({ scope: "app", ... })` declares an app State: every
+  `Component.state(Definition)` binding returns a handle on the runtime's one
+  instance instead of starting its own. The first binding starts it with its
+  services (minus its own Scope, so commands such as an expiry timer outlive
+  it); unmounting a binder never stops it; disposing the runtime does. A
+  Start request runtime owns its own, so a server render gets one per request
+  and never shares one across requests. Every handle is the same `State.Ref`
+  (one optimistic patch target) and its commits are Timeline entries under
+  its `name`. The default, `scope: "component"`, is unchanged. `State.Scope`
+  names the two. Previously sharing a State took a Solid context around a
+  parent's handle, or a module-level `State.start` shared by every SSR
+  request. `State.start` always starts a new instance its caller owns.
+
+### Server Renders Never Start Change Feeds
+
+- A Start request runtime's Resource Store renders one response and never
+  starts a `rows.changes` feed, whether the entry was preloaded, read by the
+  render, or hydrated. The browser runtime starts the feed when it hydrates
+  the entry, as before. Previously every server-loaded board started its
+  poller in the request runtime until the response ended: wasted work, and a
+  feed with side effects ran on the server.
+
 ### Route Preload Verdicts: Not Found And Redirect
 
 Found by building `examples/tracker`, a real issue tracker on SQLite.

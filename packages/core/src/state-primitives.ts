@@ -12,6 +12,7 @@ import {
   type StateModelValue,
   type StateMessageValue,
   type StatePhase,
+  type StateScope,
   type StateStep,
   type StateSubscription,
   type StateSubscriptionInput,
@@ -128,6 +129,8 @@ export type StateHandlersRequirements<On> = {
 export interface StateInferredDefinition<Model, On, ES, RS> {
   /** Stable name: labels the model on the `Timeline` and names its `State` causes. */
   readonly name: string;
+  /** Who owns a bound instance: each Component instance (the default) or the runtime (`"app"`). */
+  readonly scope?: StateScope;
   readonly initial: Model;
   /** One pure handler per message tag; the message union is inferred from it. */
   readonly on: On;

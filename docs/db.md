@@ -196,7 +196,9 @@ const LiveProjectList = Resource.define({
 - The feed starts with the entry's first load in a runtime, or when the entry
   is hydrated (a server-rendered page follows its feed from the hydrated
   rows), and runs on the runtime's Resource Store; disposing the runtime or
-  evicting the entry stops it.
+  evicting the entry stops it. A server render never starts it: Start's
+  request runtimes load, render, and hydrate the entry, and the browser
+  follows the feed.
 - `changes(input, rows)` receives the synced rows the feed starts from, so a
   feed that polls can resume from a cursor they hold. `examples/tracker`
   polls its change log from the newest `seq` among the board's rows:

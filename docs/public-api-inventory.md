@@ -360,7 +360,7 @@ Release decisions:
   still show the action requirements after any explicit Runtime Spine is
   applied.
 - `State` is the one writable client state: a named model/message loop.
-  `State.define({ name, initial, on, subscriptions? })` infers the message
+  `State.define({ name, scope?, initial, on, subscriptions? })` infers the message
   union from `on` (each key a `_tag`; a handler's second parameter types that
   message's fields); `State.define<Model, Message>()({ ... })` names the union
   up front, which commands that emit the State's own messages need (the
@@ -377,8 +377,13 @@ commands)`, never an Effect. `State.emit(...)`
   `State.start(definition, { runtime })` always takes an explicit runtime
   (there is no default-runtime fallback); it adds runtime startup/provision
   errors to the failure channel and rejects runtimes that do not provide the
-  State's command and subscription requirements. UI code binds a State per
-  instance with Solid's `Component.state(...)`.
+  State's command and subscription requirements; it always starts a new
+  instance. UI code binds a State with Solid's `Component.state(...)`: per
+  Component instance by default, or the runtime's one instance when the
+  definition says `scope: "app"` (`State.Scope`: `"component" | "app"`),
+  started by the first binding, shared by every binding, and stopped when the
+  runtime is disposed (a Start request runtime has its own, so a server render
+  gets one per request).
   State models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
   that intentionally emit nothing reserve `undefined`/`void` as the no-message
@@ -810,7 +815,7 @@ value)` (`Component.ResourceRowsReader`), typed by `rows`.
   submission's failures belong to its caller, never to the Component's `E`). A
   runtime-provided `ActionTransport` (provided by Start's `App.launch` for the
   app's Actions) makes the same handle submit remotely.
-- `Component.state(definition, options?)` starts a State for the instance and
+- `Component.state(definition, options?)` binds a State (the instance's own, or the runtime's one for `scope: "app"`) and
   returns a `Component.StateHandle` (a `State.Ref`): `model()` is a deeply
   read-only view (`Component.StateView<Model>`); an object model is a
   fine-grained Solid projection reconciled from the committed model

@@ -1,5 +1,5 @@
-import { makeRuntime, State, Signal } from "@sunfall/arc-core";
-import { Effect, Exit } from "effect";
+import { Action, makeRuntime, State, StateRefTypeId, Signal } from "@sunfall/arc-core";
+import { Deferred, Effect, Exit, Fiber, Schema } from "effect";
 import { createEffect, createRoot, flush, mapArray } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { Component } from "../src/index.js";
@@ -374,5 +374,102 @@ describe("Component.state send", () => {
     expect(handle.failures()).toHaveLength(1);
     expect(handle.failures()[0]).toMatchObject({ _tag: "StateFailure", phase: "Update" });
     await dispose();
+  });
+});
+
+describe("Component.state with an app State", () => {
+  type Toast = { readonly text: string | null };
+  type ToastMessage =
+    | { readonly _tag: "Show"; readonly text: string }
+    | { readonly _tag: "Expire"; readonly text: string };
+
+  const makeToast = () =>
+    State.define<Toast, ToastMessage>()({
+      name: "Shell.toast",
+      scope: "app",
+      initial: { text: null },
+      on: {
+        // The expiry command must outlive the binding that sent `Show`.
+        Show: (_model, message) =>
+          State.next(
+            { text: message.text },
+            State.emit(
+              Effect.sleep("20 millis").pipe(
+                Effect.as({ _tag: "Expire", text: message.text } as const),
+              ),
+            ),
+          ),
+        Expire: (model, message) => (model.text === message.text ? { text: null } : model),
+      },
+    });
+
+  /** Binds `definition` in a new instance under its own Solid root. */
+  const bind = (runtime: object, definition: ReturnType<typeof makeToast>) => {
+    let dispose: () => void = () => {};
+    const handle = createRoot((disposeRoot) => {
+      dispose = disposeRoot;
+      return bindInInstance(runtime, Component.state(definition));
+    });
+    flush();
+    return { handle, dispose };
+  };
+
+  it("shares one instance per runtime that outlives its bindings", async () => {
+    const Toast = makeToast();
+    const runtime = makeRuntime();
+    const board = bind(runtime, Toast);
+    const shell = bind(runtime, Toast);
+    expect(board.handle[StateRefTypeId]).toBe(shell.handle[StateRefTypeId]);
+
+    board.handle.send.Show({ text: "Issue deleted" });
+    await settle();
+    expect(shell.handle.model().text).toBe("Issue deleted");
+
+    // Unmounting the binding that sent the message neither stops the State
+    // nor interrupts the command it started.
+    board.dispose();
+    await Effect.runPromise(Effect.sleep("40 millis"));
+    flush();
+    expect(shell.handle.model().text).toBeNull();
+
+    // Another runtime (another request, another app) has its own instance.
+    const other = makeRuntime();
+    const elsewhere = bind(other, Toast);
+    expect(elsewhere.handle[StateRefTypeId]).not.toBe(shell.handle[StateRefTypeId]);
+    expect(elsewhere.handle.model().text).toBeNull();
+
+    // Disposing the runtime stops it.
+    shell.dispose();
+    await Effect.runPromise(runtime.dispose);
+    const exit = await Effect.runPromiseExit(shell.handle.dispatch({ _tag: "Show", text: "late" }));
+    expect(Exit.isFailure(exit)).toBe(true);
+    elsewhere.dispose();
+    await Effect.runPromise(other.dispose);
+  });
+
+  it("is an optimistic patch target every binding sees", async () => {
+    const Toast = makeToast();
+    const runtime = makeRuntime();
+    const first = bind(runtime, Toast);
+    const second = bind(runtime, Toast);
+    const release = Effect.runSync(Deferred.make<void>());
+    const Remove = Action.define({
+      name: "AppState.remove",
+      input: Schema.String,
+      optimistic: (text, transaction) => transaction.set(first.handle, { text }),
+      run: () => Deferred.await(release),
+    });
+    const submission = runtime.runFork(Action.use(Remove, { runtime }).submit("Undo?"));
+    await settle();
+    expect(second.handle.model().text).toBe("Undo?");
+
+    // Success folds the patch into the shared model.
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+    await Effect.runPromise(Fiber.join(submission));
+    flush();
+    expect(second.handle.model().text).toBe("Undo?");
+    first.dispose();
+    second.dispose();
+    await Effect.runPromise(runtime.dispose);
   });
 });

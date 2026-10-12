@@ -1,11 +1,12 @@
 import { State } from "@sunfall/arc-core";
 import { Effect } from "effect";
-import { createContext, useContext } from "solid-js";
 import type { IssueId } from "./model.js";
 
 /*
- * Client state the whole shell shares: the undo toast. Pages reach it
- * through `useShell()`; the shell owns the one State instance.
+ * Client state the whole shell shares: the undo toast. It is an app State, so
+ * the shell (which renders it) and the pages (which delete issues) bind the
+ * same instance with `Component.state(UndoToast)`, and it outlives the page
+ * that showed it.
  */
 
 export interface DeletedIssue {
@@ -22,6 +23,7 @@ type ToastMessage =
 /** "Issue deleted · Undo", for eight seconds after a delete. */
 export const UndoToast = State.define<ToastModel, ToastMessage>()({
   name: "Shell.undoToast",
+  scope: "app",
   initial: { deleted: null },
   on: {
     Deleted: (_model, message) =>
@@ -38,12 +40,3 @@ export const UndoToast = State.define<ToastModel, ToastMessage>()({
     Dismiss: () => ({ deleted: null }),
   },
 });
-
-export interface ShellApi {
-  /** Shows the undo toast for an issue that was just deleted. */
-  readonly deleted: (issue: DeletedIssue) => void;
-}
-
-export const ShellContext = createContext<ShellApi>({ deleted: () => undefined });
-
-export const useShell = (): ShellApi => useContext(ShellContext);

@@ -5,6 +5,17 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Shared State Through Contexts
+
+A State the shell and the pages share is an app State: one instance per
+runtime, bound with the same `Component.state`.
+
+| Before                                                                         | After                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| a parent's `Component.state(Toast)` handle passed down through a Solid context | `State.define({ name, scope: "app", ... })`; each component binds `Component.state(Toast)` |
+| a module-level `State.start(Toast, { runtime })` (shared by every SSR request) | `scope: "app"`: the runtime owns it, so each request runtime gets its own                  |
+| a `rows.changes` feed that checks it is on the server before subscribing       | nothing: server renders never start feeds; the browser starts them on hydration            |
+
 ## From Not-Found Failures And Remounting Search Pages
 
 A preload that finds no record ends with `Route.notFound()`, and one that

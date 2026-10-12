@@ -283,8 +283,19 @@ A running State exposes a readable model signal, a typed `dispatch(message)`
 Effect that completes once the update commits, failures, and disposal. UI code
 binds a State per Component instance with Solid's `Component.state(Counter)`,
 whose services join the component's `R` and whose handle adds one DOM-ready
-sender per tag (`onClick={menu.send.Toggle}`). Headless code starts one on an
-explicit typed runtime (there is no default runtime):
+sender per tag (`onClick={menu.send.Toggle}`). A definition's `scope` says who
+owns the bound instance: each Component instance (the default), or, with
+`scope: "app"`, the runtime. An app State (an undo toast, a cart) is one
+instance per runtime, registered on the runtime's Resource Store: the first
+`Component.state` binding starts it with that binding's services, every later
+binding shares its model, unmounting a binder never stops it, and disposing
+the runtime does. A Start server render's request runtime has its own store,
+so each request gets its own app States, never a module-global one; both
+sides start from `initial`, like Component States, so there is no model to
+hydrate. Its commits are `Timeline.StateCause` entries under its `name`, and
+every handle on it is the same `State.Ref`, so an Action's optimistic patch
+through any of them is seen by all. Headless code starts a new instance (of
+either scope) on an explicit typed runtime (there is no default runtime):
 
 ```ts
 const counter = State.start(Counter, { runtime });
@@ -578,7 +589,9 @@ what they hold, such as the newest version among them. Each batch of
 `Upsert`/`Update`/`Delete` changes applies to the synced rows under the
 Timeline cause `Resource ... change` and publishes `ResourceRowsChanged`; a
 failed feed publishes `ResourceRowsChangesFailure` and stops. Disposing the
-runtime or evicting the entry interrupts it.
+runtime or evicting the entry interrupts it. A Start request runtime's store
+renders one response and never starts a feed (no wasted work, no server-side
+effects of a feed); the browser runtime starts it when it hydrates the entry.
 
 ### Durable Submissions
 
@@ -848,8 +861,9 @@ The cost model:
 - **Setup-time bindings** add their services to `R`: `Component.resource` (a
   suspending reader plus value-free `waiting`/`failure` status),
   `Component.action` (a submission handle, local or transported),
-  `Component.state` (a State per instance: a read-only model view plus
-  DOM-ready `send.<Tag>` senders), `Component.stream` (a Stream's latest
+  `Component.state` (a State per instance, or the runtime's one for
+  `scope: "app"`: a read-only model view plus DOM-ready `send.<Tag>`
+  senders), `Component.stream` (a Stream's latest
   value, read-only), `Component.callback` (other Effect work from DOM
   handlers, failures handled),
   `Component.router` (routes' preload and route Component services join `R`),
