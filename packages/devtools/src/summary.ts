@@ -1,5 +1,4 @@
 import { makeDevtoolsCausalGraph } from "./causal-graph.js";
-import { graphSummary } from "./summary-app-graph.js";
 import { normalizeDevtoolsSummaryInput } from "./summary-facts.js";
 import type { DevtoolsSummary, DevtoolsSummaryInput } from "./devtools-contract.js";
 
@@ -18,11 +17,10 @@ const stateCounts = (
     .map(([state, count]) => ({ state, count }));
 };
 
-/** Projects snapshots, app graph facts, traces, and events into a stable Devtools summary. */
+/** Projects snapshots, traces, and events into a stable Devtools summary. */
 export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): DevtoolsSummary => {
   const normalized = normalizeDevtoolsSummaryInput(input);
   const causalGraph = makeDevtoolsCausalGraph({
-    appGraph: normalized.appGraph,
     snapshot: normalized.snapshot,
     invalidations: normalized.invalidations,
     routePlans: normalized.routePlans,
@@ -35,26 +33,17 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
   return {
     version: 1,
     overview: {
-      routeCount: normalized.appGraph?.routeCount ?? 0,
-      serverFunctionCount: normalized.appGraph?.serverFunctionCount ?? 0,
-      actionCount: normalized.appGraph?.actionCount ?? 0,
-      resourceFamilyCount: normalized.appGraph?.resourceFamilies.length ?? 0,
-      resourceTagCount: normalized.appGraph?.resourceTags.length ?? 0,
       runtimeResourceCount: normalized.snapshot.resources.length,
       runtimeActionCount: normalized.snapshot.actions.length,
       invalidationPlanCount: normalized.invalidations.length,
       routePlanCount: normalized.routePlans.length,
       requestTraceCount: normalized.requestTraceSummaries.length,
       runtimeEventCount: normalized.runtimeEvents.length,
-      missingSchemaCount: normalized.appGraph?.missingSchemas.length ?? 0,
-      unknownRoutePreloadResourcesCount:
-        normalized.appGraph?.unknownRoutePreloadResources.length ?? 0,
       notFoundRoutePlanCount: normalized.routePlans.filter((plan) => plan._tag === "NotFound")
         .length,
       causalNodeCount: causalGraph.nodes.length,
       causalEdgeCount: causalGraph.edges.length,
     },
-    graph: graphSummary(normalized.appGraph, { preserveDerivedPreloadFacts: true }),
     runtime: {
       resources: normalized.snapshot.resources.map((resource) => ({ ...resource })),
       actions: normalized.snapshot.actions.map((action) => ({

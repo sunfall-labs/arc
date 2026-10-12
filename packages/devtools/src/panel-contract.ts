@@ -14,7 +14,6 @@ import type {
 
 /** Stable ids for the public Devtools panel contract. */
 export const devtoolsPanelIds: readonly DevtoolsPanelId[] = [
-  "app-graph",
   "routes",
   "resources",
   "actions",

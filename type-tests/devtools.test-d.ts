@@ -49,9 +49,6 @@ import {
   type DevtoolsSerializationPolicy,
   type DevtoolsSerializableValue,
   type DevtoolsSnapshot,
-  type DevtoolsStartAppGraphDiagnostics,
-  type DevtoolsStartAppGraphSchemaCoverage,
-  type DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
   type DevtoolsStore,
   type DevtoolsStoreOptions,
   type DevtoolsSummary,
@@ -445,16 +442,6 @@ const devtoolsBridgeUninstall: Effect.Effect<void, never, Scope.Scope> = Effect.
   (install) => install.uninstall(),
 );
 
-declare const devtoolsAppGraph: DevtoolsStartAppGraphDiagnostics;
-const devtoolsStartSchemaCoverage: DevtoolsStartAppGraphSchemaCoverage =
-  devtoolsAppGraph.schemaCoverage.actions;
-type DevtoolsStartUnknowns = DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry;
-Effect.runSync(devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph));
-const devtoolsSetAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph);
-Effect.runSync(devtoolsStore.clearAppGraphDiagnostics());
-const devtoolsClearAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.clearAppGraphDiagnostics();
 const devtoolsActionInvalidationPlanConflict: DevtoolsActionInvalidationPlanConflict =
   new DevtoolsActionInvalidationPlanConflict({ guidance: "Choose one invalidation plan source." });
 
@@ -493,8 +480,4 @@ void devtoolsRecordRuntimeEventEffect;
 void devtoolsRecordRequestTraceEffect;
 void devtoolsBridgeInstallEffect;
 void devtoolsBridgeUninstall;
-void devtoolsSetAppGraphDiagnosticsEffect;
-void devtoolsClearAppGraphDiagnosticsEffect;
 void devtoolsActionInvalidationPlanConflict;
-void devtoolsStartSchemaCoverage;
-type _DevtoolsStartUnknowns = DevtoolsStartUnknowns;

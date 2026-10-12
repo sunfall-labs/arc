@@ -10,23 +10,19 @@ story.
 ## Model
 
 - `DevtoolsSnapshot` captures runtime facts: resource states, action states,
-  invalidation plans, route plans, request traces, app graph diagnostics, and
-  runtime events.
+  invalidation plans, route plans, request traces, and runtime events.
 - `DevtoolsSummary` normalizes those facts into stable panel data, counts, route
   inspectors, request inspectors, invalidation inspectors, resource indexes, and
   a causal graph.
 - `DevtoolsCausalGraph` turns facts into deterministic nodes and edges for
-  request traces, routes, route plans, resources, resource families, actions,
-  invalidations, schema coverage, missing schemas,
-  runtime events, endpoints, and modules. Route preload ResourceFamily nodes
-  prefer app graph definitions when present, so schema, tag, and policy depth
-  is not lost when preload facts arrive before app graph facts.
+  request traces, routes, route plans, resources, resource tags, actions,
+  server functions, invalidations, runtime events, and transport endpoints.
 - `DevtoolsPanels` is the shared UI-facing contract for app shells, browser
   extensions, agents, tests, and HTML renderers. Runtime guards and bridge
   payload normalization live in `@sunfall/arc-devtools` so hosts do not need to
   duplicate panel validation logic.
 - `DevtoolsStore` is an explicit public Interface for recording snapshots,
-  app graph diagnostics, route plans, invalidations, runtime events, summaries,
+  route plans, invalidations, runtime events, summaries,
   Timeline commits, panels, and causal graphs. Store record methods
   return retained fact indexes when callers need precise runtime-event links.
 
@@ -142,7 +138,6 @@ The causal graph answers questions like:
   function?
 - Which tag or ref caused a resource to be invalidated?
 - Which runtime event observed a resource, action, route plan, or invalidation?
-- Which app graph schema coverage bucket reported a missing schema?
 
 Graph IDs are deterministic and stable enough for tests, agent inspection, and
 incremental UI rendering. Runtime events link to recorded route-plan and
@@ -177,59 +172,11 @@ Route-plan hydration facts carry the concrete hydrated resource keys, so
 `Hydrates` edges attach only to resources that were actually serialized for the
 route instead of every resource the route touched.
 
-When `StartBuildPolicy.diagnostics` is configured, the Start Vite Diagnostics
-Gate runs during Vite builds and fails if resolved route-module diagnostics
-violate the policy, even when the app does not import
-`virtual:sunfall-arc/app-graph`. The static `virtual:sunfall-arc/app-graph` module
-is topology-only; route-module/resource diagnostics live behind the
-explicit `virtual:sunfall-arc/app-graph/runtime-diagnostics` import, which also
-exports typed `diagnosticsPolicyViolations` for devtools and agent consumers.
-Use
-`sunfall-arc-start diagnostics --root .` when a CI script wants to run the same
-resolved diagnostics gate through Vite; pass `--json` when the caller wants the
-resolved graph payload. The default CLI output is an agent-readable repair
-report grouped by source owner, with concrete edits for missing wire schemas
-and route preload resource declarations.
-For edit planning, use `sunfall-arc-start impact`; for topology questions rather
-than repair lists, use `sunfall-arc-start graph`.
-It projects the resolved diagnostics into a typed agent graph with Route,
-Action, ServerFunction, ResourceFamily, ResourceTag, Endpoint, Module, and
-Finding nodes plus self-review facts for policy cleanliness, wire
-schema completeness, and route preload declarations.
-Queries are positional and stay JSON-safe:
-
-```sh
-sunfall-arc-start impact route /projects/:id
-sunfall-arc-start impact action Project.rename --json
-sunfall-arc-start graph route /projects/:id
-sunfall-arc-start graph route /projects/:id --verbose
-sunfall-arc-start graph action Project.rename --json
-```
-
-The same projection is available in code through
-`createStartAgentGraph(...)`, `queryStartAgentGraph(...)`, and
-`formatStartAgentGraph(...)`. `createStartAgentGraphImpact(...)` and
-`formatStartAgentGraphImpact(...)` collapse that map into the high-signal edit
-brief agents usually need: edit target, contracts to preserve, dependencies,
-possible blast radius, warnings, and verification commands. The default graph
-text formatter is a concise agent/human briefing; `--verbose` keeps the raw node
-ids, facts, and edges for debugging, while `--json` remains the machine payload.
-
-App graph diagnostics are copied through a structured App Graph Summary seam.
-Typed arrays such as route modules are preserved even when they exceed generic
-serialization entry limits; bounded serialization applies only to unknown leaf
-payloads.
-
 ## Golden Path
 
 The full-stack golden path should be explainable from public diagnostics and
 Effect-native event streams:
 
-- Start app graph diagnostics expose the static facts: matched route modules,
-  server function modules and RPC endpoint, action modules and action endpoint,
-  schema coverage, action invalidation/optimistic/retry/concurrency metadata,
-  route preload resource declarations, resource families (with their `rows`
-  indexes and change feeds), and resource tags.
 - `Route.planNavigation(...)` exposes the route facts: matched href,
   params, search, preloaded resource refs, and the resource hydration count.
   Start request traces also carry route-plan hydration resource keys so the
@@ -289,7 +236,6 @@ limits decide which trace facts remain attached.
 UI-facing panel contract. The result is JSON-safe and ordered for direct
 rendering:
 
-- App Graph
 - Routes
 - Resources
 - Actions
@@ -311,6 +257,8 @@ failure owners.
 Program items include event-level rows for messages, before/after snapshots,
 command lifecycle events, emitted follow-up messages, subscription events,
 failures, and disposal, plus per-program summary rows.
+The Diagnostics panel reports panel-contract errors: when a bridge payload fails
+validation, it carries the typed error and the other panels are suppressed.
 
 ## Browser Panel Renderer
 
@@ -396,8 +344,6 @@ transport, render output, typecheck, and production build.
 
 The devtools product should grow in this order:
 
-- App Graph: routes, route modules, server functions, actions, resources,
-  schemas, endpoints, and module ownership.
 - Route Inspector: matched route, params, search, declared preload ownership,
   concrete preloaded refs, and hydration payloads.
 - Resource Timeline: pending, success, failure, interruption, hydration,
@@ -410,8 +356,6 @@ The devtools product should grow in this order:
   typed failures, and disposal.
 - Request Trace: request context, response context, server functions, actions,
   resources, streams, fibers, interruption, and teardown.
-- Diagnostics Repair: missing schemas, unknown preload ownership, unsafe
-  modules, and exact owner/edit guidance.
 
 Each panel should be backed by serializable data that can also be used by tests,
 CI, browser extensions, and agents.

@@ -8,7 +8,6 @@ import {
   resolveSunfallArcDevtoolsBridgePayload,
   type DevtoolsPanelMount,
   type DevtoolsPanelUiInput,
-  type DevtoolsStartAppGraphDiagnostics,
 } from "@sunfall/arc-devtools";
 import {
   sunfallArcDevtoolsPanelPage,
@@ -196,25 +195,29 @@ describe("devtools extension example", () => {
     ).toEqual({ panels });
   });
 
-  it("normalizes bridge payloads generated from huge app graph route module arrays", () => {
+  it("normalizes bridge payloads generated from huge resource arrays", () => {
     const panels = describeDevtoolsPanels({
-      appGraph: appGraphDiagnosticsWithRoutes(1_001),
+      snapshot: {
+        resources: Array.from({ length: 1_001 }, (_value, index) => ({
+          key: `Extension.resource:${index}`,
+          state: "Success",
+        })),
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+      },
     });
     const payload = validBridgePayload({
       panels,
-      selectedPanelId: "app-graph",
+      selectedPanelId: "resources",
       title: "Live Sunfall Arc",
     });
 
-    const appGraphPanel = payload?.panels.panels.find((panel) => panel.id === "app-graph");
-    expect(payload?.selectedPanelId).toBe("app-graph");
-    expect(appGraphPanel?.items).toHaveLength(1_000);
-    expect(appGraphPanel?.items[998]).toMatchObject({
-      id: "route:route_extension_998_$id",
-      label: "/extension/998/:id",
-    });
-    expect(appGraphPanel?.items[999]).toMatchObject({
-      id: "__sunfall-arc-devtools-overflow:app-graph",
+    const resourcesPanel = payload?.panels.panels.find((panel) => panel.id === "resources");
+    expect(payload?.selectedPanelId).toBe("resources");
+    expect(resourcesPanel?.items).toHaveLength(1_000);
+    expect(resourcesPanel?.items[999]).toMatchObject({
+      id: "__sunfall-arc-devtools-overflow:resources",
       label: "2 panel items hidden",
       severity: "info",
       data: {
@@ -762,57 +765,4 @@ describe("devtools extension example", () => {
       guidance: expect.stringContaining("__SUNFALL_ARC_DEVTOOLS__"),
     });
   });
-});
-
-const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGraphDiagnostics => ({
-  version: 1,
-  routeCount,
-  serverFunctionCount: 0,
-  actionCount: 0,
-  routePaths: Array.from({ length: routeCount }, (_value, index) => `/extension/${index}/:id`),
-  routeModules: Array.from({ length: routeCount }, (_value, index) => ({
-    routeId: `route_extension_${index}_$id`,
-    routePath: `/extension/${index}/:id`,
-    moduleId: `src/routes/extension/${index}/$id.tsx`,
-    filePath: `src/routes/extension/${index}/$id.tsx`,
-    pathParamCount: 1,
-    hasPathParams: true,
-    params: [
-      {
-        name: "id",
-        optional: false,
-      },
-    ],
-    paramsSchema: "present",
-    searchSchema: "absent",
-    preload: "present",
-    preloadResources: {
-      status: "declared",
-      families: [],
-    },
-  })),
-  serverFunctionModules: [],
-  actionModules: [],
-  resourceFamilies: [],
-  resourceTags: [],
-  serverOnlyModules: [],
-  browserClientModules: [],
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
-  schemaCoverage: {
-    serverFunctions: {
-      total: 0,
-      input: 0,
-      output: 0,
-      error: 0,
-    },
-    actions: {
-      total: 0,
-      input: 0,
-      output: 0,
-      error: 0,
-    },
-  },
-  missingSchemas: [],
-  unknownRoutePreloadResources: [],
 });

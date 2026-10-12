@@ -1,7 +1,5 @@
 import type {
   DevtoolsCausalEdgeKind,
-  DevtoolsStartAppGraphMissingSchema,
-  DevtoolsStartAppGraphModuleKind,
   DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationTarget,
   DevtoolsSummaryRequestTrace,
@@ -18,20 +16,6 @@ export const devtoolsProgramPanelItemId = (eventId: string): string => `program-
 
 export const devtoolsInvalidationNodeId = (index: number): string => `invalidation:${index}`;
 
-export const devtoolsMissingSchemaNodeId = (schema: DevtoolsStartAppGraphMissingSchema): string =>
-  `missing-schema:${schema.kind}:${schema.name}:${schema.input ? "input" : "no-input"}:${schema.output ? "output" : "no-output"}:${schema.error ? "error" : "no-error"}`;
-
-export const devtoolsMissingSchemaPanelItemId = (
-  schema: Pick<DevtoolsStartAppGraphMissingSchema, "kind" | "name">,
-): string => `missing-schema:${schema.kind}:${schema.name}`;
-
-export const devtoolsModuleNodeId = (
-  kind: "server-only" | "browser-client" | "route" | DevtoolsStartAppGraphModuleKind,
-  path: string,
-): string => `module:${kind}:${path}`;
-
-export const devtoolsResourceFamilyNodeId = (name: string): string => `resource-family:${name}`;
-
 export const devtoolsResourceNodeId = (key: string): string => `resource:${key}`;
 
 export const devtoolsRequestTraceNodeId = (
@@ -44,22 +28,14 @@ export const devtoolsRequestPanelItemId = (
 
 export const devtoolsRouteNodeId = (path: string): string => `route:${path}`;
 
-export const devtoolsRoutePanelItemId = (routeId: string): string => `route:${routeId}`;
-
 export const devtoolsRoutePlanNodeId = (index: number, href: string): string =>
   `route-plan:${index}:${href}`;
 
 export const devtoolsRoutePlanPanelItemId = (index: number): string => `route-plan:${index}`;
 
-export const devtoolsSchemaCoverageNodeId = (kind: "serverFunctions" | "actions"): string =>
-  `schema-coverage:${kind}`;
-
 export const devtoolsServerFunctionNodeId = (name: string): string => `server-function:${name}`;
 
 export const devtoolsResourceTagNodeId = (key: string): string => `resource-tag:${key}`;
-
-export const devtoolsUnknownRoutePreloadResourcesPanelItemId = (routeId: string): string =>
-  `unknown-preload-resources:${routeId}`;
 
 export const devtoolsRuntimeEventNodeId = (
   event: Pick<DevtoolsSummaryRuntimeEvent, "sequence" | "_tag">,
