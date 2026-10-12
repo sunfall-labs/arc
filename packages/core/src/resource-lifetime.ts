@@ -40,6 +40,8 @@ export interface ResourceLifetimeEntry<A, E> {
   gcFiber: Fiber.Fiber<void, never> | undefined;
   /** The running `rows.changes` feed, started by the entry's first success. */
   changesFiber: Fiber.Fiber<void, never> | undefined;
+  /** True once a persisted value was looked up for this entry (`policy.persist`). */
+  persistRestored: boolean;
 }
 
 export const makeResourceEntry = <A, E>(
@@ -55,6 +57,7 @@ export const makeResourceEntry = <A, E>(
   inFlight: undefined,
   gcFiber: undefined,
   changesFiber: undefined,
+  persistRestored: false,
 });
 
 /**

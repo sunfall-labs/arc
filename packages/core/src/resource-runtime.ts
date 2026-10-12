@@ -36,6 +36,7 @@ import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
 import { applyResourceRowChanges, reconcileResourceRows } from "./resource-rows.js";
+import { persistResourceState, restoreResourceState } from "./resource-persistence.js";
 import {
   decodeResourceHydrationInput,
   decodeResourceHydrationState,
@@ -239,12 +240,10 @@ const startResourceRowChanges = <I, A, E, R>(
             return;
           }
           const now = yield* Clock.currentTimeMillis;
-          commitResourceState(
-            entry,
-            AsyncResult.success(next, { timestamp: now, waiting: current.waiting }),
-            "change",
-          );
+          const changed = AsyncResult.success(next, { timestamp: now, waiting: current.waiting });
+          commitResourceState(entry, changed, "change");
           yield* Cache.set(resourceCache(ref.family, store), ref.key, next);
+          yield* persistResourceState(ref as AnyResourceRef, changed);
           yield* publishResourceStoreEvent(store, {
             _tag: "ResourceRowsChanged",
             name,
@@ -472,6 +471,27 @@ export const runResource = <I, A, E, R>(
       yield* interruptResourceInFlight(entry);
     }
 
+    // A never-loaded entry of a persisted family shows its persisted value at
+    // once and reloads it in the background.
+    if (
+      !options.force &&
+      !entry.persistRestored &&
+      ref.family.options.policy?.persist !== undefined &&
+      syncedResourceState(entry)._tag === "Initial"
+    ) {
+      entry.persistRestored = true;
+      const restored = yield* restoreResourceState(ref as AnyResourceRef);
+      if (Option.isSome(restored) && syncedResourceState(entry)._tag === "Initial") {
+        const state = restored.value as AsyncResult.Success<A, E>;
+        const tags = yield* resourceProvidedTags(ref, state.value);
+        yield* applyHydratedResourceRefEffect(ref, state, tags, store, { persist: false });
+        yield* store.fiberRegistry.run(
+          refreshResource(ref).pipe(Effect.catchCause(() => Effect.void)),
+        );
+        return state.value;
+      }
+    }
+
     // Loads see the synced value: optimistic patches are for readers only.
     const current = syncedResourceState(entry);
     const now = yield* Clock.currentTimeMillis;
@@ -533,6 +553,9 @@ export const runResource = <I, A, E, R>(
         if (Exit.isSuccess(exit)) {
           recordResourceProvidedTagsSync(ref, exit.value.tags, store);
           commitResourceState(entry, settled, "success");
+          if (settled._tag === "Success") {
+            yield* persistResourceState(ref as AnyResourceRef, settled);
+          }
           yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
             isResourceRefRetained(ref as AnyResourceRef, store),
           );
@@ -796,6 +819,7 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
   hydrated: AsyncResult.Success<A, E>,
   tags: readonly ResourceTag[],
   store: ResourceStoreState,
+  options: { readonly persist: boolean } = { persist: true },
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     rememberResourceRef(ref, store);
@@ -813,6 +837,9 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
         ? hydrated
         : AsyncResult.success(value, { timestamp: hydrated.timestamp });
     commitResourceState(entry, state, "hydrate");
+    if (options.persist) {
+      yield* persistResourceState(ref as AnyResourceRef, state);
+    }
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
     yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
       isResourceRefRetained(ref as AnyResourceRef, store),

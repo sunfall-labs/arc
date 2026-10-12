@@ -18,6 +18,7 @@ import type {
 import { EffectInputPromiseRejected } from "./effect-like.js";
 import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
 import type { DurationInput } from "./resource-duration.js";
+import type { ResourcePersistOptions } from "./resource-persistence.js";
 import {
   ResourceKeyError,
   type ResourceFailure,
@@ -110,6 +111,15 @@ export interface ResourcePolicy<E = never> {
    * assignable to erased `AnyResourceFamily`/`AnyResourceRef`.
    */
   readonly retry?: RetrySchedule<E>;
+  /**
+   * Persists settled values in the runtime's `KeyValueStore`
+   * (`effect/persistence`), encoded through `output`, so a reload shows the
+   * last value before the network answers. A never-loaded entry restores the
+   * persisted value at once and reloads it in the background. Without a
+   * `KeyValueStore` in the runtime it does nothing; storage failures are
+   * logged, never load failures. Optimistic patches are never persisted.
+   */
+  readonly persist?: ResourcePersistOptions;
 }
 
 /** Retry schedule observing errors of type `E`; see `ResourcePolicy.retry`. */
@@ -282,6 +292,12 @@ export interface ResourceFamilyDiagnostics {
     readonly staleFor?: DurationInput;
     readonly gcFor?: DurationInput;
     readonly retry: boolean;
+    readonly persist?: ResourcePersistOptions;
+  };
+  /** Present when the family declares `rows`. */
+  readonly rows?: {
+    readonly indexes: readonly string[];
+    readonly changes: boolean;
   };
 }
 
@@ -700,6 +716,8 @@ export namespace Resource {
   export type FamilyOptions<I, A, E = never, R = never> = ResourceFamilyOptions<I, A, E, R>;
   /** Cache lifecycle policy for a Resource family. */
   export type Policy<E = never> = ResourcePolicy<E>;
+  /** Where `policy.persist` stores a family's values in the runtime's `KeyValueStore`. */
+  export type PersistOptions = ResourcePersistOptions;
   /** Stable identity of a Resource tag. */
   export type TagIdentity = ResourceTagIdentity;
   /** Compile error reported when a family's load can fail outside its `error` schema. */
