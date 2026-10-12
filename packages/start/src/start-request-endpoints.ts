@@ -11,6 +11,7 @@ import {
   type Action,
 } from "@sunfall/arc-core";
 import {
+  decodeServerWire,
   makeActionInstance,
   type AppDefinitionRegistry,
   type AppDefinitionRegistryActionRequirements,
@@ -49,7 +50,6 @@ import {
 } from "./start-action-response-codec.js";
 import {
   actionFailureKind,
-  decodeWithSchema,
   exitToRpcResponse,
   functionNotFoundResponse,
   makeActionMap,
@@ -295,7 +295,7 @@ export const createServerActionResponseEffectWithRuntime = <
           }
 
           const produce = Effect.gen(function* () {
-            const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
+            const input = yield* decodeServerWire(action.input, decoded.input).pipe(
               Effect.catch((error) =>
                 Effect.sync(() => {
                   recordStartRequestTraceFailure(traceFacts, "validation");

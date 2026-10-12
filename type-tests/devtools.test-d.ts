@@ -387,13 +387,6 @@ const devtoolsBridgeUninstall: Effect.Effect<void, never, Scope.Scope> = Effect.
   (install) => install.uninstall(),
 );
 
-declare const devtoolsAppGraph: Devtools.AppGraphDiagnostics;
-Effect.runSync(devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph));
-const devtoolsSetAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph);
-Effect.runSync(devtoolsStore.clearAppGraphDiagnostics());
-const devtoolsClearAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.clearAppGraphDiagnostics();
 const devtoolsActionInvalidationPlanConflict: DevtoolsActionInvalidationPlanConflict =
   new DevtoolsActionInvalidationPlanConflict({ guidance: "Choose one invalidation plan source." });
 
@@ -429,6 +422,4 @@ void devtoolsRecordRuntimeEventEffect;
 void devtoolsRecordRequestTraceEffect;
 void devtoolsBridgeInstallEffect;
 void devtoolsBridgeUninstall;
-void devtoolsSetAppGraphDiagnosticsEffect;
-void devtoolsClearAppGraphDiagnosticsEffect;
 void devtoolsActionInvalidationPlanConflict;

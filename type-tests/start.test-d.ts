@@ -19,8 +19,6 @@ import {
   StartStaticBasePathError,
   StartStaticNavigationHydrationError,
   StartStreamError,
-  StartTransportEndpointConflictError,
-  StartTransportEndpointPathError,
   type CreateRequestHandlerOptions,
   type HydrateFromDocumentOptions,
   type StartDocument,
@@ -37,7 +35,6 @@ import {
   type StartRequestTraceHandler,
   type StartStaticHistoryAdapterOptions,
   type StartStaticHistoryWindow,
-  type StartTransportEndpointOverrides,
 } from "@sunfall/arc-start";
 import { Component } from "@sunfall/arc-solid";
 import { Context, Effect, Layer, Schedule, Schema } from "effect";
@@ -65,8 +62,6 @@ const startExports: Array<unknown> = [
   StartStaticBasePathError,
   StartStaticNavigationHydrationError,
   StartStreamError,
-  StartTransportEndpointConflictError,
-  StartTransportEndpointPathError,
 ];
 type StartTypes =
   | App.Any
@@ -92,8 +87,7 @@ type StartTypes =
   | StartRequestTrace
   | StartRequestTraceHandler
   | StartStaticHistoryAdapterOptions
-  | StartStaticHistoryWindow
-  | StartTransportEndpointOverrides;
+  | StartStaticHistoryWindow;
 void startExports;
 type _StartTypes = StartTypes;
 
@@ -177,22 +171,6 @@ StartAction.use(startActionDefinition);
 void startActionFormMethod;
 void startActionFormEncodeError;
 void decodedStartActionFormDataEffect;
-
-const endpointConflict = new StartTransportEndpointConflictError({
-  rpcPath: "/same",
-  actionPath: "/same",
-  guidance: "Use distinct endpoint paths.",
-});
-const endpointPathError = new StartTransportEndpointPathError({
-  field: "rpcPath",
-  value: "rpc",
-  reason: "NotOriginForm",
-  guidance: "Use an origin-form path.",
-});
-const endpointOverrides: StartTransportEndpointOverrides = { rpcPath: "/rpc" };
-void endpointConflict;
-void endpointPathError;
-void endpointOverrides;
 
 const traceHandler: StartRequestTraceHandler = (trace: StartRequestTrace) => {
   const status: StartRequestTrace["status"] = trace.status;

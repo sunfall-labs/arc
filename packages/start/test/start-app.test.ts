@@ -1,9 +1,10 @@
 import { Resource, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
-import { Effect, Layer, Schema, Context } from "effect";
+import { Effect, Layer, Logger, Schema, Context } from "effect";
 import { describe, expect, it } from "vitest";
 import { App, createRequestHandler } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
+import { handleSsrDevRequest } from "../src/start-vite-dev-ssr.js";
 
 interface Greeting {
   readonly text: string;
@@ -91,5 +92,45 @@ describe("createRequestHandler(app)", () => {
     expect(html).not.toContain("<title>");
     expect(html).toContain('<div id="root">server /unknown</div>');
     expect(html).toContain('<script type="module" src="/src/main.tsx"></script>');
+  });
+});
+
+describe("Vite dev SSR route preload warnings", () => {
+  it("warns once per loaded handler about routes that preload without preloadResources", async () => {
+    const UndeclaredRoute = Route.define("/undeclared", {
+      preload: () => Effect.void,
+    });
+    const handler = createRequestHandler(
+      App.define({
+        root: Root,
+        routes: [ProjectRoute, UndeclaredRoute] as const,
+        client: Layer.succeed(Greeting)({ text: "client" }),
+      }),
+      { server: Layer.succeed(Greeting)({ text: "server" }) },
+    );
+    const devServer = {
+      ssrLoadModule: () => Effect.succeed({ default: handler }),
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
+    };
+    const warnings: Array<string> = [];
+    const captureWarnings = Logger.layer([
+      Logger.make(({ logLevel, message }) => {
+        if (logLevel === "Warn") {
+          warnings.push(String(message));
+        }
+      }),
+    ]);
+    const request = () =>
+      handleSsrDevRequest(devServer, new Request("https://arc.test/projects/atlas")).pipe(
+        Effect.flatMap((response) => Effect.promise(() => response.text())),
+        Effect.provide(captureWarnings),
+      );
+
+    await Effect.runPromise(request());
+    await Effect.runPromise(request());
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('Route "/undeclared" has a preload but no preloadResources');
+    expect(warnings.join("\n")).not.toContain("/projects/:id");
   });
 });

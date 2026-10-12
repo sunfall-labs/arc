@@ -360,7 +360,6 @@ export type DevtoolsRuntimeEvent =
  * payloads project those facts into JSON-safe values before rendering.
  */
 export interface DevtoolsSnapshot {
-  readonly appGraph?: DevtoolsStartAppGraphDiagnostics;
   readonly resources: ReadonlyArray<DevtoolsSnapshotResource>;
   readonly actions: ReadonlyArray<DevtoolsSnapshotAction>;
   readonly invalidations: ReadonlyArray<DevtoolsInvalidationPlan>;
@@ -398,8 +397,7 @@ export interface DevtoolsStoreOptions {
 /**
  * Store returned by `makeDevtoolsStore`.
  *
- * Every method returns an Effect: snapshot reads/writes, app graph
- * diagnostics, invalidation plans, action state, route plans, resource
+ * Every method returns an Effect: snapshot reads/writes, invalidation plans, action state, route plans, resource
  * events, Timeline commits, request traces, summaries,
  * panels, and causal graphs.
  * Values are copied or projected before storage so panel consumers do not
@@ -412,12 +410,6 @@ export interface DevtoolsStore {
   readonly getSnapshot: () => Effect.Effect<DevtoolsSnapshot>;
   /** Replace all retained facts; inputs are copied and bounded before storage. */
   readonly setSnapshot: (next: DevtoolsSnapshot) => Effect.Effect<void>;
-  /** Store the latest static Start app-graph diagnostics used by summaries and panels. */
-  readonly setAppGraphDiagnostics: (
-    appGraph: DevtoolsStartAppGraphDiagnostics,
-  ) => Effect.Effect<void>;
-  /** Remove stored app-graph diagnostics without clearing runtime facts. */
-  readonly clearAppGraphDiagnostics: () => Effect.Effect<void>;
   /** Serialize and retain a live Resource invalidation plan, returning its retained index. */
   readonly recordInvalidation: (plan: Resource.InvalidationPlan) => Effect.Effect<number>;
   /** Retain an already-serialized invalidation plan, returning its retained index. */
@@ -456,187 +448,6 @@ export interface DevtoolsStore {
   readonly getPanels: () => Effect.Effect<DevtoolsPanels>;
   /** Project the current snapshot into a stable causal graph. */
   readonly getCausalGraph: () => Effect.Effect<DevtoolsCausalGraph>;
-}
-
-/** Count of contracts with input, output, and error schemas in a Start app graph. */
-export interface DevtoolsStartAppGraphSchemaCoverage {
-  readonly total: number;
-  readonly input: number;
-  readonly output: number;
-  readonly error: number;
-}
-
-/** Server function or action missing at least one wire schema. */
-export interface DevtoolsStartAppGraphMissingSchema {
-  readonly kind: "serverFunction" | "action";
-  readonly name: string;
-  readonly input: boolean;
-  readonly output: boolean;
-  readonly error: boolean;
-}
-
-/** Whether a graph feature is present, absent, or unknown until runtime. */
-export type DevtoolsStartAppGraphFeaturePresence = "present" | "absent" | "unknown";
-/** Static module boundary kind discovered by Start manifests. */
-export type DevtoolsStartAppGraphModuleKind = "server-only" | "contract" | "shared";
-/** Whether an action behavior was statically described. */
-export type DevtoolsStartAppGraphActionBehaviorPresence = "present" | "absent" | "unknown";
-/** Action concurrency policy projected into Devtools diagnostics. */
-export type DevtoolsStartAppGraphActionConcurrency = "latest" | "parallel" | "exhaust" | "unknown";
-/** Route preload-resource diagnostic status. */
-export type DevtoolsStartAppGraphRoutePreloadResourceStatus = "declared" | "none" | "unknown";
-
-/** Resource preload declarations projected from Start route diagnostics. */
-export interface DevtoolsStartAppGraphRoutePreloadResources {
-  readonly status: DevtoolsStartAppGraphRoutePreloadResourceStatus;
-  readonly families: readonly string[];
-}
-
-/** Route module diagnostics projected from the Start app graph. */
-export interface DevtoolsStartAppGraphRouteModuleDiagnostics {
-  readonly routeId: string;
-  readonly routePath: string;
-  readonly moduleId: string;
-  readonly filePath: string;
-  readonly pathParamCount: number;
-  readonly hasPathParams: boolean;
-  readonly params: readonly {
-    readonly name: string;
-    readonly optional: boolean;
-  }[];
-  readonly paramsSchema: DevtoolsStartAppGraphFeaturePresence;
-  readonly searchSchema: DevtoolsStartAppGraphFeaturePresence;
-  readonly preload: DevtoolsStartAppGraphFeaturePresence;
-  readonly preloadResources: DevtoolsStartAppGraphRoutePreloadResources;
-}
-
-/** Wire schema completeness diagnostics for one action/server-function contract. */
-export interface DevtoolsStartAppGraphWireDiagnostics {
-  readonly inputSchema: boolean;
-  readonly outputSchema: boolean;
-  readonly errorSchema: boolean;
-  readonly complete: boolean;
-  readonly missing: readonly ("input" | "output" | "error")[];
-}
-
-/** Server function graph diagnostics projected for Devtools panels. */
-export interface DevtoolsStartAppGraphServerFunctionDiagnostics {
-  readonly id: string;
-  readonly name: string;
-  readonly server: {
-    readonly module: string;
-    readonly exportName: string;
-    readonly moduleKind: DevtoolsStartAppGraphModuleKind;
-    readonly hasHandler: boolean;
-  };
-  readonly client:
-    | {
-        readonly _tag: "Rpc";
-        readonly rpcPath: string;
-      }
-    | {
-        readonly _tag: "Import";
-        readonly rpcPath: string;
-        readonly module: string;
-        readonly exportName: string;
-        readonly moduleKind: Exclude<DevtoolsStartAppGraphModuleKind, "server-only">;
-      };
-  readonly wire: DevtoolsStartAppGraphWireDiagnostics;
-}
-
-/** Static action behavior diagnostics projected for Devtools panels. */
-export interface DevtoolsStartAppGraphActionBehavior {
-  readonly invalidates: DevtoolsStartAppGraphActionBehaviorPresence;
-  readonly optimistic: DevtoolsStartAppGraphActionBehaviorPresence;
-  readonly retry: DevtoolsStartAppGraphActionBehaviorPresence;
-  readonly concurrency: DevtoolsStartAppGraphActionConcurrency;
-}
-
-/** Action graph diagnostics projected for Devtools panels. */
-export interface DevtoolsStartAppGraphActionDiagnostics {
-  readonly id: string;
-  readonly name: string;
-  readonly server: {
-    readonly module: string;
-    readonly exportName: string;
-    readonly moduleKind: DevtoolsStartAppGraphModuleKind;
-  };
-  readonly client:
-    | {
-        readonly _tag: "Post";
-        readonly actionPath: string;
-      }
-    | {
-        readonly _tag: "Import";
-        readonly actionPath: string;
-        readonly module: string;
-        readonly exportName: string;
-        readonly moduleKind: Exclude<DevtoolsStartAppGraphModuleKind, "server-only">;
-      };
-  readonly wire: DevtoolsStartAppGraphWireDiagnostics;
-  readonly behavior: DevtoolsStartAppGraphActionBehavior;
-}
-
-/** Resource family diagnostics projected for Devtools panels. */
-export interface DevtoolsStartAppGraphResourceFamilyDiagnostics {
-  readonly name: string;
-  readonly inputSchema: boolean;
-  readonly outputSchema: boolean;
-  readonly errorSchema: boolean;
-  readonly providesTags: boolean;
-  readonly policy: {
-    readonly staleFor?: string | number;
-    readonly gcFor?: string | number;
-    readonly retry: boolean;
-  };
-}
-
-/** Resource tag diagnostics projected for Devtools panels. */
-export interface DevtoolsStartAppGraphResourceTagDiagnostics {
-  readonly name: string;
-  readonly keyed: boolean;
-}
-
-/** Route whose resource preload policy remains unknown after app graph analysis. */
-export interface DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry {
-  readonly kind: "route";
-  readonly routeId: string;
-  readonly routePath: string;
-  readonly moduleId: string;
-  readonly filePath: string;
-  readonly preload: DevtoolsStartAppGraphFeaturePresence;
-  readonly preloadResources: DevtoolsStartAppGraphRoutePreloadResources;
-}
-
-/**
- * Runtime-aware Start app graph diagnostics projected for devtools.
- *
- * This summarizes generated route modules, server functions, actions,
- * resources, endpoint paths, module boundaries, schema coverage,
- * and policy unknowns. It is a diagnostic data contract, not the executable app
- * graph itself.
- */
-export interface DevtoolsStartAppGraphDiagnostics {
-  readonly version: 1;
-  readonly routeCount: number;
-  readonly serverFunctionCount: number;
-  readonly actionCount: number;
-  readonly routePaths: readonly string[];
-  readonly routeModules: readonly DevtoolsStartAppGraphRouteModuleDiagnostics[];
-  readonly serverFunctionModules: readonly DevtoolsStartAppGraphServerFunctionDiagnostics[];
-  readonly actionModules: readonly DevtoolsStartAppGraphActionDiagnostics[];
-  readonly resourceFamilies: readonly DevtoolsStartAppGraphResourceFamilyDiagnostics[];
-  readonly resourceTags: readonly DevtoolsStartAppGraphResourceTagDiagnostics[];
-  readonly serverOnlyModules: readonly string[];
-  readonly browserClientModules: readonly string[];
-  readonly rpcPath: string;
-  readonly actionPath: string;
-  readonly schemaCoverage: {
-    readonly serverFunctions: DevtoolsStartAppGraphSchemaCoverage;
-    readonly actions: DevtoolsStartAppGraphSchemaCoverage;
-  };
-  readonly missingSchemas: readonly DevtoolsStartAppGraphMissingSchema[];
-  readonly unknownRoutePreloadResources: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
 }
 
 /** Stable resource reference used by summaries, routes, and invalidation plans. */
@@ -856,16 +667,12 @@ export type DevtoolsCausalNodeKind =
   | "Route"
   | "RoutePlan"
   | "Resource"
-  | "ResourceFamily"
   | "Program"
   | "Action"
   | "InvalidationPlan"
   | "ResourceTag"
-  | "SchemaCoverage"
-  | "MissingSchema"
   | "RuntimeEvent"
   | "Endpoint"
-  | "Module"
   | "ServerFunction";
 
 /**
@@ -874,8 +681,7 @@ export type DevtoolsCausalNodeKind =
  * `Records` links request traces to observed facts. `Matches` links route
  * plans to matched routes. `Preloads` and `Hydrates` explain route/resource
  * loading. `Observes` links runtime events to the facts they
- * report. `Covers` and `MissingSchema` describe schema diagnostics, while
- * `UsesEndpoint` and `UsesModule` describe app graph structure.
+ * report. `UsesEndpoint` links request traces to the transport endpoint they used.
  */
 export type DevtoolsCausalEdgeKind =
   | "Matches"
@@ -886,10 +692,7 @@ export type DevtoolsCausalEdgeKind =
   | "Causes"
   | "Emits"
   | "Observes"
-  | "Covers"
-  | "MissingSchema"
   | "UsesEndpoint"
-  | "UsesModule"
   | "Records";
 
 /** One stable fact node in a Devtools causal graph. */
@@ -931,79 +734,16 @@ export interface DevtoolsCausalGraph {
 export interface DevtoolsSummary {
   readonly version: 1;
   readonly overview: {
-    readonly routeCount: number;
-    readonly serverFunctionCount: number;
-    readonly actionCount: number;
-    readonly resourceFamilyCount: number;
-    readonly resourceTagCount: number;
     readonly runtimeResourceCount: number;
     readonly runtimeActionCount: number;
     readonly invalidationPlanCount: number;
     readonly routePlanCount: number;
     readonly requestTraceCount: number;
     readonly runtimeEventCount: number;
-    readonly missingSchemaCount: number;
-    readonly unknownRoutePreloadResourcesCount: number;
     readonly notFoundRoutePlanCount: number;
     readonly causalNodeCount: number;
     readonly causalEdgeCount: number;
   };
-  readonly graph:
-    | {
-        readonly _tag: "Available";
-        readonly routes: {
-          readonly count: number;
-          readonly paths: readonly string[];
-          readonly modules: readonly DevtoolsStartAppGraphRouteModuleDiagnostics[];
-          readonly unknownPreloadResources: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
-        };
-        readonly serverFunctions: {
-          readonly count: number;
-          readonly schemaCoverage: DevtoolsStartAppGraphSchemaCoverage;
-          readonly modules: readonly DevtoolsStartAppGraphServerFunctionDiagnostics[];
-        };
-        readonly actions: {
-          readonly count: number;
-          readonly schemaCoverage: DevtoolsStartAppGraphSchemaCoverage;
-          readonly modules: readonly DevtoolsStartAppGraphActionDiagnostics[];
-          readonly behavior: {
-            readonly invalidates: readonly {
-              readonly state: DevtoolsStartAppGraphActionBehaviorPresence;
-              readonly count: number;
-            }[];
-            readonly optimistic: readonly {
-              readonly state: DevtoolsStartAppGraphActionBehaviorPresence;
-              readonly count: number;
-            }[];
-            readonly retry: readonly {
-              readonly state: DevtoolsStartAppGraphActionBehaviorPresence;
-              readonly count: number;
-            }[];
-            readonly concurrency: readonly {
-              readonly state: DevtoolsStartAppGraphActionConcurrency;
-              readonly count: number;
-            }[];
-          };
-        };
-        readonly resources: {
-          readonly familyCount: number;
-          readonly tagCount: number;
-          readonly families: readonly DevtoolsStartAppGraphResourceFamilyDiagnostics[];
-          readonly tags: readonly DevtoolsStartAppGraphResourceTagDiagnostics[];
-        };
-        readonly endpoints: {
-          readonly rpc: string;
-          readonly action: string;
-        };
-        readonly modules: {
-          readonly serverOnly: readonly string[];
-          readonly browserClient: readonly string[];
-        };
-        readonly missingSchemas: readonly DevtoolsStartAppGraphMissingSchema[];
-      }
-    | {
-        readonly _tag: "Unavailable";
-      };
   readonly runtime: {
     readonly resources: ReadonlyArray<{
       readonly key: string;
@@ -1041,7 +781,6 @@ export interface DevtoolsSummary {
 /** Input accepted by summary projection helpers. */
 export interface DevtoolsSummaryInput {
   readonly snapshot?: DevtoolsSnapshot;
-  readonly appGraph?: DevtoolsStartAppGraphDiagnostics;
   readonly invalidations?: ReadonlyArray<DevtoolsInvalidationPlan>;
   readonly routePlans?: ReadonlyArray<DevtoolsRoutePlan>;
   readonly requestTraces?: ReadonlyArray<DevtoolsRequestTrace>;
@@ -1055,7 +794,6 @@ export interface DevtoolsSummaryInput {
  * and snapshot tests, so custom shells should treat them as durable keys.
  */
 export type DevtoolsPanelId =
-  | "app-graph"
   | "routes"
   | "resources"
   | "actions"

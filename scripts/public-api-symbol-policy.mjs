@@ -357,7 +357,6 @@ export const publicHoverDocGroups = [
         "RoutePlan",
         "InvalidationPlan",
         "RequestTrace",
-        "AppGraphDiagnostics",
         "SerializableValue",
         "SerializationPolicy",
         "Summary",
@@ -582,19 +581,8 @@ export const publicHoverDocGroups = [
     declarations: ["StartActionDuplicateName"],
   },
   {
-    file: "packages/start/src/app-graph.ts",
-    declarations: ["StartAppGraphMissingWireSchemas", "describeStartAppGraphRuntimeDiagnostics"],
-  },
-  {
-    file: "packages/start/src/start-app-graph-diagnostics-policy.ts",
-    declarations: [
-      "StartAppGraphUnknownRoutePreloadResources",
-      "validateStartAppGraphDiagnosticsPolicyException",
-    ],
-  },
-  {
     file: "packages/start/src/start-manifest-wall.ts",
-    declarations: ["StartBuildPolicy", "StartBuildPolicyError"],
+    declarations: ["StartBuildPolicy"],
   },
   {
     file: "packages/start/src/start-prerender.ts",
@@ -612,18 +600,6 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/start-vite-dev-ssr.ts",
     declarations: ["StartHandlerNotFound", "StartDevServerError"],
-  },
-  {
-    file: "packages/start/src/start-vite-diagnostics-loader.ts",
-    declarations: ["StartAppGraphDiagnosticsRunnerError"],
-  },
-  {
-    file: "packages/start/src/start-transport-endpoints.ts",
-    declarations: [
-      "StartTransportEndpointPathError",
-      "StartTransportEndpointConflictError",
-      "StartTransportEndpointOverrides",
-    ],
   },
   {
     file: "packages/start/src/request-trace.ts",
@@ -644,32 +620,4 @@ export const namespaceBackedSurfaceModules = new Map([
   ["@sunfall/arc-devtools", new Set(["devtools"])],
 ]);
 
-export const currentDocsTextPolicies = [
-  {
-    file: "CONTEXT.md",
-    banned: [
-      {
-        name: "Start Diagnostics CLI Contract must describe variadic graph/impact arguments",
-        pattern: /Start Diagnostics CLI Contract[\s\S]*?nested `Command` subcommands/,
-      },
-    ],
-  },
-  {
-    file: "packages/start/src/start-agent-graph-contract.ts",
-    banned: [
-      {
-        name: "StartAgentGraphQuery hover docs must describe graph/impact arguments, not query-kind subcommands",
-        pattern: /CLI subcommands/,
-      },
-    ],
-  },
-  {
-    file: "packages/start/src/start-agent-graph-vocabulary.ts",
-    banned: [
-      {
-        name: "Start agent graph vocabulary hover docs must describe query parsing, not query-kind subcommands",
-        pattern: /wiring CLI subcommands or impact relations/,
-      },
-    ],
-  },
-];
+export const currentDocsTextPolicies = [];

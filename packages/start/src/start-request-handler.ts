@@ -37,13 +37,6 @@ import {
   makeActionMap,
   type StartActionDefinition,
 } from "./start-transport-protocol.js";
-import type {
-  StartActionEndpointManifest,
-  StartServerFunctionEndpointManifest,
-  StartTransportEndpointOverrides,
-  StartTransportEndpointManifestSource,
-} from "./start-transport-endpoints.js";
-import { resolveStartTransportEndpoints } from "./start-transport-endpoints.js";
 import { makeStartActionWorkflows, settledActionSubmissions } from "./start-action-workflow.js";
 import { readStartActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
@@ -106,18 +99,6 @@ export interface StartRequestHandlerOptions<
   Actions extends StartActionDefinition = StartActionDefinition,
   Registry extends AppDefinitionRegistry = AppDefinitionRegistry,
 > {
-  /** Transport endpoint paths used to route RPC/action requests. */
-  readonly endpoints?: StartTransportEndpointOverrides;
-  /** RPC endpoint path used by this request handler. */
-  readonly rpcPath?: string;
-  /** Action endpoint path used by this request handler. */
-  readonly actionPath?: string;
-  /** Server-function manifest whose RPC path should be used by this request handler. */
-  readonly serverFunctionManifest?: StartServerFunctionEndpointManifest;
-  /** Action manifest whose action path should be used by this request handler. */
-  readonly actionManifest?: StartActionEndpointManifest;
-  /** App graph whose transport paths should be used by this request handler. */
-  readonly appGraph?: StartTransportEndpointManifestSource;
   /** Render the preloaded request context to HTML or a custom Response. */
   readonly render?: (
     context: StartRenderContext<Routes, ServerServices, ServerError, Registry>,
@@ -182,16 +163,11 @@ export const createStartRequestHandler = <
     Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>
   > =>
     Effect.gen(function* () {
-      const endpoints = yield* resolveStartTransportEndpoints(options);
-      const requestOptions = {
-        ...options,
-        endpoints,
-      };
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
-      const traceFacts = yield* startRequestTraceFacts(request, requestOptions);
+      const traceFacts = yield* startRequestTraceFacts(request);
       const responseEffect = Effect.gen(function* () {
-        if (isServerRpcRequest(request, requestOptions)) {
+        if (isServerRpcRequest(request)) {
           return yield* createServerRpcResponseEffectWithRuntime(
             app,
             request,
@@ -201,7 +177,7 @@ export const createStartRequestHandler = <
           );
         }
 
-        if (isServerActionRequest(request, requestOptions)) {
+        if (isServerActionRequest(request)) {
           return yield* createServerActionResponseEffectWithRuntime(
             app,
             request,

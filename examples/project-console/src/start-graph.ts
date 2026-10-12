@@ -2,9 +2,7 @@ import { projectConsoleActions } from "./project-actions.js";
 import { serverFunctions } from "./domain.server.js";
 import { routeById, routes } from "./routeTree.gen.js";
 
-// Narrow example-only summary used by SSR headers and tests. Production app
-// topology comes from the generated `virtual:sunfall-arc/app-graph` artifact,
-// which the Start plugin derives from the same definitions.
+// Narrow example-only summary used by SSR headers and tests.
 export const projectConsoleStartGraph = {
   routes,
   routeById,

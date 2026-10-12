@@ -13,7 +13,7 @@ import {
   encodeStartActionRequest,
   type StartActionDefinition,
 } from "./start-action-request-codec.js";
-import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
+import { serverActionPath } from "./rpc.js";
 import type { StartActionClientOptions } from "./start-transport-protocol.js";
 
 /**
@@ -44,7 +44,7 @@ const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
       kind: "action",
       ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
       ...(options.headers === undefined ? {} : { headers: options.headers }),
-      endpoint: resolveStartActionEndpoint(options),
+      endpoint: options.endpoint ?? serverActionPath,
       request,
       init: { redirect: "manual" },
       parseResponse: parseStartActionResponse,

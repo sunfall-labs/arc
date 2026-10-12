@@ -101,7 +101,6 @@ import {
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
 import { Devtools } from "@sunfall/arc-devtools";
-import { normalizeDevtoolsAppGraphDiagnostics } from "../packages/devtools/src/app-graph-normalizer.js";
 import {
   App,
   createRequestHandler,
@@ -131,32 +130,6 @@ import {
   createServerActionResponse,
   createServerRpcResponse,
 } from "../packages/start/src/start-request-endpoints.js";
-import {
-  createStartAgentGraphImpact,
-  createStartAgentGraph,
-  formatStartAgentGraphImpact,
-  queryStartAgentGraph,
-  formatStartAgentGraph,
-  type StartAgentGraph,
-  type StartAgentGraphEdge,
-  type StartAgentGraphEdgeKind,
-  type StartAgentGraphFormatOptions,
-  type StartAgentGraphImpact,
-  type StartAgentGraphImpactItem,
-  type StartAgentGraphImpactOptions,
-  type StartAgentGraphImpactRelation,
-  type StartAgentGraphImpactRelationKind,
-  type StartAgentGraphInput,
-  type StartAgentGraphNode,
-  type StartAgentGraphNodeKind,
-  type StartAgentGraphNodeStatus,
-  type StartAgentGraphQuery,
-  type StartAgentGraphQueryKind,
-  type StartAgentGraphQueryResult,
-  type StartAgentGraphSelfReview,
-  type StartAgentGraphSummary,
-} from "../packages/start/src/agent-graph.js";
-import type { StartAppGraphDiagnostics } from "../packages/start/src/app-graph.js";
 import {
   hydrateStartHydrationChunksFromDocument,
   readStartHydrationChunks,
@@ -188,28 +161,10 @@ import {
   type StartSsrRequestHandler,
 } from "../packages/start/src/start-vite-dev-ssr.js";
 import {
-  loadStartAppGraphDiagnostics,
-  type LoadedStartAppGraphDiagnostics,
-  type LoadStartAppGraphDiagnosticsOptions,
-  type StartAppGraphDiagnosticsLoadError,
-} from "../packages/start/src/start-vite-diagnostics-loader.js";
-import {
   writeFileRouteDefinitionsFile,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
 } from "../packages/start/src/generated-route-definitions.js";
-import {
-  createStartDiagnosticsReport as createSubpathStartDiagnosticsReport,
-  formatStartDiagnosticsReport as formatSubpathStartDiagnosticsReport,
-  type StartDiagnosticsReport as SubpathStartDiagnosticsReport,
-  type StartDiagnosticsReportFinding as SubpathStartDiagnosticsReportFinding,
-  type StartDiagnosticsReportFindingKind as SubpathStartDiagnosticsReportFindingKind,
-  type StartDiagnosticsReportInput as SubpathStartDiagnosticsReportInput,
-  type StartDiagnosticsReportOwnerGroup as SubpathStartDiagnosticsReportOwnerGroup,
-  type StartDiagnosticsReportStatus as SubpathStartDiagnosticsReportStatus,
-  type StartDiagnosticsReportSummary as SubpathStartDiagnosticsReportSummary,
-} from "@sunfall/arc-start/diagnostics-report";
-import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "../packages/start/src/cli.js";
 import {
   createFetchHandler,
   toFetchHandler,
@@ -238,7 +193,6 @@ import { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 import type { PluginOption } from "vite";
 import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/domain.contract.js";
 import "@sunfall/arc-start/virtual";
-import { diagnosticsPolicyViolations as virtualDiagnosticsPolicyViolations } from "virtual:sunfall-arc/app-graph";
 import {
   layoutsById as virtualLayoutsById,
   metadataById as virtualMetadataById,
@@ -1004,93 +958,6 @@ const invalidFileRouteIdentifier = new FileRouteDefinitionsModuleInvalidIdentifi
   routeId: "route-with-dash",
   routePath: "/",
 });
-const startDiagnosticsLoadOptions: LoadStartAppGraphDiagnosticsOptions = {
-  root: ".",
-  configFile: false,
-};
-const startDiagnosticsLoadEffect: Effect.Effect<
-  LoadedStartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsLoadError
-> = loadStartAppGraphDiagnostics(startDiagnosticsLoadOptions);
-declare const loadedStartDiagnostics: LoadedStartAppGraphDiagnostics;
-const startDiagnosticsReportInput: SubpathStartDiagnosticsReportInput = {
-  diagnostics: loadedStartDiagnostics.diagnostics,
-  diagnosticsPolicyViolations: loadedStartDiagnostics.diagnosticsPolicyViolations,
-};
-const startDiagnosticsReport: SubpathStartDiagnosticsReport = createSubpathStartDiagnosticsReport(
-  startDiagnosticsReportInput,
-);
-const startDiagnosticsReportText: string =
-  formatSubpathStartDiagnosticsReport(startDiagnosticsReport);
-const startDiagnosticsReportStatus: SubpathStartDiagnosticsReportStatus =
-  startDiagnosticsReport.status;
-const startDiagnosticsReportSummary: SubpathStartDiagnosticsReportSummary =
-  startDiagnosticsReport.summary;
-const startDiagnosticsReportFinding: SubpathStartDiagnosticsReportFinding | undefined =
-  startDiagnosticsReport.findings[0];
-const startDiagnosticsReportFindingKind: SubpathStartDiagnosticsReportFindingKind | undefined =
-  startDiagnosticsReportFinding?.kind;
-const startDiagnosticsReportOwnerGroup: SubpathStartDiagnosticsReportOwnerGroup | undefined =
-  startDiagnosticsReport.groups[0];
-const startAgentGraphInput: StartAgentGraphInput = {
-  diagnostics: loadedStartDiagnostics.diagnostics,
-  diagnosticsPolicyViolations: loadedStartDiagnostics.diagnosticsPolicyViolations,
-};
-const startAgentGraph: StartAgentGraph = createStartAgentGraph(startAgentGraphInput);
-const startAgentGraphQueryKind: StartAgentGraphQueryKind = "route";
-const startAgentGraphQuery: StartAgentGraphQuery = {
-  kind: startAgentGraphQueryKind,
-  text: "/projects",
-};
-const startAgentGraphQueryResult: StartAgentGraphQueryResult = queryStartAgentGraph(
-  startAgentGraph,
-  startAgentGraphQuery,
-);
-const startAgentGraphFormatOptions: StartAgentGraphFormatOptions = {
-  query: startAgentGraphQuery,
-  verbose: false,
-};
-const startAgentGraphText: string = formatStartAgentGraph(
-  startAgentGraph,
-  startAgentGraphFormatOptions,
-);
-const startAgentGraphImpactOptions: StartAgentGraphImpactOptions = {
-  root: "examples/project-console",
-};
-const startAgentGraphImpact: StartAgentGraphImpact = createStartAgentGraphImpact(
-  startAgentGraph,
-  startAgentGraphQuery,
-  startAgentGraphImpactOptions,
-);
-const startAgentGraphImpactText: string = formatStartAgentGraphImpact(startAgentGraphImpact);
-const startAgentGraphImpactItem: StartAgentGraphImpactItem | undefined =
-  startAgentGraphImpact.items[0];
-const startAgentGraphImpactRelation: StartAgentGraphImpactRelation | undefined =
-  startAgentGraphImpactItem?.dependencies[0];
-const startAgentGraphImpactRelationKind: StartAgentGraphImpactRelationKind | undefined =
-  startAgentGraphImpactRelation?.kind;
-const startAgentGraphSummary: StartAgentGraphSummary = startAgentGraph.summary;
-const startAgentGraphSelfReview: StartAgentGraphSelfReview = startAgentGraph.selfReview;
-const startAgentGraphNode: StartAgentGraphNode | undefined = startAgentGraph.nodes[0];
-const startAgentGraphEdge: StartAgentGraphEdge | undefined = startAgentGraph.edges[0];
-const startAgentGraphNodeKind: StartAgentGraphNodeKind | undefined = startAgentGraphNode?.kind;
-const startAgentGraphNodeStatus: StartAgentGraphNodeStatus | undefined =
-  startAgentGraphNode?.status;
-const startAgentGraphEdgeKind: StartAgentGraphEdgeKind | undefined = startAgentGraphEdge?.kind;
-void startDiagnosticsReportText;
-void startDiagnosticsReportStatus;
-void startDiagnosticsReportSummary;
-void startDiagnosticsReportFindingKind;
-void startDiagnosticsReportOwnerGroup;
-void startAgentGraphQueryResult;
-void startAgentGraphText;
-void startAgentGraphImpactText;
-void startAgentGraphImpactRelationKind;
-void startAgentGraphSummary;
-void startAgentGraphSelfReview;
-void startAgentGraphNodeKind;
-void startAgentGraphNodeStatus;
-void startAgentGraphEdgeKind;
 void projectConsoleRouteId;
 void projectConsoleFriendlyRouteId;
 void projectConsoleHrefOptions;
@@ -1114,14 +981,6 @@ void generatedFileRouteWriteEffect;
 void generatedFileRouteHeader;
 void invalidFileRouteExportName;
 void invalidFileRouteIdentifier;
-void startDiagnosticsLoadEffect;
-void startDiagnosticsReportInput;
-void startDiagnosticsReport;
-void startDiagnosticsReportText;
-void startDiagnosticsReportStatus;
-void startDiagnosticsReportSummary;
-void startDiagnosticsReportFindingKind;
-void startDiagnosticsReportOwnerGroup;
 
 // @ts-expect-error generated route definitions keep canonical href param checks
 Route.href(projectConsoleRouteById.route_projects_$id, { params: {} });
@@ -1587,13 +1446,6 @@ createRequestHandler(StartApp, {
     headers: { "x-start": "yes" },
   }),
 });
-virtualDiagnosticsPolicyViolations.map((violation) => {
-  violation.message.toUpperCase();
-  violation.routes.map((route) => route.routePath.toUpperCase());
-  if (violation._tag === "UnknownRoutePreloadResources") {
-    violation.routes.map((route) => route.preloadResources.families.length);
-  }
-});
 createRequestHandler(StartApp, {
   // @ts-expect-error Start document functions return a StartDocument, not a Promise
   document: () => promisedString,
@@ -1602,14 +1454,6 @@ createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
   onRequestTrace: () => promisedVoid,
 });
-const promiseStartDiagnosticsCliIo: FrameworkStartDiagnosticsCliIo = {
-  // @ts-expect-error diagnostics CLI writers must return EffectInput, not host async work
-  stdout: () => promisedVoid,
-};
-const promiseStartDiagnosticsCliLoaderIo: FrameworkStartDiagnosticsCliIo = {
-  // @ts-expect-error diagnostics CLI loaders must return Effect, not host async work
-  loadDiagnosticsEffect: () => promisedString,
-};
 declare const startResponsePromise: Promise<Response>;
 // @ts-expect-error Start host adapters reject request handlers that return Promise
 const promiseStartRequestHandler = toFetchHandler(() => startResponsePromise);
@@ -1629,7 +1473,6 @@ declare const serviceStartSsrResponse: Effect.Effect<Response, never, ViteDevSsr
 // @ts-expect-error Vite dev SSR handlers may require request Scope, but must provide app services before returning an Effect
 const serviceViteStartSsrRequestHandler: StartSsrRequestHandler = () => serviceStartSsrResponse;
 const startVitePlugin: SunfallArcStartPlugin = sunfallArcStart();
-startVitePlugin.resolveId("virtual:sunfall-arc/app-graph");
 startVitePlugin.transform("", "/src/domain.server.ts", { ssr: true });
 Metric.value(startRequestCountMetric).pipe(Effect.map((state) => state.count.toFixed()));
 Metric.value(startRequestDurationMetric).pipe(Effect.map((state) => state.count.toFixed()));
@@ -3018,7 +2861,6 @@ declare const startTransportRuntime: SunfallArcRuntime<StartTransportEnv, never>
 // Start provides the ActionTransport that routes served Actions to the server.
 const startActionTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
   actions: [TouchProject],
-  actionManifest: { actionPath: "/custom/action" },
 });
 const startActionServicefulTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
   actions: [TouchProject],
@@ -3030,7 +2872,6 @@ makeActionTransportLayer({ actions: [TouchProject], fetch: authenticatedStartFet
 makeRpcClientLayer({
   fetch: authenticatedStartFetch,
   transportRuntime: startTransportRuntime,
-  serverFunctionManifest: { rpcPath: "/custom/rpc" },
 });
 // @ts-expect-error RPC ServerClient layers cannot hide a serviceful fetch without a transport runtime
 makeRpcClientLayer({ fetch: authenticatedStartFetch });
@@ -3049,13 +2890,12 @@ touchHandle.submit({ slug: "atlas" });
 StartAction.use(TouchProject);
 
 StartAction.form(TouchProject, {
-  action: "/custom/action",
   input: { id: "atlas" },
 });
 
 StartAction.form(TouchProject, {
-  // @ts-expect-error the form action URL is set only through `action`
-  actionPath: "/custom/action",
+  // @ts-expect-error the form action URL is always the Start action endpoint
+  action: "/custom/action",
 });
 
 StartAction.form(TouchProject, {
@@ -3125,22 +2965,6 @@ const devtoolsRuntimeSnapshot: Devtools.Snapshot = {
   events: devtoolsRuntimeEvents,
 };
 Effect.runSync(devtoolsStore.recordRuntimeEvent(devtoolsResourceRuntimeEvent));
-declare const startAppGraphDiagnostics: StartAppGraphDiagnostics;
-const devtoolsStartAppGraphDiagnosticsFromStart: Devtools.AppGraphDiagnostics =
-  startAppGraphDiagnostics;
-const devtoolsLoadedStartAppGraphDiagnostics: Devtools.AppGraphDiagnostics =
-  loadedStartDiagnostics.diagnostics;
-const normalizedDevtoolsStartAppGraphDiagnostics: Devtools.AppGraphDiagnostics =
-  normalizeDevtoolsAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const devtoolsStartAppGraphSummary: Devtools.Summary = Devtools.describeSummary({
-  appGraph: loadedStartDiagnostics.diagnostics,
-});
-const devtoolsStartAppGraphPanels: Devtools.Panels = Devtools.describePanels({
-  appGraph: loadedStartDiagnostics.diagnostics,
-});
-Effect.runSync(devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics));
-const devtoolsSetStartAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
 const serializedInvalidationPlan: Devtools.InvalidationPlan = {
   targets: [
     {
@@ -3202,12 +3026,6 @@ Effect.runSync(
 );
 void devtoolsRuntimeSnapshot;
 void devtoolsTrackTimelineEffect;
-void devtoolsStartAppGraphDiagnosticsFromStart;
-void devtoolsLoadedStartAppGraphDiagnostics;
-void normalizedDevtoolsStartAppGraphDiagnostics;
-void devtoolsStartAppGraphSummary;
-void devtoolsStartAppGraphPanels;
-void devtoolsSetStartAppGraphDiagnosticsEffect;
 void devtoolsStartInvalidationIndex;
 void devtoolsSerializedInvalidationIndexEffect;
 void devtoolsTrackActionEffect;

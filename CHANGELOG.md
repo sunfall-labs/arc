@@ -6,6 +6,34 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Start Drops Its Diagnostics CLI, Agent Graph And App Graph (Breaking)
+
+- The `sunfall-arc-start` binary (`diagnostics`, `graph`, `impact`), the
+  `@sunfall/arc-start/diagnostics-report` and `@sunfall/arc-start/internal`
+  entrypoints, the Start agent graph, and the Start app graph
+  (`virtual:sunfall-arc/app-graph`, `.../runtime-diagnostics`,
+  `__SUNFALL_ARC_APP_GRAPH__`) are removed. So are the
+  `virtual:sunfall-arc/server-functions` and `virtual:sunfall-arc/actions`
+  manifest modules and the `__SUNFALL_ARC_SERVER_FUNCTIONS__` /
+  `__SUNFALL_ARC_ACTIONS__` / `__SUNFALL_ARC_FILE_ROUTES__` defines: nothing
+  read them. The file-route virtual modules stay.
+- The Vite plugin no longer SSR-loads the server entry through a second Vite
+  server at startup, and builds no longer start a third one for the
+  diagnostics gate.
+- `buildPolicy` is `{ staticClient }`: `buildPolicy: true`, `wireSchemas`
+  (`StartAppGraphMissingWireSchemas`) and `diagnostics` are gone. The one
+  diagnostics rule, routes with a `preload` must declare `preloadResources`,
+  is now a dev warning: the Vite dev SSR middleware logs it once per loaded
+  server entry for each such route.
+- The RPC and Action endpoints are fixed at `/__sunfall-arc/rpc` and
+  `/__sunfall-arc/action`: the plugin's `rpcPath`/`actionPath`,
+  `createRequestHandler`'s and `App.launch`'s `endpoints`, and
+  `StartAction.form`'s `action` options are removed, with
+  `StartTransportEndpointPathError`, `StartTransportEndpointConflictError` and
+  `StartTransportEndpointOverrides`.
+- Start encodes and decodes Action wire values with core's server wire codec
+  instead of its own copy.
+
 ### Devtools Is One Namespace (Breaking)
 
 - `@sunfall/arc-devtools` exports the `Devtools` namespace plus the error
@@ -22,9 +50,8 @@ Entries are newest first.
   `resolveSunfallArcDevtoolsBridgePayload` is `Devtools.resolveBridgePayload`,
   and `toDevtoolsSerializableValue` is `Devtools.toSerializable`. Types are
   members: `DevtoolsStore` is `Devtools.Store`, `DevtoolsPanels` is
-  `Devtools.Panels`, `DevtoolsStartAppGraphDiagnostics` is
-  `Devtools.AppGraphDiagnostics`, `DevtoolsBridgePayloadContractResolution`
-  is `Devtools.BridgePayloadResolution`, and so on.
+  `Devtools.Panels`, `DevtoolsBridgePayloadContractResolution` is
+  `Devtools.BridgePayloadResolution`, and so on.
 - Removed exports nothing used: `describeInvalidationPlan` /
   `describeRoutePlan` (the Store's `recordInvalidation` / `recordRoutePlan`
   take live plans), `isDevtoolsSerializableValue`, `devtoolsPanelIds`,

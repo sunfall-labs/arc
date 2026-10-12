@@ -81,7 +81,7 @@ export const docsPages = [
     slug: "core-concepts",
     section: "Learn",
     title: "Core concepts",
-    summary: "The vocabulary behind Arc's typed, agent-readable app graph.",
+    summary: "The vocabulary behind Arc's typed, agent-readable definitions.",
     blocks: [
       {
         _tag: "Paragraph",
@@ -93,7 +93,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "Arc prevents drift where it can and explains drift where it cannot. TypeScript catches invalid shapes early, build diagnostics verify the generated app graph, and the runtime preserves scoped Effect lifetimes across client, server, tests, and agents.",
+        text: "Arc prevents drift where it can and explains drift where it cannot. TypeScript catches invalid shapes early, the build verifies the generated route tree, and the runtime preserves scoped Effect lifetimes across client, server, tests, and agents.",
       },
       {
         _tag: "List",
@@ -104,7 +104,7 @@ export const docsPages = [
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
           "Route: a typed URL definition that can declare the Resources it owns before render.",
           "Resource rows: a keyed list Resource with indexes, optimistic row patches, change feeds, and live queries.",
-          "Start graph: deterministic metadata about routes, resources, actions, endpoints, and modules for diagnostics, CI, devtools, and agents.",
+          "Generated route tree: deterministic route ids, params, search, and href types written to routeTree.gen.ts for editors, CI, and agents.",
         ],
       },
       {
@@ -127,9 +127,9 @@ export const docsPages = [
         _tag: "List",
         items: [
           "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, server contracts, and runtime helpers.",
-          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
+          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, prerendering, and the Vite plugin. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
           "@sunfall/arc-db: the Query engine: incremental live queries over the rows of Resources.",
-          "@sunfall/arc-devtools: JSON-safe inspection contracts, app graph summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
+          "@sunfall/arc-devtools: JSON-safe inspection contracts, summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
           "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, live queries, streams, and component scopes.",
         ],
       },
@@ -205,7 +205,7 @@ createServer(
     section: "Ship",
     title: "Troubleshooting",
     summary:
-      "The first places to look when an alpha app does not behave the way the graph says it should.",
+      "The first places to look when an alpha app does not behave the way its definitions say it should.",
     blocks: [
       {
         _tag: "Heading",
@@ -213,7 +213,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resources it owns with preloadResources in Route.define(path, options). Start diagnostics can require those declarations at build time.",
+        text: "Make sure the file route declares the Resources it owns with preloadResources in Route.define(path, options). In dev, Start logs a warning for each route whose preload declares none.",
       },
       {
         _tag: "Heading",
@@ -237,12 +237,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Run the docs or app build so the Start Vite plugin regenerates routeTree.gen.ts. Generated files are committed because they are public app graph artifacts.",
-      },
-      {
-        _tag: "Code",
-        language: "shellscript",
-        code: "sunfall-arc-start diagnostics --root .\nsunfall-arc-start graph route /projects/:id\nsunfall-arc-start impact action Project.rename --json",
+        text: "Run the docs or app build so the Start Vite plugin regenerates routeTree.gen.ts. Generated files are committed because editors, CI, and agents read them.",
       },
     ],
   },

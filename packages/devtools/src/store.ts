@@ -9,7 +9,6 @@ import type {
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSnapshot,
-  DevtoolsStartAppGraphDiagnostics,
   DevtoolsStore,
   DevtoolsStoreOptions,
 } from "./devtools-contract.js";
@@ -24,7 +23,6 @@ import {
   requestTraceSequence,
 } from "./fact-identity.js";
 import {
-  copyAppGraphDiagnostics,
   copyDevtoolsRoutePlan,
   copyDevtoolsRuntimeEvent,
   copyDevtoolsSnapshot,
@@ -125,7 +123,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
 
     return {
       snapshot: {
-        ...(importedSnapshot.appGraph === undefined ? {} : { appGraph: importedSnapshot.appGraph }),
         resources: importedSnapshot.resources,
         actions,
         invalidations: importedSnapshot.invalidations,
@@ -409,18 +406,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       nextRequestTraceSequence = imported.nextRequestTraceSequence;
       nextEventSequence = nextRuntimeEventSequence(snapshot.events);
     });
-  const setAppGraphDiagnosticsEffect = (appGraph: DevtoolsStartAppGraphDiagnostics) =>
-    Effect.sync(() => {
-      snapshot = {
-        ...snapshot,
-        appGraph: copyAppGraphDiagnostics(appGraph),
-      };
-    });
-  const clearAppGraphDiagnosticsEffect = () =>
-    Effect.sync(() => {
-      const { appGraph: _appGraph, ...next } = snapshot;
-      snapshot = next;
-    });
   const recordInvalidationEffect = (plan: Resource.InvalidationPlan) =>
     Effect.sync(() => recordInvalidationPlan(plan));
   const recordSerializedInvalidationEffect = (plan: DevtoolsInvalidationPlan) =>
@@ -498,8 +483,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
   const store = {
     getSnapshot: getSnapshotEffect,
     setSnapshot: setSnapshotEffect,
-    setAppGraphDiagnostics: setAppGraphDiagnosticsEffect,
-    clearAppGraphDiagnostics: clearAppGraphDiagnosticsEffect,
     recordInvalidation: recordInvalidationEffect,
     recordSerializedInvalidation: recordSerializedInvalidationEffect,
     recordActionState: recordActionStateEffect,

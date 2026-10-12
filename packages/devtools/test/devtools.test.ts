@@ -773,7 +773,7 @@ describe("devtools invalidation plans", () => {
     });
   });
 
-  it("combines app graph diagnostics and runtime plans into a panel summary", async () => {
+  it("combines runtime plans into a panel summary", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.summary-devtools", {
       key: ({ id }) => id,
     });
@@ -797,7 +797,6 @@ describe("devtools invalidation plans", () => {
       Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
     const summary = Devtools.describeSummary({
-      appGraph: appGraphDiagnostics,
       snapshot: {
         resources: [
           {
@@ -819,50 +818,11 @@ describe("devtools invalidation plans", () => {
     expect(summary).toMatchObject({
       version: 1,
       overview: {
-        routeCount: 1,
-        serverFunctionCount: 1,
-        actionCount: 1,
         runtimeResourceCount: 1,
         runtimeActionCount: 1,
         invalidationPlanCount: 1,
         routePlanCount: 1,
-        missingSchemaCount: 2,
-        unknownRoutePreloadResourcesCount: 0,
         notFoundRoutePlanCount: 0,
-      },
-      graph: {
-        _tag: "Available",
-        routes: {
-          modules: [
-            {
-              routePath: "/users/:id",
-              preloadResources: {
-                status: "declared",
-                families: ["User.summary-devtools"],
-              },
-            },
-          ],
-        },
-        actions: {
-          behavior: {
-            invalidates: [{ state: "present", count: 1 }],
-            optimistic: [{ state: "absent", count: 1 }],
-            retry: [{ state: "present", count: 1 }],
-            concurrency: [{ state: "latest", count: 1 }],
-          },
-        },
-        endpoints: {
-          rpc: "/__sunfall-arc/rpc",
-          action: "/__sunfall-arc/action",
-        },
-        modules: {
-          serverOnly: ["/src/user/user.server.ts"],
-          browserClient: ["/src/user/user.actions.ts"],
-        },
-        resources: {
-          familyCount: 1,
-          tagCount: 1,
-        },
       },
       invalidations: {
         plans: [
@@ -909,42 +869,13 @@ describe("devtools invalidation plans", () => {
     const panels = Devtools.describePanels({ summary });
     expect(panels.panels.map((panel) => panel.id)).toEqual(devtoolsPanelIds);
     expect(panels.version).toBe(1);
-    expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
-      title: "App Graph",
-      severity: "error",
-    });
     expect(panels.panels.find((panel) => panel.id === "routes")).toMatchObject({
       severity: "ok",
     });
     expect(panels.panels.find((panel) => panel.id === "resources")).toMatchObject({
       severity: "ok",
     });
-    expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
-      severity: "error",
-      items: expect.arrayContaining([
-        expect.objectContaining({
-          id: "missing-schema:serverFunction:User.get",
-          label: "User.get",
-          detail: "serverFunction",
-          severity: "error",
-        }),
-        expect.objectContaining({
-          id: "missing-schema:action:User.rename",
-          label: "User.rename",
-          detail: "action",
-          severity: "error",
-        }),
-      ]),
-    });
     expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
-    expect(Devtools.describeSummary({ appGraph: appGraphDiagnostics })).toMatchObject({
-      graph: {
-        _tag: "Available",
-      },
-    });
-    expect(Devtools.describePanels({ summary })).toMatchObject({
-      panels: expect.arrayContaining([expect.objectContaining({ id: "app-graph" })]),
-    });
   });
 
   it("renders deterministic browser panel HTML from the panel contract", async () => {
@@ -1579,394 +1510,7 @@ describe("devtools invalidation plans", () => {
     expectNoDevtoolsLifecycleListeners(listeners);
   });
 
-  it("repairs stale app graph counts, schema coverage, and unknown preload facts at public seams", () => {
-    const staleAppGraph: Devtools.AppGraphDiagnostics = {
-      ...appGraphDiagnostics,
-      routeCount: 99,
-      serverFunctionCount: 0,
-      actionCount: 3,
-      routeModules: [
-        {
-          ...appGraphDiagnostics.routeModules[0]!,
-          pathParamCount: 42,
-          hasPathParams: false,
-          preloadResources: {
-            status: "unknown",
-            families: [],
-          },
-        },
-      ],
-      serverFunctionModules: [
-        {
-          ...appGraphDiagnostics.serverFunctionModules[0]!,
-          wire: {
-            inputSchema: true,
-            outputSchema: false,
-            errorSchema: false,
-            complete: true,
-            missing: [],
-          },
-        },
-      ],
-      actionModules: [
-        {
-          ...appGraphDiagnostics.actionModules[0]!,
-          wire: {
-            inputSchema: false,
-            outputSchema: false,
-            errorSchema: true,
-            complete: true,
-            missing: [],
-          },
-          behavior: {
-            ...appGraphDiagnostics.actionModules[0]!.behavior,
-            invalidates: "unknown",
-          },
-        },
-      ],
-      schemaCoverage: {
-        serverFunctions: {
-          total: 99,
-          input: 99,
-          output: 99,
-          error: 99,
-        },
-        actions: {
-          total: 99,
-          input: 99,
-          output: 99,
-          error: 99,
-        },
-      },
-      missingSchemas: [
-        {
-          kind: "action",
-          name: "Stale.deleted",
-          input: false,
-          output: false,
-          error: false,
-        },
-      ],
-      unknownRoutePreloadResources: [
-        {
-          kind: "route",
-          routeId: "route_stale",
-          routePath: "/stale",
-          moduleId: "src/routes/stale.tsx",
-          filePath: "src/routes/stale.tsx",
-          preload: "unknown",
-          preloadResources: {
-            status: "unknown",
-            families: ["Stale.family"],
-          },
-        },
-      ],
-    };
-    const store = Devtools.makeStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
-
-    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
-    expect(snapshotAppGraph).toMatchObject({
-      routeCount: 1,
-      serverFunctionCount: 1,
-      actionCount: 1,
-      routeModules: [
-        {
-          pathParamCount: 1,
-          hasPathParams: true,
-        },
-      ],
-      serverFunctionModules: [
-        {
-          wire: {
-            complete: false,
-            missing: ["output", "error"],
-          },
-        },
-      ],
-      actionModules: [
-        {
-          wire: {
-            complete: false,
-            missing: ["input", "output"],
-          },
-        },
-      ],
-      schemaCoverage: {
-        serverFunctions: {
-          total: 1,
-          input: 1,
-          output: 0,
-          error: 0,
-        },
-        actions: {
-          total: 1,
-          input: 0,
-          output: 0,
-          error: 1,
-        },
-      },
-      unknownRoutePreloadResources: [
-        {
-          routeId: "route_users_$id",
-          routePath: "/users/:id",
-          preloadResources: {
-            status: "unknown",
-            families: [],
-          },
-        },
-      ],
-    });
-    expect(snapshotAppGraph?.missingSchemas).toEqual([
-      {
-        kind: "serverFunction",
-        name: "User.get",
-        input: true,
-        output: false,
-        error: false,
-      },
-      {
-        kind: "action",
-        name: "User.rename",
-        input: false,
-        output: false,
-        error: true,
-      },
-    ]);
-
-    const directSummary = Devtools.describeSummary({ appGraph: staleAppGraph });
-    const storeSummary = Effect.runSync(store.getSummary());
-    for (const summary of [directSummary, storeSummary]) {
-      expect(summary.overview).toMatchObject({
-        routeCount: 1,
-        serverFunctionCount: 1,
-        actionCount: 1,
-        missingSchemaCount: 2,
-        unknownRoutePreloadResourcesCount: 1,
-      });
-      expect(summary.graph._tag).toBe("Available");
-      if (summary.graph._tag !== "Available") {
-        expect.fail("Expected normalized app graph summary.");
-      }
-      expect(summary.graph.routes).toMatchObject({
-        count: 1,
-        modules: [
-          {
-            routePath: "/users/:id",
-            pathParamCount: 1,
-            hasPathParams: true,
-            preloadResources: {
-              status: "unknown",
-              families: [],
-            },
-          },
-        ],
-        unknownPreloadResources: [
-          {
-            routeId: "route_users_$id",
-            routePath: "/users/:id",
-          },
-        ],
-      });
-      expect(summary.graph.serverFunctions.schemaCoverage).toEqual({
-        total: 1,
-        input: 1,
-        output: 0,
-        error: 0,
-      });
-      expect(summary.graph.actions.schemaCoverage).toEqual({
-        total: 1,
-        input: 0,
-        output: 0,
-        error: 1,
-      });
-    }
-
-    const panels = Devtools.describePanels({ appGraph: staleAppGraph });
-    expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
-      summary: "1 routes, 1 server functions, 1 actions",
-      items: [
-        expect.objectContaining({
-          label: "/users/:id",
-          severity: "warning",
-          metrics: expect.arrayContaining([
-            {
-              label: "params",
-              value: 1,
-            },
-            {
-              label: "preload resources",
-              value: "unknown",
-            },
-          ]),
-        }),
-      ],
-    });
-    expect(panels.panels.find((panel) => panel.id === "diagnostics")?.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "unknown-preload-resources:route_users_$id",
-          label: "/users/:id",
-          detail: "unknown preload resources",
-        }),
-      ]),
-    );
-    expect(panels.panels.find((panel) => panel.id === "diagnostics")?.items).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          label: "/stale",
-        }),
-      ]),
-    );
-
-    const causalGraph = Effect.runSync(store.getCausalGraph());
-    expect(causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "schema-coverage:serverFunctions",
-        data: {
-          total: 1,
-          input: 1,
-          output: 0,
-          error: 0,
-        },
-      }),
-    );
-    expect(causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "schema-coverage:actions",
-        data: {
-          total: 1,
-          input: 0,
-          output: 0,
-          error: 1,
-        },
-      }),
-    );
-    expect(causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "route:/users/:id",
-        data: expect.objectContaining({
-          pathParamCount: 1,
-          hasPathParams: true,
-          preloadResources: {
-            status: "unknown",
-            families: [],
-          },
-        }),
-      }),
-    );
-  });
-
-  it("uses Start preload semantics when deriving unknown route preload facts", () => {
-    const presentUnknown: Devtools.AppGraphDiagnostics["routeModules"][number] = {
-      ...appGraphDiagnostics.routeModules[0]!,
-      preload: "present",
-      preloadResources: {
-        status: "unknown",
-        families: [],
-      },
-    };
-    const staticUnknownFacts: Devtools.AppGraphDiagnostics["routeModules"][number] = {
-      ...appGraphDiagnostics.routeModules[0]!,
-      routeId: "route_static_unknown",
-      routePath: "/static",
-      moduleId: "src/routes/static.tsx",
-      filePath: "src/routes/static.tsx",
-      preload: "unknown",
-      preloadResources: {
-        status: "unknown",
-        families: ["Static.family"],
-      },
-    };
-    const staleAppGraph: Devtools.AppGraphDiagnostics = {
-      ...appGraphDiagnostics,
-      routeModules: [presentUnknown, staticUnknownFacts],
-      unknownRoutePreloadResources: [],
-    };
-    const store = Devtools.makeStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
-
-    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
-    expect(snapshotAppGraph?.unknownRoutePreloadResources.map((entry) => entry.routePath)).toEqual([
-      "/users/:id",
-    ]);
-    const summary = Effect.runSync(store.getSummary());
-    expect(summary.overview).toMatchObject({
-      unknownRoutePreloadResourcesCount: 1,
-    });
-    expect(summary.graph._tag).toBe("Available");
-    if (summary.graph._tag !== "Available") {
-      expect.fail("Expected normalized app graph summary.");
-    }
-    expect(summary.graph.routes.unknownPreloadResources.map((entry) => entry.routePath)).toEqual([
-      "/users/:id",
-    ]);
-    const appGraphItems =
-      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "app-graph")?.items ??
-      [];
-    expect(appGraphItems.find((item) => item.label === "/users/:id")?.severity).toBe("warning");
-    expect(appGraphItems.find((item) => item.label === "/static")?.severity).toBe("ok");
-    const diagnostics =
-      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "diagnostics")?.items ??
-      [];
-    expect(diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "unknown-preload-resources:route_users_$id",
-          label: "/users/:id",
-        }),
-      ]),
-    );
-    expect(diagnostics).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          label: "/static",
-        }),
-      ]),
-    );
-
-    const legacyRoute = presentUnknown;
-    const preservedStore = Devtools.makeStore();
-    Effect.runSync(
-      preservedStore.setSnapshot({
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        appGraph: {
-          ...appGraphDiagnostics,
-          routeModules: [legacyRoute as never],
-          unknownRoutePreloadResources: [],
-        },
-      }),
-    );
-    expect(Effect.runSync(preservedStore.getSnapshot()).appGraph).toMatchObject({
-      unknownRoutePreloadResources: [],
-    });
-    const preservedSummary = Effect.runSync(preservedStore.getSummary());
-    expect(preservedSummary.overview).toMatchObject({
-      unknownRoutePreloadResourcesCount: 0,
-    });
-    expect(preservedSummary.graph._tag).toBe("Available");
-    if (preservedSummary.graph._tag !== "Available") {
-      expect.fail("Expected preserved app graph summary.");
-    }
-    expect(preservedSummary.graph.routes.unknownPreloadResources).toEqual([]);
-    expect(
-      Effect.runSync(preservedStore.getPanels()).panels.find((panel) => panel.id === "diagnostics")
-        ?.items,
-    ).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: expect.stringContaining("unknown-preload"),
-        }),
-      ]),
-    );
-  });
-
-  it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {
+  it("derives a deterministic causal graph from routes, resources, actions, and runtime events", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.causal-devtools", {
       key: ({ id }) => id,
     });
@@ -1989,7 +1533,6 @@ describe("devtools invalidation plans", () => {
       Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
     const summary = Devtools.describeSummary({
-      appGraph: appGraphDiagnostics,
       snapshot: {
         resources: [
           {
@@ -2047,34 +1590,24 @@ describe("devtools invalidation plans", () => {
     expect(nodeKinds).toEqual(
       new Set([
         "Action",
-        "Endpoint",
         "InvalidationPlan",
-        "MissingSchema",
-        "Module",
         "Resource",
-        "ResourceFamily",
         "ResourceTag",
         "Route",
         "RoutePlan",
         "RuntimeEvent",
-        "SchemaCoverage",
-        "ServerFunction",
       ]),
     );
     expect(edgeKinds).toEqual(
       new Set([
         "Causes",
-        "Covers",
         "Emits",
         "Hydrates",
         "Invalidates",
         "Matches",
-        "MissingSchema",
         "Observes",
         "Preloads",
         "Targets",
-        "UsesEndpoint",
-        "UsesModule",
       ]),
     );
     expect(graph.nodes).toContainEqual(
@@ -2098,57 +1631,8 @@ describe("devtools invalidation plans", () => {
         target: "invalidation:0",
       }),
     );
-    expect(graph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Preloads",
-        source: "route:/users/:id",
-        target: "resource-family:User.summary-devtools",
-      }),
-    );
-    expect(graph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "resource-family:User.summary-devtools",
-        kind: "ResourceFamily",
-        data: expect.objectContaining({
-          name: "User.summary-devtools",
-          inputSchema: true,
-          outputSchema: true,
-          providesTags: true,
-          policy: {
-            staleFor: "30 seconds",
-            gcFor: "5 minutes",
-            retry: true,
-          },
-        }),
-      }),
-    );
     expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
-    expect(
-      Devtools.describeCausalGraph({
-        appGraph: appGraphDiagnostics,
-        snapshot: {
-          resources: [],
-          actions: [],
-          invalidations: [],
-          routePlans: [],
-          events: [],
-        },
-      }),
-    ).toEqual(
-      Devtools.describeCausalGraph({
-        appGraph: appGraphDiagnostics,
-        snapshot: {
-          resources: [],
-          actions: [],
-          invalidations: [],
-          routePlans: [],
-          events: [],
-        },
-      }),
-    );
-    expect(Devtools.describeCausalGraph({ appGraph: appGraphDiagnostics })).toMatchObject({
-      version: 1,
-    });
+    expect(Devtools.describeCausalGraph()).toEqual({ version: 1, nodes: [], edges: [] });
   });
 
   it("links route hydration edges only to hydrated resources", () => {
@@ -2651,9 +2135,11 @@ describe("devtools invalidation plans", () => {
       ],
     };
     const baseGraph = Devtools.describeCausalGraph({ snapshot });
-    const graphWithAppFacts = Devtools.describeCausalGraph({
-      appGraph: appGraphDiagnostics,
-      snapshot,
+    const graphWithUnrelatedFacts = Devtools.describeCausalGraph({
+      snapshot: {
+        ...snapshot,
+        actions: [{ name: "Unrelated.edge-devtools", state: "Success" }],
+      },
     });
     const observedEdge = {
       kind: "Observes",
@@ -2667,7 +2153,7 @@ describe("devtools invalidation plans", () => {
         edge.source === observedEdge.source &&
         edge.target === observedEdge.target,
     )?.id;
-    const graphWithAppFactsId = graphWithAppFacts.edges.find(
+    const graphWithUnrelatedFactsId = graphWithUnrelatedFacts.edges.find(
       (edge) =>
         edge.kind === observedEdge.kind &&
         edge.source === observedEdge.source &&
@@ -2675,7 +2161,7 @@ describe("devtools invalidation plans", () => {
     )?.id;
 
     expect(baseId).toBeDefined();
-    expect(graphWithAppFactsId).toBe(baseId);
+    expect(graphWithUnrelatedFactsId).toBe(baseId);
   });
 
   it("frames causal edge id parts so source and target delimiters cannot collide", () => {
@@ -3139,149 +2625,6 @@ describe("devtools invalidation plans", () => {
         },
       },
     });
-  });
-
-  it("lets the store expose graph-aware summaries", () => {
-    const store = Devtools.makeStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
-
-    expect(Effect.runSync(store.getSummary()).overview).toMatchObject({
-      routeCount: 1,
-      serverFunctionCount: 1,
-      actionCount: 1,
-      missingSchemaCount: 2,
-    });
-    expect(Effect.runSync(store.getSummary()).graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        paths: ["/users/:id"],
-      },
-    });
-
-    Effect.runSync(store.clearAppGraphDiagnostics());
-
-    expect(Effect.runSync(store.getSummary()).graph).toEqual({
-      _tag: "Unavailable",
-    });
-  });
-
-  it("detaches store summaries from nested app graph diagnostics", () => {
-    const store = Devtools.makeStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
-    const summary = Effect.runSync(store.getSummary());
-    if (summary.graph._tag !== "Available") {
-      throw new Error("expected available app graph summary");
-    }
-
-    (summary.graph.routes.modules[0]!.params[0] as { name: string }).name = "mutated";
-    (summary.graph.routes.modules[0]!.preloadResources.families as unknown as string[])[0] =
-      "Mutated.family";
-
-    const next = Effect.runSync(store.getSummary());
-    expect(next.graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        modules: [
-          {
-            params: [
-              {
-                name: "id",
-              },
-            ],
-            preloadResources: {
-              families: ["User.summary-devtools"],
-            },
-          },
-        ],
-      },
-    });
-  });
-
-  it("preserves huge app graph route module arrays through summaries, panels, store copies, and bridge windows", () => {
-    const appGraph = appGraphDiagnosticsWithRoutes(1_001);
-    const summary = Devtools.describeSummary({ appGraph });
-    const panels = Devtools.describePanels({ appGraph });
-    const store = Devtools.makeStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(appGraph));
-
-    expect(summary.overview.routeCount).toBe(1_001);
-    expect(summary.graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        paths: expect.arrayContaining(["/users/1000/:id"]),
-      },
-    });
-    if (summary.graph._tag !== "Available") {
-      expect.fail("expected available app graph summary");
-    }
-    expect(summary.graph.routes.modules).toHaveLength(1_001);
-    expect(summary.graph.routes.modules[1000]).toMatchObject({
-      routeId: "route_users_1000_$id",
-      routePath: "/users/1000/:id",
-    });
-
-    const appGraphPanel = panels.panels.find((panel) => panel.id === "app-graph");
-    expect(appGraphPanel?.items).toHaveLength(1_001);
-    expect(appGraphPanel?.items[1000]).toMatchObject({
-      id: "route:route_users_1000_$id",
-      label: "/users/1000/:id",
-    });
-    expect(isDevtoolsPanels(panels)).toBe(true);
-    const bridgeAppGraphPanel = normalizeSunfallArcDevtoolsBridgePayload({
-      panels,
-    })?.panels.panels.find((panel) => panel.id === "app-graph");
-    expect(bridgeAppGraphPanel?.items).toHaveLength(1_000);
-    expect(bridgeAppGraphPanel?.items[998]).toMatchObject({
-      id: "route:route_users_998_$id",
-      label: "/users/998/:id",
-    });
-    expect(bridgeAppGraphPanel?.items[999]).toMatchObject({
-      id: "__sunfall-arc-devtools-overflow:app-graph",
-      label: "2 panel items hidden",
-      severity: "info",
-      metrics: [
-        { label: "shown", value: 999 },
-        { label: "hidden", value: 2 },
-        { label: "total", value: 1_001 },
-      ],
-      data: {
-        total: 1_001,
-        shown: 999,
-        hidden: 2,
-      },
-    });
-    const defaultRenderedHtml = Devtools.renderPanelsHtml({
-      panels,
-      selectedPanelId: "app-graph",
-    });
-    expect(defaultRenderedHtml).toContain(
-      'data-sunfall-arc-devtools-item-id="__sunfall-arc-devtools-overflow:app-graph"',
-    );
-    expect(defaultRenderedHtml).toContain("&quot;total&quot;: 1001");
-    expect(defaultRenderedHtml).toContain("&quot;shown&quot;: 999");
-    expect(defaultRenderedHtml).toContain("&quot;hidden&quot;: 2");
-
-    const snapshotRouteModules = Effect.runSync(store.getSnapshot()).appGraph?.routeModules;
-    expect(snapshotRouteModules).toHaveLength(1_001);
-    expect(
-      snapshotRouteModules?.some(
-        (routeModule) => (routeModule as { readonly _tag?: unknown })._tag === "Truncated",
-      ),
-    ).toBe(false);
-    expect(Effect.runSync(store.getSummary()).graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        modules: expect.arrayContaining([
-          expect.objectContaining({
-            routeId: "route_users_1000_$id",
-          }),
-        ]),
-      },
-    });
-    expect(isDevtoolsPanels(Effect.runSync(store.getPanels()))).toBe(true);
   });
 
   it("projects resource failure causes and interruptions into resource state facts", () => {
@@ -5105,7 +4448,6 @@ describe("devtools invalidation plans", () => {
 
     const [snapshot, summary, graph] = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* store.setAppGraphDiagnostics(appGraphDiagnostics);
         yield* store.recordRuntimeEvent({
           _tag: "Custom",
           name: "first",
@@ -5161,7 +4503,7 @@ describe("devtools invalidation plans", () => {
     );
   });
 
-  it("explains the golden path across route, server, action, resource, and invalidation facts", async () => {
+  it("explains the golden path across route, action, resource, and invalidation facts", async () => {
     const runtime = makeRuntime();
     const store = Devtools.makeStore();
     const ProjectId = Schema.Struct({ id: Schema.String });
@@ -5195,23 +4537,11 @@ describe("devtools invalidation plans", () => {
       preload: ({ params }) => Resource.preload(ProjectById({ id: params.id })),
     });
     const ref = ProjectById({ id: "atlas" });
-    const resourceDiagnostics = Resource.diagnostics();
     const action = Action.use(RenameProject, { runtime });
 
     const [summary, graph] = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* store.setAppGraphDiagnostics(
-            goldenPathAppGraphDiagnostics({
-              resourceFamilies: resourceDiagnostics.families.filter(
-                (family) => family.name === "Golden.Project.byId",
-              ),
-              resourceTags: resourceDiagnostics.tags.filter(
-                (tag) => tag.name === "Golden.Project" || tag.name === "Golden.Projects",
-              ),
-            }),
-          );
-
           yield* runtime.provide(
             Effect.scoped(
               Effect.gen(function* () {
@@ -5274,79 +4604,11 @@ describe("devtools invalidation plans", () => {
     );
 
     expect(summary.overview).toMatchObject({
-      routeCount: 1,
-      serverFunctionCount: 1,
-      actionCount: 1,
-      resourceFamilyCount: 1,
-      resourceTagCount: 2,
       runtimeResourceCount: 1,
       runtimeActionCount: 1,
       invalidationPlanCount: 1,
       routePlanCount: 1,
       runtimeEventCount: 6,
-      missingSchemaCount: 0,
-      unknownRoutePreloadResourcesCount: 0,
-    });
-    expect(summary.graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        paths: ["/projects/:id"],
-        modules: [
-          {
-            routePath: "/projects/:id",
-            paramsSchema: "present",
-            searchSchema: "present",
-            preload: "present",
-          },
-        ],
-      },
-      serverFunctions: {
-        modules: [
-          {
-            name: "Golden.Project.load",
-            client: {
-              _tag: "Import",
-              rpcPath: "/__sunfall-arc/rpc",
-            },
-            wire: {
-              complete: true,
-              missing: [],
-            },
-          },
-        ],
-      },
-      actions: {
-        behavior: {
-          invalidates: [{ state: "present", count: 1 }],
-          optimistic: [{ state: "absent", count: 1 }],
-          retry: [{ state: "absent", count: 1 }],
-          concurrency: [{ state: "latest", count: 1 }],
-        },
-      },
-      resources: {
-        families: [
-          {
-            name: "Golden.Project.byId",
-            inputSchema: true,
-            outputSchema: true,
-            providesTags: true,
-          },
-        ],
-        tags: expect.arrayContaining([
-          {
-            name: "Golden.Project",
-            keyed: true,
-          },
-          {
-            name: "Golden.Projects",
-            keyed: false,
-          },
-        ]),
-      },
-      endpoints: {
-        rpc: "/__sunfall-arc/rpc",
-        action: "/__sunfall-arc/action",
-      },
     });
     expect(summary.routes.plans).toEqual([
       expect.objectContaining({
@@ -5442,16 +4704,7 @@ describe("devtools invalidation plans", () => {
     expect(graph.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "route:/projects/:id", kind: "Route" }),
-        expect.objectContaining({
-          id: "server-function:Golden.Project.load",
-          kind: "ServerFunction",
-        }),
         expect.objectContaining({ id: "action:Golden.Project.rename", kind: "Action" }),
-        expect.objectContaining({
-          id: "resource-family:Golden.Project.byId",
-          kind: "ResourceFamily",
-        }),
-        expect.objectContaining({ id: "resource-tag:Golden.Project", kind: "ResourceTag" }),
         expect.objectContaining({ id: "resource-tag:Golden.Projects", kind: "ResourceTag" }),
         expect.objectContaining({ id: `resource:${ref.key}`, kind: "Resource" }),
         expect.objectContaining({ id: "invalidation:0", kind: "InvalidationPlan" }),
@@ -5473,16 +4726,6 @@ describe("devtools invalidation plans", () => {
           kind: "Hydrates",
           source: "route-plan:0:/projects/atlas?tab=activity",
           target: `resource:${ref.key}`,
-        }),
-        expect.objectContaining({
-          kind: "UsesEndpoint",
-          source: "server-function:Golden.Project.load",
-          target: "endpoint:rpc",
-        }),
-        expect.objectContaining({
-          kind: "UsesEndpoint",
-          source: "action:Golden.Project.rename",
-          target: "endpoint:action",
         }),
         expect.objectContaining({
           kind: "Targets",
@@ -5518,265 +4761,4 @@ describe("devtools invalidation plans", () => {
     );
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
   });
-});
-
-const goldenPathAppGraphDiagnostics = (
-  resources: Pick<Devtools.AppGraphDiagnostics, "resourceFamilies" | "resourceTags">,
-): Devtools.AppGraphDiagnostics => ({
-  version: 1,
-  routeCount: 1,
-  serverFunctionCount: 1,
-  actionCount: 1,
-  routePaths: ["/projects/:id"],
-  routeModules: [
-    {
-      routeId: "route_projects_$id",
-      routePath: "/projects/:id",
-      moduleId: "src/routes/projects/$id.tsx",
-      filePath: "src/routes/projects/$id.tsx",
-      pathParamCount: 1,
-      hasPathParams: true,
-      params: [
-        {
-          name: "id",
-          optional: false,
-        },
-      ],
-      paramsSchema: "present",
-      searchSchema: "present",
-      preload: "present",
-      preloadResources: {
-        status: "declared",
-        families: ["Golden.Project.byId"],
-      },
-    },
-  ],
-  serverFunctionModules: [
-    {
-      id: "sf_golden_project_load",
-      name: "Golden.Project.load",
-      server: {
-        module: "/src/project/project.server.ts",
-        exportName: "loadProject",
-        moduleKind: "server-only",
-        hasHandler: true,
-      },
-      client: {
-        _tag: "Import",
-        rpcPath: "/__sunfall-arc/rpc",
-        module: "/src/project/project.contract.ts",
-        exportName: "loadProject",
-        moduleKind: "contract",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: true,
-        complete: true,
-        missing: [],
-      },
-    },
-  ],
-  actionModules: [
-    {
-      id: "act_golden_project_rename",
-      name: "Golden.Project.rename",
-      server: {
-        module: "/src/project/project.actions.ts",
-        exportName: "RenameProject",
-        moduleKind: "shared",
-      },
-      client: {
-        _tag: "Import",
-        actionPath: "/__sunfall-arc/action",
-        module: "/src/project/project.actions.ts",
-        exportName: "RenameProject",
-        moduleKind: "shared",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: true,
-        complete: true,
-        missing: [],
-      },
-      behavior: {
-        invalidates: "present",
-        optimistic: "absent",
-        retry: "absent",
-        concurrency: "latest",
-      },
-    },
-  ],
-  resourceFamilies: resources.resourceFamilies,
-  resourceTags: resources.resourceTags,
-  serverOnlyModules: ["/src/project/project.server.ts"],
-  browserClientModules: ["/src/project/project.actions.ts", "/src/project/project.contract.ts"],
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
-  schemaCoverage: {
-    serverFunctions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 1,
-    },
-    actions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 1,
-    },
-  },
-  missingSchemas: [],
-  unknownRoutePreloadResources: [],
-});
-
-const appGraphDiagnostics: Devtools.AppGraphDiagnostics = {
-  version: 1,
-  routeCount: 1,
-  serverFunctionCount: 1,
-  actionCount: 1,
-  routePaths: ["/users/:id"],
-  routeModules: [
-    {
-      routeId: "route_users_$id",
-      routePath: "/users/:id",
-      moduleId: "src/routes/users/$id.tsx",
-      filePath: "src/routes/users/$id.tsx",
-      pathParamCount: 1,
-      hasPathParams: true,
-      params: [
-        {
-          name: "id",
-          optional: false,
-        },
-      ],
-      paramsSchema: "present",
-      searchSchema: "absent",
-      preload: "present",
-      preloadResources: {
-        status: "declared",
-        families: ["User.summary-devtools"],
-      },
-    },
-  ],
-  serverFunctionModules: [
-    {
-      id: "sf_user_get",
-      name: "User.get",
-      server: {
-        module: "/src/user/user.server.ts",
-        exportName: "getUser",
-        moduleKind: "server-only",
-        hasHandler: true,
-      },
-      client: {
-        _tag: "Import",
-        rpcPath: "/__sunfall-arc/rpc",
-        module: "/src/user/user.contract.ts",
-        exportName: "getUser",
-        moduleKind: "contract",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: false,
-        complete: false,
-        missing: ["error"],
-      },
-    },
-  ],
-  actionModules: [
-    {
-      id: "act_user_rename",
-      name: "User.rename",
-      server: {
-        module: "/src/user/user.actions.ts",
-        exportName: "RenameUser",
-        moduleKind: "shared",
-      },
-      client: {
-        _tag: "Import",
-        actionPath: "/__sunfall-arc/action",
-        module: "/src/user/user.actions.ts",
-        exportName: "RenameUser",
-        moduleKind: "shared",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: false,
-        complete: false,
-        missing: ["error"],
-      },
-      behavior: {
-        invalidates: "present",
-        optimistic: "absent",
-        retry: "present",
-        concurrency: "latest",
-      },
-    },
-  ],
-  resourceFamilies: [
-    {
-      name: "User.summary-devtools",
-      inputSchema: true,
-      outputSchema: true,
-      errorSchema: false,
-      providesTags: true,
-      policy: {
-        staleFor: "30 seconds",
-        gcFor: "5 minutes",
-        retry: true,
-      },
-    },
-  ],
-  resourceTags: [
-    {
-      name: "User.summary-devtools",
-      keyed: true,
-    },
-  ],
-  serverOnlyModules: ["/src/user/user.server.ts"],
-  browserClientModules: ["/src/user/user.actions.ts"],
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
-  schemaCoverage: {
-    serverFunctions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 0,
-    },
-    actions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 0,
-    },
-  },
-  missingSchemas: [
-    {
-      kind: "action",
-      name: "User.rename",
-      input: true,
-      output: true,
-      error: false,
-    },
-  ],
-  unknownRoutePreloadResources: [],
-};
-
-const appGraphDiagnosticsWithRoutes = (routeCount: number): Devtools.AppGraphDiagnostics => ({
-  ...appGraphDiagnostics,
-  routeCount,
-  routePaths: Array.from({ length: routeCount }, (_value, index) => `/users/${index}/:id`),
-  routeModules: Array.from({ length: routeCount }, (_value, index) => ({
-    ...appGraphDiagnostics.routeModules[0]!,
-    routeId: `route_users_${index}_$id`,
-    routePath: `/users/${index}/:id`,
-    moduleId: `src/routes/users/${index}/$id.tsx`,
-    filePath: `src/routes/users/${index}/$id.tsx`,
-  })),
 });

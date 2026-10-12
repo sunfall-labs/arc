@@ -13,7 +13,6 @@ import {
   matchingDevtoolsFactIndex,
   normalizeRequestTraceFacts,
 } from "./fact-identity.js";
-import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import type {
   DevtoolsInvalidationPlan,
@@ -24,7 +23,6 @@ import type {
   DevtoolsRuntimeEvent,
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
-  DevtoolsStartAppGraphDiagnostics,
   DevtoolsSummaryInput,
   DevtoolsSummaryInvalidationPlan,
   DevtoolsSummaryInvalidationTarget,
@@ -48,7 +46,6 @@ export const emptySnapshot = (): DevtoolsSnapshot => ({
 
 export interface NormalizedDevtoolsSummaryInput {
   readonly snapshot: DevtoolsSnapshot;
-  readonly appGraph: DevtoolsStartAppGraphDiagnostics | undefined;
   readonly invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>;
   readonly routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>;
   readonly requestTraces: ReadonlyArray<DevtoolsRequestTrace>;
@@ -536,13 +533,6 @@ export const normalizeDevtoolsSummaryInput = (
   input: DevtoolsSummaryInput = {},
 ): NormalizedDevtoolsSummaryInput => {
   const snapshot = input.snapshot ?? emptySnapshot();
-  const appGraphInput = input.appGraph ?? snapshot.appGraph;
-  const preserveDerivedPreloadFacts =
-    input.appGraph === undefined && snapshot.appGraph !== undefined;
-  const appGraph =
-    appGraphInput === undefined
-      ? undefined
-      : normalizeDevtoolsAppGraphDiagnostics(appGraphInput, { preserveDerivedPreloadFacts });
   const invalidationPlans = input.invalidations ?? snapshot.invalidations;
   const routePlanInputs = input.routePlans ?? snapshot.routePlans;
   const requestTraceInputs = input.requestTraces ?? snapshot.requestTraces ?? [];
@@ -572,7 +562,6 @@ export const normalizeDevtoolsSummaryInput = (
 
   return {
     snapshot,
-    appGraph,
     invalidations,
     routePlans,
     requestTraces,

@@ -26,7 +26,6 @@ import type {
   DevtoolsSerializableValue,
   DevtoolsSerializationPolicy,
   DevtoolsSnapshot,
-  DevtoolsStartAppGraphDiagnostics,
   DevtoolsStore,
   DevtoolsStoreOptions,
   DevtoolsSummary,
@@ -135,8 +134,6 @@ export namespace Devtools {
   export type InvalidationPlan = DevtoolsInvalidationPlan;
   /** Request-level join across context, resources, server functions, actions, streams, and teardown. */
   export type RequestTrace = DevtoolsRequestTrace;
-  /** Start app graph diagnostics as Devtools records them. */
-  export type AppGraphDiagnostics = DevtoolsStartAppGraphDiagnostics;
   /** JSON-safe tagged value produced by `Devtools.toSerializable`. */
   export type SerializableValue = DevtoolsSerializableValue;
   /** Depth, entry, string, and redaction limits for copying inspected values. */

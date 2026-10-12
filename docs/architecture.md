@@ -24,8 +24,8 @@ Future versions can add a custom TSRX host profile once the runtime semantics ar
 
 This architecture document explains the concrete shape of the framework: the
 runtime spine, dependency injection, routing, resources, queries, actions,
-server contracts, SSR, hydration, diagnostics, and devtools all converge on one
-typed app graph.
+server contracts, SSR, hydration, diagnostics, and devtools all share one typed
+definition vocabulary.
 
 ## Target Architecture
 
@@ -36,9 +36,8 @@ domain vocabulary.
    programs, resources, actions, forms, and routes are stable typed
    definitions. Definitions are safe to import broadly when they do not include
    server handlers.
-2. Generated graph layer: file-route manifests, server function manifests,
-   action manifests, generated route definitions, and Start app graph
-   diagnostics turn definitions into deterministic machine-readable artifacts.
+2. Generated route layer: file-route manifests and generated route
+   definitions turn route files into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
    UI scopes, route scopes, Program fibers, action fibers,
    server clients, response context, hydration, and event streams execute the
@@ -58,7 +57,7 @@ Sunfall Arc should stay unusually strict in these places:
 
 - server contracts are shared, handlers are server-only;
 - request work gets a fresh runtime and store;
-- route preload is typed, interruptible, and declared for diagnostics;
+- route preload is typed, interruptible, and declares the resources it loads;
 - resources live in the active runtime/store, never global process state;
 - Program handlers are pure: they return plain model data or `Program.next(...)`;
   async work leaves the handler through Effect commands and Stream
@@ -73,7 +72,7 @@ Sunfall Arc should stay unusually strict in these places:
 - Promise boundaries are compatibility adapters for host or platform contracts,
   never alternate framework APIs;
 - generated artifacts are deterministic and source-attributed;
-- devtools use public Effect streams and app graph facts;
+- devtools use public Effect streams and definition diagnostics;
 - tests mock services through layers and contracts.
 
 This strictness is what lets the component API stay simple without losing
@@ -708,11 +707,7 @@ request's resource graph into another request.
 Resource and action definitions also publish static diagnostics for tooling.
 `Resource.diagnostics()` reports declared families, tags, schema flags,
 tag-providing behavior, stale/GC/retry/persist policy, and declared `rows`
-(index names and whether a change feed exists). Start action manifests report
-whether invalidation, optimistic updates, retry policy, and concurrency are known
-for each action. Generated definitions can prove action facts from
-`Action.define(...)`; hand-written manifests can opt in, otherwise diagnostics
-mark the behavior as `unknown`.
+(index names and whether a change feed exists).
 
 The graph is inspectable before it is executed:
 
@@ -1042,13 +1037,13 @@ the typed `Resource.SnapshotCodecError` Effect error channel. Resources with
 `rows` are ordinary Resources here: their rows are the preloaded value.
 
 Routes can also declare the resource families their preload is expected to
-touch through `preloadResources`. The app graph treats those declarations as
-static facts and keeps runtime `Route.planNavigation(...)` as the dynamic
-proof for a concrete href. If a route has a preload but no declaration, graph
-diagnostics report the preload resources as `unknown` rather than guessing.
-Once route modules have been resolved, `unknownRoutePreloadResources` names routes
-that still have `preload: present` with unknown preload declarations, and the
-typed diagnostics validators can enforce those as policy.
+touch through `preloadResources`. `Route.describePreloadResources(route)`
+reports those declarations as static facts (`declared`, `none`, or `unknown`
+for a preload without a declaration) and keeps runtime
+`Route.planNavigation(...)` as the dynamic proof for a concrete href. In Vite
+dev, the Start SSR middleware logs a warning (`Effect.logWarning`) once per
+loaded server entry for each route whose preload declares no
+`preloadResources`.
 
 File routes are manifest-first in v0. The pure helpers
 `generateFileRouteManifest(files, { routeDirectory })` and
@@ -1073,8 +1068,7 @@ Production generators should use `generateValidatedFileRouteManifest` or
 collapse to the same route path after route groups and pathless segments are
 removed, and malformed dynamic segments like `$123`, keeping bad route graphs
 out of builds. Discovered `.d.ts` files are ignored before manifest generation.
-The Start Vite plugin exposes the same artifact as
-`__SUNFALL_ARC_FILE_ROUTES__` and as the Vite virtual module
+The Start Vite plugin exposes the same artifact as the Vite virtual module
 `virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`, and the
 default manifest. Serialized artifacts can be parsed again with
 `deserializeFileRouteManifest`, which revalidates the branded ids and rejects
@@ -1305,123 +1299,15 @@ preload and render, so shared clients dispatch to registered local handlers
 through the Effect runtime even when the app runtime also provides a remote
 client service. In the browser, `App.launch` provides a fetch-backed
 `Server.Client` (compiled out of static-client builds) that posts to the
-configured Start RPC endpoint, defaulting to
-`POST /__sunfall-arc/rpc`. Start action clients and progressive forms use the same
-shared endpoint policy, defaulting to `POST /__sunfall-arc/action`, so custom
-`rpcPath`/`actionPath` values can flow from manifests and handler options into
-clients without a second transport rule. The resource/action/router code above
-does not change.
+Start RPC endpoint, `POST /__sunfall-arc/rpc`. Start action clients and
+progressive forms post to `POST /__sunfall-arc/action`. Both paths are fixed:
+the request handler, the Vite dev middleware, and the clients share them. The
+resource/action/router code above does not change.
 
 The Vite plugin treats `*.server.ts` / `*.server.tsx` as server-only modules.
 Client transforms fail if one enters the browser graph. Use a shared contract
 module for schemas, contracts, and clients, and import the `.server.ts` module
 only from the server entry so the handlers are registered for SSR and RPC.
-
-Start also has a production-shaped Server Function Manifest Module. It gives
-each function a deterministic `sf_*` id, records the server export, emits either
-RPC-only or browser-safe import client references, tracks whether input/output/
-error schemas exist, and rejects duplicate names, ids, server module exports,
-and invalid import-client module/export references before bundling. The Start
-Vite plugin exposes the artifact as
-`__SUNFALL_ARC_SERVER_FUNCTIONS__` and as the Vite virtual module
-`virtual:sunfall-arc/server-functions`. Progressive action manifests mirror this
-for `Action.define(...)` values through `__SUNFALL_ARC_ACTIONS__` and
-`virtual:sunfall-arc/actions`, with deterministic branded `act_*` ids and
-typed deserialization through `deserializeActionManifest`.
-
-Nothing lists these by hand. When Vite starts (dev or build), the plugin
-SSR-loads the server entry through a temporary Vite server, reads what its
-`createRequestHandler(app, { serverFunctions })` handler serves (the app's
-`actions` and the handler's `serverFunctions`), and names each definition by
-the module export it came from among the modules the entry loaded. A server
-function's browser client is the `Server.client(...)` export with the same
-name, usually in a contract module. A served definition that no module exports
-fails the build with `StartDefinitionNotExported`; a server entry that does not
-load fails the build and leaves the dev server's graph empty until it loads.
-The derivation is the only source: the plugin has no option that lists
-server functions or Actions.
-
-The same Vite boundary also emits a Start App Graph. The graph is versioned,
-deterministic, and machine-readable: `routes`, `serverFunctions`, and `actions`
-are the exact manifest artifacts that builds already validate. Agents and
-devtools should prefer `virtual:sunfall-arc/app-graph` or
-`__SUNFALL_ARC_APP_GRAPH__` when they need topology, because it keeps the app's
-compile-time facts in one inspectable object. `deserializeStartAppGraph`
-round-trips the artifact and revalidates each nested manifest before tooling
-trusts it.
-
-Example-local graph summaries, such as the project-console SSR header helper,
-are narrow non-Vite fallbacks for tests and early server rendering. They should
-not grow into a second topology Interface; build-time and tooling consumers
-should use the generated Start App Graph instead.
-
-`describeStartAppGraph(graph)` turns that artifact into diagnostics: route
-paths, route ids, owning route files, path param metadata, server function
-ownership, action ownership, server-only modules, browser client modules,
-RPC/action endpoints, and schema coverage for server functions and actions.
-Server function and action diagnostics include stable ids, server exports,
-client transport/import references, module kinds, and wire-schema completeness.
-Static graph diagnostics mark route-module features like params schemas, search
-schemas, preloads, declared preload resources, and components as
-`unknown`; the `virtual:sunfall-arc/app-graph` module stays a pure static DTO and
-does not import application route implementations. Runtime route-module facts
-are available only from the explicit
-`virtual:sunfall-arc/app-graph/runtime-diagnostics` module, which SSR-loads the
-route modules and resolves those feature flags to `present` or `absent` for
-devtools and agents that ask for runtime diagnostics. Declared preload resource
-families are exposed as source-attributed route facts, while runtime route plans
-continue to show the exact resource refs touched for a specific navigation.
-Runtime diagnostics can also include static `Resource.diagnostics()` so
-devtools can explain resource families, tags, and rows without reading
-private stores. A shared
-diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
-duplicate loose shape guards at each Adapter seam. Builds can enforce static
-manifest policy with
-`validateStartAppGraphWireSchemas(graph)`, which fails with
-`StartAppGraphMissingWireSchemas` when required input/output schemas are absent;
-projects can opt into requiring error schemas too. Resolved route-module policy
-lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
-Diagnostics Gate SSR-loads the resolved graph through Vite and fails the build
-if configured resource preload declarations are still unknown,
-even when application code never imports `virtual:sunfall-arc/app-graph`. The
-runtime diagnostics virtual module exports `diagnosticsPolicyViolations` as a readonly
-`StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
-succeeds; if the guard finds unknown preload declarations, module evaluation
-fails with the diagnostics-bearing policy exception instead.
-CI scripts run the same gate explicitly and receive the resolved diagnostics as
-JSON-safe data through the package binary:
-
-```sh
-sunfall-arc-start diagnostics --root . --json
-```
-
-Without `--json`, the command prints an agent-readable repair report grouped by
-owning route, action, or server module. The same report model is available from
-`@sunfall/arc-start/diagnostics-report` via `createStartDiagnosticsReport(...)`
-and `formatStartDiagnosticsReport(...)`, so CI bots can attach exact "what to
-edit" guidance without reverse-engineering the raw graph payload.
-For semantic inspection, the same resolved diagnostics can be projected into a
-Start Agent Graph:
-
-```sh
-sunfall-arc-start impact route /projects/:id
-sunfall-arc-start impact action Project.rename --json
-sunfall-arc-start graph route /projects/:id
-sunfall-arc-start graph route /projects/:id --verbose
-sunfall-arc-start graph action Project.rename --json
-```
-
-`createStartAgentGraph(...)` turns diagnostics into typed Route, Action,
-ServerFunction, ResourceFamily, ResourceTag, Endpoint, Module, and
-Finding nodes with deterministic edges and self-review facts. This is the
-agent-operable map: agents can query the app by framework meaning before they
-edit source files, while the underlying facts still come from the compile-time
-and Vite-resolved diagnostics pipeline. The default text output is intentionally
-brief and edit-oriented; `--verbose` exposes raw graph ids, facts, and edges for
-debugging. For the default agent workflow, `createStartAgentGraphImpact(...)`
-and `formatStartAgentGraphImpact(...)` compress a focused graph query into an
-edit brief: where to work, which contracts must hold, which neighboring nodes
-may be affected, and which framework checks should be rerun.
 
 Tests should mock contracts, not modules:
 

@@ -10,8 +10,8 @@ together:
 
 - compile-time rules reject mistakes before runtime when TypeScript can express
   the rule;
-- build-time diagnostics reject unsafe or ambiguous app graphs before
-  production bundles ship;
+- build-time checks reject unsafe or ambiguous route graphs and server-only
+  imports before production bundles ship;
 - runtime state is scoped to the active UI, route, request, or runtime owner;
 - app code can mock dependencies with services, layers, and contracts;
 - devtools can explain behavior from public facts;
@@ -145,40 +145,17 @@ documented as outside the current release bar.
   search-by-id, and href-options-by-id type maps derived from
   the imported route modules, so generated route metadata preserves the same
   schema/branded param checks as `Route.href`.
-- App graph diagnostics must expose route ownership by id, source file, path,
-  and path params. When the Vite virtual app-graph module can import route
-  modules, it must resolve params/search schema and preload presence to
-  `present` or `absent` instead of leaving those facts implicit. Components
-  attach in app modules through `Route.withComponent`, so route modules carry
-  no component fact to report.
-- Route preload resource diagnostics distinguish `declared`, `none`, and
-  `unknown`. Static graph facts come from route `preloadResources` declarations;
-  runtime route plans remain the proof of exact resource refs touched for a
-  concrete href.
-- Resolved app graph diagnostics must list routes whose preload is present but
-  whose preload resources are still `unknown`, and
-  `validateStartAppGraphRoutePreloadResourcesDiagnostics` can turn those
-  into a typed failure for CI/devtools policy.
-- App graph diagnostics must expose server-function and action ownership by
-  stable id, server export, client reference, module kind, endpoint, and
-  wire-schema completeness so agents can route edits without guessing across
-  the client/server boundary.
-- App graph diagnostics must expose action behavior metadata for invalidation,
-  optimistic updates, retry policy, and concurrency. Manifests are derived
-  from the server entry's `Action.define` values, so these facts are always
-  known; there is no build policy for unknown behavior.
-- Start build policy can opt into resolved diagnostics checks for route preload
-  resource declarations. The check runs from the generated
-  `virtual:sunfall-arc/app-graph` module, where route modules have been imported
-  and route feature facts are no longer static placeholders.
+- Route preload resource facts distinguish `declared`, `none`, and `unknown`
+  (`Route.describePreloadResources`). Static facts come from route
+  `preloadResources` declarations; runtime route plans remain the proof of
+  exact resource refs touched for a concrete href. Vite dev warns for every
+  route whose preload has no `preloadResources` declaration.
 
 ## Server Functions
 
 - Shared code defines server contracts and browser-safe clients.
 - Server handler modules implement contracts and are excluded from browser
   graphs.
-- Production manifests are deterministic and validate duplicate names, duplicate
-  ids, duplicate exports, schema flags, and unsafe client references.
 - RPC separates domain failures, protocol errors, transport errors, defects, and
   interruption.
 - Tests can replace server behavior through mocks and service Layers without
@@ -213,9 +190,10 @@ documented as outside the current release bar.
 - Domain vocabulary stays stable and centralized in `CONTEXT.md`.
 - Generated artifacts should be deterministic, machine-readable, and source
   attributable.
-- The generated app graph is the preferred agent entrypoint for route, server
-  function, action, and resource vocabulary topology.
+- The generated route tree (`routeTree.gen.ts`) and the definitions
+  themselves (`Resource.diagnostics()`, `Route.describePreloadResources`) are
+  the agent entrypoints for route and resource topology.
 - Error messages should say what happened, where it happened, why it matters, and
   how to fix it.
-- Agents should be able to inspect the app graph without guessing from import
-  structure alone.
+- Agents should be able to inspect routes and resources from definition facts
+  without guessing from import structure alone.

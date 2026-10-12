@@ -1,12 +1,9 @@
 import {
   devtoolsActionNodeId,
-  devtoolsMissingSchemaPanelItemId,
   devtoolsProgramPanelItemId,
   devtoolsRequestPanelItemId,
   devtoolsResourceNodeId,
-  devtoolsRoutePanelItemId,
   devtoolsRoutePlanPanelItemId,
-  devtoolsUnknownRoutePreloadResourcesPanelItemId,
 } from "./graph-ids.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import { describeDevtoolsSummary } from "./summary.js";
@@ -126,17 +123,8 @@ const programEventMetrics = (
   ];
 };
 
-const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity => {
-  if (summary.overview.missingSchemaCount > 0) {
-    return "error";
-  }
-  return summary.overview.unknownRoutePreloadResourcesCount > 0 ? "warning" : "ok";
-};
-
 export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): DevtoolsPanels => {
   const summary = input.summary ?? describeDevtoolsSummary(input);
-  const graphAvailable = summary.graph._tag === "Available";
-  const diagnosticsPanelSeverity = diagnosticsSeverity(summary);
   const requestDurations = summary.requests.traces.flatMap((trace) =>
     trace.durationMillis === null ? [] : [trace.durationMillis],
   );
@@ -232,38 +220,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
   );
 
   const panelsById = {
-    "app-graph": {
-      id: "app-graph",
-      title: "App Graph",
-      summary: graphAvailable
-        ? `${summary.overview.routeCount} routes, ${summary.overview.serverFunctionCount} server functions, ${summary.overview.actionCount} actions`
-        : "No app graph diagnostics recorded",
-      severity: graphAvailable ? diagnosticsPanelSeverity : "info",
-      metrics: [
-        panelMetric("routes", summary.overview.routeCount),
-        panelMetric("server functions", summary.overview.serverFunctionCount),
-        panelMetric("actions", summary.overview.actionCount),
-        panelMetric("resource families", summary.overview.resourceFamilyCount),
-      ],
-      items: graphAvailable
-        ? summary.graph.routes.modules.map((routeModule) => {
-            return panelItem({
-              id: devtoolsRoutePanelItemId(routeModule.routeId),
-              label: routeModule.routePath,
-              detail: routeModule.moduleId,
-              severity:
-                routeModule.preload === "present" &&
-                routeModule.preloadResources.status === "unknown"
-                  ? "warning"
-                  : "ok",
-              metrics: [
-                panelMetric("params", routeModule.pathParamCount),
-                panelMetric("preload resources", routeModule.preloadResources.status),
-              ],
-            });
-          })
-        : [],
-    },
     routes: {
       id: "routes",
       title: "Routes",
@@ -303,8 +259,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
       metrics: [
         panelMetric("indexed", summary.resources.length),
         panelMetric("runtime", summary.overview.runtimeResourceCount),
-        panelMetric("families", summary.overview.resourceFamilyCount),
-        panelMetric("tags", summary.overview.resourceTagCount),
       ],
       items: summary.resources.map((resource) =>
         panelItem({
@@ -327,12 +281,11 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     actions: {
       id: "actions",
       title: "Actions",
-      summary: `${summary.overview.actionCount} graph actions, ${summary.overview.runtimeActionCount} runtime actions`,
+      summary: `${summary.overview.runtimeActionCount} runtime actions`,
       severity: summary.runtime.actions.some((action) => action.state === "Failure")
         ? "error"
         : "ok",
       metrics: [
-        panelMetric("graph", summary.overview.actionCount),
         panelMetric("runtime", summary.overview.runtimeActionCount),
         panelMetric("invalidation plans", summary.overview.invalidationPlanCount),
       ],
@@ -428,37 +381,10 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     diagnostics: {
       id: "diagnostics",
       title: "Diagnostics",
-      summary: `${summary.overview.missingSchemaCount} missing schemas`,
-      severity: diagnosticsPanelSeverity,
-      metrics: [
-        panelMetric("missing schemas", summary.overview.missingSchemaCount),
-        panelMetric(
-          "unknown preload resources",
-          summary.overview.unknownRoutePreloadResourcesCount,
-        ),
-      ],
-      items: graphAvailable
-        ? [
-            ...summary.graph.missingSchemas.map((schema) =>
-              panelItem({
-                id: devtoolsMissingSchemaPanelItemId(schema),
-                label: schema.name,
-                detail: schema.kind,
-                severity: "error",
-                data: toDevtoolsSerializableValue(schema),
-              }),
-            ),
-            ...summary.graph.routes.unknownPreloadResources.map((entry) =>
-              panelItem({
-                id: devtoolsUnknownRoutePreloadResourcesPanelItemId(entry.routeId),
-                label: entry.routePath,
-                detail: "unknown preload resources",
-                severity: "warning",
-                data: toDevtoolsSerializableValue(entry),
-              }),
-            ),
-          ]
-        : [],
+      summary: "No diagnostics",
+      severity: "info",
+      metrics: [],
+      items: [],
     },
     "causal-graph": {
       id: "causal-graph",

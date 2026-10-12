@@ -2,7 +2,7 @@ import { Server, type AnySunfallArcRuntime, type SunfallArcRuntime } from "@sunf
 import { Effect, Layer } from "effect";
 import { type ServerRpcClientOptions } from "./start-fetch.js";
 import { executeStartClientTransport } from "./start-client-transport.js";
-import { resolveStartRpcEndpoint } from "./start-transport-endpoints.js";
+import { serverRpcPath } from "./rpc.js";
 import { parseRpcResponse } from "./start-transport-protocol.js";
 
 type ServerRpcTransportRuntime<FetchRequirements> =
@@ -42,7 +42,7 @@ const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>
         kind: "rpc",
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         ...(options.headers === undefined ? {} : { headers: options.headers }),
-        endpoint: resolveStartRpcEndpoint(options),
+        endpoint: options.endpoint ?? serverRpcPath,
         request,
         parseResponse: parseRpcResponse,
       });

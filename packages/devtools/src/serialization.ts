@@ -16,9 +16,7 @@ import type {
   DevtoolsSerializationPolicy,
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
-  DevtoolsStartAppGraphDiagnostics,
 } from "./devtools-contract.js";
-import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 
 /** Error raised when a live invalidation plan contains a non-serializable target shape. */
 export class DevtoolsUnknownInvalidationTarget extends Data.TaggedError(
@@ -1238,22 +1236,11 @@ export const copyDevtoolsRuntimeEvent = (
   }
 };
 
-/** Deep-copies Start app graph diagnostics for panel-safe storage. */
-export const copyAppGraphDiagnostics = (
-  appGraph: DevtoolsStartAppGraphDiagnostics,
-  options: { readonly preserveDerivedPreloadFacts?: boolean } = {},
-): DevtoolsStartAppGraphDiagnostics => normalizeDevtoolsAppGraphDiagnostics(appGraph, options);
-
 /** Deep-copies a complete Devtools snapshot for bridge or panel consumption. */
 export const copyDevtoolsSnapshot = (
   snapshot: DevtoolsSnapshot,
   policy?: DevtoolsSerializationPolicy,
 ): DevtoolsSnapshot => ({
-  ...(snapshot.appGraph === undefined
-    ? {}
-    : {
-        appGraph: copyAppGraphDiagnostics(snapshot.appGraph, { preserveDerivedPreloadFacts: true }),
-      }),
   resources: snapshot.resources.map((resource) => ({ ...resource })),
   actions: snapshot.actions.map((action) => ({
     ...action,

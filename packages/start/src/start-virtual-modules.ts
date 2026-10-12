@@ -1,69 +1,32 @@
 import { Effect } from "effect";
-import { describeStartAppGraph, serializeStartAppGraph, type StartAppGraph } from "./app-graph.js";
-import { serializeActionManifest, type ActionManifest } from "./action-manifest.js";
-import { serializeFileRouteManifest, type FileRouteManifest } from "./file-routes.js";
+import {
+  serializeFileRouteManifest,
+  type FileRouteManifest,
+  type FileRouteManifestError,
+} from "./file-routes.js";
 import {
   createFileRouteDefinitionsModule,
-  createFileRouteModuleReferences,
   isFileRouteDefinitionsModuleError,
   type FileRouteDefinitionsModuleError,
 } from "./file-route-modules.js";
-import {
-  makeStartActionManifest,
-  makeStartBuildAppGraph,
-  makeStartFileRouteManifest,
-  makeStartServerFunctionManifest,
-  normalizeStartBuildPolicy,
-  type StartManifestOptions,
-  type StartAppGraphError,
-  type StartBuildPolicy,
-  type StartBuildPolicyError,
-} from "./start-manifest-wall.js";
-import {
-  serializeServerFunctionManifest,
-  type ServerFunctionManifest,
-} from "./server-function-manifest.js";
+import { makeStartFileRouteManifest, type SunfallArcStartOptions } from "./start-manifest-wall.js";
 
-/** Vite virtual module id for the generated server function manifest. */
-export const serverFunctionManifestVirtualModuleId = "virtual:sunfall-arc/server-functions";
-/** Vite virtual module id for the generated action manifest. */
-export const actionManifestVirtualModuleId = "virtual:sunfall-arc/actions";
 /** Vite virtual module id for the generated file route manifest. */
 export const fileRouteManifestVirtualModuleId = "virtual:sunfall-arc/file-routes";
 /** Vite virtual module id for generated file route definitions. */
 export const fileRouteDefinitionsVirtualModuleId = "virtual:sunfall-arc/routes";
-/** Vite virtual module id for the generated Start app graph. */
-export const appGraphVirtualModuleId = "virtual:sunfall-arc/app-graph";
-/** Vite virtual module id for generated Start app graph runtime diagnostics. */
-export const appGraphRuntimeDiagnosticsVirtualModuleId =
-  "virtual:sunfall-arc/app-graph/runtime-diagnostics";
 
-const resolvedServerFunctionManifestVirtualModuleId = `\0${serverFunctionManifestVirtualModuleId}`;
-const resolvedActionManifestVirtualModuleId = `\0${actionManifestVirtualModuleId}`;
 const resolvedFileRouteManifestVirtualModuleId = `\0${fileRouteManifestVirtualModuleId}`;
 const resolvedFileRouteDefinitionsVirtualModuleId = `\0${fileRouteDefinitionsVirtualModuleId}`;
-const resolvedAppGraphVirtualModuleId = `\0${appGraphVirtualModuleId}`;
-const resolvedAppGraphRuntimeDiagnosticsVirtualModuleId = `\0${appGraphRuntimeDiagnosticsVirtualModuleId}`;
 
-export type StartVirtualModuleLoadError =
-  | StartAppGraphError
-  | StartBuildPolicyError
-  | FileRouteDefinitionsModuleError;
+export type StartVirtualModuleLoadError = FileRouteManifestError | FileRouteDefinitionsModuleError;
 
 export const resolveStartVirtualModuleId = (id: string): string | null => {
   switch (id) {
-    case serverFunctionManifestVirtualModuleId:
-      return resolvedServerFunctionManifestVirtualModuleId;
-    case actionManifestVirtualModuleId:
-      return resolvedActionManifestVirtualModuleId;
     case fileRouteManifestVirtualModuleId:
       return resolvedFileRouteManifestVirtualModuleId;
     case fileRouteDefinitionsVirtualModuleId:
       return resolvedFileRouteDefinitionsVirtualModuleId;
-    case appGraphVirtualModuleId:
-      return resolvedAppGraphVirtualModuleId;
-    case appGraphRuntimeDiagnosticsVirtualModuleId:
-      return resolvedAppGraphRuntimeDiagnosticsVirtualModuleId;
     default:
       return null;
   }
@@ -76,28 +39,6 @@ export const createFileRouteManifestVirtualModule = (manifest: FileRouteManifest
     `export const manifest = ${serialized};`,
     "export const entries = manifest.entries;",
     "export const modules = manifest.modules;",
-    "export default manifest;",
-  ].join("\n");
-};
-
-/** Creates the Vite virtual module source for server-function manifests. */
-export const createServerFunctionManifestVirtualModule = (
-  manifest: ServerFunctionManifest,
-): string => {
-  const serialized = serializeServerFunctionManifest(manifest);
-  return [
-    `export const manifest = ${serialized};`,
-    "export const entries = manifest.entries;",
-    "export default manifest;",
-  ].join("\n");
-};
-
-/** Creates the Vite virtual module source for Start action manifests. */
-export const createActionManifestVirtualModule = (manifest: ActionManifest): string => {
-  const serialized = serializeActionManifest(manifest);
-  return [
-    `export const manifest = ${serialized};`,
-    "export const entries = manifest.entries;",
     "export default manifest;",
   ].join("\n");
 };
@@ -119,122 +60,17 @@ const createFileRouteDefinitionsVirtualModuleEffect = (
     }
   });
 
-const diagnosticsPolicyLiteral = (policy: StartBuildPolicy | undefined): string =>
-  JSON.stringify(
-    policy?.diagnostics === undefined || policy.diagnostics === false ? null : policy.diagnostics,
-  );
-
-/** Creates the Vite virtual module source for the resolved Start app graph. */
-export const createStartAppGraphVirtualModule = (
-  graph: StartAppGraph,
-  _policy?: StartBuildPolicy,
-): string => {
-  const serialized = serializeStartAppGraph(graph);
-  const diagnostics = JSON.stringify(describeStartAppGraph(graph));
-  return [
-    `export const graph = ${serialized};`,
-    `export const diagnostics = ${diagnostics};`,
-    "export const diagnosticsPolicyViolations = [];",
-    "export const routes = graph.routes;",
-    "export const serverFunctions = graph.serverFunctions;",
-    "export const actions = graph.actions;",
-    "export default graph;",
-  ].join("\n");
-};
-
-/** Creates the runtime diagnostics virtual module that explicitly loads route implementations. */
-export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
-  graph: StartAppGraph,
-  policy?: StartBuildPolicy,
-): string => {
-  const serialized = serializeStartAppGraph(graph);
-  const diagnosticsPolicy = diagnosticsPolicyLiteral(policy);
-  const routeModuleReferences = createFileRouteModuleReferences(graph.routes, {
-    importMode: "rootAbsolute",
-  });
-  const routeModuleImports = routeModuleReferences.map(
-    (reference) =>
-      `import { ${reference.importName} as ${reference.identifier} } from ${JSON.stringify(reference.importSpecifier)};`,
-  );
-  const routeModuleCandidates = routeModuleReferences.map(({ identifier }, index) =>
-    [
-      "{",
-      `    entry: graph.routes.entries[${index}],`,
-      `    route: ${identifier},`,
-      `    preloadResources: Route.describePreloadResources(${identifier})`,
-      "  }",
-    ].join("\n"),
-  );
-  return [
-    'import { Effect } from "effect";',
-    'import { Resource, Route } from "@sunfall/arc-core";',
-    'import { describeStartAppGraphRuntimeDiagnostics, validateStartAppGraphDiagnosticsPolicyException } from "@sunfall/arc-start/internal";',
-    ...(routeModuleImports.length > 0 ? [""] : []),
-    ...routeModuleImports,
-    ...(routeModuleImports.length > 0 ? [""] : []),
-    `export const graph = ${serialized};`,
-    "const resourceDiagnostics = Resource.diagnostics();",
-    "const routeModuleCandidates = [",
-    routeModuleCandidates.join(",\n"),
-    "];",
-    "export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {",
-    "  routeModules: routeModuleCandidates,",
-    "  resourceFamilies: resourceDiagnostics.families,",
-    "  resourceTags: resourceDiagnostics.tags,",
-    "});",
-    `const diagnosticsPolicy = ${diagnosticsPolicy};`,
-    "export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyException(diagnostics, diagnosticsPolicy));",
-    "export const routes = graph.routes;",
-    "export const serverFunctions = graph.serverFunctions;",
-    "export const actions = graph.actions;",
-    "export default graph;",
-  ].join("\n");
-};
-
-const createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect = (
-  graph: StartAppGraph,
-  policy?: StartBuildPolicy,
-): Effect.Effect<string, FileRouteDefinitionsModuleError> =>
-  Effect.suspend(() => {
-    try {
-      return Effect.succeed(createStartAppGraphRuntimeDiagnosticsVirtualModule(graph, policy));
-    } catch (cause) {
-      if (isFileRouteDefinitionsModuleError(cause)) {
-        return Effect.fail(cause);
-      }
-      throw cause;
-    }
-  });
-
 export const loadStartVirtualModule = (
   id: string,
-  options: StartManifestOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<string | null, StartVirtualModuleLoadError> => {
   switch (id) {
-    case resolvedServerFunctionManifestVirtualModuleId:
-      return Effect.map(
-        makeStartServerFunctionManifest(options),
-        createServerFunctionManifestVirtualModule,
-      );
-    case resolvedActionManifestVirtualModuleId:
-      return Effect.map(makeStartActionManifest(options), createActionManifestVirtualModule);
     case resolvedFileRouteManifestVirtualModuleId:
       return Effect.map(makeStartFileRouteManifest(options), createFileRouteManifestVirtualModule);
     case resolvedFileRouteDefinitionsVirtualModuleId:
       return Effect.flatMap(
         makeStartFileRouteManifest(options),
         createFileRouteDefinitionsVirtualModuleEffect,
-      );
-    case resolvedAppGraphVirtualModuleId:
-      return Effect.map(makeStartBuildAppGraph(options), (graph) =>
-        createStartAppGraphVirtualModule(graph, normalizeStartBuildPolicy(options.buildPolicy)),
-      );
-    case resolvedAppGraphRuntimeDiagnosticsVirtualModuleId:
-      return Effect.flatMap(makeStartBuildAppGraph(options), (graph) =>
-        createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect(
-          graph,
-          normalizeStartBuildPolicy(options.buildPolicy),
-        ),
       );
     default:
       return Effect.succeed(null);

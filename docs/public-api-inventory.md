@@ -20,24 +20,21 @@ it against `type-tests/public-api.manifest.json` and the package manifests
 
 ## Package Export Map
 
-| Package                 | Export                  | Source                                     | Classification | Release decision                                                     |
-| ----------------------- | ----------------------- | ------------------------------------------ | -------------- | -------------------------------------------------------------------- |
-| `@sunfall/arc-core`     | `.`                     | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                        |
-| `@sunfall/arc-core`     | `./internal`            | `packages/core/src/internal.ts`            | Internal       | Adapter plumbing for Solid/Start/DB; not application API.            |
-| `@sunfall/arc-start`    | `.`                     | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                              |
-| `@sunfall/arc-start`    | `./vite`                | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.             |
-| `@sunfall/arc-start`    | `./diagnostics-report`  | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                              |
-| `@sunfall/arc-start`    | `./fetch`               | `packages/start/src/fetch.ts`              | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).              |
-| `@sunfall/arc-start`    | `./node`                | `packages/start/src/node.ts`               | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).              |
-| `@sunfall/arc-start`    | `./testing`             | `packages/start/src/testing.ts`            | Expert public  | Test-only wire markers and static-output helpers for app tests.      |
-| `@sunfall/arc-start`    | `./internal`            | `packages/start/src/internal.ts`           | Internal       | Imported by Vite-generated diagnostics modules; not application API. |
-| `@sunfall/arc-start`    | `./virtual`             | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                       |
-| `@sunfall/arc-start`    | `sunfall-arc-start` bin | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                           |
-| `@sunfall/arc-db`       | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the Query engine over Resource rows.                         |
-| `@sunfall/arc-db`       | `./internal`            | `packages/db/src/internal.ts`              | Internal       | Adapter plumbing for `Component.liveQuery`; not application API.     |
-| `@sunfall/arc-devtools` | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                           |
-| `@sunfall/arc-solid`    | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                   |
-| `@sunfall/arc-tsrx`     | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                        |
+| Package                 | Export       | Source                                    | Classification | Release decision                                                 |
+| ----------------------- | ------------ | ----------------------------------------- | -------------- | ---------------------------------------------------------------- |
+| `@sunfall/arc-core`     | `.`          | `packages/core/src/index.ts`              | Public         | Keep as the core application/runtime surface.                    |
+| `@sunfall/arc-core`     | `./internal` | `packages/core/src/internal.ts`           | Internal       | Adapter plumbing for Solid/Start/DB; not application API.        |
+| `@sunfall/arc-start`    | `.`          | `packages/start/src/index.ts`             | Public         | Keep as the full-stack runtime surface.                          |
+| `@sunfall/arc-start`    | `./vite`     | `packages/start/src/vite.ts`              | Public         | Keep as the build-plugin surface.                                |
+| `@sunfall/arc-start`    | `./fetch`    | `packages/start/src/fetch.ts`             | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).          |
+| `@sunfall/arc-start`    | `./node`     | `packages/start/src/node.ts`              | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).          |
+| `@sunfall/arc-start`    | `./testing`  | `packages/start/src/testing.ts`           | Expert public  | Test-only wire markers and static-output helpers for app tests.  |
+| `@sunfall/arc-start`    | `./virtual`  | `packages/start/src/virtual-modules.d.ts` | Expert public  | Keep as type-only virtual module declarations.                   |
+| `@sunfall/arc-db`       | `.`          | `packages/db/src/index.ts`                | Public         | Keep as the Query engine over Resource rows.                     |
+| `@sunfall/arc-db`       | `./internal` | `packages/db/src/internal.ts`             | Internal       | Adapter plumbing for `Component.liveQuery`; not application API. |
+| `@sunfall/arc-devtools` | `.`          | `packages/devtools/src/index.ts`          | Public         | Keep as the JSON-safe inspection contract.                       |
+| `@sunfall/arc-solid`    | `.`          | `packages/solid/src/index.ts`             | Public         | Keep as the Solid adapter surface.                               |
+| `@sunfall/arc-tsrx`     | `.`          | `packages/tsrx/src/index.ts`              | Public         | Keep as the Vite/TSRX preset.                                    |
 
 ## Type-Test Coverage
 
@@ -480,8 +477,8 @@ includes:
 - Local source modules: `hydration`, `request-trace`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
   `start-document`, `start-fetch`,
-  `start-request-handler`, `start-transport-endpoints`,
-  `start-transport-protocol`, `static-client-navigation`, and `streaming`.
+  `start-request-handler`, `start-transport-protocol`,
+  `static-client-navigation`, and `streaming`.
 - the app: `App.define({ root, routes, actions?, client? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
@@ -497,7 +494,7 @@ includes:
   `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`
   holds the server half: `server` (the server Layer, which must provide the
   root's services), `serverFunctions` (implementations served over RPC),
-  `document`, `endpoints`, and `onRequestTrace`. Page requests render
+  `document`, and `onRequestTrace`. Page requests render
   `app.root` into Start's document; there is no render callback and no
   hand-written HTML shell. `StartRequestTrace` and `StartRequestTraceHandler`
   describe the trace hook.
@@ -515,8 +512,9 @@ includes:
   the `StartHydration*ParseError` / `StartHydrationPayloadSerializeError`
   classes are public error vocabulary.
 - transports: `App.launch` owns the browser RPC client and the action
-  transport; `App.LaunchOptions.transport` sets their `endpoints`, `fetch`
-  (`StartFetch`, `StartFetchInit`, `StartFetchInput`), and `headers`.
+  transport, which use the fixed `/__sunfall-arc/rpc` and
+  `/__sunfall-arc/action` endpoints; `App.LaunchOptions.transport` sets their
+  `fetch` (`StartFetch`, `StartFetchInit`, `StartFetchInput`) and `headers`.
 - durable submissions: `App.launch` provides the Action Outbox over the
   browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
   shared with persisted Resources;
@@ -548,19 +546,11 @@ includes:
   `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
   `stripStartStaticBasePath`, `StartStaticBasePathError`, and
   `StartStaticNavigationHydrationError`.
-- transport configuration: `StartTransportEndpointOverrides`,
-  `StartTransportEndpointPathError`, and `StartTransportEndpointConflictError`.
-- there are no hand-written manifest sources: the Vite plugin derives the
-  server-function and Action manifests from the server entry's
-  `createRequestHandler(app, { serverFunctions })`, naming each definition by
-  the module export it came from (and a server function's browser client by
-  its `Server.client` export of the same name).
 
-Manifest make/serialize/deserialize, stable ids, client-reference
-classification, generated route module codegen, transport header constants and
-media types, `validateStart*Effect` validators, endpoint guidance, app-graph and
-agent-graph diagnostics, request metrics, and hydration chunk primitives are
-package-internal. `vite.ts`, `cli.ts`, and tests import them from source.
+File-route manifest serialization, generated route module codegen, transport
+header constants and media types, `validateStart*Effect` validators, request
+metrics, and hydration chunk primitives are package-internal. `vite.ts` and
+tests import them from source.
 
 Subpath exports:
 
@@ -581,24 +571,17 @@ Subpath exports:
   defaults to `false`; enable it only behind a proxy that overwrites
   `x-forwarded-proto` / `x-forwarded-host`.
 - `./vite` exports only `sunfallArcStart`, its option types, and its errors.
-  Manifest-pinned Source Surface Modules: `app-graph`, `file-routes`,
-  `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
-  `start-manifest-wall`, `start-prerender`, `start-vite-dev-ssr`, and
-  `start-vite-diagnostics-loader`.
-- `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
-  Manifest-pinned Source Surface Module: `start-diagnostics-contract`.
+  Manifest-pinned Source Surface Modules: `file-routes`,
+  `generated-route-definitions`, `start-manifest-wall`, `start-prerender`, and
+  `start-vite-dev-ssr`.
 - `./testing` exposes wire markers and static-output helpers that app tests
   assert against: `hydrationScriptId`, `streamHydrationAttribute`,
   `StartHydrationChunk`, `serverActionPath`, `serverRpcPath`,
   `extractStartStaticHtmlLinks`, and `startStaticPageOutputPath`.
   Manifest-pinned Source Surface Modules: `hydration`, `rpc`, and
   `static-export`.
-- `./internal` is imported only by the Vite-generated
-  `virtual:sunfall-arc/app-graph/runtime-diagnostics` module. Manifest-pinned
-  Source Surface Modules: `app-graph` and `start-app-graph-diagnostics-policy`.
-- `./virtual` owns virtual module typings only.
-- `sunfall-arc-start` owns diagnostics and agent graph CLI execution
-  (`diagnostics`, `graph`, `impact`). There is no programmatic CLI subpath.
+- `./virtual` owns virtual module typings only:
+  `virtual:sunfall-arc/file-routes` and `virtual:sunfall-arc/routes`.
 
 Release decisions:
 
@@ -610,9 +593,6 @@ Release decisions:
 - `virtual:sunfall-arc/routes` intentionally exposes broad route maps; apps that
   need exact literal route ids, paths, params, search, or href options import
   the written generated route definitions artifact.
-- `virtual:sunfall-arc/app-graph` is a static DTO module; tooling that needs
-  runtime route-module/resource diagnostics imports
-  `virtual:sunfall-arc/app-graph/runtime-diagnostics` explicitly.
 
 ### `@sunfall/arc-db`
 
@@ -675,7 +655,7 @@ The root export includes:
 - the DTOs adapters and panels exchange: `Devtools.Snapshot`,
   `Devtools.RuntimeEvent`, `Devtools.TimelineCommit`, `Devtools.RoutePlan`,
   `Devtools.InvalidationPlan`, `Devtools.RequestTrace`,
-  `Devtools.AppGraphDiagnostics`, `Devtools.Summary`, `Devtools.CausalGraph`,
+  `Devtools.Summary`, `Devtools.CausalGraph`,
   `Devtools.Panels`, and `Devtools.Panel`. Their nested shapes (panel items,
   metrics, causal nodes and edges, request-trace parts) are reached through
   these types rather than exported under their own names.
@@ -718,9 +698,9 @@ Release decisions:
   in the shared Devtools Panel Contract Module so renderers, app shells, browser
   extensions, tests, and agents do not duplicate runtime validation. The
   contract windows oversized item lists with a deterministic overflow row, so
-  valid large app graph panels remain bridgeable.
-- Panel guards (`isDevtoolsPanel*`), normalizers, panel-input resolvers, the
-  app-graph DTO normalizers, and `devtoolsPanelStyles` are package-internal.
+  valid large panels remain bridgeable.
+- Panel guards (`isDevtoolsPanel*`), normalizers, panel-input resolvers, and
+  `devtoolsPanelStyles` are package-internal.
   `Devtools.resolveBridgePayload(...)` is the single public validator
   and returns a valid detached DTO or typed diagnostics.
 - Raw Devtools snapshots may contain detached `unknown` inspection facts owned

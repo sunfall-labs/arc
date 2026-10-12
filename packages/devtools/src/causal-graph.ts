@@ -4,20 +4,13 @@ import {
   devtoolsEndpointNodeId as endpointNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
   devtoolsInvalidationTargetNodeId as targetNodeId,
-  devtoolsMissingSchemaNodeId as missingSchemaNodeId,
-  devtoolsModuleNodeId as moduleNodeId,
   devtoolsRequestTraceNodeId as requestTraceNodeId,
-  devtoolsResourceFamilyNodeId as resourceFamilyNodeId,
   devtoolsResourceNodeId as resourceNodeId,
-  devtoolsResourceTagNodeId as tagNodeId,
-  devtoolsRouteNodeId as routeNodeId,
   devtoolsRuntimeEventNodeId as runtimeEventNodeId,
   devtoolsRuntimeTargetLabel as runtimeTargetLabel,
-  devtoolsSchemaCoverageNodeId as schemaCoverageNodeId,
   devtoolsServerFunctionNodeId as serverFunctionNodeId,
 } from "./graph-ids.js";
 import { stableFactFingerprint } from "./fact-identity.js";
-import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import { projectDevtoolsRoutePlanFacts } from "./route-plan-facts.js";
 import {
@@ -29,11 +22,7 @@ import type {
   DevtoolsCausalEdge,
   DevtoolsCausalGraph,
   DevtoolsCausalNode,
-  DevtoolsSerializableValue,
   DevtoolsSnapshot,
-  DevtoolsStartAppGraphDiagnostics,
-  DevtoolsStartAppGraphModuleKind,
-  DevtoolsStartAppGraphSchemaCoverage,
   DevtoolsSummaryInput,
   DevtoolsSummaryInvalidationPlan,
   DevtoolsSummaryRequestTrace,
@@ -42,15 +31,6 @@ import type {
   DevtoolsSummaryRuntimeEvent,
   DevtoolsRequestTrace,
 } from "./devtools-contract.js";
-
-const schemaCoverageData = (
-  coverage: DevtoolsStartAppGraphSchemaCoverage,
-): DevtoolsSerializableValue => ({
-  error: coverage.error,
-  input: coverage.input,
-  output: coverage.output,
-  total: coverage.total,
-});
 
 const addNode = (nodes: Map<string, DevtoolsCausalNode>, node: DevtoolsCausalNode): void => {
   if (!nodes.has(node.id)) {
@@ -100,7 +80,6 @@ const requestRoutePlanSummary = (
 };
 
 interface DevtoolsCausalGraphInput {
-  readonly appGraph: DevtoolsStartAppGraphDiagnostics | undefined;
   readonly snapshot: DevtoolsSnapshot;
   readonly invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>;
   readonly routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>;
@@ -114,8 +93,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
   const nodes = new Map<string, DevtoolsCausalNode>();
   const edges: Array<DevtoolsCausalEdge> = [];
   const edgeOrdinals = new Map<string, number>();
-  const appGraph =
-    input.appGraph === undefined ? undefined : normalizeDevtoolsAppGraphDiagnostics(input.appGraph);
 
   const connect = (edge: Omit<DevtoolsCausalEdge, "id">): void => {
     addEdge(edges, edge, edgeOrdinals);
@@ -198,333 +175,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
       }
     }
   };
-  const addModuleNode = (
-    kind: "server-only" | "browser-client" | "route" | DevtoolsStartAppGraphModuleKind,
-    path: string,
-    data: DevtoolsSerializableValue = null,
-  ): string => {
-    const id = moduleNodeId(kind, path);
-    addNode(nodes, {
-      id,
-      kind: "Module",
-      label: path,
-      data: {
-        boundary: kind,
-        path,
-        ...(typeof data === "object" && data !== null && !Array.isArray(data) ? data : {}),
-      },
-    });
-    return id;
-  };
-
-  if (appGraph) {
-    const resourceFamiliesByName = new Map(
-      appGraph.resourceFamilies.map((family) => [family.name, family] as const),
-    );
-
-    addNode(nodes, {
-      id: endpointNodeId("rpc"),
-      kind: "Endpoint",
-      label: appGraph.rpcPath,
-      data: {
-        path: appGraph.rpcPath,
-        transport: "rpc",
-      },
-    });
-    addNode(nodes, {
-      id: endpointNodeId("action"),
-      kind: "Endpoint",
-      label: appGraph.actionPath,
-      data: {
-        path: appGraph.actionPath,
-        transport: "action",
-      },
-    });
-
-    for (const routeModule of appGraph.routeModules) {
-      const routeId = routeNodeId(routeModule.routePath);
-      addNode(nodes, {
-        id: routeId,
-        kind: "Route",
-        label: routeModule.routePath,
-        data: toDevtoolsSerializableValue(routeModule),
-      });
-      const moduleId = addModuleNode("route", routeModule.filePath, {
-        moduleId: routeModule.moduleId,
-        routeId: routeModule.routeId,
-      });
-      connect({
-        kind: "UsesModule",
-        source: routeId,
-        target: moduleId,
-        label: "declared in",
-        data: {
-          routeId: routeModule.routeId,
-        },
-      });
-      for (const family of routeModule.preloadResources.families) {
-        const familyId = resourceFamilyNodeId(family);
-        const definition = resourceFamiliesByName.get(family);
-        addNode(nodes, {
-          id: familyId,
-          kind: "ResourceFamily",
-          label: family,
-          data: toDevtoolsSerializableValue(
-            definition === undefined
-              ? {
-                  name: family,
-                  source: "RoutePreloadResources",
-                  status: routeModule.preloadResources.status,
-                }
-              : definition,
-          ),
-        });
-        connect({
-          kind: "Preloads",
-          source: routeId,
-          target: familyId,
-          label: "declares preload",
-          data: {
-            routeId: routeModule.routeId,
-            status: routeModule.preloadResources.status,
-          },
-        });
-      }
-    }
-
-    for (const path of appGraph.routePaths) {
-      addNode(nodes, {
-        id: routeNodeId(path),
-        kind: "Route",
-        label: path,
-        data: { path },
-      });
-    }
-
-    const serverFunctionCoverageId = schemaCoverageNodeId("serverFunctions");
-    addNode(nodes, {
-      id: serverFunctionCoverageId,
-      kind: "SchemaCoverage",
-      label: "serverFunctions schemas",
-      data: schemaCoverageData(appGraph.schemaCoverage.serverFunctions),
-    });
-    connect({
-      kind: "UsesEndpoint",
-      source: serverFunctionCoverageId,
-      target: endpointNodeId("rpc"),
-      label: "served by",
-      data: null,
-    });
-
-    const actionCoverageId = schemaCoverageNodeId("actions");
-    addNode(nodes, {
-      id: actionCoverageId,
-      kind: "SchemaCoverage",
-      label: "actions schemas",
-      data: schemaCoverageData(appGraph.schemaCoverage.actions),
-    });
-    connect({
-      kind: "UsesEndpoint",
-      source: actionCoverageId,
-      target: endpointNodeId("action"),
-      label: "served by",
-      data: null,
-    });
-
-    for (const serverFunction of appGraph.serverFunctionModules) {
-      const serverFunctionId = serverFunctionNodeId(serverFunction.name);
-      addNode(nodes, {
-        id: serverFunctionId,
-        kind: "ServerFunction",
-        label: serverFunction.name,
-        data: toDevtoolsSerializableValue(serverFunction),
-      });
-      connect({
-        kind: "UsesEndpoint",
-        source: serverFunctionId,
-        target: endpointNodeId("rpc"),
-        label: "served by",
-        data: {
-          rpcPath: serverFunction.client.rpcPath,
-        },
-      });
-      connect({
-        kind: "Covers",
-        source: serverFunctionCoverageId,
-        target: serverFunctionId,
-        label: "covers",
-        data: schemaCoverageData({
-          total: 1,
-          input: serverFunction.wire.inputSchema ? 1 : 0,
-          output: serverFunction.wire.outputSchema ? 1 : 0,
-          error: serverFunction.wire.errorSchema ? 1 : 0,
-        }),
-      });
-      connect({
-        kind: "UsesModule",
-        source: serverFunctionId,
-        target: addModuleNode(serverFunction.server.moduleKind, serverFunction.server.module, {
-          exportName: serverFunction.server.exportName,
-        }),
-        label: "server export",
-        data: {
-          exportName: serverFunction.server.exportName,
-          moduleKind: serverFunction.server.moduleKind,
-        },
-      });
-      if (serverFunction.client._tag === "Import") {
-        connect({
-          kind: "UsesModule",
-          source: serverFunctionId,
-          target: addModuleNode(serverFunction.client.moduleKind, serverFunction.client.module, {
-            exportName: serverFunction.client.exportName,
-          }),
-          label: "client reference",
-          data: {
-            exportName: serverFunction.client.exportName,
-            moduleKind: serverFunction.client.moduleKind,
-          },
-        });
-      }
-    }
-
-    for (const action of appGraph.actionModules) {
-      const actionId = actionNodeId(action.name);
-      addNode(nodes, {
-        id: actionId,
-        kind: "Action",
-        label: action.name,
-        data: toDevtoolsSerializableValue(action),
-      });
-      connect({
-        kind: "UsesEndpoint",
-        source: actionId,
-        target: endpointNodeId("action"),
-        label: "served by",
-        data: {
-          actionPath: action.client.actionPath,
-        },
-      });
-      connect({
-        kind: "Covers",
-        source: actionCoverageId,
-        target: actionId,
-        label: "covers",
-        data: schemaCoverageData({
-          total: 1,
-          input: action.wire.inputSchema ? 1 : 0,
-          output: action.wire.outputSchema ? 1 : 0,
-          error: action.wire.errorSchema ? 1 : 0,
-        }),
-      });
-      connect({
-        kind: "UsesModule",
-        source: actionId,
-        target: addModuleNode(action.server.moduleKind, action.server.module, {
-          exportName: action.server.exportName,
-        }),
-        label: "server export",
-        data: {
-          exportName: action.server.exportName,
-          moduleKind: action.server.moduleKind,
-        },
-      });
-      if (action.client._tag === "Import") {
-        connect({
-          kind: "UsesModule",
-          source: actionId,
-          target: addModuleNode(action.client.moduleKind, action.client.module, {
-            exportName: action.client.exportName,
-          }),
-          label: "client reference",
-          data: {
-            exportName: action.client.exportName,
-            moduleKind: action.client.moduleKind,
-          },
-        });
-      }
-    }
-
-    for (const family of appGraph.resourceFamilies) {
-      addNode(nodes, {
-        id: resourceFamilyNodeId(family.name),
-        kind: "ResourceFamily",
-        label: family.name,
-        data: toDevtoolsSerializableValue(family),
-      });
-    }
-
-    for (const tag of appGraph.resourceTags) {
-      addNode(nodes, {
-        id: tagNodeId(tag.name),
-        kind: "ResourceTag",
-        label: tag.name,
-        data: toDevtoolsSerializableValue(tag),
-      });
-    }
-
-    for (const modulePath of appGraph.serverOnlyModules) {
-      const moduleId = addModuleNode("server-only", modulePath);
-      connect({
-        kind: "UsesModule",
-        source: serverFunctionCoverageId,
-        target: moduleId,
-        label: "discovers",
-        data: null,
-      });
-    }
-
-    for (const modulePath of appGraph.browserClientModules) {
-      const moduleId = addModuleNode("browser-client", modulePath);
-      connect({
-        kind: "UsesModule",
-        source: actionCoverageId,
-        target: moduleId,
-        label: "discovers",
-        data: null,
-      });
-    }
-
-    for (const missingSchema of appGraph.missingSchemas) {
-      const missingId = missingSchemaNodeId(missingSchema);
-      const ownerId =
-        missingSchema.kind === "action"
-          ? actionNodeId(missingSchema.name)
-          : serverFunctionNodeId(missingSchema.name);
-      const coverageId =
-        missingSchema.kind === "action" ? actionCoverageId : serverFunctionCoverageId;
-
-      addNode(nodes, {
-        id: ownerId,
-        kind: missingSchema.kind === "action" ? "Action" : "ServerFunction",
-        label: missingSchema.name,
-        data: {
-          name: missingSchema.name,
-        },
-      });
-      addNode(nodes, {
-        id: missingId,
-        kind: "MissingSchema",
-        label: missingSchema.name,
-        data: toDevtoolsSerializableValue(missingSchema),
-      });
-      connect({
-        kind: "MissingSchema",
-        source: ownerId,
-        target: missingId,
-        label: "missing schema",
-        data: null,
-      });
-      connect({
-        kind: "Covers",
-        source: coverageId,
-        target: missingId,
-        label: "reports",
-        data: null,
-      });
-    }
-  }
-
   for (const resource of input.resources) {
     addNode(nodes, {
       id: resourceNodeId(resource.key),
@@ -744,7 +394,6 @@ export const describeDevtoolsCausalGraph = (
   const normalized = normalizeDevtoolsSummaryInput(input);
 
   return makeDevtoolsCausalGraph({
-    appGraph: normalized.appGraph,
     snapshot: normalized.snapshot,
     invalidations: normalized.invalidations,
     routePlans: normalized.routePlans,

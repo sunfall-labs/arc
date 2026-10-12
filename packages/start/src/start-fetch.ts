@@ -9,7 +9,6 @@ import {
 import { Data, Effect } from "effect";
 import { makeStartRequestId, startJsonMediaType, startRequestIdHeader } from "./rpc.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
-import type { StartTransportEndpointSource } from "./start-transport-endpoints.js";
 
 const invalidStartFetchReturnMessage =
   "Start fetch hooks must return an Effect. Wrap host Promise work with Effect.tryPromise(...) at the fetch Adapter seam.";
@@ -44,9 +43,6 @@ export interface ServerRpcClientOptions<
   FetchError = never,
   FetchRequirements = never,
   RuntimeError = never,
-> extends Pick<
-  StartTransportEndpointSource,
-  "rpcPath" | "endpoints" | "serverFunctionManifest" | "appGraph"
 > {
   /** RPC endpoint. Defaults to the Start server function path. */
   readonly endpoint?: string | URL;

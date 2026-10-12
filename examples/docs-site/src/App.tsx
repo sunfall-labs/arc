@@ -109,7 +109,7 @@ const blogRailItems = createPageRailItems([
   { blockIndex: 1, level: 2, text: "What agent-native means" },
   { blockIndex: 2, level: 2, text: "Correctness by construction" },
   { blockIndex: 3, level: 2, text: "Effect gives Arc dependency injection and testability" },
-  { blockIndex: 4, level: 2, text: "The hero slice: route, resource, action, graph" },
+  { blockIndex: 4, level: 2, text: "The hero slice: route, resource, action" },
   { blockIndex: 5, level: 2, text: "What conventional stacks would do" },
   { blockIndex: 6, level: 2, text: "What Arc replaces" },
   { blockIndex: 7, level: 2, text: "Built by an agent, verified in public" },
@@ -629,11 +629,8 @@ const blogActionExample = `export const UpdateIssueStatus = Action.define({
   invalidates: (issue) => [IssuesTag, IssueTag({ id: issue.id })],
 });`;
 
-const blogGraphExample = `sunfall-arc-start graph route /issues/:id
-sunfall-arc-start impact action Issue.updateStatus --json`;
-
-function BlogCode(props: { readonly code: string; readonly language?: string }) {
-  return <CodeBlock code={props.code} language={props.language ?? "tsx"} />;
+function BlogCode(props: { readonly code: string }) {
+  return <CodeBlock code={props.code} language="tsx" />;
 }
 
 function BlogPostView() {
@@ -701,19 +698,19 @@ function BlogPostView() {
         <p>
           Arc is agent-native because the app is made of named typed definitions. In Arc, a
           definition is a named typed declaration the framework can run and inspect: a Route,
-          Resource, Action, Form, Signal, or server contract. The app graph is the map Arc builds
-          from those definitions, and the Effect services each one depends on show up in its type.
+          Resource, Action, Form, Signal, or server contract. Each one carries the facts the
+          framework needs to explain it, and the Effect services it depends on show up in its type.
         </p>
         <p>
           The practical promise is simple: an agent can read what the app owns, change the stable
-          definition that owns it, and verify the result through type tests, build diagnostics,
-          graph impact output, leak scans, and runtime tests.
+          definition that owns it, and verify the result through type tests, build checks, leak
+          scans, and runtime tests.
         </p>
         <ul>
-          <li>Read: generated route trees, Start app graphs, diagnostics reports, and devtools.</li>
+          <li>Read: generated route trees, definition diagnostics, and devtools.</li>
           <li>Change: stable Resources, Actions, Forms, Routes, and Effect services.</li>
           <li>
-            Verify: TypeScript gates, schema checks, build policy, graph impact, and{" "}
+            Verify: TypeScript gates, schema checks, build policy, and{" "}
             <code class="inlineCode">pnpm verify</code>.
           </li>
         </ul>
@@ -732,20 +729,19 @@ function BlogPostView() {
             errors.
           </li>
           <li>
-            Build diagnostics catch duplicate routes, missing schemas, unknown preload ownership,
-            and server/client boundary drift.
+            Build checks catch duplicate routes and server/client boundary drift; dev warns about
+            undeclared preload ownership.
           </li>
           <li>
             Runtime scopes isolate requests, resources, action submissions, and streamed responses.
           </li>
           <li>
-            Devtools and graph output explain route plans, invalidation, request traces, and
-            resource lifetimes.
+            Devtools explain route plans, invalidation, request traces, and resource lifetimes.
           </li>
         </ul>
         <p>
           This is why Arc is not just a nicer fetch wrapper. The core product is a layered
-          correctness system: type-time contracts, build-time graph checks, runtime ownership, and
+          correctness system: type-time contracts, build-time route checks, runtime ownership, and
           diagnostics that preserve enough structure for humans and agents to trust.
         </p>
 
@@ -770,11 +766,11 @@ function BlogPostView() {
           definitions that agents can inspect.
         </p>
 
-        <h2 id={blogHeadingId(4)}>The hero slice: route, resource, action, graph</h2>
+        <h2 id={blogHeadingId(4)}>The hero slice: route, resource, action</h2>
         <p>
-          The smallest useful example is the Issue detail page: a route that owns the Issue
-          Resource, an Action that updates the same Issue, and a graph artifact that can explain the
-          relationship before code changes ship.
+          The smallest useful example is the Issue detail page: a route that owns the Issue Resource
+          and an Action that updates the same Issue, with the relationship declared in the
+          definitions themselves.
         </p>
         <p>
           Here is the domain shape the rest of the examples are using. The branded id prevents a
@@ -809,17 +805,11 @@ function BlogPostView() {
         <BlogCode code={blogUiExample} />
 
         <p>
-          The status update Action keeps write behavior in the same graph. It has a stable name, a
-          schema, an Effect, and an invalidation plan expressed as domain tags rather than string
-          cache keys.
+          The status update Action keeps write behavior in the same vocabulary. It has a stable
+          name, a schema, an Effect, and an invalidation plan expressed as domain tags rather than
+          string cache keys.
         </p>
         <BlogCode code={blogActionExample} />
-
-        <p>
-          Now the framework can explain the slice. The graph and impact commands show what a route
-          owns and what an action may affect before an agent edits the next file.
-        </p>
-        <BlogCode code={blogGraphExample} language="shellscript" />
 
         <h2 id={blogHeadingId(5)}>What conventional stacks would do</h2>
         <p>
@@ -836,7 +826,7 @@ function BlogPostView() {
         <p>
           That handles the client cache well. Arc pushes the boundary outward: the cache entry,
           route data contract, server function contract, invalidation plan, SSR hydration payload,
-          mock boundary, and diagnostic graph all connect through the same typed definitions.
+          and mock boundary all connect through the same typed definitions.
         </p>
 
         <h2 id={blogHeadingId(6)}>What Arc replaces</h2>
@@ -867,10 +857,9 @@ function BlogPostView() {
         <h2 id={blogHeadingId(7)}>Built by an agent, verified in public</h2>
         <p>
           Arc was built by an agent working inside this model. That is not the headline value; it is
-          a proof point for the framework itself. The repo includes generated route artifacts, graph
-          diagnostics, public API manifests, type tests, package dry runs, leak scans, architecture
-          docs, and release gates because the framework has to stay legible to the next agent that
-          edits it.
+          a proof point for the framework itself. The repo includes generated route artifacts,
+          public API manifests, type tests, package dry runs, leak scans, architecture docs, and
+          release gates because the framework has to stay legible to the next agent that edits it.
         </p>
         <p>
           The ambition is not that agents should write code unchecked. It is the opposite: agentic
@@ -884,8 +873,8 @@ function BlogPostView() {
           Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
           every host can wait until real deployments demand them. The first public alpha is about
           the core foundation: typed definitions, Effect runtimes, Start SSR and hydration, the
-          Solid adapter, Resource rows and live queries, app graph diagnostics, devtools contracts,
-          starters, package gates, and docs that are themselves built with the framework.
+          Solid adapter, Resource rows and live queries, devtools contracts, starters, package
+          gates, and docs that are themselves built with the framework.
         </p>
         <p>
           It also should not be read as a mature Next, Remix, or TanStack Start replacement for
