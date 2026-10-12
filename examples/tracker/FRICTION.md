@@ -303,9 +303,7 @@ preloaded Resources, and client navigation never updated the title at all.
   `packages/solid/test/app-launch.test.ts` ("keeps document.title ...");
   app: `examples/tracker/src/server.test.ts`.
 
-## Open
-
-### 18. Change feeds also start in SSR request runtimes (fixed)
+### 18. Change feeds also start in SSR request runtimes
 
 A board loaded during SSR started its `rows.changes` poller in the request
 runtime, which was interrupted when the response ended. Harmless (the poller
@@ -319,7 +317,7 @@ server.
 - Tests: `packages/start/test/server-render.test.ts`,
   `packages/core/test/resource-rows.test.ts`.
 
-### 19. Sharing a client State across the app needs a Solid context (fixed)
+### 19. Sharing a client State across the app needs a Solid context
 
 The undo toast is shown by the board and the issue page but owned by the
 shell. `Component.state` was per instance and `State.start` is shared across
@@ -333,3 +331,7 @@ SSR requests, so the shell passed its handle down through a Solid context.
   (`src/shell.tsx`); the context is gone.
 - Tests: `packages/solid/test/state.test.ts` ("Component.state with an app
   State"), `packages/start/test/server-render.test.ts`.
+
+## Open
+
+Nothing is open.
