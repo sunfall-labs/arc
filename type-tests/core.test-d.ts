@@ -989,3 +989,21 @@ void outboxView;
 void outboxPendingCount;
 void outboxRestore;
 void outboxService;
+
+// A ref's service requirements are covariant and checked the same way in every
+// checker: a ref that needs a service never passes where none is provided.
+interface RefVarianceService {
+  readonly refVarianceService: true;
+}
+interface OtherRefVarianceService {
+  readonly otherRefVarianceService: true;
+}
+declare const refNeedingService: Resource.Ref<"all", number, never, RefVarianceService>;
+// @ts-expect-error the ref requires RefVarianceService
+const refWithoutServices: Resource.Ref<"all", number, never, never> = refNeedingService;
+const refWithServices: Resource.Ref<
+  "all",
+  number,
+  never,
+  RefVarianceService | OtherRefVarianceService
+> = refNeedingService;

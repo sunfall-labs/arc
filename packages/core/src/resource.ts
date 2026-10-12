@@ -356,7 +356,7 @@ export interface ResourceDiagnostics {
 }
 
 /** Stable reference to one input in a resource family. */
-export interface ResourceRef<I = unknown, A = unknown, E = never, R = never> {
+export interface ResourceRef<in out I = unknown, out A = unknown, out E = never, out R = never> {
   readonly [ResourceTypeId]: typeof ResourceTypeId;
   readonly family: ResourceFamily<I, A, E, R>;
   readonly input: I;

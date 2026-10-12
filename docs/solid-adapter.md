@@ -235,8 +235,9 @@ whenever any part of it changes. `Component.program(...)` reconciles every
 committed model into a read-only Solid projection owned by the instance, and
 `model()` returns that view:
 
+<!-- prettier-ignore -->
 ```tsx
-const board = yield * Component.program(BoardProgram);
+const board = yield* Component.program(BoardProgram);
 
 return () => (
   <>
@@ -304,17 +305,17 @@ handler has nowhere to report a typed failure, so the type makes you decide.
 instance and returns its latest element as an accessor; each element commits
 as `<Component>.<name>`.
 
+<!-- prettier-ignore -->
 ```tsx
-const presence = yield * Component.stream("presence", presenceStream, initialPresence);
+const presence = yield* Component.stream("presence", presenceStream, initialPresence);
 const move =
-  yield *
-  Component.callback("move", (id: WorkItemId, status: WorkItemStatus) =>
-    moveWorkItem.submit({ id, status }).pipe(Effect.ignore),
+  yield* Component.callback("move", (id: WorkItemId, status: WorkItemStatus) =>
+  moveWorkItem.submit({ id, status }).pipe(Effect.ignore),
   );
 // Client-only state: written only inside a named callback.
 const draft = Signal.make("", { name: "ProjectPage.draft" });
 const edit =
-  yield * Component.callback("edit", (value: string) => Effect.sync(() => draft.set(value)));
+  yield* Component.callback("edit", (value: string) => Effect.sync(() => draft.set(value)));
 ```
 
 A Signal written outside every named transition (a bare `onInput={() =>
@@ -513,17 +514,18 @@ models, Resource reads, and Action state, at the travelled commit. Effects keep
 running against the live head, so the UI can be inspected in the past while the
 app keeps working; `resume()` returns the DOM to the head.
 
+<!-- prettier-ignore -->
 ```ts
-const recording = yield * Timeline.record();
-yield * counter.dispatch({ _tag: "Increment" });
-yield * counter.dispatch({ _tag: "Increment" });
+const recording = yield* Timeline.record();
+yield* counter.dispatch({ _tag: "Increment" });
+yield* counter.dispatch({ _tag: "Increment" });
 
 const [first] = Signal.peek(recording.entries);
-yield * recording.travel(first!.sequence);
+yield* recording.travel(first!.sequence);
 flush();
 expect(container.textContent).toBe("1"); // the DOM shows the first commit
 
-yield * recording.resume();
+yield* recording.resume();
 flush();
 expect(container.textContent).toBe("2");
 ```

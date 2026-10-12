@@ -288,19 +288,21 @@ its own services, instead of a separate frontend-only test runtime.
 At runtime, every Program commit is an entry on the whole-app Timeline, next to
 Resource, Action, router, and plain Signal commits:
 
+<!-- prettier-ignore -->
 ```ts
-const recording = yield * Timeline.record();
+const recording = yield* Timeline.record();
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
 // ['Program "Project" message Load', 'Resource "Project.get" success atlas', ...]
-yield * recording.travel(1); // the UI renders that commit; Effects keep running
+yield* recording.travel(1); // the UI renders that commit; Effects keep running
 ```
 
 That closes Foldkit's replay gap for the whole app, not only for one loop:
 apps and devtools inspect and travel history without reaching into private
 state. Devtools does that through the public Effect API:
 
+<!-- prettier-ignore -->
 ```ts
-yield * store.trackTimeline(recording);
+yield* store.trackTimeline(recording);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract

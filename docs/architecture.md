@@ -307,18 +307,18 @@ current `Request`, parsed `URL`, headers, and cookies. `ResponseContext` lets
 preload, render, server functions, actions, and server routes set status,
 headers, and cookies through Effect:
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  ResponseContext.use((response) =>
-    Effect.gen(function* () {
-      yield* response.setHeader("x-project", "atlas");
-      yield* response.setCookie("session", token, {
-        httpOnly: true,
-        path: "/",
-        sameSite: "lax",
-      });
-    }),
-  );
+yield* ResponseContext.use((response) =>
+  Effect.gen(function* () {
+    yield* response.setHeader("x-project", "atlas");
+    yield* response.setCookie("session", token, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+    });
+  }),
+);
 ```
 
 Start applies the accumulated response context to the final `Response`, including
@@ -711,8 +711,9 @@ tag-providing behavior, stale/GC/retry/persist policy, and declared `rows`
 
 The graph is inspectable before it is executed:
 
+<!-- prettier-ignore -->
 ```ts
-const plan = yield * Resource.planInvalidation([ProjectsTag, ProjectTag({ id: project.id })]);
+const plan = yield* Resource.planInvalidation([ProjectsTag, ProjectTag({ id: project.id })]);
 
 plan.entries.map((entry) => ({
   ref: entry.ref.key,
@@ -1019,8 +1020,9 @@ instead of allowing later segments to overwrite earlier params.
 
 Preload is also inspectable as a route data graph:
 
+<!-- prettier-ignore -->
 ```ts
-const plan = yield * Route.planNavigation(routes, "/projects/atlas");
+const plan = yield* Route.planNavigation(routes, "/projects/atlas");
 
 if (plan._tag === "Matched") {
   plan.match.route.path;
@@ -1116,24 +1118,20 @@ a checked declaration file such as `src/sunfall-arc-start-virtual.d.ts` containi
 
 ## SSR Hydration
 
-Route preload is also the server data graph. `@sunfall/arc-start` can match a
-request, run the matched route preload, collect every resource touched by
-`Resource.preload`, and serialize successful resource cache entries:
-
-```ts
-const preloaded = yield * preloadRequest(app, request);
-preloaded.resources; // { resources: [...] }
-```
+Route preload is also the server data graph. For each document request,
+`createRequestHandler(app, ...)` matches the route, runs its preload, collects
+every resource touched by `Resource.preload`, and serializes the successful
+resource cache entries into the document's hydration payload.
 
 The payload includes the resource family name, stable key, and original input
 (Arc's envelope) plus `state`: the `AsyncResult.Schema`-style JSON encoding of a
 settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
 `value` encoded through the family's `output` schema when one exists. Hydration
 is Success-only: failures can carry server-only causes and are never serialized.
-Start client hydration applies that payload with
-`hydrateFromDocument(...)` or `hydrateStartPayload(...)`; those
-helpers call `Resource.hydrate(payload)` so the visible resource signal
-and Effect `Cache` entry update in the same Runtime Spine.
+In the browser, `App.launch(app)` applies that payload with
+`hydrateFromDocument(...)`, which calls `Resource.hydrate(payload)` so the
+visible resource signal and Effect `Cache` entry update in the same Runtime
+Spine.
 
 A failed route preload is a render outcome in Start: the request renders with
 status 500 and every router on the request runtime starts in the `Failure`
@@ -1311,14 +1309,14 @@ only from the server entry so the handlers are registered for SSR and RPC.
 
 Tests should mock contracts, not modules:
 
+<!-- prettier-ignore -->
 ```ts
 const value =
-  yield *
-  Effect.provide(
-    getProject.effect({ id: makeProjectId("atlas") }),
-    Server.mockLayer(
-      Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
-    ),
+  yield* Effect.provide(
+  getProject.effect({ id: makeProjectId("atlas") }),
+  Server.mockLayer(
+    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+  ),
   );
 ```
 
@@ -1358,15 +1356,15 @@ Signals separate committed state from rendered state:
    tracks natively and catches up atomically at its next flush.
 3. A transaction that fails or is interrupted commits nothing.
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  Signal.transaction(
-    Effect.gen(function* () {
-      const saved = yield* Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
-      yield* api.save(saved); // if this fails, the write above never happened
-    }),
-    { name: "Counter.save" },
-  );
+yield* Signal.transaction(
+  Effect.gen(function* () {
+    const saved = yield* Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
+    yield* api.save(saved); // if this fails, the write above never happened
+  }),
+  { name: "Counter.save" },
+);
 
 Signal.batch(
   () => {
@@ -1395,8 +1393,9 @@ Signal.changes(count); // updates only
 
 Streams can also drive signals when the stream cannot fail:
 
+<!-- prettier-ignore -->
 ```ts
-const online = yield * Signal.fromStream(presenceStream, false, { name: "presence.online" });
+const online = yield* Signal.fromStream(presenceStream, false, { name: "presence.online" });
 ```
 
 Each element commits under a transition of the signal's name. In Solid
@@ -1462,8 +1461,9 @@ failures, and router state. Every write happens inside a named
 transition, so every entry reads like a message (Foldkit-style
 predictability: no state changes without a name):
 
+<!-- prettier-ignore -->
 ```ts
-const recording = yield * Timeline.record({ limit: 1000 });
+const recording = yield* Timeline.record({ limit: 1000 });
 
 // What `Component.callback("rename", ...)` in `ProjectPage` commits as:
 Signal.batch(() => title.set("Apollo"), { name: "ProjectPage.rename" });
@@ -1471,8 +1471,8 @@ Signal.batch(() => title.set("Apollo"), { name: "ProjectPage.rename" });
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
 // ['Program "Board" message Relabel', 'Resource "Project.get" success atlas', "ProjectPage.rename"]
 
-yield * recording.travel(entry.sequence); // render the app as it was after `entry`
-yield * recording.resume(); // render the live head again
+yield* recording.travel(entry.sequence); // render the app as it was after `entry`
+yield* recording.resume(); // render the live head again
 ```
 
 Entries are `{ sequence, at, cause, changes: [{ signal, name, previous, next }] }`.

@@ -213,12 +213,12 @@ Handles follow the same rule: members that run work (`submit`, `dispatch`,
 `reset`, `preload`, `refresh`) return Effects, and UI event handlers run them
 through `Component.callback`, which requires failures to be handled:
 
+<!-- prettier-ignore -->
 ```tsx
-const rename = yield * Component.action(RenameProject);
+const rename = yield* Component.action(RenameProject);
 const save =
-  yield *
-  Component.callback("save", (name: string) =>
-    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
+  yield* Component.callback("save", (name: string) =>
+  rename.submit({ id: props.id, name }).pipe(Effect.ignore),
   );
 return () => <RenameForm onRename={save} />;
 ```

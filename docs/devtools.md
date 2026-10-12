@@ -40,15 +40,16 @@ request id when the same trace is observed twice.
 
 Every store read/write has an Effect form:
 
+<!-- prettier-ignore -->
 ```ts
 const store = Devtools.makeStore();
 
-yield * store.recordResourceEvent(event);
-yield * store.recordRequestTrace(trace);
-const snapshot = yield * store.getSnapshot();
-const summary = yield * store.getSummary();
-const graph = yield * store.getCausalGraph();
-const panels = yield * store.getPanels();
+yield* store.recordResourceEvent(event);
+yield* store.recordRequestTrace(trace);
+const snapshot = yield* store.getSnapshot();
+const summary = yield* store.getSummary();
+const graph = yield* store.getCausalGraph();
+const panels = yield* store.getPanels();
 ```
 
 Actions can be observed directly from their public instance. The observer is
@@ -60,26 +61,28 @@ Resource events publish `ResourceFailure` with the full `cause` (typed errors
 and defects) and `ResourceInterrupted` when a load was cancelled and the entry
 returned to its prior settled result:
 
+<!-- prettier-ignore -->
 ```ts
-yield * store.trackAction(renameAction);
+yield* store.trackAction(renameAction);
 ```
 
 Full-stack Start actions expose the same causal shape as serialized JSON
 metadata. Adapters can record that metadata without importing Start into
 devtools:
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  store.recordActionState("Project.rename", "Success", {
-    input: { id: "atlas" },
-    serializedInvalidationPlan: startAction.invalidation.get(),
-  });
+yield* store.recordActionState("Project.rename", "Success", {
+  input: { id: "atlas" },
+  serializedInvalidationPlan: startAction.invalidation.get(),
+});
 ```
 
 For the common case, Action instances are observable directly:
 
+<!-- prettier-ignore -->
 ```ts
-yield * store.trackAction(renameAction);
+yield* store.trackAction(renameAction);
 ```
 
 State history comes from the app `Timeline`, not from private queues or fibers.
@@ -90,9 +93,10 @@ transitions, so each `TimelineCommit` is labelled like a message log
 (`ProjectPage.rename`, `Action "Project.rename" submit`). Program message and
 failure commits land on the Programs panel:
 
+<!-- prettier-ignore -->
 ```ts
-const recording = yield * Timeline.record();
-yield * store.trackTimeline(recording);
+const recording = yield* Timeline.record();
+yield* store.trackTimeline(recording);
 ```
 
 The default policy redacts common secret-shaped keys such as passwords, tokens,
@@ -265,9 +269,10 @@ validation, it carries the typed error and the other panels are suppressed.
 `Devtools.renderPanelsHtml(...)` turns the panel contract into deterministic HTML
 for a browser-embedded panel, documentation preview, or app shell:
 
+<!-- prettier-ignore -->
 ```ts
 const html = Devtools.renderPanelsHtml({
-  panels: yield * store.getPanels(),
+  panels: yield* store.getPanels(),
   selectedPanelId: "requests",
   maxItemsPerPanel: 12,
 });
@@ -279,12 +284,12 @@ panel contract rejects duplicate item ids within a panel so extension rows,
 tests, and agent tools can rely on stable row identity. Browser hosts that want
 lifecycle ownership can mount the same contract through Effect:
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  Devtools.mountPanels({
-    root: document.getElementById("sunfall-arc-devtools")!,
-    panels: yield * store.getPanels(),
-  });
+yield* Devtools.mountPanels({
+  root: document.getElementById("sunfall-arc-devtools")!,
+  panels: yield* store.getPanels(),
+});
 ```
 
 The scoped mount clears the root and removes tab listeners when the Effect scope
@@ -294,13 +299,13 @@ after recording new devtools facts.
 Apps that want browser extensions to read the same panel payload can expose an
 inspected-window bridge through the devtools package:
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  Devtools.installBridge(() => ({
-    panels: Effect.runSync(store.getPanels()),
-    selectedPanelId: "requests",
-    title: "Sunfall Arc Devtools",
-  }));
+yield* Devtools.installBridge(() => ({
+  panels: Effect.runSync(store.getPanels()),
+  selectedPanelId: "requests",
+  title: "Sunfall Arc Devtools",
+}));
 ```
 
 The scoped bridge restores any previous `globalThis.__SUNFALL_ARC_DEVTOOLS__`
