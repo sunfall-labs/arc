@@ -1,6 +1,13 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, defineApp, makeCoreDefinitionRegistryAdapter, Server } from "../src/index.js";
+import { Action, Server, App } from "../src/index.js";
+import {
+  makeCoreDefinitionRegistryAdapter,
+  actionDefinitionRegistry,
+  getActionDefinition,
+  coreDefinitionRegistryDiagnostics,
+  clearActionDefinitionRegistryUnsafe,
+} from "../src/internal.js";
 
 let registryTestId = 0;
 
@@ -17,8 +24,8 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("pong"),
     });
 
-    expect(Action.definitions().get(Ping.name)).toBe(Ping);
-    expect(Action.get(Ping.name)).toBe(Ping);
+    expect(actionDefinitionRegistry().get(Ping.name)).toBe(Ping);
+    expect(getActionDefinition(Ping.name)).toBe(Ping);
     expect(Server.definitions().get(ping.name)).toBe(ping);
     expect(Server.functions().get(ping.name)).toBe(ping);
     expect(Server.get(ping.name)).toBe(ping);
@@ -33,7 +40,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("before"),
     });
 
-    const app = defineApp({
+    const app = App.define({
       routes: [] as const,
       client: {},
     });
@@ -50,7 +57,7 @@ describe("Core definition registry", () => {
     expect(app.registry.serverFunctions.get(beforeServer.name)).toBe(beforeServer);
     expect(app.registry.actions.has(AfterAction.name)).toBe(false);
     expect(app.registry.serverFunctions.has(afterServer.name)).toBe(false);
-    expect(Action.definitions().get(AfterAction.name)).toBe(AfterAction);
+    expect(actionDefinitionRegistry().get(AfterAction.name)).toBe(AfterAction);
     expect(Server.definitions().get(afterServer.name)).toBe(afterServer);
   });
 
@@ -70,7 +77,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("local"),
     });
 
-    const app = defineApp({
+    const app = App.define({
       routes: [] as const,
       client: {},
       registry: {
@@ -83,7 +90,7 @@ describe("Core definition registry", () => {
     expect(app.registry.serverFunctions.get(localServer.name)).toBe(localServer);
     expect(app.registry.actions.has(GlobalAction.name)).toBe(false);
     expect(app.registry.serverFunctions.has(globalServer.name)).toBe(false);
-    expect(Action.definitions().get(GlobalAction.name)).toBe(GlobalAction);
+    expect(actionDefinitionRegistry().get(GlobalAction.name)).toBe(GlobalAction);
     expect(Server.definitions().get(globalServer.name)).toBe(globalServer);
   });
 
@@ -96,7 +103,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("local"),
     });
 
-    const app = defineApp({
+    const app = App.define({
       routes: [] as const,
       client: {},
       registry: {
@@ -129,11 +136,11 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("second"),
     });
 
-    expect(Action.get(actionName)).not.toBe(FirstAction);
-    expect(Action.get(actionName)).toBe(SecondAction);
+    expect(getActionDefinition(actionName)).not.toBe(FirstAction);
+    expect(getActionDefinition(actionName)).toBe(SecondAction);
     expect(Server.get(serverName)).not.toBe(firstServer);
     expect(Server.get(serverName)).toBe(secondServer);
-    expect(Action.registryDiagnostics().duplicates).toEqual(
+    expect(coreDefinitionRegistryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "action",
@@ -159,13 +166,13 @@ describe("Core definition registry", () => {
       name: actionName,
       run: () => Effect.succeed("second"),
     });
-    expect(Action.registryDiagnostics().duplicates).toEqual(
+    expect(coreDefinitionRegistryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "action", name: actionName })]),
     );
 
-    Action.clearRegistryUnsafe();
+    clearActionDefinitionRegistryUnsafe();
 
-    expect(Action.registryDiagnostics().duplicates).not.toEqual(
+    expect(coreDefinitionRegistryDiagnostics().duplicates).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "action", name: actionName })]),
     );
 

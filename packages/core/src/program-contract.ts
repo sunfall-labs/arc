@@ -21,7 +21,7 @@ export const ProgramSubscriptionTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/ProgramSubscription",
 ) as typeof ProgramSubscriptionTypeId;
 
-/** Runtime phase that produced a Program failure or timeline event. */
+/** Runtime phase that produced a Program failure. */
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
 type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -129,7 +129,7 @@ export type ProgramSubscriptionRequirements<Out> = EffectInputRequirements<Out>;
 
 /** Definition for a headless model/message loop with Effect-owned work. */
 export interface ProgramDefinition<Model, Message, E = never, R = never> {
-  /** Optional stable name used by timeline/devtools events. */
+  /** Optional stable name used for signal labels and `Timeline` causes. */
   readonly name?: string;
   readonly initial: ProgramModelValue<Model>;
   readonly update: (
@@ -139,8 +139,6 @@ export interface ProgramDefinition<Model, Message, E = never, R = never> {
   readonly subscriptions?: (
     model: Model,
   ) => EffectInput<ProgramSubscriptionInput<Message, E, R>, E, R>;
-  /** Bounded runtime event retention. Set to `false` to disable timeline storage. */
-  readonly timeline?: false | ProgramTimelineOptions;
 }
 
 /** Definition shorthand for tagged-message Programs. */
@@ -150,7 +148,7 @@ export interface ProgramHandlerDefinition<
   E = never,
   R = never,
 > {
-  /** Optional stable name used by timeline/devtools events. */
+  /** Optional stable name used for signal labels and `Timeline` causes. */
   readonly name?: string;
   readonly initial: ProgramModelValue<Model>;
   /** Exhaustive message handlers keyed by each message `_tag`. */
@@ -158,109 +156,21 @@ export interface ProgramHandlerDefinition<
   readonly subscriptions?: (
     model: Model,
   ) => EffectInput<ProgramSubscriptionInput<Message, E, R>, E, R>;
-  /** Bounded runtime event retention. Set to `false` to disable timeline storage. */
-  readonly timeline?: false | ProgramTimelineOptions;
 }
 
 /** Program error channel plus callback and Runtime Spine startup/provision errors. */
 export type ProgramRuntimeError<E, ER = never> = E | EffectInputCallbackError | ER;
 
-/** Error channel for live `dispatchEffect(...)`, including disposal drops. */
+/** Error channel for live `dispatch(...)`, including disposal drops. */
 export type ProgramDispatchError<E, ER = never> = ProgramRuntimeError<E, ER> | ProgramDisposed;
 
 /**
- * Error reported when `dispatchEffect(...)` cannot apply because the Program
+ * Error reported when `dispatch(...)` cannot apply because the Program
  * was disposed before the message update committed.
  */
 export class ProgramDisposed extends Data.TaggedError("ProgramDisposed")<{
   readonly reason: string;
 }> {}
-
-/** Bounded retention options for Program timeline events. */
-export interface ProgramTimelineOptions {
-  /** Maximum retained timeline events. Defaults to 200. */
-  readonly limit?: number;
-}
-
-/** Shared metadata carried by every Program timeline event. */
-export interface ProgramEventBase {
-  readonly sequence: number;
-  readonly program?: string;
-}
-
-/** Timeline event recorded when a message is committed. */
-export interface ProgramMessageEvent<Model, Message> extends ProgramEventBase {
-  readonly _tag: "Message";
-  readonly message: Message;
-  readonly before: Model;
-  readonly after: Model;
-  readonly commandCount: number;
-}
-
-/** Timeline event recorded before a command fiber starts. */
-export interface ProgramCommandStartedEvent<Message> extends ProgramEventBase {
-  readonly _tag: "CommandStarted";
-  readonly commandId: number;
-  readonly source?: Message;
-}
-
-/** Timeline event recorded when a command emits a message or completes empty. */
-export interface ProgramCommandCompletedEvent<Message> extends ProgramEventBase {
-  readonly _tag: "CommandCompleted";
-  readonly commandId: number;
-  readonly source?: Message;
-  readonly emitted?: Message;
-}
-
-/** Timeline event recorded when a command fails through the Program error channel. */
-export interface ProgramCommandFailedEvent<Message, E> extends ProgramEventBase {
-  readonly _tag: "CommandFailed";
-  readonly commandId: number;
-  readonly source?: Message;
-  readonly failure: ProgramFailure<Message, E>;
-}
-
-/** Timeline event recorded when the update callback fails. */
-export interface ProgramUpdateFailedEvent<Message, E> extends ProgramEventBase {
-  readonly _tag: "UpdateFailed";
-  readonly failure: ProgramFailure<Message, E>;
-}
-
-/** Timeline event recorded when model-dependent subscriptions start. */
-export interface ProgramSubscriptionStartedEvent<Model> extends ProgramEventBase {
-  readonly _tag: "SubscriptionStarted";
-  readonly model: Model;
-  readonly count: number;
-}
-
-/** Timeline event recorded when a subscription emits a message. */
-export interface ProgramSubscriptionEmittedEvent<Message> extends ProgramEventBase {
-  readonly _tag: "SubscriptionEmitted";
-  readonly message: Message;
-}
-
-/** Timeline event recorded when a subscription fails through the Program error channel. */
-export interface ProgramSubscriptionFailedEvent<Message, E> extends ProgramEventBase {
-  readonly _tag: "SubscriptionFailed";
-  readonly failure: ProgramFailure<Message, E>;
-}
-
-/** Timeline event recorded when a Program runtime is disposed. */
-export interface ProgramDisposedEvent extends ProgramEventBase {
-  readonly _tag: "Disposed";
-}
-
-/** Union of all Program runtime timeline event shapes. */
-export type ProgramEvent<Model, Message, E = never> =
-  | ProgramMessageEvent<Model, Message>
-  | ProgramCommandStartedEvent<Message>
-  | ProgramCommandCompletedEvent<Message>
-  | ProgramCommandFailedEvent<Message, E>
-  | ProgramUpdateFailedEvent<Message, E>
-  | ProgramSubscriptionStartedEvent<Model>
-  | ProgramSubscriptionEmittedEvent<Message>
-  | ProgramSubscriptionFailedEvent<Message, E>
-  | ProgramDisposedEvent;
 
 /** One deterministic Program transition captured for story-style tests. */
 export interface ProgramStoryEntry<Model, Message, E = never, R = never> {
@@ -309,29 +219,23 @@ export interface ProgramStoryOptions<Model> {
   readonly initial?: ProgramModelValue<Model>;
 }
 
-/** Running Program handle with model state, dispatch, failure, timeline, and disposal APIs. */
+/** Running Program handle with model state, dispatch, failure, and disposal APIs. */
 export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {
   /** Centralized model signal for adapter-neutral reads and derived state. */
   readonly model: ReadableSignal<Model>;
   /** Accumulated typed failures from updates, commands, and subscriptions. */
   readonly failures: ReadableSignal<ReadonlyArray<ProgramFailure<Message, E>>>;
-  /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */
-  readonly timeline: ReadableSignal<ReadonlyArray<ProgramEvent<Model, Message, E>>>;
-  /** Fire-and-forget dispatch for UI event handlers. */
-  dispatch(message: ProgramMessageValue<Message>): void;
   /**
    * Effect dispatch that completes after the message update has committed.
    *
    * If disposal happens before the update commits, the Effect fails with a
    * `ProgramFailure` whose error is `ProgramDisposed`.
    */
-  dispatchEffect(
+  dispatch(
     message: ProgramMessageValue<Message>,
   ): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
-  /** Clears retained timeline events without changing model or failures. */
-  clearTimeline(): void;
   /** Stops the message loop and interrupts active subscriptions/commands. */
-  disposeEffect: Effect.Effect<void>;
+  dispose: Effect.Effect<void>;
 }

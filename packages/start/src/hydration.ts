@@ -1,24 +1,20 @@
 import {
-  currentOrDefaultRuntime,
-  validateResourceHydrationInputEffect,
   type EffectInputCallbackError,
   Resource,
   Route,
-  type AnySunfallArcRuntime,
   type RoutePreloadFailureSnapshot,
-  type SunfallArcRuntime,
   type ResourceHydrationApplyError,
   type ResourceSnapshotCodecError,
   type ResourceHydrationPayload,
   type ResourceHydrationOptions,
 } from "@sunfall/arc-core";
+import { validateResourceHydrationPayloadEffect } from "@sunfall/arc-core/internal";
+import { type Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
-  Collection,
-  type AnyCollection,
-  type CollectionHydrateOptions,
-  type CollectionHydrationPayload,
-  CollectionSnapshotCodecError,
-} from "@sunfall/arc-db";
+  dehydrateCollectionsEffect,
+  hydrateCollectionsEffect,
+  validateCollectionsHydrationEffect,
+} from "@sunfall/arc-db/internal";
 import { Cause, Data, Effect, Exit, type Schema } from "effect";
 import {
   hydrationScriptId,
@@ -126,7 +122,7 @@ export type StartHydrationError =
 /** Serialized Resource and Collection state transported from Start SSR to the browser. */
 export interface StartHydrationPayload extends ResourceHydrationPayload {
   /** Collection snapshots fail hydration with `CollectionSnapshotCodecError` when malformed. */
-  readonly collections?: CollectionHydrationPayload["collections"];
+  readonly collections?: Collection.HydrationPayload["collections"];
   /** Route preload failure the server rendered; the hydrating router starts in that `Failure` state. */
   readonly routeFailure?: RoutePreloadFailureSnapshot;
 }
@@ -146,29 +142,18 @@ export interface StartHydrationChunk {
 /** Collections available when creating or applying Start hydration payloads. */
 export interface StartCollectionHydrationOptions extends StartCollectionResolutionOptions {
   /** Collection definitions that can receive collection snapshots from payloads. */
-  readonly collections?: Iterable<AnyCollection>;
+  readonly collections?: Iterable<Collection.Any>;
   /** Explicit collection registry used to resolve route-declared or payload collection names. */
   readonly collectionRegistry?:
     | StartCollectionDefinitionRegistry
-    | ReadonlyMap<string, AnyCollection>;
+    | ReadonlyMap<string, Collection.Any>;
   /** Explicit resolver used to resolve route-declared or payload collection names. */
   readonly resolveCollection?: StartCollectionDefinitionResolver;
 }
 
 /** Effect-first options for applying a Start hydration payload. */
 export interface HydrateStartPayloadEffectOptions
-  extends StartCollectionHydrationOptions, CollectionHydrateOptions, ResourceHydrationOptions {}
-
-/** Synchronous host-seam options for applying a Start hydration payload. */
-export interface HydrateStartPayloadOptions<
-  RuntimeServices = never,
-  RuntimeError = never,
-> extends HydrateStartPayloadEffectOptions {
-  /** Runtime used by the synchronous host-seam hydration facade. */
-  readonly runtime?:
-    | SunfallArcRuntime<RuntimeServices, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>;
-}
+  extends StartCollectionHydrationOptions, Collection.HydrateOptions, ResourceHydrationOptions {}
 
 /**
  * Options for applying streamed hydration chunks from a document.
@@ -185,35 +170,8 @@ export interface HydrateStartHydrationChunksFromDocumentEffectOptions
   readonly markConsumed?: boolean;
 }
 
-/**
- * Synchronous host-seam options for applying streamed hydration chunks.
- *
- * Use the Effect variant in libraries; this shape exists for browser boot code
- * that must call a sync facade with an explicit runtime.
- */
-export interface HydrateStartHydrationChunksFromDocumentOptions<
-  RuntimeServices = never,
-  RuntimeError = never,
-> extends HydrateStartHydrationChunksFromDocumentEffectOptions {
-  /** Runtime used by the synchronous host-seam hydration facade. */
-  readonly runtime?:
-    | SunfallArcRuntime<RuntimeServices, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>;
-}
-
 /** Effect-first options for reading and applying the document hydration script. */
-export interface HydrateFromDocumentEffectOptions extends HydrateStartHydrationChunksFromDocumentEffectOptions {}
-
-/** Synchronous host-seam options for reading and applying the document hydration script. */
-export interface HydrateFromDocumentOptions<
-  RuntimeServices = never,
-  RuntimeError = never,
-> extends HydrateFromDocumentEffectOptions {
-  /** Runtime used by the synchronous host-seam document hydration facade. */
-  readonly runtime?:
-    | SunfallArcRuntime<RuntimeServices, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>;
-}
+export interface HydrateFromDocumentOptions extends HydrateStartHydrationChunksFromDocumentEffectOptions {}
 
 /** Options for preloading request-time collections into the Start hydration payload. */
 export interface PreloadRequestOptions extends StartCollectionHydrationOptions {}
@@ -225,7 +183,7 @@ interface StartHydrationChunkElement extends Pick<
   readonly chunk: StartHydrationChunk;
 }
 
-const emptyCollectionHydrationPayload: CollectionHydrationPayload = { collections: [] };
+const emptyCollectionHydrationPayload: Collection.HydrationPayload = { collections: [] };
 
 const escapeJsonForHtml = (json: string): string =>
   json.replace(/[<>&\u2028\u2029]/g, (character) => {
@@ -265,7 +223,7 @@ const escapeHtmlAttribute = (value: string): string =>
 
 const collectionHydrateOptions = (
   options: HydrateStartPayloadEffectOptions,
-): CollectionHydrateOptions => (options.replace === undefined ? {} : { replace: options.replace });
+): Collection.HydrateOptions => (options.replace === undefined ? {} : { replace: options.replace });
 
 const duplicateHydrationCollection = (
   cause: StartCollectionDuplicateName,
@@ -279,7 +237,7 @@ const duplicateHydrationCollection = (
 const collectionsForHydrationPayloadEffect = (
   payload: StartHydrationPayload,
   options: HydrateStartPayloadEffectOptions,
-): Effect.Effect<ReadonlyArray<AnyCollection>, CollectionSnapshotCodecError> => {
+): Effect.Effect<ReadonlyArray<Collection.Any>, CollectionSnapshotCodecError> => {
   const snapshots = payload.collections;
   if (!snapshots || snapshots.length === 0) {
     return Effect.succeed([]);
@@ -290,7 +248,7 @@ const collectionsForHydrationPayloadEffect = (
       Effect.mapError(duplicateHydrationCollection),
     );
     const resolution = makeStartCollectionResolution(options);
-    const resolved = new Map<string, AnyCollection>();
+    const resolved = new Map<string, Collection.Any>();
     for (const [index, snapshot] of snapshots.entries()) {
       const collection = resolution.resolve(snapshot.name);
       if (collection === undefined) {
@@ -334,15 +292,6 @@ const streamCollectionHydrateOptions = (
   replace: false,
 });
 
-const runHydrationSync = <A, E, RuntimeServices, RuntimeError>(
-  effect: Effect.Effect<A, E>,
-  runtime:
-    | SunfallArcRuntime<RuntimeServices, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>
-    | undefined,
-): A =>
-  (runtime ?? (currentOrDefaultRuntime() as AnySunfallArcRuntime<RuntimeError>)).runSync(effect);
-
 const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A => {
   const exit = Effect.runSyncExit(effect);
   if (Exit.isSuccess(exit)) {
@@ -367,17 +316,17 @@ const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A =>
 export const collectionHydrationPayloadEffect = (
   options: StartCollectionHydrationOptions = {},
 ): Effect.Effect<
-  CollectionHydrationPayload,
+  Collection.HydrationPayload,
   CollectionSnapshotCodecError | EffectInputCallbackError
 > =>
   options.collections
-    ? Collection.dehydrateEffect(options.collections)
+    ? dehydrateCollectionsEffect(options.collections)
     : Effect.succeed(emptyCollectionHydrationPayload);
 
 /** Combines Resource and Collection dehydration output into one Start payload. */
 export const createStartHydrationPayload = (
   resources: ResourceHydrationPayload,
-  collections: CollectionHydrationPayload = emptyCollectionHydrationPayload,
+  collections: Collection.HydrationPayload = emptyCollectionHydrationPayload,
   routeFailure?: RoutePreloadFailureSnapshot,
 ): StartHydrationPayload => ({
   resources: resources.resources,
@@ -620,13 +569,6 @@ export const createStreamHydrationScript = (
   sequence = 0,
 ): string => runStartHydrationTransportSync(createStreamHydrationScriptEffect(input, sequence));
 
-/** Read and parse the root hydration payload from a document. */
-export const readHydrationPayload = (
-  document: Pick<Document, "getElementById"> = globalThis.document,
-  id = hydrationScriptId,
-): StartHydrationPayload | undefined =>
-  runStartHydrationTransportSync(readHydrationPayloadEffect(document, id));
-
 /** Effect-first reader for the root hydration payload. */
 export const readHydrationPayloadEffect = (
   document: Pick<Document, "getElementById"> = globalThis.document,
@@ -647,12 +589,6 @@ const sortStartHydrationChunkElements = (
       : left.chunk.sequence - right.chunk.sequence,
   );
 
-const readStartHydrationChunkElements = (
-  document: StartHydrationChunkDocument = globalThis.document,
-  options: ReadStartHydrationChunksOptions = {},
-): ReadonlyArray<StartHydrationChunkElement> =>
-  runStartHydrationTransportSync(readStartHydrationChunkElementsEffect(document, options));
-
 const readStartHydrationChunkElementsEffect = (
   document: StartHydrationChunkDocument = globalThis.document,
   options: ReadStartHydrationChunksOptions = {},
@@ -670,13 +606,6 @@ const readStartHydrationChunkElementsEffect = (
         ),
       ),
   ).pipe(Effect.map(sortStartHydrationChunkElements));
-
-/** Read streamed hydration chunks from a document without applying them. */
-export const readStartHydrationChunks = (
-  document: StartHydrationChunkDocument = globalThis.document,
-  options: ReadStartHydrationChunksOptions = {},
-): ReadonlyArray<StartHydrationChunk> =>
-  readStartHydrationChunkElements(document, options).map(({ chunk }) => chunk);
 
 /** Effect-first reader for streamed hydration chunks from a document. */
 export const readStartHydrationChunksEffect = (
@@ -698,23 +627,23 @@ export const hydrateStartPayloadEffect = (
   options: HydrateStartPayloadEffectOptions = {},
 ): Effect.Effect<void, StartHydrationCodecError> =>
   Effect.gen(function* () {
-    yield* validateResourceHydrationInputEffect(payload);
+    yield* validateResourceHydrationPayloadEffect(payload);
     const collections = yield* collectionsForHydrationPayloadEffect(payload, options);
     if (payload.collections && collections.length > 0) {
-      yield* Collection.validateHydrationPayloadEffect(collections, {
+      yield* validateCollectionsHydrationEffect(collections, {
         collections: payload.collections,
       });
     }
-    yield* Resource.hydrateEffect(payload, options);
+    yield* Resource.hydrate(payload, options);
     if (payload.collections && collections.length > 0) {
-      yield* Collection.hydratePayloadEffect(
+      yield* hydrateCollectionsEffect(
         collections,
         { collections: payload.collections },
         collectionHydrateOptions(options),
       );
     }
     if (payload.routeFailure !== undefined) {
-      yield* Route.hydratePreloadFailureEffect(payload.routeFailure);
+      yield* Route.hydratePreloadFailure(payload.routeFailure);
     }
   });
 
@@ -733,16 +662,6 @@ export const hydrateStartHydrationChunksEffect = (
     (chunk) => hydrateStartPayloadEffect(chunk.payload, streamCollectionHydrateOptions(options)),
     { discard: true },
   );
-
-/** Synchronous host-seam facade for applying streamed hydration chunks. */
-export const hydrateStartHydrationChunks = <RuntimeServices = never, RuntimeError = never>(
-  chunks: Iterable<StartHydrationChunk>,
-  options: HydrateStartPayloadOptions<RuntimeServices, RuntimeError> = {},
-): ReadonlyArray<StartHydrationChunk> => {
-  const sorted = sortStartHydrationChunks(chunks);
-  runHydrationSync(hydrateStartHydrationChunksEffect(sorted, options), options.runtime);
-  return sorted;
-};
 
 /**
  * Reads document stream chunks and applies them inside Effect.
@@ -774,28 +693,6 @@ export const hydrateStartHydrationChunksFromDocumentEffect = (
     return chunks;
   });
 
-/** Synchronous host-seam facade for reading and applying document stream chunks. */
-export const hydrateStartHydrationChunksFromDocument = <
-  RuntimeServices = never,
-  RuntimeError = never,
->(
-  document: StartHydrationChunkDocument = globalThis.document,
-  options: HydrateStartHydrationChunksFromDocumentOptions<RuntimeServices, RuntimeError> = {},
-): ReadonlyArray<StartHydrationChunk> =>
-  runHydrationSync(
-    hydrateStartHydrationChunksFromDocumentEffect(document, options),
-    options.runtime,
-  );
-
-/** Synchronous host-seam facade for applying one Start hydration payload. */
-export const hydrateStartPayload = <RuntimeServices = never, RuntimeError = never>(
-  payload: StartHydrationPayload,
-  options: HydrateStartPayloadOptions<RuntimeServices, RuntimeError> = {},
-): StartHydrationPayload => {
-  runHydrationSync(hydrateStartPayloadEffect(payload, options), options.runtime);
-  return payload;
-};
-
 /**
  * Read the root payload and streamed chunks from a document, then hydrate them
  * in Effect.
@@ -803,10 +700,10 @@ export const hydrateStartPayload = <RuntimeServices = never, RuntimeError = neve
  * Root payload hydration runs before streamed chunks. Streamed chunks then use
  * the progressive semantics of `hydrateStartHydrationChunksFromDocumentEffect`.
  */
-export const hydrateFromDocumentEffect = (
+export const hydrateFromDocument = (
   document: StartHydrationDocument = globalThis.document,
   id = hydrationScriptId,
-  options: HydrateFromDocumentEffectOptions = {},
+  options: HydrateFromDocumentOptions = {},
 ): Effect.Effect<StartHydrationPayload | undefined, StartHydrationError> =>
   Effect.gen(function* () {
     const payload = yield* readHydrationPayloadEffect(document, id);
@@ -825,11 +722,3 @@ export const hydrateFromDocumentEffect = (
       ...chunks.map((chunk) => chunk.payload),
     ]);
   });
-
-/** Synchronous host-seam facade for full document hydration. */
-export const hydrateFromDocument = <RuntimeServices = never, RuntimeError = never>(
-  document: StartHydrationDocument = globalThis.document,
-  id = hydrationScriptId,
-  options: HydrateFromDocumentOptions<RuntimeServices, RuntimeError> = {},
-): StartHydrationPayload | undefined =>
-  runHydrationSync(hydrateFromDocumentEffect(document, id, options), options.runtime);

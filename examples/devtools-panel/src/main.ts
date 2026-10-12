@@ -1,5 +1,5 @@
 import { Data } from "effect";
-import { bootDevtoolsPanels, interruptDevtoolsPanelBoot } from "@sunfall/arc-devtools";
+import { bootDevtoolsPanels } from "@sunfall/arc-devtools";
 import { sampleDevtoolsPanels } from "./sample.js";
 import "./styles.css";
 
@@ -33,4 +33,3 @@ export const devtoolsPanelBoot = bootDevtoolsPanels({
   lifecycleWindow: window,
 });
 export const devtoolsPanelBootFiber = devtoolsPanelBoot.fiber;
-export { interruptDevtoolsPanelBoot };

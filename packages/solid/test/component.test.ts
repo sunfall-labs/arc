@@ -3,14 +3,14 @@ import {
   Resource,
   ResourceFailure,
   type AnySunfallArcRuntime,
-  type ResourceUiInput,
 } from "@sunfall/arc-core";
+import { type ResourceUiInput } from "@sunfall/arc-core/internal";
 import { Cause, Context, Data, Deferred, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";
-import { createSignal, resetErrorHalt } from "solid-js";
+import { createSignal, resetErrorHalt, type Accessor } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
-import { Component, RuntimeProvider } from "../src/index.js";
+import { Component } from "../src/index.js";
 import { reactive, ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
 // Counts reader bindings Components create, to observe binding reuse.
@@ -44,7 +44,7 @@ const projectApi = (get: (id: string) => Effect.Effect<string, ProjectNotFound |
 
 let familyId = 0;
 const projectFamily = () =>
-  Resource.family({
+  Resource.define({
     name: `SolidComponent.ProjectById.${familyId++}`,
     load: (id: string) => ProjectApi.use((api) => api.get(id)),
   });
@@ -55,12 +55,15 @@ describe("Component", () => {
       Effect.gen(function* () {
         const container = document.createElement("div");
         const events: Array<string> = [];
-        const Greeting = Component.make("Greeting", function* () {
-          const api = yield* ProjectApi;
-          yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
-          const name = yield* api.get("atlas").pipe(Effect.orDie);
-          return (props: { readonly greeting: string }) => `${props.greeting} ${name}`;
-        });
+        const Greeting = Component.define(
+          "Greeting",
+          function* (props: { readonly greeting: string }) {
+            const api = yield* ProjectApi;
+            yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
+            const name = yield* api.get("atlas").pipe(Effect.orDie);
+            return () => `${props.greeting} ${name}`;
+          },
+        );
         const App = Greeting.pipe(
           Component.provide(projectApi((id) => Effect.succeed(id.toUpperCase()))),
         );
@@ -74,43 +77,106 @@ describe("Component", () => {
 
         yield* Scope.close(scope, Exit.void);
         expect(container.textContent).toBe("");
-        // The mount owned its runtime, so runtime disposal closed the setup Scope.
+        // Disposing the tree closed the instance Scope.
         expect(events).toEqual(["setup finalized"]);
       }),
     ));
 
-  it("runs setup once per runtime and render once per instance", () =>
+  it("runs setup and render once per instance, with that instance's props", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           let setups = 0;
           let renders = 0;
-          const Counter = Component.make("Counter", function* () {
-            yield* Effect.sync(() => setups++);
-            return () => {
-              renders++;
-              return `setups:${setups}`;
-            };
-          });
-          const Twice = Component.make("Twice", function* () {
+          const finalized: Array<string> = [];
+          const Counter = Component.define(
+            "Counter",
+            function* (props: { readonly label: string }) {
+              const setup = ++setups;
+              yield* Effect.addFinalizer(() => Effect.sync(() => finalized.push(props.label)));
+              return () => {
+                renders++;
+                return `${props.label}:${setup};`;
+              };
+            },
+          );
+          const [showSecond, setShowSecond] = createSignal(true);
+          const Twice = Component.define("Twice", function* () {
             const Inner = yield* Counter;
-            return () => [Inner({}), Inner({})];
+            return () => [
+              Inner({ label: "a" }),
+              createComponent(Show, {
+                get when() {
+                  return showSecond();
+                },
+                children: () => Inner({ label: "b" }),
+              }),
+            ];
           });
 
-          const shared = makeRuntime();
-          yield* Effect.addFinalizer(() => shared.disposeEffect.pipe(Effect.orDie));
-          const first = document.createElement("div");
-          const second = document.createElement("div");
-          yield* Component.mount(Twice, first, { runtime: shared });
-          yield* Component.mount(Twice, second, { runtime: shared });
-          expect(first.textContent).toBe("setups:1setups:1");
-          expect(second.textContent).toBe("setups:1setups:1");
-          expect(setups).toBe(1);
-          expect(renders).toBe(4);
-
-          const third = document.createElement("div");
-          yield* Component.mount(Twice, third);
+          const container = document.createElement("div");
+          yield* Component.mount(Twice, container);
+          expect(container.textContent).toBe("a:1;b:2;");
           expect(setups).toBe(2);
+          expect(renders).toBe(2);
+
+          // Disposing one instance closes only its Scope.
+          setShowSecond(false);
+          yield* waitForText(container, "a:1;");
+          expect(finalized).toEqual(["b"]);
+          setShowSecond(true);
+          yield* waitForText(container, "a:1;b:3;");
+        }),
+      ),
+    ));
+
+  it("keeps an instance (one setup, one reader binding) while its first read suspends", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const release = yield* Deferred.make<void>();
+          let setups = 0;
+          const ProjectById = projectFamily();
+          const Card = Component.define("Card", function* (props: { readonly id: string }) {
+            setups++;
+            const project = yield* Component.resource(ProjectById);
+            return () => project(props.id);
+          });
+          const [selected] = createSignal<string | undefined>("atlas");
+          // `<Show>` with function children around a `<Loading>`: once the
+          // first read settles, only the instance's render retries.
+          const Page = Component.define("Page", function* () {
+            const Inner = yield* Card.pipe(Component.catchAll(() => "failed"));
+            return () =>
+              createComponent(Show, {
+                get when() {
+                  return selected();
+                },
+                children: (id: Accessor<unknown>) =>
+                  createComponent(Loading, {
+                    fallback: "loading",
+                    get children() {
+                      return Inner({ id: String(id()) });
+                    },
+                  }),
+              });
+          });
+          const App = Page.pipe(
+            Component.provide(
+              projectApi((id) => Deferred.await(release).pipe(Effect.as(id.toUpperCase()))),
+            ),
+          );
+          const createdBefore = bindings.created;
+
+          const container = document.createElement("div");
+          yield* Component.mount(App, container);
+          yield* waitForText(container, "loading");
+          expect(setups).toBe(1);
+
+          yield* Deferred.succeed(release, undefined);
+          yield* waitForText(container, "ATLAS");
+          expect(setups).toBe(1);
+          expect(bindings.created - createdBefore).toBe(1);
         }),
       ),
     ));
@@ -122,11 +188,11 @@ describe("Component", () => {
           const release = yield* Deferred.make<void>();
           let loads = 0;
           const ProjectById = projectFamily();
-          const Card = Component.make("Card", function* () {
+          const Card = Component.define("Card", function* (props: { readonly id: string }) {
             const project = yield* Component.resource(ProjectById);
-            return (props: { readonly id: string }) => reactive(() => project(props.id));
+            return () => reactive(() => project(props.id));
           });
-          const App = Component.make("App", function* () {
+          const App = Component.define("App", function* () {
             const Loaded = yield* Card.pipe(
               Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
               Component.loading(() => "loading"),
@@ -162,11 +228,11 @@ describe("Component", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const ProjectById = projectFamily();
-          const Card = Component.make("Card", function* () {
+          const Card = Component.define("Card", function* (props: { readonly id: string }) {
             const project = yield* Component.resource(ProjectById);
-            return (props: { readonly id: string }) => reactive(() => project(props.id));
+            return () => reactive(() => project(props.id));
           });
-          const App = Component.make("App", function* () {
+          const App = Component.define("App", function* () {
             const Safe = yield* Card.pipe(
               Component.catchTags({
                 ProjectNotFound: (error) => `missing ${error.id}`,
@@ -188,11 +254,11 @@ describe("Component", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const Guarded = Component.make("Guarded", function* () {
+          const Guarded = Component.define("Guarded", function* () {
             yield* Effect.fail<Forbidden | ProjectNotFound>(new Forbidden());
             return () => "secret";
           });
-          const Page = Component.make("Page", function* () {
+          const Page = Component.define("Page", function* () {
             // Handles only ProjectNotFound: Forbidden passes through this boundary.
             const Inner = yield* Guarded.pipe(
               Component.catchTags({ ProjectNotFound: () => "inner" }),
@@ -223,7 +289,7 @@ describe("Component", () => {
             () => Effect.sync(() => events.push("released")),
           ),
         );
-        const App = Component.make("App", function* () {
+        const App = Component.define("App", function* () {
           const project = yield* Component.resource(ProjectById);
           return () => reactive(() => project("atlas"));
         }).pipe(
@@ -244,21 +310,21 @@ describe("Component", () => {
       }),
     ));
 
-  it("interrupts a pending setup when the mount is interrupted and reruns it later", () =>
+  it("interrupts a pending setup when the mount is interrupted and reruns it on remount", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const events: Array<string> = [];
           const gate = yield* Deferred.make<void>();
           let setups = 0;
-          const Slow = Component.make("Slow", function* () {
+          const Slow = Component.define("Slow", function* () {
             setups++;
             yield* Effect.addFinalizer(() => Effect.sync(() => events.push("finalized")));
             yield* Deferred.await(gate);
             return () => "ready";
           });
           const shared = makeRuntime();
-          yield* Effect.addFinalizer(() => shared.disposeEffect.pipe(Effect.orDie));
+          yield* Effect.addFinalizer(() => shared.dispose.pipe(Effect.orDie));
 
           const container = document.createElement("div");
           const mounting = yield* Effect.forkChild(
@@ -279,31 +345,26 @@ describe("Component", () => {
       ),
     ));
 
-  it("embeds into an existing RuntimeProvider tree, suspending while setup runs", () =>
+  it("embeds into a Solid tree on a runtime, suspending while setup runs", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const gate = yield* Deferred.make<void>();
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
-          const Slow = Component.make("Slow", function* () {
+          yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
+          const Slow = Component.define("Slow", function* (props: { readonly label: string }) {
             yield* Deferred.await(gate);
-            return (props: { readonly label: string }) => `embedded ${props.label}`;
+            return () => `embedded ${props.label}`;
           });
-          const Embedded = Component.embed(Slow);
+          const Embedded = Component.embed(Slow, runtime);
 
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RuntimeProvider, {
-                runtime,
+              createComponent(Loading, {
+                fallback: "waiting",
                 get children() {
-                  return createComponent(Loading, {
-                    fallback: "waiting",
-                    get children() {
-                      return createComponent(Embedded, { label: "atlas" });
-                    },
-                  });
+                  return createComponent(Embedded, { label: "atlas" });
                 },
               }),
             container,
@@ -321,17 +382,17 @@ describe("Component", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const Broken = Resource.family({
+          const Broken = Resource.define({
             name: `SolidComponent.Broken.${familyId++}`,
             load: (_id: string): Effect.Effect<string, ProjectNotFound> => {
               throw new Error("callback bug");
             },
           });
-          const Card = Component.make("Card", function* () {
+          const Card = Component.define("Card", function* () {
             const project = yield* Component.resource(Broken);
             return () => reactive(() => project("atlas"));
           });
-          const App = Component.make("App", function* () {
+          const App = Component.define("App", function* () {
             // Only the typed load error needs a handler; the callback bug is not typed.
             const Safe = yield* Card.pipe(
               Component.catchTags({ ProjectNotFound: () => "gone" }),
@@ -364,9 +425,9 @@ describe("Component", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const events: Array<string> = [];
-        const Greeting = Component.make("Greeting", function* () {
+        const Greeting = Component.define("Greeting", function* (props: { readonly name: string }) {
           yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
-          return (props: { readonly name: string }) => `Hello ${props.name}`;
+          return () => `Hello ${props.name}`;
         });
         const container = document.createElement("div");
 
@@ -386,20 +447,23 @@ describe("Component", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const ProjectName = Resource.family({
+          const ProjectName = Resource.define({
             name: "test/Component/hostRuntime/ProjectName",
             load: (id: string) => ProjectApi.use((api) => api.get(id)),
           });
-          const App = Component.make("HostServicesApp", function* () {
-            const api = yield* ProjectApi;
-            const prefix = yield* api.get("prefix");
-            const name = yield* Component.resource(ProjectName);
-            return (props: { readonly id: string }) => `${prefix}:${name(props.id)}`;
-          }).pipe(Component.catchTags({ ProjectNotFound: () => "missing", Forbidden: () => "no" }));
+          const App = Component.define(
+            "HostServicesApp",
+            function* (props: { readonly id: string }) {
+              const api = yield* ProjectApi;
+              const prefix = yield* api.get("prefix");
+              const name = yield* Component.resource(ProjectName);
+              return () => `${prefix}:${name(props.id)}`;
+            },
+          ).pipe(Component.catchTags({ ProjectNotFound: () => "missing", Forbidden: () => "no" }));
           const runtime = makeRuntime(
             Layer.succeed(ProjectApi, { get: (id: string) => Effect.succeed(id.toUpperCase()) }),
           );
-          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+          yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
 
           const container = document.createElement("div");
           yield* Component.mount(App, container, { runtime, props: { id: "atlas" } });
@@ -414,8 +478,8 @@ describe("Component", () => {
         Effect.gen(function* () {
           const { App, ProjectById, events } = ssrApp();
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
-          yield* runtime.provide(Resource.prefetchEffect(ProjectById("atlas")));
+          yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
+          yield* runtime.provide(Resource.preload(ProjectById("atlas")));
 
           const container = document.createElement("div");
           yield* Component.mount(App, container, { runtime, props: { id: "atlas" } });
@@ -432,12 +496,12 @@ describe("Component", () => {
           const { App, ProjectById, events } = ssrApp();
           // The server side: load in a request runtime and serialize its snapshot.
           const server = makeRuntime();
-          yield* Effect.addFinalizer(() => server.disposeEffect.pipe(Effect.orDie));
-          yield* server.provide(Resource.prefetchEffect(ProjectById("atlas")));
+          yield* Effect.addFinalizer(() => server.dispose.pipe(Effect.orDie));
+          yield* server.provide(Resource.preload(ProjectById("atlas")));
           const encoded = yield* server.provide(
             Effect.flatMap(
-              Resource.hydrationPayloadEffect([ProjectById("atlas")]),
-              Resource.encodeHydrationPayloadEffect,
+              Resource.hydrationPayload([ProjectById("atlas")]),
+              Resource.encodeHydrationPayload,
             ),
           );
           expect(events.loads).toBe(1);
@@ -451,9 +515,9 @@ describe("Component", () => {
             }),
           );
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+          yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
           yield* runtime.provide(
-            Effect.flatMap(Resource.decodeHydrationPayloadEffect(encoded), Resource.hydrateEffect),
+            Effect.flatMap(Resource.decodeHydrationPayload(encoded), Resource.hydrate),
           );
           const container = document.createElement("div");
           container.innerHTML = ssrMarkup;
@@ -479,22 +543,22 @@ describe("Component", () => {
           const release = yield* Deferred.make<void>();
           const ProjectById = projectFamily();
           const [shown, setShown] = createSignal(true);
-          const Card = Component.make("Card", function* () {
+          const Card = Component.define("Card", function* () {
             const project = yield* Component.resource(ProjectById);
-            return () => reactive(() => project("atlas"));
-          });
-          const App = Component.make("App", function* () {
-            const Loaded = yield* Card.pipe(
-              Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
-              Component.loading(() => "loading"),
-            );
             return () =>
               createComponent(Show, {
                 get when() {
                   return shown();
                 },
-                children: () => Loaded({}),
+                children: () => reactive(() => project("atlas")),
               });
+          });
+          const App = Component.define("App", function* () {
+            const Loaded = yield* Card.pipe(
+              Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
+              Component.loading(() => "loading"),
+            );
+            return () => Loaded({});
           }).pipe(
             Component.provide(
               projectApi((id) => Effect.as(Deferred.await(release), `Project ${id}`)),
@@ -531,7 +595,7 @@ describe("Component", () => {
           // An uncaught render error halts Solid's reactive system; restore it for later tests.
           yield* Effect.addFinalizer(() => Effect.sync(resetErrorHalt));
           const events: Array<string> = [];
-          const Throws = Component.make("Throws", function* () {
+          const Throws = Component.define("Throws", function* () {
             yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
             return (): string => {
               throw new Error("render bug");

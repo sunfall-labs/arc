@@ -14,8 +14,8 @@ export class StartNodeAdapterError extends Data.TaggedError("StartNodeAdapterErr
 export interface StartNodeOriginPolicy {
   /**
    * Whether `x-forwarded-proto` and `x-forwarded-host` may define the public
-   * request origin. Defaults to `true` for compatibility with existing proxy
-   * deployments.
+   * request origin. Defaults to `false`; enable it only behind a proxy that
+   * overwrites these headers, otherwise clients can spoof the request origin.
    */
   readonly trustForwardedHeaders?: boolean;
 }
@@ -51,7 +51,7 @@ export const nodeRequestOrigin = (
     return options.origin;
   }
 
-  const trustForwardedHeaders = options.trustForwardedHeaders ?? true;
+  const trustForwardedHeaders = options.trustForwardedHeaders ?? false;
   const protocol = trustForwardedHeaders
     ? (forwardedHeader(request, "x-forwarded-proto") ?? "http")
     : "http";
@@ -227,7 +227,7 @@ const setNodeResponseHeaders = (target: ServerResponse, headers: Headers): void 
  * Body streaming remains inside the returned Effect so callers can decide how
  * to run or supervise the platform seam.
  */
-export const writeNodeResponseEffect = (
+export const writeNodeResponse = (
   target: ServerResponse,
   response: Response,
   options: WriteNodeResponseOptions = {},
@@ -244,19 +244,12 @@ export const writeNodeResponseEffect = (
     yield* writeStreamBodyEffect(target, response, options.headOnly ?? false);
   });
 
-/** Alias for `writeNodeResponseEffect`. */
-export const writeNodeResponse = (
-  target: ServerResponse,
-  response: Response,
-  options: WriteNodeResponseOptions = {},
-): Effect.Effect<void, StartNodeAdapterError> => writeNodeResponseEffect(target, response, options);
-
 /** Writes a Web response back to the Node exchange that produced it. */
 export const writeNodeExchangeResponseEffect = (
   request: IncomingMessage,
   target: ServerResponse,
   response: Response,
 ): Effect.Effect<void, StartNodeAdapterError> =>
-  writeNodeResponseEffect(target, response, {
+  writeNodeResponse(target, response, {
     headOnly: request.method === "HEAD",
   });

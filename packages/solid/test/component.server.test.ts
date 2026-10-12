@@ -1,9 +1,9 @@
-import { defineApp, Resource, route } from "@sunfall/arc-core";
+import { Resource, Route, App } from "@sunfall/arc-core";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { createComponent, isServer, renderToString } from "@solidjs/web";
 import { describe, expect, it } from "vitest";
-import { Component, RuntimeProvider } from "../src/index.js";
+import { Component } from "../src/index.js";
 import { ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
 describe("Component (server)", () => {
@@ -11,23 +11,16 @@ describe("Component (server)", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         expect(isServer).toBe(true);
-        const { App, ProjectById, events } = ssrApp();
-        const Root = Component.embed(App);
-        const ProjectRoute = route("/projects/:id", {
+        const { App: Root, ProjectById, events } = ssrApp();
+        const ProjectRoute = Route.define("/projects/:id", {
           params: Schema.Struct({ id: Schema.String }),
-          preload: ({ params }) =>
-            Resource.prefetchEffect(ProjectById(params.id)).pipe(Effect.asVoid),
+          preload: ({ params }) => Resource.preload(ProjectById(params.id)).pipe(Effect.asVoid),
         });
-        const app = defineApp({ routes: [ProjectRoute] as const, client: {} });
+        const app = App.define({ routes: [ProjectRoute] as const, client: {} });
         const handler = createRequestHandler(app, {
           render: ({ runtime, match }) =>
             renderToString(() =>
-              createComponent(RuntimeProvider, {
-                runtime,
-                get children() {
-                  return createComponent(Root, { id: match?.params.id ?? "" });
-                },
-              }),
+              createComponent(Component.embed(Root, runtime), { id: match?.params.id ?? "" }),
             ),
         });
         const request = Effect.fn(function* () {
@@ -38,10 +31,10 @@ describe("Component (server)", () => {
         });
 
         expect(yield* request()).toBe(ssrMarkup);
-        // Setup (and its provided Layer) ran in the request runtime, and the
-        // route preload made the read synchronous: no Loading fallback.
+        // Setup ran (and the provided Layer was built) in the request runtime,
+        // and the route preload made the read synchronous: no Loading fallback.
         expect(events).toMatchObject({ layerBuilds: 1, setups: 1, loads: 1, fallbacks: 0 });
-        // Request runtime disposal closed the setup Scope.
+        // Request runtime disposal released the Layer built for it.
         expect(events.released).toBe(1);
 
         expect(yield* request()).toBe(ssrMarkup);

@@ -8,6 +8,7 @@ import {
   type MutableResourceStore as ResourceStoreState,
 } from "./resource-store.js";
 import { Signal, type WritableSignal } from "./signal.js";
+import type { TimelineResourceCause } from "./timeline.js";
 
 export interface ResourceInFlight<A, E> {
   readonly token: object;
@@ -16,13 +17,22 @@ export interface ResourceInFlight<A, E> {
 }
 
 export interface ResourceLifetimeEntry<A, E> {
+  readonly resource: string;
+  readonly key: string;
   readonly state: WritableSignal<AsyncResult.AsyncResult<A, E>>;
   inFlight: ResourceInFlight<A, E> | undefined;
   gcFiber: Fiber.Fiber<void, never> | undefined;
 }
 
-export const makeResourceEntry = <A, E>(): ResourceLifetimeEntry<A, E> => ({
-  state: Signal.make<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial()),
+export const makeResourceEntry = <A, E>(
+  resource: string,
+  key: string,
+): ResourceLifetimeEntry<A, E> => ({
+  resource,
+  key,
+  state: Signal.make<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial(), {
+    name: `${resource}(${key})`,
+  }),
   inFlight: undefined,
   gcFiber: undefined,
 });
@@ -237,13 +247,24 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
     });
   });
 
+/** The one write path for an entry's state, labelled for `Timeline` entries. */
+export const commitResourceState = <A, E>(
+  entry: ResourceLifetimeEntry<A, E>,
+  state: AsyncResult.AsyncResult<A, E>,
+  event: TimelineResourceCause["event"],
+): void => {
+  Signal.batch(() => entry.state.set(state), {
+    cause: { _tag: "Resource", resource: entry.resource, key: entry.key, event },
+  });
+};
+
 /** Marks the current result `waiting`, keeping its tag (stale-while-refreshing). */
 export const setResourcePending = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {
-  entry.state.set(AsyncResult.waiting(entry.state.get()));
+  commitResourceState(entry, AsyncResult.waiting(entry.state.get()), "load");
 };
 
 export const resetResourceEntry = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {
-  entry.state.set(AsyncResult.initial());
+  commitResourceState(entry, AsyncResult.initial(), "reset");
 };
 
 export const shouldShowResourcePending = <A, E, RefError>(

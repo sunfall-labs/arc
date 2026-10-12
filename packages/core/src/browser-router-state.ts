@@ -3,15 +3,6 @@ import type { Route, RouteLazyComponentFailed } from "./route.js";
 
 export type AnyBrowserRoute = Route.Definition<string, unknown, unknown, any>;
 
-/** Union of route paths available to a Browser Router instance. */
-export type BrowserRouterPath<Routes extends readonly AnyBrowserRoute[]> = Routes[number]["path"];
-
-/** Route definition selected from a Browser Router route list by path. */
-export type BrowserRouterRouteForPath<
-  Routes extends readonly AnyBrowserRoute[],
-  Path extends BrowserRouterPath<Routes>,
-> = Extract<Routes[number], { readonly path: Path }>;
-
 /**
  * Typed failures a Browser Router reports for its routes: navigation and
  * preload failures, with each route's typed preload failure

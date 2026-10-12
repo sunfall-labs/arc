@@ -1,7 +1,8 @@
 import { createEffect, createRoot, createSignal, flush } from "@solidjs/signals";
 import { Data, Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
-import { Program, Signal } from "../src/index.js";
+import { Program, Signal, Timeline } from "../src/index.js";
+import { defaultRuntime } from "../src/internal.js";
 
 class Boom extends Data.TaggedError("Boom")<{}> {}
 
@@ -297,33 +298,34 @@ describe("Signal transactions", () => {
 });
 
 describe("Program and Action commits", () => {
-  it("commits a Program's model with its timeline and failures with theirs", () =>
+  it("commits each Program message and failure as one labelled Timeline entry", () =>
     Effect.runPromise(
       Effect.gen(function* () {
+        const recording = yield* Timeline.record();
         type Message = "increment" | "fail";
         const program = Program.start(
           Program.define<number, Message, string>({
+            name: "Counter",
             initial: 0,
             update: (model, message) => (message === "fail" ? Effect.fail("boom") : model + 1),
           }),
-        );
-        const observed: string[] = [];
-        program.model.subscribe(() =>
-          observed.push(
-            `model:${Signal.peek(program.model)} timeline:${Signal.peek(program.timeline).length}`,
-          ),
-        );
-        program.failures.subscribe(() =>
-          observed.push(
-            `failures:${Signal.peek(program.failures).length} timeline:${Signal.peek(program.timeline).length}`,
-          ),
+          { runtime: defaultRuntime },
         );
 
-        yield* program.dispatchEffect("increment");
-        yield* Effect.flip(program.dispatchEffect("fail"));
+        yield* program.dispatch("increment");
+        yield* Effect.flip(program.dispatch("fail"));
 
-        expect(observed).toEqual(["model:1 timeline:1", "failures:1 timeline:2"]);
-      }),
+        expect(
+          Signal.peek(recording.entries).map((entry) => ({
+            cause: Timeline.describe(entry.cause),
+            changed: entry.changes.map((change) => change.name),
+          })),
+        ).toEqual([
+          { cause: 'Program "Counter" message increment', changed: ["Counter.model"] },
+          { cause: 'Program "Counter" failure', changed: ["Counter.failures"] },
+        ]);
+        yield* program.dispose;
+      }).pipe(Effect.scoped),
     ));
 });
 

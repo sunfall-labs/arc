@@ -4,8 +4,8 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 import {
   describeDevtoolsPanels,
-  normalizeSunfallArcDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
+  resolveSunfallArcDevtoolsBridgePayload,
   type DevtoolsPanelMount,
   type DevtoolsPanelUiInput,
   type DevtoolsStartAppGraphDiagnostics,
@@ -16,6 +16,11 @@ import {
   registerSunfallArcDevtoolsPanel,
 } from "./devtools.js";
 import { sampleDevtoolsPanels } from "./sample.js";
+
+const validBridgePayload = (value: unknown) => {
+  const resolution = resolveSunfallArcDevtoolsBridgePayload(value);
+  return resolution._tag === "Valid" ? resolution.payload : undefined;
+};
 import {
   devtoolsExtensionTransportErrorPanels,
   pollInspectedWindowEffect,
@@ -152,12 +157,10 @@ describe("devtools extension example", () => {
       selectedPanelId: "resources",
       title: "Live Sunfall Arc",
     });
-    expect(normalizeSunfallArcDevtoolsBridgePayload(null)).toBeUndefined();
+    expect(validBridgePayload(null)).toBeUndefined();
+    expect(validBridgePayload({ panels: { version: 2, panels: [] } })).toBeUndefined();
     expect(
-      normalizeSunfallArcDevtoolsBridgePayload({ panels: { version: 2, panels: [] } }),
-    ).toBeUndefined();
-    expect(
-      normalizeSunfallArcDevtoolsBridgePayload({
+      validBridgePayload({
         panels: {
           version: 1,
           panels: [
@@ -184,11 +187,9 @@ describe("devtools extension example", () => {
           : panel,
       ),
     };
+    expect(validBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
     expect(
-      normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels }),
-    ).toBeUndefined();
-    expect(
-      normalizeSunfallArcDevtoolsBridgePayload({
+      validBridgePayload({
         panels,
         selectedPanelId: "not-a-panel",
       }),
@@ -199,7 +200,7 @@ describe("devtools extension example", () => {
     const panels = describeDevtoolsPanels({
       appGraph: appGraphDiagnosticsWithRoutes(1_001),
     });
-    const payload = normalizeSunfallArcDevtoolsBridgePayload({
+    const payload = validBridgePayload({
       panels,
       selectedPanelId: "app-graph",
       title: "Live Sunfall Arc",

@@ -1,25 +1,24 @@
-import { defineApp } from "@sunfall/arc-core";
-import { RuntimeProvider } from "@sunfall/arc-solid";
+import { Route, App } from "@sunfall/arc-core";
 import {
-  createStartStreamedHtmlResponseEffect,
+  createStartStreamedHtmlResponse,
   createRequestHandler,
   htmlChunk,
 } from "@sunfall/arc-start";
 import { Effect, Layer, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
-import App from "./App.js";
+import { Component } from "@sunfall/arc-solid";
+import ProjectConsole from "./App.js";
 import { ProjectApiLive } from "./domain.js";
 import { ProjectDemoStoreLive } from "./domain.server.js";
 import { ProjectSummaries, ProjectWorkItems } from "./project-collections.js";
-import { isRoutePathMatch } from "./routeTree.gen.js";
-import { projectConsoleAppBaseOptions } from "./app-definition.js";
+import { ProjectRoute, projectConsoleAppBaseOptions } from "./app-definition.js";
 import { projectConsoleStartGraphHeader, projectConsoleStartGraphSummary } from "./start-graph.js";
 import { projectConsoleServerRegistry } from "./start-options.js";
 import "./styles.css";
 
 export const ProjectConsoleServerLive = Layer.mergeAll(ProjectApiLive, ProjectDemoStoreLive);
 
-export const serverApp = defineApp({
+export const serverApp = App.define({
   ...projectConsoleAppBaseOptions,
   server: ProjectConsoleServerLive,
   registry: projectConsoleServerRegistry,
@@ -51,18 +50,14 @@ export const handleRequest = createRequestHandler(serverApp, {
     return Effect.gen(function* () {
       const url = new URL(request.url);
       const href = `${url.pathname}${url.search}`;
+      // The same tree the client entry hydrates with `Component.launch`.
       const body = renderToString(() =>
-        createComponent(RuntimeProvider, {
-          runtime,
-          get children() {
-            return createComponent(App, { initialHref: href, runtime });
-          },
-        }),
+        createComponent(Component.embed(ProjectConsole, runtime), { initialHref: href }),
       );
-      const title = isRoutePathMatch("/projects/:id", match)
+      const title = Route.isMatch(ProjectRoute, match)
         ? `${match.params.id} · Sunfall Arc Project Console`
         : "Sunfall Arc Project Console";
-      return yield* createStartStreamedHtmlResponseEffect({
+      return yield* createStartStreamedHtmlResponse({
         shell: htmlChunk(
           shellOpen({
             solidHydrationScript: generateHydrationScript(),

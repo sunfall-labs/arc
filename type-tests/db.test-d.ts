@@ -1,97 +1,28 @@
-import { Effect, PubSub, Scope } from "effect";
+import { Effect, Schema, Stream } from "effect";
 import type { AsyncResult } from "effect/reactivity";
-import type {
-  AnySunfallArcRuntime,
-  EffectInput,
-  EffectInputCallbackError,
+import {
+  Resource,
+  Server,
+  type EffectInput,
+  type EffectInputCallbackError,
+  type ServerClientError,
 } from "@sunfall/arc-core";
 import {
   Collection,
+  CollectionRowKeyChanged,
+  CollectionRowNotFound,
+  CollectionSnapshotCodecError,
+  CollectionStorageError,
   Query,
+  QueryEvaluationError,
+  ReadonlyCollectionMutation,
   SQLitePersistence,
-  SQLITE_PERSISTENCE_DEFAULT_NAMESPACE,
-  SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION,
-  SQLITE_PERSISTENCE_DEFAULT_TABLE,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidStatementParams,
   SQLitePersistenceInvalidTableName,
   SQLitePersistenceUnsupportedStatement,
-  ServerCollectionMissingIdentity,
-  CollectionPreloadCollector,
-  CollectionRowKeyChanged,
-  CollectionRowNotFound,
-  CollectionSnapshotCodecError,
-  CollectionStoreTypeId,
-  CollectionTypeId,
-  ReadonlyCollectionMutation,
   UnknownCollectionIndex,
-  backgroundSyncCollectionsPendingMutationsEffect,
-  bindCollectionRuntimeEffect,
-  collectionReactiveDepsValue,
-  defaultCollectionDefinitionRegistry,
-  and,
-  eq,
-  flushCollectionsPendingMutationsEffect,
-  gt,
-  gte,
-  includes,
-  isCollection,
-  lt,
-  lte,
-  makeCollectionDefinitionRegistry,
-  makeLiveQueryCollection,
-  makeCollectionReactivePreloadController,
-  makeSQLiteMemoryStatementDatabase,
-  makeSQLitePreparedStatementDatabase,
-  makeSQLitePersistenceStorage,
-  makeSQLiteStatementPersistenceDriver,
-  sameCollectionReactiveDeps,
-  sameCollectionReactiveSources,
-  selectCollectionReactiveLiveQuery,
-  serverCollectionOptions,
-  serverCollectionSyncAdapter,
-  snapshotCollectionReactiveDeps,
-  subscribeCollectionReactiveSource,
-  neq,
-  not,
-  or,
-  persistedCollectionOptions,
   UnsupportedLiveQuery,
-  type AnyCollection,
-  type CollectionBackgroundSyncResult,
-  type CollectionError,
-  type CollectionLiveQueryOptions,
-  type CollectionRequirements,
-  type CollectionReactiveLiveQueryInput,
-  type CollectionReactiveLiveQuerySelection,
-  type CollectionReactivePreloadController,
-  type CollectionReactivePreloadControllerOptions,
-  type FlushCollectionPendingMutationsResult,
-  type LiveQuery,
-  type QueryAggregate,
-  type QueryAggregateRecord,
-  type QueryAggregateResult,
-  type QueryGroupKey,
-  type QueryFactory,
-  type QueryJoinKey,
-  type QueryJoinStrategy,
-  type QueryPlanDiagnostics,
-  type QueryPlanJoinDiagnostics,
-  type QueryPlanSourceDiagnostics,
-  type QueryRoot,
-  type QuerySortDirection,
-  type QuerySortValue,
-  type ServerCollectionDeletePayload,
-  type ServerCollectionInsertPayload,
-  type ServerCollectionOperation,
-  type ServerCollectionOptions,
-  type ServerCollectionResult,
-  type ServerCollectionUpdatePayload,
-  type CollectionStorageError,
-  type QueryEvaluationError,
-  type SQLitePreparedStatementDatabase,
-  type SQLitePersistenceRow,
-  type SQLiteStatementDatabase,
 } from "@sunfall/arc-db";
 // @ts-expect-error QueryBuilder construction is internal; use Query.from(...) and Query.Builder.
 import { QueryBuilder } from "@sunfall/arc-db";
@@ -101,6 +32,8 @@ interface Project {
   readonly id: string;
   readonly name: string;
 }
+
+const ProjectSchema = Schema.Struct({ id: Schema.String, name: Schema.String });
 
 interface DbRuntimeService {
   readonly _tag: "DbRuntimeService";
@@ -114,503 +47,185 @@ interface DbAdapterService {
   readonly _tag: "DbAdapterService";
 }
 
-declare const sqliteStatementDatabase: SQLiteStatementDatabase<SQLitePersistenceInvalidRow>;
-declare const sqlitePreparedStatementDatabase: SQLitePreparedStatementDatabase;
 declare const dbProjectsCollection: Collection.Definition<
   Project,
   string,
   "load",
   DbRuntimeService
 >;
-declare const dbLiveQueryCollectionOptions: CollectionLiveQueryOptions<
-  Project,
-  string,
-  never,
-  never
->;
-const dbNamespaceLiveQueryOptions: Collection.LiveQueryOptions<Project, string, never, never> =
-  dbLiveQueryCollectionOptions;
-const dbRootLiveQueryOptions: CollectionLiveQueryOptions<Project, string, never, never> =
-  dbNamespaceLiveQueryOptions;
-void dbRootLiveQueryOptions;
 const dbStaticProjectsCollection = Collection.define<Project>({
   name: "type-tests/static-projects",
   getKey: (project) => project.id,
   initialData: [],
 });
-declare const erasedCollection: AnyCollection;
-declare const erasedCollectionError: CollectionError<typeof erasedCollection>;
-declare const erasedCollectionRequirements: CollectionRequirements<typeof erasedCollection>;
-declare const servicefulErasedCollection: AnyCollection<"persist", DbAdapterService>;
+
+// --- Collection.define infers row, key, error, and requirement channels ---
+
+const InferredProjects = Collection.define({
+  name: "type-tests/inferred-projects",
+  output: ProjectSchema,
+  getKey: (project) => project.id,
+  indexes: { byName: (project) => project.name },
+});
+const inferredProjects: Collection.Definition<Project, string> = InferredProjects;
+
+declare const loadProjects: Effect.Effect<ReadonlyArray<Project>, "load", DbRuntimeService>;
+const AdapterProjects = Collection.define({
+  name: "type-tests/adapter-projects",
+  output: Schema.Array(ProjectSchema),
+  getKey: (project) => project.id,
+  sync: {
+    load: () => loadProjects,
+    update: ({ updates }) => Effect.succeed(updates.length).pipe(Effect.asVoid),
+    changes: () => Stream.empty as Stream.Stream<ReadonlyArray<Collection.Change<Project, string>>>,
+  },
+});
+const adapterProjects: Collection.Definition<Project, string, "load", DbRuntimeService> =
+  AdapterProjects;
+
+// Server functions are sync operations directly; their client errors join E.
+const listProjects = Server.fn<void, ReadonlyArray<Project>>("type-tests/list-projects", {
+  handler: () => Effect.succeed([]),
+});
+const createProjects = Server.fn<Collection.SyncInsertPayload<Project, string>, void>(
+  "type-tests/create-projects",
+  { handler: () => Effect.void },
+);
+const ServerProjects = Collection.define({
+  name: "type-tests/server-projects",
+  output: ProjectSchema,
+  getKey: (project) => project.id,
+  sync: { load: listProjects, insert: createProjects },
+});
+const serverProjects: Collection.Definition<
+  Project,
+  string,
+  EffectInputCallbackError | ServerClientError
+> = ServerProjects;
+
+// A Resource ref backs a collection directly.
+const ProjectRows = Resource.define<void, ReadonlyArray<Project>, "resource-load">({
+  name: "type-tests/project-rows",
+  load: () => Effect.fail("resource-load" as const),
+});
+const ResourceProjects = Collection.define({
+  name: "type-tests/resource-projects",
+  output: ProjectSchema,
+  getKey: (project) => project.id,
+  sync: ProjectRows(undefined),
+});
+const resourceProjects: Collection.Definition<
+  Project,
+  string,
+  Resource.LoadError<"resource-load">
+> = ResourceProjects;
+
+// Persistence storage channels are inferred without a helper.
+const sqliteStorage = SQLitePersistence.storage(
+  SQLitePersistence.statementDriver(SQLitePersistence.memoryStatementDatabase()),
+);
+const PersistedProjects = Collection.define({
+  name: "type-tests/persisted-projects",
+  output: ProjectSchema,
+  getKey: (project) => project.id,
+  persistence: { storage: sqliteStorage },
+});
+type PersistedProjectsError = Collection.Error<typeof PersistedProjects>;
+const persistedProjectsError: PersistedProjectsError = null as never as
+  | EffectInputCallbackError
+  | SQLitePersistenceInvalidRow
+  | SQLitePersistenceInvalidTableName;
+
+declare const promiseRows: Promise<ReadonlyArray<Project>>;
+Collection.define({
+  name: "type-tests/promise-projects",
+  output: ProjectSchema,
+  getKey: (project: Project) => project.id,
+  // @ts-expect-error sync operations return a value or Effect, not a Promise
+  sync: { load: () => promiseRows },
+});
+
+// --- Definition methods are the single read/write path ---
+
+const projectState: AsyncResult.AsyncResult<
+  void,
+  Collection.RuntimeError<never>
+> = dbStaticProjectsCollection.result().get();
+const projectRows: ReadonlyArray<Collection.Row<Project, string>> =
+  dbStaticProjectsCollection.rows();
+const applyChanges: Effect.Effect<
+  void,
+  Collection.RuntimeError<"load"> | CollectionRowNotFound | CollectionRowKeyChanged,
+  DbRuntimeService
+> = dbProjectsCollection.applyChanges(
+  [
+    { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
+    { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
+    { _tag: "Delete", key: "atlas" },
+  ],
+  { origin: "remote", synced: true },
+);
+// @ts-expect-error fire-and-forget writes were removed; run applyChanges instead.
+dbProjectsCollection.writeInsert;
+// @ts-expect-error direct write Effects were folded into applyChanges.
+dbProjectsCollection.writeInsertEffect;
+// @ts-expect-error pending mutations are read reactively with pendingMutations().
+dbProjectsCollection.pendingMutationsEffect;
+// @ts-expect-error free functions that forwarded to definition methods were removed.
+Collection.rows;
+// @ts-expect-error remote changes stream through sync.changes instead.
+Collection.subscribeChangesEffect;
+// @ts-expect-error the sync adapter is passed to Collection.define directly.
+Collection.syncOptions;
+// @ts-expect-error SQLite helpers live on SQLitePersistence only.
+Collection.sqliteStorage;
+
+// --- Collection namespace types ---
+
+declare const erasedCollection: Collection.Any;
+declare const erasedCollectionError: Collection.Error<typeof erasedCollection>;
+declare const erasedCollectionRequirements: Collection.Requirements<typeof erasedCollection>;
+declare const servicefulErasedCollection: Collection.Any<"persist", DbAdapterService>;
 declare const servicefulErasedPersistence: NonNullable<
   typeof servicefulErasedCollection.options.persistence
 >;
 declare const bareErasedPersistence: NonNullable<typeof erasedCollection.options.persistence>;
-declare const dbAdapterCleanupEffect: Effect.Effect<void, "unsubscribe", DbAdapterService>;
-const sqliteStorage = makeSQLitePersistenceStorage(
-  makeSQLiteStatementPersistenceDriver(sqliteStatementDatabase),
-);
-const sqlitePreparedAdapter = makeSQLitePreparedStatementDatabase(sqlitePreparedStatementDatabase);
-const sqliteMemoryStatementDatabase = makeSQLiteMemoryStatementDatabase();
-const sqliteNamespaceMemoryDatabase: SQLitePersistence.MemoryStatementDatabase =
-  sqliteMemoryStatementDatabase;
-const sqliteNamespaceStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver(sqliteNamespaceMemoryDatabase),
-);
-const persistedProjectOptions = persistedCollectionOptions<
-  Project,
-  string,
-  never,
-  never,
-  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
->({
-  name: "type-tests/persisted-projects",
+declare const liveQueryOptions: Collection.LiveQueryOptions<Project, string, never, never>;
+const projectValue: Collection.Value<typeof dbProjectsCollection> = { id: "atlas", name: "Atlas" };
+const projectRowValue: Collection.RowValue<typeof dbProjectsCollection> = projectRows[0]!;
+const syncAdapter: Collection.SyncAdapter<Project, string, "load", DbRuntimeService> = {
+  name: "projects-api",
+  load: () => loadProjects,
+};
+const syncSource: Collection.Sync<Project, string, "load", DbRuntimeService> = syncAdapter;
+const options: Collection.Options<Project, string, "load", DbRuntimeService> = {
+  name: "type-tests/options",
   getKey: (project) => project.id,
-  initialData: [],
-  persistence: {
-    storage: sqliteNamespaceStorage,
+  sync: syncSource,
+};
+const writeOptions: Collection.WriteOptions = { origin: "remote" };
+const collectionMemoryStorage: Collection.MemoryStorage = Collection.memoryStorage();
+const collectionStorage: Collection.PersistenceStorage<CollectionStorageError> = Collection.storage(
+  {
+    getItem: () => null,
+    setItem: () => undefined,
+    removeItem: () => undefined,
   },
-});
-const backgroundSyncEffect: Effect.Effect<CollectionBackgroundSyncResult, unknown> =
-  backgroundSyncCollectionsPendingMutationsEffect([dbStaticProjectsCollection]);
-const collectionMemoryStorage = Collection.memoryStorage();
-const collectionStorage = Collection.storage({
-  getItem: () => null,
-  setItem: () => undefined,
-  removeItem: () => undefined,
-});
-const collectionPersistedProjectOptions = Collection.persistedOptions<
-  Project,
-  string,
-  never,
-  never,
-  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
->({
-  name: "type-tests/collection-persisted-projects",
-  getKey: (project) => project.id,
-  initialData: [],
-  persistence: {
-    storage: sqliteNamespaceStorage,
-  },
-});
+);
 const collectionFlushEffect: Effect.Effect<
   ReadonlyArray<Collection.FlushAllPendingMutationsResult>,
   unknown
-> = Collection.flushAllPendingMutationsEffect([dbStaticProjectsCollection]);
+> = Collection.flushAllPendingMutations([dbStaticProjectsCollection]);
 const collectionBackgroundSyncEffect: Effect.Effect<Collection.BackgroundSyncResult, unknown> =
-  Collection.backgroundSyncPendingMutationsEffect([dbStaticProjectsCollection]);
-const collectionSqliteMemoryDatabase = Collection.sqliteMemoryStatementDatabase();
-const collectionSqliteStorage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase),
-);
-const sqliteDefaultTable: "sunfall_arc_collection_persistence" = SQLITE_PERSISTENCE_DEFAULT_TABLE;
-const sqliteDefaultNamespace: "sunfall-arc:collections" = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
-const sqliteDefaultSchemaVersion: 1 = SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
-const sqliteRow: SQLitePersistenceRow = {
-  namespace: "workspace",
-  key: "projects",
-  schemaVersion: 1,
-  value: "{}",
-  updatedAt: 1,
-};
-void sqliteDefaultTable;
-void sqliteDefaultNamespace;
-void sqliteDefaultSchemaVersion;
-const publicQueryRoot: Query.Root = Query;
-const directQueryRoot: QueryRoot = publicQueryRoot;
-const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
-  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
-const directQueryFactory: QueryFactory<Project, any, any> = publicQueryFactory;
-const publicQueryBuilder: Query.Builder<any, Project, any, any> = Query.from({
-  project: dbStaticProjectsCollection,
-}).select(({ project }) => project);
-const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
-// @ts-expect-error public Query.Builder does not expose execution-plan internals.
-publicQueryBuilder.sources;
-declare const neverQueryBuilder: Query.Builder<any, never, any, any>;
-// @ts-expect-error public Query.Builder is branded; use Query.from(...) instead of structural fakes.
-const structuralQueryBuilder: Query.Builder<any, Project, any, any> = {
-  where: () => neverQueryBuilder,
-  select: () => neverQueryBuilder,
-  join: () => neverQueryBuilder,
-  joinIndexed: () => neverQueryBuilder,
-  innerJoin: () => neverQueryBuilder,
-  innerJoinIndexed: () => neverQueryBuilder,
-  groupBy: () => neverQueryBuilder,
-  orderBy: () => neverQueryBuilder,
-  offset: () => neverQueryBuilder,
-  limit: () => neverQueryBuilder,
-  execute: () => [],
-};
-const publicLiveQuery = Query.live((query) =>
-  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
-);
-const publicQueryLive: Query.Live<Project, any, any> = publicLiveQuery;
-const directLiveQuery: LiveQuery<Project, any, any> = publicQueryLive;
-const directLiveQueryState: AsyncResult.AsyncResult<
-  ReadonlyArray<Project>,
-  any
-> = publicLiveQuery.state.get();
-const publicCollectionState: AsyncResult.AsyncResult<
-  void,
-  Collection.RuntimeError<never>
-> = Collection.state(dbStaticProjectsCollection).get();
-void publicCollectionState;
-declare const publicQueryEvaluationError: Query.EvaluationError;
-const directQueryEvaluationError: QueryEvaluationError = publicQueryEvaluationError;
-const publicQueryEvaluationErrorInstance = new Query.EvaluationError({
-  operation: "evaluate",
-  message: "invalid query",
-  cause: "invalid query",
-});
-const directQueryEvaluationErrorInstance: QueryEvaluationError = publicQueryEvaluationErrorInstance;
-const publicUnsupportedLiveQuery = new Query.UnsupportedLiveQuery({
-  reason: "Live queries with joins require at least one non-join source collection.",
-});
-const directUnsupportedLiveQuery: UnsupportedLiveQuery = publicUnsupportedLiveQuery;
-const publicQueryPlanDiagnostics: Query.PlanDiagnostics = Query.diagnostics(publicQueryFactory);
-const directQueryPlanDiagnostics: QueryPlanDiagnostics = publicQueryPlanDiagnostics;
-const publicQueryPlanSource: Query.PlanSourceDiagnostics = publicQueryPlanDiagnostics.sources[0]!;
-const directQueryPlanSource: QueryPlanSourceDiagnostics = publicQueryPlanSource;
-declare const publicQueryPlanJoin: Query.PlanJoinDiagnostics;
-const directQueryPlanJoin: QueryPlanJoinDiagnostics = publicQueryPlanJoin;
-const publicQueryJoinStrategy: Query.JoinStrategy = publicQueryPlanJoin.strategy;
-const directQueryJoinStrategy: QueryJoinStrategy = publicQueryJoinStrategy;
-const publicQueryJoinKey: Query.JoinKey = "project-id";
-const publicQuerySortDirection: Query.SortDirection = "asc";
-const publicQuerySortValue: Query.SortValue = new Date(0);
-const publicQueryGroupKey: Query.GroupKey<{ readonly status: string }> = { status: "active" };
-const directQueryGroupKey: QueryGroupKey<{ readonly status: string }> = publicQueryGroupKey;
-const directQueryJoinKey: QueryJoinKey = publicQueryJoinKey;
-const directQuerySortDirection: QuerySortDirection = publicQuerySortDirection;
-const directQuerySortValue: QuerySortValue = publicQuerySortValue;
-const publicQueryAggregate: Query.Aggregate<{ readonly project: Project }, number, number> =
-  Query.sum(({ project }) => project.id.length);
-const directQueryAggregate: QueryAggregate<{ readonly project: Project }, number, number> =
-  publicQueryAggregate;
-const publicQueryAggregates = {
-  count: Query.count(({ project }: { readonly project: Project }) => project.id),
-} satisfies Query.Aggregates<{ readonly project: Project }>;
-const directQueryAggregateRecord: QueryAggregateRecord<{ readonly project: Project }> =
-  publicQueryAggregates;
-declare const publicQueryAggregateResult: Query.AggregateResult<
-  typeof publicQueryGroupKey,
-  typeof publicQueryAggregates
->;
-const directQueryAggregateResult: QueryAggregateResult<
-  typeof directQueryGroupKey,
-  typeof directQueryAggregateRecord
-> = publicQueryAggregateResult;
-const publicQueryAggregateCount: number = publicQueryAggregateResult.count;
-void directQueryRoot;
-void directQueryFactory;
-void directLiveQuery;
-void directLiveQueryState;
-void directQueryEvaluationError;
-void directQueryEvaluationErrorInstance;
-void directUnsupportedLiveQuery;
-void directQueryPlanDiagnostics;
-void directQueryPlanSource;
-void directQueryPlanJoin;
-void directQueryJoinStrategy;
-void publicQueryJoinKey;
-void publicQuerySortDirection;
-void publicQuerySortValue;
-void directQueryGroupKey;
-void directQueryJoinKey;
-void directQuerySortDirection;
-void directQuerySortValue;
-void directQueryAggregate;
-void directQueryAggregateRecord;
-void directQueryAggregateResult;
-publicQueryRoot.from({ project: dbStaticProjectsCollection });
-const collectionReactivePreloadController = makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnySunfallArcRuntime<never>,
-  onSuccess: () => Effect.void,
-  onFailure: () => Effect.void,
-});
-declare const dbPreloadObserverPromise: Promise<void>;
-makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnySunfallArcRuntime<never>,
-  // @ts-expect-error DB preload success observers must return void or Effect, not Promise
-  onSuccess: () => dbPreloadObserverPromise,
-  onFailure: () => Effect.void,
-});
-makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnySunfallArcRuntime<never>,
-  onSuccess: () => Effect.void,
-  // @ts-expect-error DB preload failure observers must return void or Effect, not Promise
-  onFailure: () => dbPreloadObserverPromise,
-});
-const collectionReactivePreloadInterruptEffect: Effect.Effect<void> =
-  collectionReactivePreloadController.interruptEffect();
-// @ts-expect-error public LiveQuery handles do not expose their internal builder.
-publicLiveQuery.builder;
-const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>(
-  {
-    name: "type-tests/direct-live-query-projects",
-    getKey: (project) => project.id,
-    query: (query) =>
-      query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
-  },
-  makeCollectionDefinitionRegistry(),
-);
-const isolatedCollectionRegistry = makeCollectionDefinitionRegistry();
-const defaultCollectionRegistry = defaultCollectionDefinitionRegistry;
-const collectionTypeId: typeof CollectionTypeId = CollectionTypeId;
-const collectionStoreTypeId: typeof CollectionStoreTypeId = CollectionStoreTypeId;
-const directCollectionCheck: boolean = isCollection(dbProjectsCollection);
-const queryPredicatePins: ReadonlyArray<boolean> = [
-  eq("atlas", "atlas"),
-  neq("atlas", "zephyr"),
-  gt(2, 1),
-  gte(2, 2),
-  lt(1, 2),
-  lte(2, 2),
-  includes(["atlas"], "atlas"),
-  and(true, true),
-  or(false, true),
-  not(false),
-];
-const publicQueryPredicatePins: ReadonlyArray<boolean> = [
-  Query.eq("atlas", "atlas"),
-  Query.neq("atlas", "zephyr"),
-  Query.gt(2, 1),
-  Query.gte(2, 2),
-  Query.lt(1, 2),
-  Query.lte(2, 2),
-  Query.includes(["atlas"], "atlas"),
-  Query.and(true, true),
-  Query.or(false, true),
-  Query.not(false),
-];
-const unknownCollectionIndex = new UnknownCollectionIndex({
-  collection: "projects",
-  index: "byStatus",
-});
-const unsupportedLiveQuery = new UnsupportedLiveQuery({
-  reason: "Live queries with joins require at least one non-join source collection.",
-});
-const collectionRowKeyChanged = new CollectionRowKeyChanged({
-  collection: "projects",
-  key: "atlas",
-  nextKey: "zephyr",
-  guidance: "keep keys stable",
-});
-const collectionRowNotFound = new CollectionRowNotFound({
-  collection: "projects",
-  key: "missing",
-});
-const readonlyCollectionMutation = new ReadonlyCollectionMutation({
-  collection: "derived-projects",
-  operation: "insert",
-});
-const collectionSnapshotCodecError = new CollectionSnapshotCodecError({
-  operation: "decode",
-  path: "$.collections",
-  reason: "invalid",
-});
-const collectionUnknownIndexFromNamespace = new Collection.UnknownIndex({
-  collection: "projects",
-  index: "byStatus",
-});
-const directUnknownCollectionIndex: UnknownCollectionIndex = collectionUnknownIndexFromNamespace;
-const collectionRowKeyChangedFromNamespace = new Collection.RowKeyChanged({
-  collection: "projects",
-  key: "atlas",
-  nextKey: "zephyr",
-  guidance: "keep keys stable",
-});
-const directCollectionRowKeyChanged: CollectionRowKeyChanged = collectionRowKeyChangedFromNamespace;
-const collectionRowNotFoundFromNamespace = new Collection.RowNotFound({
-  collection: "projects",
-  key: "missing",
-});
-const directCollectionRowNotFound: CollectionRowNotFound = collectionRowNotFoundFromNamespace;
-const readonlyCollectionMutationFromNamespace = new Collection.ReadonlyMutation({
-  collection: "derived-projects",
-  operation: "insert",
-});
-const directReadonlyCollectionMutation: ReadonlyCollectionMutation =
-  readonlyCollectionMutationFromNamespace;
-const collectionSnapshotCodecErrorFromNamespace = new Collection.SnapshotCodecError({
-  operation: "decode",
-  path: "$.collections",
-  reason: "invalid",
-});
-const directCollectionSnapshotCodecError: CollectionSnapshotCodecError =
-  collectionSnapshotCodecErrorFromNamespace;
-declare const publicCollectionStorageError: Collection.StorageError;
-const directCollectionStorageError: CollectionStorageError = publicCollectionStorageError;
-const serverOptions = serverCollectionOptions<Project>({
-  name: "projects",
+  Collection.backgroundSyncPendingMutations([dbStaticProjectsCollection]);
+const liveQueryCollection = Collection.liveQuery<Project, string, unknown>({
+  name: "type-tests/live-query-projects",
   getKey: (project) => project.id,
+  query: (query) =>
+    query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
 });
-const serverSync = serverCollectionSyncAdapter<Project>({
-  name: "projects",
-  getKey: (project) => project.id,
-});
-const collectionCurrentStore: Collection.Store = Collection.currentStore();
-const collectionStoreEffect: Effect.Effect<Collection.Store> = Collection.storeEffect();
-const collectionStoreDiagnosticsSnapshot: Collection.StoreDiagnosticsSnapshot =
-  collectionCurrentStore.diagnostics.snapshot();
-const collectionEventsEffect: Effect.Effect<
-  PubSub.Subscription<Collection.StoreEvent>,
-  never,
-  Scope.Scope
-> = Collection.subscribeEventsEffect();
-const collectionHydrationValidationEffect: Effect.Effect<
-  void,
-  Collection.SnapshotCodecError | EffectInputCallbackError
-> = Collection.validateHydrationPayloadEffect(
-  [dbStaticProjectsCollection],
-  Collection.dehydrate([dbStaticProjectsCollection]),
-);
-// @ts-expect-error public Collection.Store is diagnostics/events-only; runtime disposal is internal.
-collectionCurrentStore.disposeEffect;
+const liveQueryCollectionWrite: Effect.Effect<void, unknown> = liveQueryCollection.applyChanges([]);
 
-const dbExports: Array<unknown> = [
-  Collection,
-  Query,
-  SQLitePersistence,
-  SQLitePersistenceInvalidRow,
-  SQLitePersistenceInvalidStatementParams,
-  SQLitePersistenceInvalidTableName,
-  SQLitePersistenceUnsupportedStatement,
-  ServerCollectionMissingIdentity,
-  CollectionPreloadCollector,
-  CollectionTypeId,
-  CollectionStoreTypeId,
-  UnknownCollectionIndex,
-  CollectionRowKeyChanged,
-  CollectionRowNotFound,
-  ReadonlyCollectionMutation,
-  CollectionSnapshotCodecError,
-  backgroundSyncCollectionsPendingMutationsEffect,
-  bindCollectionRuntimeEffect,
-  collectionReactiveDepsValue,
-  defaultCollectionDefinitionRegistry,
-  eq,
-  flushCollectionsPendingMutationsEffect,
-  persistedCollectionOptions,
-  isCollection,
-  makeCollectionDefinitionRegistry,
-  makeLiveQueryCollection,
-  makeCollectionReactivePreloadController,
-  makeSQLiteMemoryStatementDatabase,
-  makeSQLitePreparedStatementDatabase,
-  makeSQLitePersistenceStorage,
-  makeSQLiteStatementPersistenceDriver,
-  sameCollectionReactiveDeps,
-  sameCollectionReactiveSources,
-  selectCollectionReactiveLiveQuery,
-  serverCollectionOptions,
-  serverCollectionSyncAdapter,
-  snapshotCollectionReactiveDeps,
-  subscribeCollectionReactiveSource,
-  sqliteStorage,
-  sqlitePreparedAdapter,
-  sqliteNamespaceStorage,
-  persistedProjectOptions,
-  backgroundSyncEffect,
-  collectionMemoryStorage,
-  collectionStorage,
-  collectionPersistedProjectOptions,
-  collectionFlushEffect,
-  collectionBackgroundSyncEffect,
-  collectionSqliteMemoryDatabase,
-  collectionStoreDiagnosticsSnapshot,
-  collectionHydrationValidationEffect,
-  collectionSqliteStorage,
-  sqliteRow,
-  publicQueryBuilder,
-  publicQueryRows,
-  publicLiveQuery,
-  directLiveQueryCollection,
-  isolatedCollectionRegistry,
-  defaultCollectionRegistry,
-  collectionTypeId,
-  collectionStoreTypeId,
-  directCollectionCheck,
-  queryPredicatePins,
-  publicQueryPredicatePins,
-  publicQueryEvaluationErrorInstance,
-  publicUnsupportedLiveQuery,
-  unknownCollectionIndex,
-  unsupportedLiveQuery,
-  collectionRowKeyChanged,
-  collectionRowNotFound,
-  readonlyCollectionMutation,
-  collectionSnapshotCodecError,
-  collectionUnknownIndexFromNamespace,
-  directUnknownCollectionIndex,
-  collectionRowKeyChangedFromNamespace,
-  directCollectionRowKeyChanged,
-  collectionRowNotFoundFromNamespace,
-  directCollectionRowNotFound,
-  readonlyCollectionMutationFromNamespace,
-  directReadonlyCollectionMutation,
-  collectionSnapshotCodecErrorFromNamespace,
-  directCollectionSnapshotCodecError,
-  publicCollectionStorageError,
-  directCollectionStorageError,
-  serverOptions,
-  serverSync,
-  collectionCurrentStore,
-  collectionStoreEffect,
-  collectionEventsEffect,
-];
-type DbErrors =
-  | CollectionStorageError
-  | QueryEvaluationError
-  | SQLitePersistenceInvalidRow
-  | SQLitePersistenceInvalidStatementParams
-  | SQLitePersistenceInvalidTableName;
-type DbReactivePins =
-  | CollectionReactiveLiveQueryInput<Project, never, never>
-  | CollectionReactiveLiveQuerySelection<Project, never, never, unknown>
-  | CollectionReactivePreloadController<never>
-  | CollectionReactivePreloadControllerOptions<never>;
-type DbErasedCollectionPins =
-  | AnyCollection
-  | CollectionError<typeof dbProjectsCollection>
-  | CollectionRequirements<typeof dbProjectsCollection>
-  | QueryGroupKey<{ readonly status: string; readonly meta: { readonly active: boolean } }>
-  | Query.GroupKey<{ readonly status: string; readonly tags: ReadonlySet<string> }>
-  | Collection.QuerySyncKey
-  | Collection.QuerySyncKeyPart;
-const collectionQuerySyncKeyPart: Collection.QuerySyncKeyPart = {
-  cursor: "after",
-  page: 2,
-  staleAt: new Date(0),
-  flags: [true, null],
-};
-const collectionQuerySyncKey: Collection.QuerySyncKey = ["projects", collectionQuerySyncKeyPart];
-type DbServerPins =
-  | ServerCollectionOptions<Project>
-  | ServerCollectionOperation<void, ReadonlyArray<Project>>
-  | ServerCollectionResult<ReadonlyArray<Project>>
-  | ServerCollectionInsertPayload<Project, string>
-  | ServerCollectionUpdatePayload<Project, string>
-  | ServerCollectionDeletePayload<Project, string>;
-type DbFlushPins =
-  | FlushCollectionPendingMutationsResult
-  | CollectionBackgroundSyncResult
-  | Collection.FlushAllPendingMutationsError<readonly [typeof dbProjectsCollection], "skip-error">
-  | Collection.FlushAllPendingMutationsRequirements<
-      readonly [typeof dbProjectsCollection],
-      DbSkipService
-    >
-  | Collection.BackgroundSyncError<
-      readonly [typeof dbProjectsCollection],
-      "adapter-error",
-      "skip-error"
-    >
-  | Collection.BackgroundSyncRequirements<
-      readonly [typeof dbProjectsCollection],
-      DbAdapterService,
-      DbSkipService
-    >;
 declare const collectionFlushError: Collection.FlushAllPendingMutationsError<
   readonly [typeof dbProjectsCollection],
   "skip-error"
@@ -642,12 +257,11 @@ const collectionBackgroundSyncErrorPin:
   | EffectInputCallbackError = collectionBackgroundSyncError;
 const collectionBackgroundSyncRequirementsPin: DbRuntimeService | DbAdapterService | DbSkipService =
   collectionBackgroundSyncRequirements;
-const concreteCollectionErrorPin: "load" = null as never as CollectionError<
+const concreteCollectionErrorPin: "load" = null as never as Collection.Error<
   typeof dbProjectsCollection
 >;
-const concreteCollectionRequirementsPin: DbRuntimeService = null as never as CollectionRequirements<
-  typeof dbProjectsCollection
->;
+const concreteCollectionRequirementsPin: DbRuntimeService =
+  null as never as Collection.Requirements<typeof dbProjectsCollection>;
 const servicefulErasedPersistencePin: Collection.PersistenceConfig<"persist", DbAdapterService> =
   servicefulErasedPersistence;
 const servicefulErasedPersistenceRead: EffectInput<string | null, "persist", DbAdapterService> =
@@ -658,47 +272,192 @@ const bareErasedPersistencePin: Collection.PersistenceConfig<unknown, unknown> =
 const erasedCollectionErrorString: string = erasedCollectionError;
 // @ts-expect-error erased collection requirements default to unknown, not an arbitrary service.
 const erasedCollectionRequirementsService: DbRuntimeService = erasedCollectionRequirements;
-const changeFeedUnsubscribeWithServices: Collection.ChangeFeedUnsubscribe<
-  "unsubscribe",
-  DbAdapterService
-> = () => dbAdapterCleanupEffect;
-const servicefulChangeFeedAdapter: Collection.ChangeFeedAdapter<
-  Project,
-  string,
-  "feed" | "unsubscribe",
-  DbAdapterService,
-  "load",
-  DbRuntimeService
-> = {
-  name: "projects-serviceful-feed",
-  subscribe: () => ({
-    unsubscribe: changeFeedUnsubscribeWithServices,
-  }),
+
+// --- Query ---
+
+const publicQueryRoot: Query.Root = Query;
+const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
+  query
+    .from({ project: dbStaticProjectsCollection })
+    .where(({ project }) => project.name !== "" && project.id.length > 0)
+    .select(({ project }) => project);
+const publicQueryBuilder: Query.Builder<any, Project, any, any> = Query.from({
+  project: dbStaticProjectsCollection,
+}).select(({ project }) => project);
+const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
+// @ts-expect-error public Query.Builder does not expose execution-plan internals.
+publicQueryBuilder.sources;
+// @ts-expect-error join aliases were removed; use join(...).
+publicQueryBuilder.innerJoin;
+// @ts-expect-error predicate helpers were removed; use plain operators in where(...).
+Query.eq;
+// @ts-expect-error Query.build is internal; use Query.once or Query.live.
+Query.build;
+declare const neverQueryBuilder: Query.Builder<any, never, any, any>;
+// @ts-expect-error public Query.Builder is branded; use Query.from(...) instead of structural fakes.
+const structuralQueryBuilder: Query.Builder<any, Project, any, any> = {
+  where: () => neverQueryBuilder,
+  select: () => neverQueryBuilder,
+  join: () => neverQueryBuilder,
+  joinIndexed: () => neverQueryBuilder,
+  groupBy: () => neverQueryBuilder,
+  orderBy: () => neverQueryBuilder,
+  offset: () => neverQueryBuilder,
+  limit: () => neverQueryBuilder,
+  execute: () => [],
 };
-// Adapter lifecycle channels stay visible for subscription setup; unsubscribe
-// failures use the same adapter channel for failure publication but are
-// swallowed during scope release after `CollectionChangeFeedFailure` is
-// published.
-const servicefulChangeFeedEffect: Effect.Effect<
-  void,
-  Collection.RuntimeError<"load"> | "feed" | "unsubscribe",
-  DbRuntimeService | DbAdapterService | Scope.Scope
-> = Collection.subscribeChangesEffect(dbProjectsCollection, servicefulChangeFeedAdapter);
+const publicLiveQuery = Query.live((query) =>
+  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
+);
+const publicQueryLive: Query.Live<Project, any, any> = publicLiveQuery;
+const liveQueryState: AsyncResult.AsyncResult<
+  ReadonlyArray<Project>,
+  any
+> = publicLiveQuery.state.get();
+// @ts-expect-error public live query handles do not expose their internal builder.
+publicLiveQuery.builder;
+const onceRows: Effect.Effect<ReadonlyArray<Project>, unknown, unknown> = Query.once(
+  publicQueryFactory,
+);
+const queryEvaluationError = new QueryEvaluationError({
+  operation: "evaluate",
+  message: "invalid query",
+  cause: "invalid query",
+});
+const queryEvaluationOperation: Query.EvaluationOperation = queryEvaluationError.operation;
+const unsupportedLiveQuery = new UnsupportedLiveQuery({
+  reason: "Live queries with joins require at least one non-join source collection.",
+});
+const publicQueryPlanDiagnostics: Query.PlanDiagnostics = Query.diagnostics(publicQueryFactory);
+const publicQueryPlanSource: Query.PlanSourceDiagnostics = publicQueryPlanDiagnostics.sources[0]!;
+declare const publicQueryPlanJoin: Query.PlanJoinDiagnostics;
+const publicQueryJoinStrategy: Query.JoinStrategy = publicQueryPlanJoin.strategy;
+const publicQueryJoinKey: Query.JoinKey = "project-id";
+const publicQuerySortDirection: Query.SortDirection = "asc";
+const publicQuerySortValue: Query.SortValue = new Date(0);
+const publicQueryGroupKey: Query.GroupKey<{ readonly status: string }> = { status: "active" };
+const publicQueryAggregate: Query.Aggregate<{ readonly project: Project }, number, number> =
+  Query.sum(({ project }) => project.id.length);
+const publicQueryAggregates = {
+  count: Query.count(({ project }: { readonly project: Project }) => project.id),
+} satisfies Query.Aggregates<{ readonly project: Project }>;
+declare const publicQueryAggregateResult: Query.AggregateResult<
+  typeof publicQueryGroupKey,
+  typeof publicQueryAggregates
+>;
+const publicQueryAggregateCount: number = publicQueryAggregateResult.count;
+publicQueryRoot.from({ project: dbStaticProjectsCollection });
+
+// --- SQLite persistence ---
+
+declare const sqliteStatementDatabase: SQLitePersistence.StatementDatabase<SQLitePersistenceInvalidRow>;
+declare const sqlitePreparedStatementDatabase: SQLitePersistence.PreparedStatementDatabase;
+const sqliteStatementStorage = SQLitePersistence.storage(
+  SQLitePersistence.statementDriver(sqliteStatementDatabase),
+);
+const sqlitePreparedAdapter = SQLitePersistence.preparedStatementDatabase(
+  sqlitePreparedStatementDatabase,
+);
+const sqliteMemoryStatementDatabase: SQLitePersistence.MemoryStatementDatabase =
+  SQLitePersistence.memoryStatementDatabase();
+const sqliteDefaultTable: "sunfall_arc_collection_persistence" = SQLitePersistence.defaultTable;
+const sqliteDefaultNamespace: "sunfall-arc:collections" = SQLitePersistence.defaultNamespace;
+const sqliteDefaultSchemaVersion: 1 = SQLitePersistence.defaultSchemaVersion;
+const sqliteRow: SQLitePersistence.Row = {
+  namespace: "workspace",
+  key: "projects",
+  schemaVersion: 1,
+  value: "{}",
+  updatedAt: 1,
+};
+
+// --- Root error classes ---
+
+const unknownCollectionIndex = new UnknownCollectionIndex({
+  collection: "projects",
+  index: "byStatus",
+});
+const collectionRowKeyChanged = new CollectionRowKeyChanged({
+  collection: "projects",
+  key: "atlas",
+  nextKey: "zephyr",
+  guidance: "keep keys stable",
+});
+const collectionRowNotFound = new CollectionRowNotFound({
+  collection: "projects",
+  key: "missing",
+});
+const readonlyCollectionMutation = new ReadonlyCollectionMutation({
+  collection: "derived-projects",
+  operation: "insert",
+});
+const collectionSnapshotCodecError = new CollectionSnapshotCodecError({
+  operation: "decode",
+  path: "$.collections",
+  reason: "invalid",
+});
+// @ts-expect-error error classes have one name each, at the package root.
+Collection.RowNotFound;
+type DbErrors =
+  | CollectionStorageError
+  | QueryEvaluationError
+  | SQLitePersistenceInvalidRow
+  | SQLitePersistenceInvalidStatementParams
+  | SQLitePersistenceInvalidTableName
+  | SQLitePersistenceUnsupportedStatement;
+
+const dbExports: Array<unknown> = [
+  inferredProjects,
+  adapterProjects,
+  serverProjects,
+  resourceProjects,
+  persistedProjectsError,
+  projectState,
+  applyChanges,
+  liveQueryOptions,
+  projectValue,
+  projectRowValue,
+  options,
+  writeOptions,
+  collectionMemoryStorage,
+  collectionStorage,
+  collectionFlushEffect,
+  collectionBackgroundSyncEffect,
+  liveQueryCollectionWrite,
+  collectionFlushErrorPin,
+  collectionFlushRequirementsPin,
+  collectionBackgroundSyncErrorPin,
+  collectionBackgroundSyncRequirementsPin,
+  concreteCollectionErrorPin,
+  concreteCollectionRequirementsPin,
+  servicefulErasedPersistencePin,
+  servicefulErasedPersistenceRead,
+  bareErasedPersistencePin,
+  publicQueryRows,
+  publicQueryLive,
+  liveQueryState,
+  onceRows,
+  queryEvaluationOperation,
+  unsupportedLiveQuery,
+  publicQueryPlanSource,
+  publicQueryJoinStrategy,
+  publicQueryJoinKey,
+  publicQuerySortDirection,
+  publicQuerySortValue,
+  publicQueryAggregate,
+  publicQueryAggregateCount,
+  sqliteStatementStorage,
+  sqlitePreparedAdapter,
+  sqliteMemoryStatementDatabase,
+  sqliteDefaultTable,
+  sqliteDefaultNamespace,
+  sqliteDefaultSchemaVersion,
+  sqliteRow,
+  unknownCollectionIndex,
+  collectionRowKeyChanged,
+  collectionRowNotFound,
+  readonlyCollectionMutation,
+  collectionSnapshotCodecError,
+];
 void dbExports;
-void collectionFlushErrorPin;
-void collectionFlushRequirementsPin;
-void collectionBackgroundSyncErrorPin;
-void collectionBackgroundSyncRequirementsPin;
-void concreteCollectionErrorPin;
-void concreteCollectionRequirementsPin;
-void collectionQuerySyncKeyPart;
-void collectionQuerySyncKey;
-void servicefulErasedPersistencePin;
-void servicefulErasedPersistenceRead;
-void bareErasedPersistencePin;
-void servicefulChangeFeedEffect;
 type _DbErrors = DbErrors;
-type _DbReactivePins = DbReactivePins;
-type _DbErasedCollectionPins = DbErasedCollectionPins;
-type _DbServerPins = DbServerPins;
-type _DbFlushPins = DbFlushPins;

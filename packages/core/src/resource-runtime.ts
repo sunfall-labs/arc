@@ -1,16 +1,4 @@
-import {
-  Cache,
-  Clock,
-  Context,
-  Duration,
-  Effect,
-  Exit,
-  Fiber,
-  Option,
-  PubSub,
-  Scope,
-  Stream,
-} from "effect";
+import { Cache, Clock, Duration, Effect, Exit, Fiber, Option, PubSub, Scope, Stream } from "effect";
 import {
   planResourceInvalidationTargets,
   removeResourceRefFromTagIndex,
@@ -38,11 +26,8 @@ import {
   decodeResourceHydrationInputEffect,
   decodeResourceHydrationStateEffect,
   ResourceHydrationApplyError,
-  resourceHydrationPayloadFromSnapshots,
-  resourceHydrationSnapshotFromRef,
   resourceHydrationSnapshotFromRefEffect,
   type ResourceSnapshotCodecError,
-  validateResourceHydrationInputEffect,
   validateResourceHydrationPayloadEffect,
 } from "./resource-snapshot-codec.js";
 import {
@@ -54,6 +39,7 @@ import {
   isResourceStateCollected,
   isResourceStateStale,
   makeResourceEntry,
+  commitResourceState,
   resetResourceEntry,
   scheduleResourceGc,
   setResourcePending,
@@ -67,7 +53,7 @@ import {
   type MutableResourceStore as ResourceStoreState,
   type ResourceStoreEvent,
 } from "./resource-store.js";
-import { currentOrDefaultRuntime, runFork, type AnySunfallArcRuntime } from "./runtime.js";
+import { currentOrDefaultRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 import type {
   AnyResourceFamily,
@@ -264,10 +250,10 @@ export const resourceEntry = <I, A, E, R>(
     return existing;
   }
 
-  const entry = makeResourceEntry<A, ResourceLoadError<E>>() as ResourceEntry<
-    A,
-    ResourceLoadError<E>
-  >;
+  const entry = makeResourceEntry<A, ResourceLoadError<E>>(
+    ref.family.options.name,
+    ref.key,
+  ) as ResourceEntry<A, ResourceLoadError<E>>;
   entries.set(ref.key, entry);
   return entry;
 };
@@ -277,15 +263,6 @@ const peekResourceEntry = <I, A, E, R>(
   store: ResourceStoreState,
 ): ResourceEntry<A, ResourceLoadError<E>> | undefined =>
   store.entries.get(ref.family)?.get(ref.key) as ResourceEntry<A, ResourceLoadError<E>> | undefined;
-
-const runtimeCurrentTimeMillis = (runtime: AnySunfallArcRuntime<any>): number => {
-  const context = runtime.managed.cachedContext;
-  if (context !== undefined) {
-    return Context.getUnsafe(context, Clock.Clock).currentTimeMillisUnsafe();
-  }
-
-  return runtime.runSync(Clock.currentTimeMillis);
-};
 
 export const getCachedResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
@@ -321,7 +298,7 @@ export const subscribeResourceEventsEffect = (): Effect.Effect<
   PubSub.Subscription<ResourceStoreEvent>,
   never,
   Scope.Scope
-> => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribeEffect);
+> => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribe);
 
 const isSettledResourceEvent = (ref: AnyResourceRef, event: ResourceStoreEvent): boolean =>
   (event._tag === "ResourceSuccess" || event._tag === "ResourceHydrated") &&
@@ -341,7 +318,7 @@ export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>):
       yield* Effect.acquireRelease(retainResourceRefEffect(ref), () =>
         releaseResourceRefEffect(ref),
       );
-      const subscription = yield* store.eventBus.subscribeEffect;
+      const subscription = yield* store.eventBus.subscribe;
       const settled = Stream.fromSubscription(subscription).pipe(
         Stream.filter((event) => isSettledResourceEvent(ref as AnyResourceRef, event)),
       );
@@ -361,18 +338,6 @@ export const resourceResult = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
 ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> =>
   resourceEntry(ref, currentResourceStore()).state;
-
-export const resourceStatus = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-): ResourceStatus<I, A, ResourceLoadError<E>, R, E> => {
-  const runtime = currentOrDefaultRuntime();
-  const store = unsafeMutableResourceStore(runtime.resourceStore);
-  return inspectResourceStatus(
-    ref,
-    peekResourceEntry(ref, store)?.state.get() ?? AsyncResult.initial(),
-    runtimeCurrentTimeMillis(runtime),
-  );
-};
 
 export const resourceStatusEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
@@ -465,7 +430,7 @@ export const runResourceEffect = <I, A, E, R>(
 
         if (Exit.isSuccess(exit)) {
           recordResourceProvidedTags(ref, exit.value.tags, store);
-          entry.state.set(settled);
+          commitResourceState(entry, settled, "success");
           yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
             isResourceRefRetained(ref as AnyResourceRef, store),
           );
@@ -479,7 +444,7 @@ export const runResourceEffect = <I, A, E, R>(
         }
 
         yield* invalidateCachedResourceEffect(ref, store);
-        entry.state.set(settled);
+        commitResourceState(entry, settled, settled._tag === "Failure" ? "failure" : "interrupt");
         if (settled._tag === "Failure") {
           yield* interruptResourceGc(entry, store);
           yield* publishResourceStoreEvent(store, {
@@ -550,7 +515,7 @@ const resourcePending = <I, A, E, R>(
     reason,
     result,
     guidance:
-      "Resource.read(...) is a synchronous render/host-adapter seam. Run Resource.prefetchEffect(...) before reading, use Resource.readEffect(...) inside Effect code, or use a UI adapter such as Solid useResourceSuspense(...) for Suspense.",
+      "The Resource value is not loaded yet. Run Resource.preload(...) before Resource.read(...), or read it with a UI adapter such as Solid's Component.resource(...) reader for Suspense.",
   });
 
 type ResourceReadDecision<I, A, E, R> =
@@ -621,33 +586,6 @@ const resourceReadDecision = <I, A, E, R>(
   }
 };
 
-export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
-  const runtime = currentOrDefaultRuntime();
-  const store = unsafeMutableResourceStore(runtime.resourceStore);
-  const entry = peekResourceEntry(ref, store);
-  const now = runtimeCurrentTimeMillis(runtime);
-  const decision = resourceReadDecision(
-    ref,
-    entry,
-    now,
-    isResourceRefRetained(ref as AnyResourceRef, store),
-  );
-  switch (decision._tag) {
-    case "Pending":
-      if (decision.resetEntry !== undefined) {
-        resetResourceEntry(decision.resetEntry);
-      }
-      throw decision.pending;
-    case "Failure":
-      throw decision.failure;
-    case "Value":
-      if (decision.refresh) {
-        void runFork(refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void)));
-      }
-      return decision.value;
-  }
-};
-
 export const readResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<
@@ -688,11 +626,6 @@ export const readResourceEffect = <I, A, E, R>(
 export const refsForResourceTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef<any>> =>
   resourceRefsForTag(tag, currentResourceStore());
 
-export const planResourceInvalidation = <R = never>(
-  target: ResourceInvalidationTarget<R>,
-): ResourceInvalidationPlan<R> =>
-  planResourceInvalidationTargets(target, currentResourceStore()) as ResourceInvalidationPlan<R>;
-
 export const planResourceInvalidationEffect = <R = never>(
   target: ResourceInvalidationTarget<R>,
 ): Effect.Effect<ResourceInvalidationPlan<R>> =>
@@ -725,41 +658,6 @@ export const runResourceInvalidationPlanEffect = <R = never>(
     }
   });
 
-export const invalidateResource = (target: ResourceInvalidationTarget): void => {
-  runResourceInvalidationPlan(planResourceInvalidationTargets(target, currentResourceStore()));
-};
-
-export const runResourceInvalidationPlan = (plan: ResourceInvalidationPlan): void => {
-  const store = currentResourceStore();
-  void runFork(
-    Effect.provideService(runResourceInvalidationPlanEffect(plan), ResourceStore, store).pipe(
-      Effect.catchCause(() => Effect.void),
-    ),
-  );
-};
-
-export const dehydrateResources = (
-  refs: Iterable<AnyResourceRef<any>>,
-  store: ResourceStoreState = currentResourceStore(),
-): ReadonlyArray<ResourceHydrationSnapshot> => {
-  const snapshot: Array<ResourceHydrationSnapshot> = [];
-
-  let index = 0;
-  for (const ref of refs) {
-    const pathIndex = index++;
-    const entry = peekResourceEntry(ref, store);
-    if (entry === undefined) {
-      continue;
-    }
-    const state = entry.state.get();
-    if (state._tag === "Success") {
-      snapshot.push(resourceHydrationSnapshotFromRef(ref, state, `$[${pathIndex}]`));
-    }
-  }
-
-  return snapshot;
-};
-
 export const dehydrateResourcesEffect = (
   refs: Iterable<AnyResourceRef<any>>,
 ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
@@ -782,10 +680,6 @@ export const dehydrateResourcesEffect = (
 
     return snapshot;
   });
-
-export const resourceHydrationPayload = (
-  refs: Iterable<AnyResourceRef<any>>,
-): ResourceHydrationPayload => resourceHydrationPayloadFromSnapshots(dehydrateResources(refs));
 
 export const resourceHydrationPayloadEffect = (
   refs: Iterable<AnyResourceRef<any>>,
@@ -812,7 +706,7 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     yield* interruptResourceInFlight(entry, store);
     yield* interruptResourceGc(entry, store);
     recordResourceProvidedTags(ref, tags, store);
-    entry.state.set(state);
+    commitResourceState(entry, state, "hydrate");
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
     yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
       isResourceRefRetained(ref as AnyResourceRef, store),
@@ -883,13 +777,6 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
     });
   });
 
-export const deleteResource = (ref: AnyResourceRef): void => {
-  const store = currentResourceStore();
-  void runFork(
-    Effect.provideService(deleteResourceFromStoreEffect(ref, store), ResourceStore, store),
-  );
-};
-
 export const hydrateResourcesEffect = (
   input: ResourceHydrationPayload,
   options: ResourceHydrationOptions = {},
@@ -899,7 +786,10 @@ export const hydrateResourcesEffect = (
 > =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
-    const snapshots = yield* validateResourceHydrationInputEffect(input, "hydrate");
+    const { resources: snapshots } = yield* validateResourceHydrationPayloadEffect(
+      input,
+      "hydrate",
+    );
     const now =
       options.timestamp === "now" || options.skipFresh === true
         ? yield* Clock.currentTimeMillis
@@ -976,10 +866,3 @@ export const hydrateResourcesEffect = (
       { discard: true },
     );
   });
-
-export const hydrateResources = (
-  input: ResourceHydrationPayload,
-  options?: ResourceHydrationOptions,
-): void => {
-  currentOrDefaultRuntime().runSync(hydrateResourcesEffect(input, options));
-};

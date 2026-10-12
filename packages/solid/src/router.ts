@@ -1,10 +1,6 @@
 import {
-  browserRouterInitialMatchedState,
   createBrowserRouterHostController,
   Route,
-  currentOrDefaultRuntime,
-  runWithRuntime,
-  RuntimeTypeId,
   Signal,
   type AnySunfallArcRuntime,
   type BrowserHistoryAdapter,
@@ -12,7 +8,8 @@ import {
   type BrowserRouterState,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
-import { Data } from "effect";
+import { browserRouterInitialMatchedState } from "@sunfall/arc-core/internal";
+import { Data, Effect } from "effect";
 import {
   createComponent,
   createContext,
@@ -29,36 +26,10 @@ import { isServer, type JSX } from "@solidjs/web";
 import {
   makeSolidRouteRenderScopeController,
   type SolidRouteOutletRenderers,
+  type SolidRouteViewRenderer,
 } from "./route-render-scope.js";
-import { RuntimeContext, useRuntime } from "./runtime.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
-// Any typed or erased runtime whose error channel is `ER`. Service coverage is
-// checked separately by `RouterRuntime` against the routes' preload requirements.
-type RouterRuntimeShape<ER> = Pick<
-  AnySunfallArcRuntime<ER>,
-  typeof RuntimeTypeId | "managed" | "resourceStore"
->;
-type RouterRuntimeServices<Runtime> =
-  Runtime extends SunfallArcRuntime<infer Services, any> ? Services : never;
-type RouterRuntime<
-  Routes extends readonly AnyRoute[],
-  ER,
-  Runtime extends RouterRuntimeShape<ER>,
-> = [Exclude<Route.PreloadRequirements<Routes[number]>, RouterRuntimeServices<Runtime>>] extends [
-  never,
-]
-  ? Runtime
-  : never;
-
-export type {
-  BrowserNavigateArgs,
-  BrowserNavigateOptions,
-  BrowserRouterError,
-  BrowserRouterPath,
-  BrowserRouterRouteForPath,
-  BrowserRouterState,
-} from "@sunfall/arc-core";
 
 interface BrowserRouterOptionsBase {
   /** Initial URL used for tests or SSR hydration. Defaults to the browser path plus search string. */
@@ -69,44 +40,20 @@ interface BrowserRouterOptionsBase {
   readonly history?: BrowserHistoryAdapter;
 }
 
-type BrowserRouterRuntimeOptions<
-  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
-  ER = never,
-  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
-    Route.PreloadRequirements<Routes[number]>,
-    ER
-  >,
-> = [Route.PreloadRequirements<Routes[number]>] extends [never]
-  ? {
-      /** Runtime used for route preload Effects and route component scopes. */
-      readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
-    }
-  : {
-      /** Runtime used for route preload Effects and route component scopes. */
-      readonly runtime: RouterRuntime<Routes, ER, Runtime>;
-    };
+/** Options for `Component.router(routes, options)`. */
+export interface RouterOptions extends BrowserRouterOptionsBase {}
 
-/** Options for creating a Solid browser router. */
-export type BrowserRouterOptions<
-  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
-  ER = never,
-  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
-    Route.PreloadRequirements<Routes[number]>,
-    ER
-  >,
-> = BrowserRouterOptionsBase & BrowserRouterRuntimeOptions<Routes, ER, Runtime>;
-
-type BrowserRouterOptionsArgs<
-  Routes extends readonly AnyRoute[],
-  ER,
-  Runtime extends RouterRuntimeShape<ER>,
-> = [Route.PreloadRequirements<Routes[number]>] extends [never]
-  ? [options?: BrowserRouterOptions<Routes, ER, Runtime>]
-  : [options: BrowserRouterOptions<Routes, ER, Runtime>];
+/** Internal: options for creating a Solid browser router. */
+export interface BrowserRouterOptions<ER = never> extends BrowserRouterOptionsBase {
+  /** Runtime used for route preload Effects and route component scopes. */
+  readonly runtime: SunfallArcRuntime<any, ER> | AnySunfallArcRuntime<ER>;
+  /** Renders route components that are typed `Component` values. */
+  readonly renderView?: SolidRouteViewRenderer;
+}
 
 type SolidBrowserRouterHostController<Routes extends readonly AnyRoute[], ER> = Omit<
   BrowserRouterHostController<Routes, ER>,
-  "state" | "match" | "start" | "dispose" | "disposeEffect"
+  "state" | "match" | "start" | "dispose"
 >;
 
 /** Solid browser router backed by Sunfall Arc route definitions and preload. */
@@ -143,34 +90,16 @@ type TypedRouterOutletProps<Routes extends readonly AnyRoute[], ER> = {
   ) => JSX.Element;
 };
 
-type RouterProviderRuntimeProps<
-  Routes extends readonly AnyRoute[],
-  ER,
-  Runtime extends RouterRuntimeShape<ER>,
-> = [Route.PreloadRequirements<Routes[number]>] extends [never]
-  ? { readonly runtime?: RouterRuntime<Routes, ER, Runtime> }
-  : { readonly runtime: RouterRuntime<Routes, ER, Runtime> };
-
-/** Props for `RouterProvider`, including route definitions, history, and render fallbacks. */
-export type RouterProviderProps<
-  Routes extends readonly AnyRoute[],
-  ER = never,
-  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
-    Route.PreloadRequirements<Routes[number]>,
-    ER
-  >,
-> = RouterOutletProps<Routes, ER> &
-  RouterProviderRuntimeProps<Routes, ER, Runtime> & {
-    /** Route definitions available to the provider. */
-    readonly routes: Routes;
-    /** Initial URL used for tests or SSR hydration. */
-    readonly initialHref?: string;
-    /** True when the initial browser render hydrates existing server-rendered DOM. */
-    readonly hydrating?: boolean;
-    /** Host history Adapter. Defaults to `window.history` when a browser is available. */
-    readonly history?: BrowserHistoryAdapter;
-    readonly children?: JSX.Element;
-  };
+/** Props for `RouterProvider`: the router from `Component.router(...)` plus outlet fallbacks. */
+export type RouterProviderProps<Routes extends readonly AnyRoute[], ER = never> = RouterOutletProps<
+  Routes,
+  ER
+> & {
+  /** Router created in setup with `Component.router(routes, options)`. */
+  readonly router: BrowserRouter<Routes, ER>;
+  /** Content rendered inside the router; defaults to a `RouterOutlet` with these fallbacks. */
+  readonly children?: JSX.Element;
+};
 
 /**
  * Render fallbacks for route pending, failure, and not-found states.
@@ -197,14 +126,8 @@ const isHydratingExistingDom = (): boolean => canUseBrowser() && isHydrating();
 
 const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown> | null>(null);
 
-interface RouterProviderEntry<Routes extends readonly AnyRoute[], ER> {
-  readonly routes: Routes;
-  readonly runtime: AnySunfallArcRuntime<ER>;
-  readonly routerRuntime: SunfallArcRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
-  readonly history?: BrowserHistoryAdapter;
-  readonly initialHref?: string;
-  readonly hydrating?: boolean;
-}
+/** Typed-`Component` route view renderer of each router, read by its outlets. */
+const viewRenderers = new WeakMap<object, SolidRouteViewRenderer>();
 
 const routerOutletRenderers = <Routes extends readonly AnyRoute[], ER>(
   props: TypedRouterOutletProps<Routes, ER>,
@@ -222,33 +145,21 @@ export class RouterContextMissing extends Data.TaggedError("RouterContextMissing
   readonly hook: string;
 }> {}
 
-export { RouterRouteNotRegistered } from "@sunfall/arc-core";
-
 /**
- * Creates a Solid browser router from Sunfall Arc route definitions.
+ * Internal: creates a Solid browser router from Sunfall Arc route definitions.
+ * `Component.router(...)` is the public entry point; it passes the runtime and
+ * setup context of the Component instance that creates the router.
  *
  * Navigation preloads matched route resources in the configured runtime and
- * interrupts stale preload work when navigation changes.
- *
- * Call this under a Solid owner, either directly in `createRoot(...)` or via
- * `RouterProvider`, so effects, browser listeners, and preload scopes are
- * cleaned up with the owner.
+ * interrupts stale preload work when navigation changes. Call this under a
+ * Solid owner so effects, browser listeners, and preload scopes are cleaned up
+ * with the owner.
  */
-export const createBrowserRouter = <
-  const Routes extends readonly AnyRoute[],
-  ER = never,
-  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
-    Route.PreloadRequirements<Routes[number]>,
-    ER
-  >,
->(
+export const createBrowserRouter = <const Routes extends readonly AnyRoute[], ER = never>(
   routes: Routes,
-  ...args: BrowserRouterOptionsArgs<Routes, ER, Runtime>
+  options: BrowserRouterOptions<ER>,
 ): BrowserRouter<Routes, ER> => {
-  const options = (args[0] ?? {}) as BrowserRouterOptionsBase & {
-    readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
-  };
-  const runtime = (options.runtime ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
+  const runtime = options.runtime as AnySunfallArcRuntime<ER>;
   const controller = createBrowserRouterHostController(routes, {
     runtime,
     ...(options.history === undefined ? {} : { history: options.history }),
@@ -264,10 +175,12 @@ export const createBrowserRouter = <
   // Controller signals are Arc signals, which Solid tracks natively.
   const state: Accessor<BrowserRouterState<Routes, ER>> = () => controller.state.get();
   const match: Accessor<Route.Match<Routes[number]> | undefined> = () => controller.match.get();
-  const stopController = canUseBrowser() ? controller.start() : controller.dispose;
+  if (canUseBrowser()) {
+    controller.start();
+  }
 
   onCleanup(() => {
-    stopController();
+    void Effect.runFork(controller.dispose());
   });
 
   const router: BrowserRouter<Routes, ER> = {
@@ -278,14 +191,13 @@ export const createBrowserRouter = <
     canHandleRoute: controller.canHandleRoute,
     href: controller.href,
     createHref: controller.createHref,
-    hrefByPath: controller.hrefByPath,
     navigate: controller.navigate,
-    navigateByPath: controller.navigateByPath,
     navigateHref: controller.navigateHref,
-    matchByPath: controller.matchByPath,
-    preloadEffect: controller.preloadEffect,
-    preloadByPathEffect: controller.preloadByPathEffect,
+    preload: controller.preload,
   };
+  if (options.renderView !== undefined) {
+    viewRenderers.set(router, options.renderView);
+  }
 
   return router;
 };
@@ -312,6 +224,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const typedProps = props as TypedRouterOutletProps<Routes, Error>;
   const router = useRouter<Routes, Error>();
   const runtime = router.runtime as AnySunfallArcRuntime<Error>;
+  const renderView = viewRenderers.get(router);
   const renderers = createMemo(() => routerOutletRenderers(typedProps));
   // Outlet state lives in Arc signals: Solid tracks them natively on the client,
   // and writes stay plain committed values during server rendering.
@@ -323,6 +236,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
     // render effect below owns every later input.
     initialInput: untrack(input),
     runtime,
+    ...(renderView === undefined ? {} : { renderView }),
     owner: getOwner(),
     node,
     renderError,
@@ -333,7 +247,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   });
 
   onCleanup(() => {
-    routeRenderScope.dispose();
+    void Effect.runFork(routeRenderScope.dispose());
   });
 
   return createMemo(() => {
@@ -346,88 +260,36 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
 };
 
 /**
- * Provides router and runtime context, then renders either children or outlet.
+ * Provides a router to its children (`RouterOutlet`, `RouterLink`,
+ * `useRouter`), rendering a `RouterOutlet` with the given fallbacks when it
+ * has no children.
+ *
+ * The router comes from `Component.router(routes, options)` in a Component's
+ * setup, which checks the routes' preload services and route Components'
+ * requirements against the Component's runtime.
  *
  * @example
  * ```tsx
- * <RouterProvider routes={routes} />
+ * const App = Component.define("App", function* () {
+ *   const router = yield* Component.router(routes);
+ *   return () => <RouterProvider router={router} notFound={() => <NotFound />} />;
+ * });
  * ```
  */
-export const RouterProvider = <
-  const Routes extends readonly AnyRoute[],
-  ER = never,
-  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
-    Route.PreloadRequirements<Routes[number]>,
-    ER
-  >,
->(
-  props: RouterProviderProps<Routes, ER, Runtime>,
-): JSX.Element => {
-  const contextRuntime = useRuntime<ER>();
-  const entry = createMemo<RouterProviderEntry<Routes, ER>>(() => {
-    const runtime = (
-      "runtime" in props && props.runtime !== undefined ? props.runtime : contextRuntime
-    ) as AnySunfallArcRuntime<ER>;
-    return {
-      routes: props.routes,
-      runtime,
-      routerRuntime: runtime as unknown as SunfallArcRuntime<
-        Route.PreloadRequirements<Routes[number]>,
-        ER
-      >,
-      ...(props.history === undefined ? {} : { history: props.history }),
-      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
-      ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating }),
-    };
-  });
-
-  // Each entry gets its own router instance. The memo owns it, so a new entry
-  // disposes the previous router first, and rendering stays in tree order for
-  // hydration.
-  return createMemo(() =>
-    createComponent(RouterProviderInstance<Routes, ER, Runtime>, {
-      entry: entry(),
-      props,
-    }),
-  ) as unknown as JSX.Element;
-};
-
-const RouterProviderInstance = <
-  const Routes extends readonly AnyRoute[],
-  ER = never,
-  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
-    Route.PreloadRequirements<Routes[number]>,
-    ER
-  >,
->(instanceProps: {
-  readonly entry: RouterProviderEntry<Routes, ER>;
-  readonly props: RouterProviderProps<Routes, ER, Runtime>;
-}): JSX.Element => {
-  const { entry, props } = instanceProps;
-  const router = createBrowserRouter<Routes, ER>(entry.routes, {
-    runtime: entry.routerRuntime,
-    ...(entry.history === undefined ? {} : { history: entry.history }),
-    ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref }),
-    ...(entry.hydrating === undefined ? {} : { hydrating: entry.hydrating }),
-  });
-
-  return createComponent(RuntimeContext, {
-    value: entry.runtime as AnySunfallArcRuntime<never>,
+export const RouterProvider = <const Routes extends readonly AnyRoute[], ER = never>(
+  props: RouterProviderProps<Routes, ER>,
+): JSX.Element =>
+  createComponent(RouterContext, {
+    get value() {
+      return props.router as unknown as BrowserRouter<readonly AnyRoute[], unknown>;
+    },
     get children() {
-      return createComponent(RouterContext, {
-        value: router as unknown as BrowserRouter<readonly AnyRoute[], unknown>,
-        get children() {
-          return runWithRuntime(
-            entry.runtime,
-            () =>
-              props.children ??
-              createComponent(
-                RouterOutlet as (props: RouterOutletProps<Routes, ER>) => JSX.Element,
-                props as RouterOutletProps<Routes, ER>,
-              ),
-          );
-        },
-      });
+      return (
+        props.children ??
+        createComponent(
+          RouterOutlet as (props: RouterOutletProps<Routes, ER>) => JSX.Element,
+          props as RouterOutletProps<Routes, ER>,
+        )
+      );
     },
   });
-};

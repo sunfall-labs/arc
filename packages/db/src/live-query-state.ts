@@ -24,7 +24,7 @@ type LiveQueryResult<T, E> = AsyncResult.AsyncResult<ReadonlyArray<T>, E | Query
  * Query Builder owns immutable query descriptions. This Module owns the
  * reactive state Adapter around a Live Query Runtime: last-good data retention,
  * evaluation failures, source collection load-state folding, and source
- * preload/refetch effects.
+ * preload/refresh effects.
  */
 export const makeLiveQueryState = <T, E = never, R = never>(
   builder: AnyQueryBuilder<T, E, R>,
@@ -194,13 +194,13 @@ export const makeLiveQueryState = <T, E = never, R = never>(
   const state = currentStoreSignal((signals) => signals.state);
 
   return {
-    data,
+    rows: data,
     state,
     sources,
     evaluate: () => data.get(),
-    preloadEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
+    preload: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
       preloadQueryExecutionPlanEffect(builder, false),
-    refetchEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
+    refresh: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
       preloadQueryExecutionPlanEffect(builder, true),
   };
 };

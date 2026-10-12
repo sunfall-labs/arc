@@ -4,7 +4,6 @@ import {
   provideResponse,
   Server,
   ServerClient,
-  withResourceStore,
   type AppDefinition,
   type SunfallArcRuntime,
   type RequestContext,
@@ -13,6 +12,7 @@ import {
   type Route,
   type AppDefinitionRegistry,
 } from "@sunfall/arc-core";
+import { withResourceStore } from "@sunfall/arc-core/internal";
 import { Effect, type Scope } from "effect";
 export {
   completeRequestRuntimeWithResponse,

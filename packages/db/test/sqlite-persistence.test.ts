@@ -1,26 +1,15 @@
-import { makeRuntime, runWithRuntime, toEffect } from "@sunfall/arc-core";
-import { Collection } from "@sunfall/arc-db";
-import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
+import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { toEffect } from "@sunfall/arc-core/internal";
 import {
-  SQLITE_PERSISTENCE_DEFAULT_TABLE,
+  Collection,
+  SQLitePersistence,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidStatementParams,
   SQLitePersistenceInvalidTableName,
   SQLitePersistenceUnsupportedStatement,
-  makeSQLiteMemoryStatementDatabase,
-  makeSQLitePreparedStatementDatabase,
-  makeSQLitePersistenceStorage,
-  makeSQLiteStatementPersistenceDriver,
-  type SQLitePreparedStatementDatabase,
-  type SQLitePersistenceDriver,
-  type SQLitePersistenceKey,
-  type SQLitePersistenceRow,
-  type SQLitePersistenceTable,
-  type SQLiteStatementDatabase,
-  type SQLiteStatementParams,
-  type SQLiteStatementRow,
-} from "../src/sqlite-persistence.js";
+} from "@sunfall/arc-db";
+import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
 
 interface Project {
   readonly id: string;
@@ -29,20 +18,20 @@ interface Project {
   readonly progress: number;
 }
 
-interface FakeSQLitePersistenceTable extends SQLitePersistenceTable<never, never> {
-  readonly rows: ReadonlyMap<string, SQLitePersistenceRow>;
-  row(namespace: string, key: string): SQLitePersistenceRow | undefined;
+interface FakeSQLitePersistenceTable extends SQLitePersistence.Table<never, never> {
+  readonly rows: ReadonlyMap<string, SQLitePersistence.Row>;
+  row(namespace: string, key: string): SQLitePersistence.Row | undefined;
 }
 
 interface FakeSQLitePersistenceDriver {
-  readonly driver: SQLitePersistenceDriver<never, never>;
+  readonly driver: SQLitePersistence.Driver<never, never>;
   table(name?: string): FakeSQLitePersistenceTable;
 }
 
-const fakeRowId = (key: SQLitePersistenceKey): string => `${key.namespace}\u0000${key.key}`;
+const fakeRowId = (key: SQLitePersistence.Key): string => `${key.namespace}\u0000${key.key}`;
 
 const makeFakeTable = (): FakeSQLitePersistenceTable => {
-  const rows = new Map<string, SQLitePersistenceRow>();
+  const rows = new Map<string, SQLitePersistence.Row>();
   return {
     rows,
     get: (key) => {
@@ -61,7 +50,7 @@ const makeFakeTable = (): FakeSQLitePersistenceTable => {
 
 const makeFakeDriver = (): FakeSQLitePersistenceDriver => {
   const tables = new Map<string, FakeSQLitePersistenceTable>();
-  const table = (name = SQLITE_PERSISTENCE_DEFAULT_TABLE): FakeSQLitePersistenceTable => {
+  const table = (name = SQLitePersistence.defaultTable): FakeSQLitePersistenceTable => {
     const existing = tables.get(name);
     if (existing) {
       return existing;
@@ -78,14 +67,16 @@ const makeFakeDriver = (): FakeSQLitePersistenceDriver => {
   };
 };
 
-interface FakeStatementDatabase extends SQLiteStatementDatabase<never, never> {
-  readonly executed: ReadonlyArray<readonly [string, SQLiteStatementParams | undefined]>;
-  row(namespace: string, key: string): SQLitePersistenceRow | undefined;
+interface FakeStatementDatabase extends SQLitePersistence.StatementDatabase<never, never> {
+  readonly executed: ReadonlyArray<
+    readonly [string, SQLitePersistence.StatementParams | undefined]
+  >;
+  row(namespace: string, key: string): SQLitePersistence.Row | undefined;
 }
 
 const makeFakeStatementDatabase = (): FakeStatementDatabase => {
-  const rows = new Map<string, SQLitePersistenceRow>();
-  const executed: Array<readonly [string, SQLiteStatementParams | undefined]> = [];
+  const rows = new Map<string, SQLitePersistence.Row>();
+  const executed: Array<readonly [string, SQLitePersistence.StatementParams | undefined]> = [];
   return {
     executed,
     execute: (sql, params) => {
@@ -132,7 +123,7 @@ const makeFakeStatementDatabase = (): FakeStatementDatabase => {
               schema_version: row.schemaVersion,
               value: row.value,
               updated_at: row.updatedAt,
-            } satisfies SQLiteStatementRow,
+            } satisfies SQLitePersistence.StatementRow,
           ]
         : [];
     },
@@ -140,17 +131,17 @@ const makeFakeStatementDatabase = (): FakeStatementDatabase => {
   };
 };
 
-interface FakePreparedStatementDatabase extends SQLitePreparedStatementDatabase<
-  SQLiteStatementRow,
+interface FakePreparedStatementDatabase extends SQLitePersistence.PreparedStatementDatabase<
+  SQLitePersistence.StatementRow,
   never,
   never
 > {
-  readonly memory: ReturnType<typeof makeSQLiteMemoryStatementDatabase>;
+  readonly memory: ReturnType<typeof SQLitePersistence.memoryStatementDatabase>;
   readonly prepared: ReadonlyArray<string>;
 }
 
 const makeFakePreparedStatementDatabase = (): FakePreparedStatementDatabase => {
-  const memory = makeSQLiteMemoryStatementDatabase();
+  const memory = SQLitePersistence.memoryStatementDatabase();
   const prepared: Array<string> = [];
 
   return {
@@ -171,7 +162,7 @@ describe("SQLite persistence storage", () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const fake = makeFakeDriver();
-    const storage = makeSQLitePersistenceStorage(fake.driver, {
+    const storage = SQLitePersistence.storage(fake.driver, {
       namespace: "workspace:a",
       tableName: "collection_snapshots",
       schemaVersion: 4,
@@ -186,15 +177,19 @@ describe("SQLite persistence storage", () => {
       Effect.gen(function* () {
         yield* Effect.scoped(
           first.provide(
-            Projects.writeInsertEffect([
-              { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-              { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+              },
+              {
+                _tag: "Upsert",
+                value: { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+              },
             ]),
           ),
         );
-        yield* Effect.scoped(
-          first.provide(Projects.persistEffect(storage, { key: "projects-cache" })),
-        );
+        yield* Effect.scoped(first.provide(Projects.persist(storage, { key: "projects-cache" })));
 
         yield* Effect.sync(() => {
           const row = fake.table("collection_snapshots").row("workspace:a", "projects-cache");
@@ -224,9 +219,7 @@ describe("SQLite persistence storage", () => {
           });
         });
 
-        yield* Effect.scoped(
-          second.provide(Projects.restoreEffect(storage, { key: "projects-cache" })),
-        );
+        yield* Effect.scoped(second.provide(Projects.restore(storage, { key: "projects-cache" })));
 
         yield* Effect.sync(() =>
           expect(
@@ -237,20 +230,18 @@ describe("SQLite persistence storage", () => {
             ),
           ).toEqual(["Atlas", "Lumen"]),
         );
-      }).pipe(
-        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
-      ),
+      }).pipe(Effect.ensuring(Effect.orDie(Effect.andThen(first.dispose, second.dispose)))),
     );
   });
 
   it("returns null when the stored row schema version does not match", () => {
     const fake = makeFakeDriver();
-    const versionOne = makeSQLitePersistenceStorage(fake.driver, {
+    const versionOne = SQLitePersistence.storage(fake.driver, {
       namespace: "workspace:a",
       schemaVersion: 1,
       now: () => 1,
     });
-    const versionTwo = makeSQLitePersistenceStorage(fake.driver, {
+    const versionTwo = SQLitePersistence.storage(fake.driver, {
       namespace: "workspace:a",
       schemaVersion: 2,
       now: () => 2,
@@ -280,7 +271,7 @@ describe("SQLite persistence storage", () => {
 
   it("removes namespace/key rows when the table supports deletes", () => {
     const fake = makeFakeDriver();
-    const storage = makeSQLitePersistenceStorage(fake.driver, {
+    const storage = SQLitePersistence.storage(fake.driver, {
       namespace: "workspace:a",
       now: () => 1,
     });
@@ -302,7 +293,7 @@ describe("SQLite persistence storage", () => {
   });
 
   it("preserves SQLite table receivers for method-style ensure callbacks", () => {
-    interface MethodStyleTable extends SQLitePersistenceTable<never, never> {
+    interface MethodStyleTable extends SQLitePersistence.Table<never, never> {
       ensured: number;
     }
 
@@ -314,7 +305,7 @@ describe("SQLite persistence storage", () => {
       get: () => null,
       upsert: () => undefined,
     };
-    const storage = makeSQLitePersistenceStorage({
+    const storage = SQLitePersistence.storage({
       table: () => table,
     });
 
@@ -343,7 +334,7 @@ describe("SQLite persistence storage", () => {
         return this.clock;
       },
     };
-    const storage = makeSQLitePersistenceStorage(fake.driver, options);
+    const storage = SQLitePersistence.storage(fake.driver, options);
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -358,7 +349,7 @@ describe("SQLite persistence storage", () => {
 
   it("adapts SQL statement databases into the persistence driver interface", () => {
     const fake = makeFakeStatementDatabase();
-    const storage = makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(fake), {
+    const storage = SQLitePersistence.storage(SQLitePersistence.statementDriver(fake), {
       namespace: "workspace:a",
       tableName: "collection-snapshots",
       schemaVersion: 3,
@@ -394,9 +385,9 @@ describe("SQLite persistence storage", () => {
 
   it("adapts prepare/run/all SQLite clients into statement databases", () => {
     const fake = makeFakePreparedStatementDatabase();
-    const storage = makeSQLitePersistenceStorage(
-      makeSQLiteStatementPersistenceDriver(
-        makeSQLitePreparedStatementDatabase(fake, { cache: true }),
+    const storage = SQLitePersistence.storage(
+      SQLitePersistence.statementDriver(
+        SQLitePersistence.preparedStatementDatabase(fake, { cache: true }),
       ),
       {
         namespace: "workspace:a",
@@ -445,7 +436,7 @@ describe("SQLite persistence storage", () => {
     const getFailure = new Error("get failed");
     const prepareFailure = new Error("prepare failed");
     const nowFailure = new Error("now failed");
-    const storage = makeSQLitePersistenceStorage({
+    const storage = SQLitePersistence.storage({
       table: () => ({
         get: () => {
           throw getFailure;
@@ -453,13 +444,13 @@ describe("SQLite persistence storage", () => {
         upsert: () => undefined,
       }),
     });
-    const prepared = makeSQLitePreparedStatementDatabase({
+    const prepared = SQLitePersistence.preparedStatementDatabase({
       prepare: () => {
         throw prepareFailure;
       },
     });
-    const clockStorage = makeSQLitePersistenceStorage(
-      makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()),
+    const clockStorage = SQLitePersistence.storage(
+      SQLitePersistence.statementDriver(SQLitePersistence.memoryStatementDatabase()),
       {
         now: () => {
           throw nowFailure;
@@ -489,8 +480,8 @@ describe("SQLite persistence storage", () => {
   });
 
   it("provides an in-memory statement database for the generated SQLite persistence SQL", () => {
-    const memory = makeSQLiteMemoryStatementDatabase();
-    const storage = makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(memory), {
+    const memory = SQLitePersistence.memoryStatementDatabase();
+    const storage = SQLitePersistence.storage(SQLitePersistence.statementDriver(memory), {
       namespace: "workspace:a",
       tableName: "collection-snapshots",
       schemaVersion: 7,
@@ -537,7 +528,7 @@ describe("SQLite persistence storage", () => {
   });
 
   it("rejects malformed memory INSERT params before mutating rows", () => {
-    const memory = makeSQLiteMemoryStatementDatabase();
+    const memory = SQLitePersistence.memoryStatementDatabase();
     const insertSql =
       'INSERT INTO "collection-snapshots" ("namespace", "key", "schema_version", "value", "updated_at") ' +
       "VALUES (?, ?, ?, ?, ?)";
@@ -565,7 +556,7 @@ describe("SQLite persistence storage", () => {
   });
 
   it("rejects malformed memory SELECT params before reading rows", () => {
-    const memory = makeSQLiteMemoryStatementDatabase();
+    const memory = SQLitePersistence.memoryStatementDatabase();
     const insertSql =
       'INSERT INTO "collection-snapshots" ("namespace", "key", "schema_version", "value", "updated_at") ' +
       "VALUES (?, ?, ?, ?, ?)";
@@ -604,7 +595,7 @@ describe("SQLite persistence storage", () => {
   });
 
   it("rejects malformed memory DELETE params before mutating rows", () => {
-    const memory = makeSQLiteMemoryStatementDatabase();
+    const memory = SQLitePersistence.memoryStatementDatabase();
     const insertSql =
       'INSERT INTO "collection-snapshots" ("namespace", "key", "schema_version", "value", "updated_at") ' +
       "VALUES (?, ?, ?, ?, ?)";
@@ -630,8 +621,8 @@ describe("SQLite persistence storage", () => {
   it("reports typed SQLite persistence errors for invalid adapter input", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const storage = makeSQLitePersistenceStorage(
-          makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()),
+        const storage = SQLitePersistence.storage(
+          SQLitePersistence.statementDriver(SQLitePersistence.memoryStatementDatabase()),
           {
             tableName: "",
           },
@@ -645,15 +636,15 @@ describe("SQLite persistence storage", () => {
         });
 
         expect(() =>
-          makeSQLitePersistenceStorage(
-            makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()),
+          SQLitePersistence.storage(
+            SQLitePersistence.statementDriver(SQLitePersistence.memoryStatementDatabase()),
             {
               tableName: "",
             },
           ),
         ).not.toThrow();
 
-        const memory = makeSQLiteMemoryStatementDatabase();
+        const memory = SQLitePersistence.memoryStatementDatabase();
         expect(() => memory.execute('DROP TABLE "collection-snapshots"')).toThrow(
           SQLitePersistenceUnsupportedStatement,
         );
@@ -674,8 +665,8 @@ describe("SQLite persistence storage", () => {
   it("rejects malformed statement rows instead of coercing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const storage = makeSQLitePersistenceStorage(
-          makeSQLiteStatementPersistenceDriver({
+        const storage = SQLitePersistence.storage(
+          SQLitePersistence.statementDriver({
             execute: () => undefined,
             select: () => [
               {
@@ -707,7 +698,7 @@ describe("SQLite persistence storage", () => {
   it("rejects malformed direct-driver rows instead of coercing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const storage = makeSQLitePersistenceStorage(
+        const storage = SQLitePersistence.storage(
           {
             table: () => ({
               get: () =>
@@ -717,7 +708,7 @@ describe("SQLite persistence storage", () => {
                   schemaVersion: 1,
                   value: '{"collections":[]}',
                   updatedAt: Number.POSITIVE_INFINITY,
-                }) as SQLitePersistenceRow,
+                }) as SQLitePersistence.Row,
               upsert: () => undefined,
             }),
           },
@@ -742,11 +733,11 @@ describe("SQLite persistence storage", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const fake = makeFakeDriver();
-        const invalidVersionStorage = makeSQLitePersistenceStorage(fake.driver, {
+        const invalidVersionStorage = SQLitePersistence.storage(fake.driver, {
           namespace: "workspace:a",
           schemaVersion: Number.NaN,
         });
-        const invalidTimestampStorage = makeSQLitePersistenceStorage(fake.driver, {
+        const invalidTimestampStorage = SQLitePersistence.storage(fake.driver, {
           namespace: "workspace:a",
           schemaVersion: 1,
           now: () => Number.POSITIVE_INFINITY,
@@ -781,7 +772,7 @@ describe("SQLite persistence storage", () => {
         let getCalls = 0;
         let upsertCalls = 0;
         let deleteCalls = 0;
-        const table: SQLitePersistenceTable<never, never> = {
+        const table: SQLitePersistence.Table<never, never> = {
           get: () => {
             getCalls += 1;
             return null;
@@ -793,14 +784,14 @@ describe("SQLite persistence storage", () => {
             deleteCalls += 1;
           },
         };
-        const driver: SQLitePersistenceDriver<never, never> = {
+        const driver: SQLitePersistence.Driver<never, never> = {
           table: () => table,
         };
-        const invalidNamespaceStorage = makeSQLitePersistenceStorage(driver, {
+        const invalidNamespaceStorage = SQLitePersistence.storage(driver, {
           namespace: 123 as unknown as string,
           schemaVersion: 1,
         });
-        const storage = makeSQLitePersistenceStorage(driver, {
+        const storage = SQLitePersistence.storage(driver, {
           namespace: "workspace:a",
           schemaVersion: 1,
         });

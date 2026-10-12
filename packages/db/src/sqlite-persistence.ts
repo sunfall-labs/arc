@@ -1,4 +1,5 @@
-import { EffectInputCallbackError, invokeEffectInput } from "@sunfall/arc-core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
+import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import type { EffectInput } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import type { CollectionPersistenceStorage } from "./collection-contract.js";
@@ -699,6 +700,12 @@ export namespace SQLitePersistence {
   /** Options for collection persistence stored in SQLite. */
   export type Options = SQLitePersistenceOptions;
 
+  /** Default table name used by `storage(...)`. */
+  export const defaultTable = SQLITE_PERSISTENCE_DEFAULT_TABLE;
+  /** Default key namespace used by `storage(...)`. */
+  export const defaultNamespace = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
+  /** Default schema version stored with persisted rows. */
+  export const defaultSchemaVersion = SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
   /** Create `CollectionPersistenceStorage` backed by SQLite. */
   export const storage = makeSQLitePersistenceStorage;
   /** Adapt a `prepare`/`run`/`all` SQLite client to a statement database. */

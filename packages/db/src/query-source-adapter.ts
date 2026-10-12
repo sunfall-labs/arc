@@ -11,7 +11,7 @@ export type QuerySourceRow = CollectionRow<any, any>;
  *
  * Query Builder and Live Query Runtime should depend on this Interface instead
  * of knowing which Collection methods expose rows, indexes, load state,
- * versions, and preload/refetch behavior.
+ * versions, and preload/refresh behavior.
  */
 export interface QueryCollectionSourceAdapter {
   readonly collection: AnyCollection;
@@ -23,7 +23,7 @@ export interface QueryCollectionSourceAdapter {
   indexJoinKeys(index: string, row: QuerySourceRow): ReadonlyArray<CollectionIndexValue>;
   version(): ReadableSignal<number>;
   state(): ReadableSignal<AsyncResult.AsyncResult<void, any>>;
-  preloadEffect(force: boolean): Effect.Effect<void, any, any>;
+  preload(force: boolean): Effect.Effect<void, any, any>;
 }
 
 export const makeQuerySourceAdapter = (
@@ -37,6 +37,6 @@ export const makeQuerySourceAdapter = (
   indexRows: (index, value) => collection.index(index, value),
   indexJoinKeys: (index, row) => collectionIndexJoinKeys(collection, index, row),
   version: () => collection.version(),
-  state: () => collection.state(),
-  preloadEffect: (force) => (force ? collection.refetchEffect() : collection.preloadEffect()),
+  state: () => collection.result(),
+  preload: (force) => (force ? collection.refresh() : collection.preload()),
 });

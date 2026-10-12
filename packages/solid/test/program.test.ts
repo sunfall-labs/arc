@@ -1,8 +1,9 @@
-import { makeRuntime, Program, runWithRuntime, Signal } from "@sunfall/arc-core";
+import { makeRuntime, Program, Signal } from "@sunfall/arc-core";
 import { Effect, Exit } from "effect";
 import { createEffect, createRoot, flush, mapArray } from "solid-js";
 import { describe, expect, it } from "vitest";
-import { useProgram, type ProgramHandle, type UseProgramOptions } from "../src/index.js";
+import { Component } from "../src/index.js";
+import { bindInInstance } from "./instance-harness.js";
 
 interface Item {
   readonly id: number;
@@ -39,12 +40,7 @@ const BoardProgram = Program.define<Board, BoardMessage>({
   },
 });
 
-type Handle<Model, Message> = ProgramHandle<
-  Model,
-  Message,
-  Program.RuntimeError<never>,
-  Program.DispatchError<never>
->;
+type Handle<Model, Message> = Component.ProgramHandle<Model, Message, never>;
 
 interface Mounted<Model, Message> {
   readonly program: Handle<Model, Message>;
@@ -53,32 +49,30 @@ interface Mounted<Model, Message> {
   readonly dispose: () => Promise<void>;
 }
 
-/** Mounts `useProgram` in a Solid root, running `setup` in the same owner. */
+/** Binds `Component.program` in an instance under a Solid root, running `setup` in the same owner. */
 const mount = <Model, Message>(
   definition: Program.Definition<Model, Message>,
   setup: (program: Handle<Model, Message>) => void = () => {},
-  options?: UseProgramOptions,
+  options?: Component.ProgramOptions,
 ): Mounted<Model, Message> => {
   const runtime = makeRuntime();
   let disposeRoot: () => void = () => {};
-  const program = runWithRuntime(runtime, () =>
-    createRoot((dispose) => {
-      disposeRoot = dispose;
-      const handle = useProgram(definition, options);
-      setup(handle);
-      return handle;
-    }),
-  );
+  const program = createRoot((dispose) => {
+    disposeRoot = dispose;
+    const handle = bindInInstance(runtime, Component.program(definition, options));
+    setup(handle);
+    return handle;
+  });
   flush();
   return {
     program,
     send: async (message) => {
-      await Effect.runPromise(program.dispatchEffect(message));
+      await Effect.runPromise(program.dispatch(message));
       flush();
     },
     dispose: async () => {
       disposeRoot();
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     },
   };
 };
@@ -96,7 +90,7 @@ const counter = (read: () => unknown): (() => number) => {
   return () => runs;
 };
 
-describe("useProgram fine-grained model", () => {
+describe("Component.program fine-grained model", () => {
   it("re-runs a reader only when the field it reads changes", async () => {
     let titleRuns = () => 0;
     let countRuns = () => 0;
@@ -159,7 +153,7 @@ describe("useProgram fine-grained model", () => {
     ]);
 
     // Reorder: surviving items keep their view identity, nothing re-renders.
-    await send({ _tag: "Replace", items: [...program.instance.model.get().items].reverse() });
+    await send({ _tag: "Replace", items: [...program.committed.get().items].reverse() });
     expect(program.model().items).toEqual([third, second, first]);
     expect(program.model().items[0]).toBe(third);
     expect(program.model().items[2]).toBe(first);
@@ -277,7 +271,7 @@ describe("useProgram fine-grained model", () => {
     const { program, send, dispose } = mount(Scheduled, (handle) => {
       atRuns = counter(() => handle.model().at);
     });
-    const committed = Signal.peek(program.instance.model);
+    const committed = Signal.peek(program.committed);
     expect(program.model().at).toBe(committed.at);
     expect(program.model().owners).toBe(committed.owners);
     await send({ _tag: "Note", note: "moved" });
@@ -295,10 +289,10 @@ describe("useProgram fine-grained model", () => {
     expect(countRuns()).toBe(2);
 
     await dispose();
-    const exit = await Effect.runPromiseExit(program.dispatchEffect({ _tag: "Increment" }));
+    const exit = await Effect.runPromiseExit(program.dispatch({ _tag: "Increment" }));
     flush();
     expect(Exit.isFailure(exit)).toBe(true);
     expect(countRuns()).toBe(2);
-    expect(Signal.peek(program.instance.model).count).toBe(1);
+    expect(Signal.peek(program.committed).count).toBe(1);
   });
 });

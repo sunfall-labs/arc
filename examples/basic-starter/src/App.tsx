@@ -1,35 +1,36 @@
-import { useResource } from "@sunfall/arc-solid";
-import { Option } from "effect";
-import { AsyncResult } from "effect/reactivity";
-import { Show } from "solid-js";
-import { WelcomeRef } from "./starter.js";
+import { Component } from "@sunfall/arc-solid";
+import { WelcomeResource } from "./starter.js";
 import "./styles.css";
 
-export default function App() {
-  const welcome = useResource(WelcomeRef);
-  // Current or stale value: the content mounts once and refreshes update it in place.
-  const current = () => Option.getOrUndefined(AsyncResult.value(welcome.result()));
+/**
+ * Reads the route-preloaded welcome Resource. The reader is the only way to
+ * render its value: the first load suspends the `<Loading>` fallback (route
+ * preload and hydration make it synchronous), and a failed first load renders
+ * the `catchAll` view.
+ */
+const Welcome = Component.define("Welcome", function* () {
+  const welcome = yield* Component.resource(WelcomeResource);
+  return () => (
+    <>
+      <h1>{welcome("Sunfall Arc").message}</h1>
+      <p>Start with one route, one Resource preload, SSR, and browser hydration.</p>
+    </>
+  );
+}).pipe(
+  Component.catchAll(() => <h1>Starter resource failed</h1>),
+  Component.loading(() => <h1>Loading starter resource</h1>),
+);
 
-  return (
+const App = Component.define("App", function* () {
+  const Content = yield* Welcome;
+  return () => (
     <main class="starterShell">
       <section class="starterPanel">
         <p class="starterEyebrow">Sunfall Arc Starter</p>
-        <Show
-          when={current()}
-          fallback={AsyncResult.builder(welcome.result())
-            .onFailure(() => <h1>Starter resource failed</h1>)
-            .orElse(() => (
-              <h1>Loading starter resource</h1>
-            ))}
-        >
-          {(value) => (
-            <>
-              <h1>{value().message}</h1>
-              <p>Start with one route, one Resource preload, SSR, and browser hydration.</p>
-            </>
-          )}
-        </Show>
+        <Content />
       </section>
     </main>
   );
-}
+});
+
+export default App;

@@ -378,29 +378,6 @@ const match = <A, Values extends object, ValidationError, E, B, R = never>(
   }
 };
 
-/** Effect constructor for a successful action result with plain, non-executable data. */
-const successEffect = <A, R = never>(
-  value: PlainValue<A>,
-  options: ActionResultOptions<R> = {},
-): Effect.Effect<ActionResultSuccess<A, R>> => Effect.succeed(success<A, R>(value, options));
-
-/** Effect constructor for a failure action result with plain, non-executable error data. */
-const failureEffect = <E, R = never>(
-  error: PlainValue<E>,
-  options: ActionResultOptions<R> = {},
-): Effect.Effect<ActionResultFailure<E, R>> => Effect.succeed(failure<E, R>(error, options));
-
-const redirectEffect = <R = never>(
-  location: string,
-  options: ActionResultRedirectOptions<R> = {},
-): Effect.Effect<ActionResultRedirect<R>> => Effect.succeed(redirect(location, options));
-
-const validationEffect = <Values extends object, E, R = never>(
-  input: FormValidationError<Values, E> | ActionResultValidationInput<Values, E>,
-  options: ActionResultOptions<R> = {},
-): Effect.Effect<ActionResultValidationFailure<Values, E, R>> =>
-  Effect.succeed(validation(input, options));
-
 /** Converts an Effect into an `ActionResult`; successes and errors must be plain data. */
 const fromEffect = <A, E = never, R = never>(
   effect: PlainValue<A> | Effect.Effect<PlainValue<A>, PlainValue<E>, R>,
@@ -420,16 +397,16 @@ const fromValidationEffect = <Values extends object, E, R = never>(
   ) as Effect.Effect<ActionResult<Values, Values, E, never>, never, R>;
 
 /** Validates a `FormInstance` and returns an action result instead of failing. */
-const validateFormEffect = <Values extends object, E, R = never>(
+const validateForm = <Values extends object, E, R = never>(
   form: FormInstance<Values, E, R>,
 ): Effect.Effect<
   ActionResult<Values, Values, E | Schema.SchemaError | EffectInputCallbackError, never>,
   never,
   R
-> => fromValidationEffect(form.validateEffect() as never);
+> => fromValidationEffect(form.validate() as never);
 
 /** Extracts a success value or fails with the boundary result for explicit handling. */
-const requireSuccessEffect = <A, Values extends object, ValidationError, E>(
+const requireSuccess = <A, Values extends object, ValidationError, E>(
   result: ActionResult<A, Values, ValidationError, E>,
 ): Effect.Effect<A, ActionResultBoundary<Values, ValidationError, E>> =>
   result._tag === "Success" ? Effect.succeed(result.value) : Effect.fail(result);
@@ -438,7 +415,6 @@ const requireSuccessEffect = <A, Values extends object, ValidationError, E>(
 export const ActionResult = {
   success,
   failure,
-  fail: failure,
   redirect,
   validation,
   fields,
@@ -452,13 +428,8 @@ export const ActionResult = {
   isRedirect,
   isFailure,
   match,
-  successEffect,
-  failureEffect,
-  failEffect: failureEffect,
-  redirectEffect,
-  validationEffect,
   fromEffect,
   fromValidationEffect,
-  validateFormEffect,
-  requireSuccessEffect,
+  validateForm,
+  requireSuccess,
 } as const;

@@ -1,4 +1,3 @@
-import { Effect } from "effect";
 import type {
   StartAgentGraph,
   StartAgentGraphNode,
@@ -41,9 +40,3 @@ export const queryStartAgentGraph = (
     edges: graph.edges.filter((edge) => nodeIds.has(edge.from) || nodeIds.has(edge.to)),
   };
 };
-
-/** Effect wrapper for `queryStartAgentGraph(...)`, useful in CLI pipelines. */
-export const queryStartAgentGraphEffect = (
-  graph: StartAgentGraph,
-  query: StartAgentGraphQuery = {},
-): Effect.Effect<StartAgentGraphQueryResult> => Effect.succeed(queryStartAgentGraph(graph, query));

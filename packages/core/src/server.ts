@@ -16,7 +16,7 @@ import type {
 } from "./effect-like.js";
 import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
 import {
-  applyResponseContextEffect,
+  applyResponseContext,
   makeResponseContext,
   provideRequest,
   provideResponse,
@@ -464,7 +464,7 @@ export namespace Server {
    * Prefer Server.contract plus Server.client/implement when the declaration is
    * shared across client and server bundles. Registered functions are available
    * through `Server.functions()`, `Server.get(...)`, and the default
-   * `defineApp(...)` registry snapshot.
+   * `App.define(...)` registry snapshot.
    */
   export const fn = <
     I,
@@ -542,7 +542,7 @@ export namespace Server {
    * Test-only reset for registered server functions.
    *
    * Unsafe because it mutates process-wide state observed by later
-   * `defineApp(...)` calls.
+   * `App.define(...)` calls.
    */
   export const clearRegistryUnsafe = (): void => {
     clearServerFunctionDefinitionRegistryUnsafe();
@@ -573,7 +573,7 @@ export namespace Server {
    *
    * Use this in server adapters that already run Effect.
    */
-  export const handleRouteEffect = <E, R>(
+  export const handleRoute = <E, R>(
     route: ServerRoute<E, R>,
     request: Request,
   ): Effect.Effect<
@@ -592,7 +592,7 @@ export namespace Server {
         ),
         Effect.mapError((error) => mapServerRouteBoundaryError(route, error)),
         Effect.flatMap((response) =>
-          applyResponseContextEffect(responseContext, response).pipe(
+          applyResponseContext(responseContext, response).pipe(
             Effect.mapError((error) => serverRouteHandlerError(route, error)),
           ),
         ),

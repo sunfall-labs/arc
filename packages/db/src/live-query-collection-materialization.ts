@@ -238,7 +238,7 @@ export const makeLiveQueryCollectionMaterialization = <
     };
     const currentProjection = (): MaterializedProjection<A, K> => projectionSignal.get();
     const currentProjectionDirect = (): MaterializedProjection<A, K> =>
-      withStore(store, () => observeMaterialized(options.live.data.get()));
+      withStore(store, () => observeMaterialized(options.live.rows.get()));
     const projectionSignal = Signal.derive(() => currentProjectionDirect());
     const row = (entry: MaterializedEntry<A, K>): CollectionRow<A, K> =>
       detachCollectionRow({
@@ -354,7 +354,7 @@ export const makeLiveQueryCollectionMaterialization = <
               reason: `Live query collection "${options.name}" is failed; resolve the live query failure before snapshotting or persisting it.`,
             });
           }
-          const next = materialize(options.live.data.get(), "snapshot");
+          const next = materialize(options.live.rows.get(), "snapshot");
           return snapshot(
             {
               ...next,

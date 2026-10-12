@@ -1,11 +1,7 @@
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  EffectInputCallbackError,
-  EffectInputPromiseRejected,
-  invokeEffectInput,
-  toEffect,
-} from "../src/index.js";
+import { EffectInputCallbackError, EffectInputPromiseRejected } from "../src/index.js";
+import { invokeEffectInput, toEffect } from "../src/internal.js";
 
 // Tests that deliberately pass a thenable at runtime. The cast is intentional: the types
 // reject thenables, and these tests verify the runtime guard behind that type.

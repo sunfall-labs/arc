@@ -8,6 +8,7 @@ import {
   cloneOptimisticRowStack,
   clonePendingMutationEntry,
   cloneStoredRow,
+  restoreCollectionVersion,
   restoreOptimisticState,
   type CollectionState,
   type OptimisticRowStack,
@@ -43,8 +44,7 @@ export const restoreCollectionStateSnapshot = <A extends object, K extends Colle
   snapshot: CollectionStateSnapshot<A, K>,
 ): void => {
   restoreOptimisticState(state, snapshot.rows, snapshot.pendingMutations, snapshot.optimisticRows);
-  state.indexCache.clear();
-  state.version.set(snapshot.version);
+  restoreCollectionVersion(state, snapshot.version);
 };
 
 interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey, E, R> {
@@ -52,8 +52,8 @@ interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey
   readonly state: CollectionState<A, K, E>;
   readonly mutations: number;
   readonly apply: () => void;
-  readonly persistEffect: Effect.Effect<void, CollectionRuntimeError<E>, R>;
-  readonly publishEffect: (event: CollectionStoreEvent) => Effect.Effect<void>;
+  readonly persist: Effect.Effect<void, CollectionRuntimeError<E>, R>;
+  readonly publish: (event: CollectionStoreEvent) => Effect.Effect<void>;
 }
 
 const durableCommitSemaphores = new WeakMap<object, Semaphore.Semaphore>();
@@ -92,12 +92,12 @@ export const commitCollectionWriteEffect = <A extends object, K extends Collecti
       Effect.gen(function* () {
         const previousState = snapshotCollectionState(options.state);
         options.apply();
-        const persistExit = yield* restore(options.persistEffect).pipe(Effect.exit);
+        const persistExit = yield* restore(options.persist).pipe(Effect.exit);
         if (Exit.isFailure(persistExit)) {
           restoreCollectionStateSnapshot(options.state, previousState);
           return yield* Effect.failCause(persistExit.cause);
         }
-        yield* options.publishEffect({
+        yield* options.publish({
           _tag: "CollectionWritten",
           collection: options.collection,
           mutations: options.mutations,

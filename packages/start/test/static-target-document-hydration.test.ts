@@ -21,7 +21,7 @@ describe("Start static target document hydration", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const ProjectById = Resource.family({
+          const ProjectById = Resource.define({
             name: "Start.Static.TargetDocument.Project.success",
             load: (
               _id: string,
@@ -45,7 +45,7 @@ describe("Start static target document hydration", () => {
             ],
           })}</body></html>`;
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const fetch = vi.fn(
             async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html),
@@ -59,7 +59,7 @@ describe("Start static target document hydration", () => {
             fetch,
             parseDocument: parseHtmlDocument,
           });
-          const project = yield* runtime.provide(Resource.prefetchEffect(ref));
+          const project = yield* runtime.provide(Resource.preload(ref));
 
           expect(outcome).toMatchObject({
             _tag: "Hydrated",
@@ -106,7 +106,7 @@ describe("Start static target document hydration", () => {
         });
       }
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 });

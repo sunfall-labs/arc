@@ -1,5 +1,5 @@
 import { Action, ActionResult, Capability, Resource, Server, Signal } from "@sunfall/arc-core";
-import { StartAction, type StartActionForm } from "@sunfall/arc-start";
+import { StartAction } from "@sunfall/arc-start";
 import { Effect, Schedule, Schema, Stream } from "effect";
 import {
   AdvanceProjectInput,
@@ -142,7 +142,7 @@ export const projectResourceInvalidations = (
   id: ProjectIdType,
 ): readonly Resource.Invalidation[] => [ProjectsTag, ProjectTag({ id })];
 
-export const ProjectList = Resource.family({
+export const ProjectList = Resource.define({
   name: "Projects.list",
   input: Schema.Literal("all"),
   output: Schema.Array(ProjectSummarySchema),
@@ -155,7 +155,7 @@ export const ProjectList = Resource.family({
   },
 });
 
-export const ProjectById = Resource.family({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectIdSchema,
   output: ProjectSchema,
@@ -170,16 +170,13 @@ export const ProjectById = Resource.family({
 
 export const ProjectsRef = ProjectList("all");
 
-export const preloadProjectsEffect = Resource.prefetchEffect(ProjectsRef);
+export const preloadProjectsEffect = Resource.preload(ProjectsRef);
 
 export const preloadProjectRouteEffect = (
   params: ProjectRouteParamsType,
 ): Effect.Effect<void, ProjectRemoteError, ProjectApi> =>
   Effect.asVoid(
-    Effect.all([
-      Resource.prefetchEffect(ProjectsRef),
-      Resource.prefetchEffect(ProjectById(params.id)),
-    ]),
+    Effect.all([Resource.preload(ProjectsRef), Resource.preload(ProjectById(params.id))]),
   );
 
 export const SubmitProjectName = Action.define({
@@ -209,10 +206,17 @@ export const AdvanceProject = Action.define({
   invalidates: (project) => projectResourceInvalidations(project.id),
 });
 
+/**
+ * Actions the Start server serves. The server registers them, and the client
+ * runtime's `makeActionTransportLayer` submits them over the network; every
+ * other Action (like `AdvanceProject`) runs locally through the same binding.
+ */
+export const projectConsoleActions = [SubmitProjectName] as const;
+
 export const projectNameActionTarget = (input: {
   readonly id: ProjectIdType;
   readonly redirectTo?: ProjectReturnTo;
-}): StartActionForm => StartAction.form(SubmitProjectName, { input });
+}): StartAction.Form<typeof SubmitProjectName> => StartAction.form(SubmitProjectName, { input });
 
 export const projectSearch = Signal.make("");
 

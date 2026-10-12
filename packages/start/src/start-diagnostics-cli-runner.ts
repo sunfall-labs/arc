@@ -1,5 +1,6 @@
 import { Data, Effect } from "effect";
-import { invokeEffectInput, isPromiseLikeValue, type EffectInput } from "@sunfall/arc-core";
+import { isPromiseLikeValue, type EffectInput } from "@sunfall/arc-core";
+import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import {
   createStartAgentGraph,
   createStartAgentGraphImpact,
@@ -14,7 +15,7 @@ import {
   type StartDiagnosticsReport,
 } from "./diagnostics-report.js";
 import {
-  loadStartAppGraphDiagnosticsEffect,
+  loadStartAppGraphDiagnostics,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
   StartAppGraphDiagnosticsRunnerError,
@@ -142,7 +143,7 @@ const loadDiagnosticsFromIo = (
       );
   }
 
-  return loadStartAppGraphDiagnosticsEffect;
+  return loadStartAppGraphDiagnostics;
 };
 
 export const writeStartDiagnosticsCliLineEffect = (

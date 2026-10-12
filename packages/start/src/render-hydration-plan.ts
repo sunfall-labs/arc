@@ -1,5 +1,5 @@
 import type { ResourceHydrationPayload, RoutePreloadFailureSnapshot } from "@sunfall/arc-core";
-import type { CollectionHydrationPayload } from "@sunfall/arc-db";
+import type { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
   createHydrationScript,
@@ -32,7 +32,7 @@ export interface CreateStartRenderHydrationPlanOptions {
   /** Resource hydration payload collected during request preload/render. */
   readonly resources: ResourceHydrationPayload;
   /** Collection hydration payload captured for the request runtime. */
-  readonly collections: CollectionHydrationPayload;
+  readonly collections: Collection.HydrationPayload;
   /** Route preload failure the request renders; carried by the root payload. */
   readonly routeFailure?: RoutePreloadFailureSnapshot;
 }

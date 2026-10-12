@@ -51,7 +51,7 @@ points show we are no longer merely experimental.
 | --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | React state libraries | Local reactive values and derived state        | `Signal`, `Signal.derive`, scoped `watch`, and Effect `Stream` adapters with component-owned scopes                                          |
 | Foldkit / Elm loops   | Central model/message/update architecture      | `Program.define({ initial, on })`, `Program.update`, `Program.emit`, Effect commands, Stream subscriptions, stories, timelines, and scopes   |
-| TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.family`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams            |
+| TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.define`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams            |
 | Mutation helpers      | Pending state, optimistic updates, retries     | `Action.define`, typed concurrency, optimistic transactions, result-carried invalidation, typed failure state, and Effect retry/interruption |
 | Next.js / Remix       | App routes, server actions, forms, hosting     | Progressive `Action.define` endpoints, server contracts, response services, request runtimes, no-JS forms, manifests, and deploy adapters    |
 | TanStack Router/Start | Typed routes, SSR, server functions            | Schema routes, file-route generation, request runtimes, server contracts, manifests, Start actions, and strict app graph diagnostics         |
@@ -126,8 +126,8 @@ Sunfall Arc is winning when these are also true:
 - File-route definition module: validated manifests now import each route file's
   named `Route`, path-check it against the manifest, and write the default
   `src/routeTree.gen.ts` project file for routers, editors, and agents,
-  including `routeById`, `routeByPath`, and route-id/path indexed params,
-  search, and href-option type maps.
+  including `routeById` and route-id indexed params, search, and href-option
+  type maps.
 - Start app graph diagnostics: `describeStartAppGraph` and
   `validateStartAppGraphWireSchemasEffect` turn static topology into
   enforceable build/devtools facts.

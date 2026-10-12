@@ -1,19 +1,12 @@
 import {
   type ProgramCommand,
-  type ProgramCommandCompletedEvent,
-  type ProgramCommandFailedEvent,
   type ProgramCommandInput,
-  type ProgramCommandStartedEvent,
   type ProgramDefinition,
   type ProgramDispatchError,
-  type ProgramDisposedEvent,
-  type ProgramEvent,
-  type ProgramEventBase,
   type ProgramFailure,
   type ProgramHandlerDefinition,
   type ProgramHandlerMap,
   type ProgramInstance,
-  type ProgramMessageEvent,
   type ProgramPhase,
   ProgramDisposed,
   type ProgramRuntimeError,
@@ -22,14 +15,9 @@ import {
   type ProgramStoryEntry,
   type ProgramStoryOptions,
   type ProgramSubscription,
-  type ProgramSubscriptionEmittedEvent,
-  type ProgramSubscriptionFailedEvent,
   type ProgramSubscriptionInput,
-  type ProgramSubscriptionStartedEvent,
   type ProgramTaggedMessage,
-  type ProgramTimelineOptions,
   type ProgramUpdate,
-  type ProgramUpdateFailedEvent,
 } from "./program-contract.js";
 export {
   ProgramDisposed,
@@ -37,20 +25,13 @@ export {
   ProgramStepTypeId,
   ProgramSubscriptionTypeId,
   type ProgramCommand,
-  type ProgramCommandCompletedEvent,
-  type ProgramCommandFailedEvent,
   type ProgramCommandInput,
-  type ProgramCommandStartedEvent,
   type ProgramDefinition,
   type ProgramDispatchError,
-  type ProgramDisposedEvent,
-  type ProgramEvent,
-  type ProgramEventBase,
   type ProgramFailure,
   type ProgramHandlerDefinition,
   type ProgramHandlerMap,
   type ProgramInstance,
-  type ProgramMessageEvent,
   type ProgramPhase,
   type ProgramRuntimeError,
   type ProgramStep,
@@ -58,53 +39,27 @@ export {
   type ProgramStoryEntry,
   type ProgramStoryOptions,
   type ProgramSubscription,
-  type ProgramSubscriptionEmittedEvent,
-  type ProgramSubscriptionFailedEvent,
   type ProgramSubscriptionInput,
-  type ProgramSubscriptionStartedEvent,
   type ProgramTaggedMessage,
-  type ProgramTimelineOptions,
   type ProgramUpdate,
   type ProgramUpdateError,
   type ProgramUpdateRequirements,
   type ProgramSubscriptionError,
   type ProgramSubscriptionRequirements,
-  type ProgramUpdateFailedEvent,
 } from "./program-contract.js";
 import {
   defineProgram,
-  programCommand,
   programCommands,
-  programDispatch,
-  programEffect,
   programEmit,
   programNext,
   programStepEffect,
   programSubscription,
   programUpdate,
 } from "./program-primitives.js";
-export {
-  defineProgram,
-  programCommand,
-  programCommands,
-  programDispatch,
-  programEffect,
-  programEmit,
-  programNext,
-  programStepEffect,
-  programSubscription,
-  programUpdate,
-} from "./program-primitives.js";
-import { makeProgramRuntimeInstance } from "./program-runtime.js";
+import { startProgramOnRuntime } from "./program-start.js";
 import { makeProgramStory } from "./program-story.js";
-export { makeProgramStory } from "./program-story.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
-import {
-  currentOrDefaultRuntime,
-  type AnySunfallArcRuntime,
-  type SunfallArcRuntime,
-} from "./runtime.js";
-import { getCurrentScope } from "./scope.js";
+import type { AnySunfallArcRuntime, SunfallArcRuntime } from "./runtime.js";
 
 type ProgramRuntimeProvidedRequirements<R> = R | ResourceStoreState;
 type ProgramRuntimeRemainingRequirements<RIn, RProvided> = Exclude<
@@ -126,80 +81,19 @@ export interface ProgramStartOptions<RRuntime = never, ER = never> {
 type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
   readonly runtime: SunfallArcRuntime<RRuntime, ER> & ProgramRuntimeSatisfied<R, RRuntime>;
 };
-type ProgramStartImplementationOptions<ER> = {
-  readonly runtime?: AnySunfallArcRuntime<ER>;
-};
-
-const startProgramImplementation = <Model, Message, E = never, ER = never>(
-  definition: ProgramDefinition<Model, Message, E, never>,
-  options?: ProgramStartImplementationOptions<ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
-  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
-  const scope = getCurrentScope();
-  return makeProgramRuntimeInstance<Model, Message, E, never, ER>({
-    definition,
-    runtime,
-    scope,
-  });
-};
-
-/**
- * Starts a service-free Program against the current Sunfall Arc runtime and optional UI scope.
- *
- * Programs whose update, command, or subscription Effects require services must
- * use `Program.start(definition, { runtime })` so TypeScript can verify the
- * Runtime Spine provides those services.
- */
-export function startProgram<Model, Message, E = never>(
-  definition: ProgramDefinition<Model, Message, E, never>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 /**
  * Starts a Program on an explicit typed Runtime Spine.
  *
  * Runtime startup/provision errors are added to the Program failure channel,
  * and only services supplied by the runtime are discharged from the Program
- * definition requirements.
+ * definition requirements. UI code binds Programs with its renderer adapter
+ * (Solid's `Component.program(...)`), which supplies the runtime.
  */
-export function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
+function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-export function startProgram<Model, Message, E = never, ER = never>(
-  definition: unknown,
-  options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
-  return startProgramImplementation(
-    definition as ProgramDefinition<Model, Message, E, never>,
-    options,
-  );
-}
-
-/**
- * Starts a Program while preserving Runtime Spine startup/provision errors in
- * the returned failure channel.
- */
-export function startProgramWithRuntimeError<Model, Message, E = never>(
-  definition: ProgramDefinition<Model, Message, E, never>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
-export function startProgramWithRuntimeError<
-  Model,
-  Message,
-  E = never,
-  R = never,
-  ER = never,
-  RRuntime = R,
->(
-  definition: ProgramDefinition<Model, Message, E, R>,
-  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-export function startProgramWithRuntimeError<Model, Message, E = never, ER = never>(
-  definition: unknown,
-  options?: ProgramStartImplementationOptions<ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
-  return startProgramImplementation(
-    definition as ProgramDefinition<Model, Message, E, never>,
-    options,
-  );
+  return startProgramOnRuntime(definition, options.runtime as AnySunfallArcRuntime<ER>);
 }
 
 /** Public namespace facade for defining, starting, testing, and typing Programs. */
@@ -211,7 +105,7 @@ export namespace Program {
     E,
     R
   >;
-  /** Running Program handle with model, dispatch, timeline, and disposal state. */
+  /** Running Program handle with model, dispatch, failures, and disposal state. */
   export type Instance<Model, Message, E = never, DispatchE = E> = ProgramInstance<
     Model,
     Message,
@@ -249,30 +143,6 @@ export namespace Program {
     RIn,
     RProvided
   >;
-  /** Timeline retention settings for Program runtime events. */
-  export type TimelineOptions = ProgramTimelineOptions;
-  /** Union of message, command, subscription, failure, and disposal timeline events. */
-  export type Event<Model, Message, E = never> = ProgramEvent<Model, Message, E>;
-  /** Shared metadata carried by every Program timeline event. */
-  export type EventBase = ProgramEventBase;
-  /** Timeline event recorded when a message is committed. */
-  export type MessageEvent<Model, Message> = ProgramMessageEvent<Model, Message>;
-  /** Timeline event recorded before a command fiber starts. */
-  export type CommandStartedEvent<Message> = ProgramCommandStartedEvent<Message>;
-  /** Timeline event recorded when a command emits a follow-up message or completes empty. */
-  export type CommandCompletedEvent<Message> = ProgramCommandCompletedEvent<Message>;
-  /** Timeline event recorded when a command fails through the Program error channel. */
-  export type CommandFailedEvent<Message, E> = ProgramCommandFailedEvent<Message, E>;
-  /** Timeline event recorded when an update callback fails. */
-  export type UpdateFailedEvent<Message, E> = ProgramUpdateFailedEvent<Message, E>;
-  /** Timeline event recorded when a model-dependent subscription starts. */
-  export type SubscriptionStartedEvent<Model> = ProgramSubscriptionStartedEvent<Model>;
-  /** Timeline event recorded when a subscription emits a message. */
-  export type SubscriptionEmittedEvent<Message> = ProgramSubscriptionEmittedEvent<Message>;
-  /** Timeline event recorded when a subscription fails through the Program error channel. */
-  export type SubscriptionFailedEvent<Message, E> = ProgramSubscriptionFailedEvent<Message, E>;
-  /** Timeline event recorded when a running Program is disposed. */
-  export type DisposedEvent = ProgramDisposedEvent;
   /** Visible runtime phase for a started Program. */
   export type Phase = ProgramPhase;
   /** User update callback shape for model/message transitions. */
@@ -327,32 +197,16 @@ export namespace Program {
    */
   export const next = programNext;
   /**
-   * Creates a command that can emit a follow-up message through Effect.
-   *
-   * Prefer `Program.emit(...)` when every successful run emits a message;
-   * `Program.command(...)` is the lower-level form for commands that may
-   * intentionally complete without one.
-   *
-   * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
-   * the command for host Promise work before mapping to a resolved message.
-   */
-  export const command = programCommand;
-  /**
-   * Creates a command from an immediate or Effect-produced follow-up message.
+   * The one command constructor: emits a message, or runs an Effect after the
+   * model commits and emits the message it produces. An Effect that completes
+   * with `void` emits nothing, so background work is `Program.emit(effect)`
+   * too. Failures go to the Program's error channel.
    *
    * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
    * the Effect for host Promise work before mapping to a resolved message.
    */
   export const emit = programEmit;
-  /** Creates a command from an Effect that may fail through the Program error channel. */
-  export const effect = programEffect;
-  /**
-   * Creates a command that immediately dispatches another message.
-   *
-   * The message must be a plain value; Promise-shaped messages are rejected.
-   */
-  export const dispatch = programDispatch;
-  /** Creates a step that emits several commands after a model update. */
+  /** Batches several commands (skipping `false`/`null`/`undefined`) for `Program.next(model, ...)`. */
   export const commands = programCommands;
   /**
    * Creates a Stream-backed subscription for model-driven external input.

@@ -53,7 +53,7 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
   key: ({ id }) => id,
 });
 
-export const ProjectById = Resource.family<ProjectId, Project, ProjectError, ProjectApi>({
+export const ProjectById = Resource.define<ProjectId, Project, ProjectError, ProjectApi>({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,
@@ -131,7 +131,7 @@ Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schem
 and generated route facts close to the app graph:
 
 ```ts
-const RouteBuilder = defineFileRoute("/projects/:id");
+const RouteBuilder = FileRoute.define("/projects/:id");
 
 export const Route = RouteBuilder.preload({
   params: Schema.Struct({ id: ProjectId }),
@@ -143,9 +143,9 @@ export const Route = RouteBuilder.preload({
 }).route();
 ```
 
-The generated route file exposes maps such as `routeById`, `routeByPath`,
-direct helpers such as `hrefByPath("/projects/:id", ...)`, params-by-id,
-search-by-path, route `Match` aliases, and href options. The Start app graph can
+The generated route file exposes the `routeById` map of route definitions
+(addressed with `Route.href(...)` like any definition), params-by-id,
+search-by-id, and href options. The Start app graph can
 then tell diagnostics and agents which route owns params, search, preload
 resources, collections, server functions, actions, schemas, and modules.
 
@@ -168,15 +168,15 @@ heads in the same direction, but plugs row state into the active Sunfall Arc
 runtime/resource store:
 
 ```ts
-export const ProjectSummaries = Collection.define(
-  Collection.serverOptions({
-    id: "Projects.collection",
-    output: ProjectSummarySchema,
-    getKey: (project) => project.id,
-    indexes: {
-      status: (project) => project.status,
-      owner: (project) => project.owner,
-    },
+export const ProjectSummaries = Collection.define({
+  name: "Projects.collection",
+  output: ProjectSummarySchema,
+  getKey: (project) => project.id,
+  indexes: {
+    status: (project) => project.status,
+    owner: (project) => project.owner,
+  },
+  sync: {
     load: () => ProjectApi.use((api) => api.list()),
     update: ({ updates }) =>
       Effect.forEach(
@@ -190,8 +190,8 @@ export const ProjectSummaries = Collection.define(
           ).pipe(Effect.asVoid),
         { discard: true },
       ),
-  }),
-);
+  },
+});
 ```
 
 Collections can expose secondary indexes, pending optimistic mutation queues,
@@ -283,13 +283,17 @@ const update = Program.update<ProjectModel, ProjectMessage>({
 The Solid adapter is intentionally small:
 
 ```tsx
-const program = useProgram(ProjectProgram);
+const OpenProject = Component.define("OpenProject", function* (props: { readonly id: ProjectId }) {
+  const program = yield* Component.program(ProjectProgram); // R += the Program's services
+  // `dispatch` is an Effect; failures already land in `program.failures()`.
+  const load = yield* Component.callback((id: ProjectId) =>
+    program.dispatch({ _tag: "Load", id }).pipe(Effect.ignore),
+  );
 
-return (
-  <button onClick={() => program.dispatch({ _tag: "Load", id })}>
-    {program.model().loading ? "Loading" : "Open"}
-  </button>
-);
+  return () => (
+    <button onClick={() => load(props.id)}>{program.model().loading ? "Loading" : "Open"}</button>
+  );
+});
 ```
 
 So the public shape is Foldkit-compact, but commands can require app services,
@@ -311,19 +315,22 @@ That keeps Foldkit's "story test" clarity while preserving Effect services and
 typed command failures instead of inventing a separate frontend-only test
 runtime.
 
-At runtime, the same Program exposes an inspectable timeline:
+At runtime, every Program commit is an entry on the whole-app Timeline, next to
+Resource, Action, router, and plain Signal commits:
 
 ```ts
-program.timeline().map((event) => event._tag);
-// ["Message", "CommandStarted", "CommandCompleted", "Message"]
+const recording = yield * Timeline.record();
+Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
+// ['Program "Project" message Load', 'Resource "Project.get" success atlas', ...]
+yield * recording.travel(1); // the UI renders that commit; Effects keep running
 ```
 
-That closes a real frontend-architecture gap: apps and devtools can watch the
-Program loop without reaching into private state. Devtools does that through the
-public Effect API:
+That closes Foldkit's replay gap for the whole app, not only for one loop:
+apps and devtools inspect and travel history without reaching into private
+state. Devtools does that through the public Effect API:
 
 ```ts
-yield * store.trackProgramEffect(program.instance);
+yield * store.trackTimeline(recording);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract
@@ -336,21 +343,26 @@ the Solid target through TSRX today, rather than pretending it needs a custom UI
 compiler first.
 
 ```tsx
-const project = useResource(ProjectById(props.id));
-const rename = useAction(RenameProject);
-const renameState = rename.state;
-const runtime = useRuntime();
+const RenameForm = Component.define("RenameForm", function* (props: { readonly id: ProjectId }) {
+  const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
+  const rename = yield* Component.action(RenameProject); // local, or remote via ActionTransport
+  // The outcome lands in `rename.result()`, so the handler ignores failures.
+  const save = yield* Component.callback((name: string) =>
+    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
+  );
 
-return (
-  <form
-    onSubmit={(event) => {
-      event.preventDefault();
-      void runtime.runFork(rename.submitEffect({ id: props.id, name: nextName() }));
-    }}
-  >
-    <button disabled={renameState()._tag === "Pending"}>Save</button>
-  </form>
-);
+  return () => (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        save(nextName());
+      }}
+    >
+      <input value={project(props.id).name} />
+      <button disabled={rename.result().waiting}>Save</button>
+    </form>
+  );
+});
 ```
 
 Solid gives compact UI updates. Sunfall Arc adds the runtime spine around those

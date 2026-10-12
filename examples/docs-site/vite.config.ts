@@ -34,9 +34,21 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      {
+        find: "@sunfall/arc-core/internal",
+        replacement: fromRoot("packages/core/src/internal.ts"),
+      },
       { find: "@sunfall/arc-core", replacement: fromRoot("packages/core/src/index.ts") },
       { find: "@sunfall/arc-solid", replacement: fromRoot("packages/solid/src/index.ts") },
       { find: "@sunfall/arc-start/vite", replacement: fromRoot("packages/start/src/vite.ts") },
+      {
+        find: "@sunfall/arc-start/internal",
+        replacement: fromRoot("packages/start/src/internal.ts"),
+      },
+      {
+        find: "@sunfall/arc-start/testing",
+        replacement: fromRoot("packages/start/src/testing.ts"),
+      },
       { find: "@sunfall/arc-start", replacement: fromRoot("packages/start/src/index.ts") },
       { find: "@sunfall/arc-tsrx", replacement: fromRoot("packages/tsrx/src/index.ts") },
     ],

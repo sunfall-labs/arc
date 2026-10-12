@@ -1,11 +1,6 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  Capability,
-  EffectInputCallbackError,
-  EffectInputPromiseRejected,
-  makeRuntime,
-} from "../src/index.js";
+import { Capability, EffectInputPromiseRejected, makeRuntime } from "../src/index.js";
 
 describe("Capability", () => {
   interface Numbers {
@@ -28,7 +23,7 @@ describe("Capability", () => {
         Numbers.use((numbers) => numbers.get("atlas")).pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       ),
     );
@@ -38,8 +33,8 @@ describe("Capability", () => {
     Effect.runPromise(
       Numbers.provide(
         Effect.all([
-          Numbers.useEffect((numbers) => numbers.get("kepler")),
-          Numbers.useSync((numbers) => numbers.save),
+          Numbers.use((numbers) => numbers.get("kepler")),
+          Numbers.use((numbers) => numbers.save),
         ]),
         {
           get: (id) => Effect.succeed(id.length),
@@ -54,11 +49,11 @@ describe("Capability", () => {
       ),
     ));
 
-  it("captures synchronous useEffect throws in the Effect error channel", () =>
+  it("reports a throwing callback as a defect", () =>
     Effect.runPromise(
       Effect.exit(
         Numbers.provide(
-          Numbers.useEffect<void>((): void => {
+          Numbers.use((): void => {
             throw new Error("capability failed");
           }),
           {
@@ -71,8 +66,8 @@ describe("Capability", () => {
           Effect.sync(() => {
             expect(exit._tag).toBe("Failure");
             if (exit._tag === "Failure") {
-              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-              expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+              const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
+              expect(defect?.defect).toEqual(new Error("capability failed"));
             }
           }),
         ),
@@ -80,11 +75,11 @@ describe("Capability", () => {
       ),
     ));
 
-  it("rejects Promise-shaped useSync return values as EffectInput defects", () =>
+  it("rejects Promise-shaped return values as EffectInput defects", () =>
     Effect.runPromise(
       Effect.exit(
         Numbers.provide(
-          Numbers.useSync((numbers) => Effect.runPromise(numbers.get("kepler")) as never),
+          Numbers.use((numbers) => Effect.runPromise(numbers.get("kepler")) as unknown as number),
           {
             get: (id) => Effect.succeed(id.length),
             save: (value) => Effect.succeed(value + 1),
@@ -97,30 +92,6 @@ describe("Capability", () => {
             if (exit._tag === "Failure") {
               const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
               expect(defect?.defect).toBeInstanceOf(EffectInputPromiseRejected);
-            }
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    ));
-
-  it("rejects Effect-shaped useSync return values as EffectInput defects", () =>
-    Effect.runPromise(
-      Effect.exit(
-        Numbers.provide(
-          Numbers.useSync((numbers) => numbers.get("kepler") as never),
-          {
-            get: (id) => Effect.succeed(id.length),
-            save: (value) => Effect.succeed(value + 1),
-          },
-        ),
-      ).pipe(
-        Effect.tap((exit) =>
-          Effect.sync(() => {
-            expect(exit._tag).toBe("Failure");
-            if (exit._tag === "Failure") {
-              const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
-              expect(defect?.defect).toBeInstanceOf(EffectInputCallbackError);
             }
           }),
         ),
@@ -164,12 +135,12 @@ describe("Capability", () => {
 
     return Effect.runPromise(
       runtime.provide(
-        Names.useEffect((names) =>
+        Names.use((names) =>
           Numbers.use((numbers) => numbers.get(names.normalize("  ATLAS  "))),
         ).pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       ),
     );

@@ -24,7 +24,7 @@ export const ssrApp = () => {
     fallbacks: 0,
     released: 0,
   };
-  const ProjectById = Resource.family({
+  const ProjectById = Resource.define({
     name: `SolidComponentSsr.ProjectById.${Math.random().toString(36).slice(2)}`,
     load: (id: string) =>
       Effect.sync(() => {
@@ -42,12 +42,11 @@ export const ssrApp = () => {
       () => Effect.sync(() => events.released++),
     ),
   );
-  const Card = Component.make("Card", function* () {
+  const Card = Component.define("Card", function* (props: { readonly id: string }) {
     events.setups++;
     const greeter = yield* Greeter;
     const project = yield* Component.resource(ProjectById);
-    return (props: { readonly id: string }) =>
-      reactive(() => `${greeter.greet(props.id)}: ${project(props.id)}`);
+    return () => reactive(() => `${greeter.greet(props.id)}: ${project(props.id)}`);
   });
   const App = Card.pipe(
     Component.loading(() => {

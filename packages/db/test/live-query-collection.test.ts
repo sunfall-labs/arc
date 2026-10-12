@@ -1,12 +1,19 @@
 import { EffectInputCallbackError, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import {
   Collection,
+  CollectionRowKeyChanged,
+  CollectionRowNotFound,
   CollectionSnapshotCodecError,
   Query,
   QueryEvaluationError,
   ReadonlyCollectionMutation,
-  eq,
 } from "@sunfall/arc-db";
+import {
+  collectCollectionsEffect,
+  dehydrateCollectionsEffect,
+  subscribeCollectionEventsEffect,
+  validateCollectionsHydrationEffect,
+} from "@sunfall/arc-db/internal";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
@@ -90,25 +97,25 @@ describe("Collection.liveQuery", () => {
         }> = [
           {
             operation: "filter",
-            effect: Query.onceEffect((query) =>
+            effect: Query.once((query) =>
               query.from({ project: Projects }).where(() => throwError("filter failed")),
             ),
           },
           {
             operation: "projection",
-            effect: Query.onceEffect((query) =>
+            effect: Query.once((query) =>
               query.from({ project: Projects }).select(() => throwError("projection failed")),
             ),
           },
           {
             operation: "order",
-            effect: Query.onceEffect((query) =>
+            effect: Query.once((query) =>
               query.from({ project: Projects }).orderBy(() => throwError("order failed")),
             ),
           },
           {
             operation: "join",
-            effect: Query.onceEffect((query) =>
+            effect: Query.once((query) =>
               query.from({ project: Projects }).join(
                 "card",
                 Cards,
@@ -119,7 +126,7 @@ describe("Collection.liveQuery", () => {
           },
           {
             operation: "aggregate",
-            effect: Query.onceEffect((query) =>
+            effect: Query.once((query) =>
               query
                 .from({ project: Projects })
                 .groupBy(({ project }) => ({ status: project.status }), {
@@ -154,8 +161,8 @@ describe("Collection.liveQuery", () => {
         .select(({ project }) => project.name),
     );
 
-    expect(() => live.data.get()).not.toThrow();
-    expect(live.data.get()).toEqual([]);
+    expect(() => live.rows.get()).not.toThrow();
+    expect(live.rows.get()).toEqual([]);
     expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
       waiting: false,
@@ -181,12 +188,14 @@ describe("Collection.liveQuery", () => {
           }),
         );
 
-        expect(live.data.get()).toEqual(["Atlas"]);
+        expect(live.rows.get()).toEqual(["Atlas"]);
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Broken" });
+        yield* Projects.applyChanges([
+          { _tag: "Update", key: "atlas", changes: { name: "Broken" } },
+        ]);
 
-        expect(() => live.data.get()).not.toThrow();
-        expect(live.data.get()).toEqual(["Atlas"]);
+        expect(() => live.rows.get()).not.toThrow();
+        expect(live.rows.get()).toEqual(["Atlas"]);
         expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
@@ -194,7 +203,9 @@ describe("Collection.liveQuery", () => {
           previous: ["Atlas"],
         });
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Atlas Reloaded" });
+        yield* Projects.applyChanges([
+          { _tag: "Update", key: "atlas", changes: { name: "Atlas Reloaded" } },
+        ]);
 
         expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Success",
@@ -219,24 +230,34 @@ describe("Collection.liveQuery", () => {
 
         try {
           yield* firstRuntime.provide(
-            Projects.writeInsertEffect({
-              id: "atlas",
-              name: "Atlas",
-              status: "active",
-              progress: 72,
-            }),
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "atlas",
+                  name: "Atlas",
+                  status: "active",
+                  progress: 72,
+                },
+              },
+            ]),
           );
           yield* secondRuntime.provide(
-            Projects.writeInsertEffect({
-              id: "lumen",
-              name: "Lumen",
-              status: "blocked",
-              progress: 34,
-            }),
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "lumen",
+                  name: "Lumen",
+                  status: "blocked",
+                  progress: 34,
+                },
+              },
+            ]),
           );
 
-          expect(runWithRuntime(firstRuntime, () => live.data.get())).toEqual(["Atlas"]);
-          expect(runWithRuntime(secondRuntime, () => live.data.get())).toEqual(["Lumen"]);
+          expect(runWithRuntime(firstRuntime, () => live.rows.get())).toEqual(["Atlas"]);
+          expect(runWithRuntime(secondRuntime, () => live.rows.get())).toEqual(["Lumen"]);
           expect(
             asyncResultFacts(runWithRuntime(firstRuntime, () => live.state.get())),
           ).toMatchObject({
@@ -250,8 +271,8 @@ describe("Collection.liveQuery", () => {
             waiting: false,
           });
         } finally {
-          yield* firstRuntime.disposeEffect;
-          yield* secondRuntime.disposeEffect;
+          yield* firstRuntime.dispose;
+          yield* secondRuntime.dispose;
         }
       }),
     ));
@@ -272,37 +293,49 @@ describe("Collection.liveQuery", () => {
 
         try {
           yield* firstRuntime.provide(
-            Projects.writeInsertEffect({
-              id: "atlas",
-              name: "Atlas",
-              status: "active",
-              progress: 72,
-            }),
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "atlas",
+                  name: "Atlas",
+                  status: "active",
+                  progress: 72,
+                },
+              },
+            ]),
           );
           yield* secondRuntime.provide(
-            Projects.writeInsertEffect({
-              id: "lumen",
-              name: "Lumen",
-              status: "blocked",
-              progress: 34,
-            }),
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "lumen",
+                  name: "Lumen",
+                  status: "blocked",
+                  progress: 34,
+                },
+              },
+            ]),
           );
 
-          unsubscribe = runWithRuntime(firstRuntime, () => live.data.subscribe(() => {}));
+          unsubscribe = runWithRuntime(firstRuntime, () => live.rows.subscribe(() => {}));
 
-          expect(runWithRuntime(firstRuntime, () => live.data.get())).toEqual(["Atlas"]);
-          expect(runWithRuntime(secondRuntime, () => live.data.get())).toEqual(["Lumen"]);
+          expect(runWithRuntime(firstRuntime, () => live.rows.get())).toEqual(["Atlas"]);
+          expect(runWithRuntime(secondRuntime, () => live.rows.get())).toEqual(["Lumen"]);
 
           yield* secondRuntime.provide(
-            Projects.writeUpdateEffect("lumen", { name: "Lumen Prime" }),
+            Projects.applyChanges([
+              { _tag: "Update", key: "lumen", changes: { name: "Lumen Prime" } },
+            ]),
           );
 
-          expect(runWithRuntime(firstRuntime, () => live.data.get())).toEqual(["Atlas"]);
-          expect(runWithRuntime(secondRuntime, () => live.data.get())).toEqual(["Lumen Prime"]);
+          expect(runWithRuntime(firstRuntime, () => live.rows.get())).toEqual(["Atlas"]);
+          expect(runWithRuntime(secondRuntime, () => live.rows.get())).toEqual(["Lumen Prime"]);
         } finally {
           unsubscribe();
-          yield* firstRuntime.disposeEffect;
-          yield* secondRuntime.disposeEffect;
+          yield* firstRuntime.dispose;
+          yield* secondRuntime.dispose;
         }
       }),
     ));
@@ -334,20 +367,30 @@ describe("Collection.liveQuery", () => {
 
         try {
           yield* firstRuntime.provide(
-            Projects.writeInsertEffect({
-              id: "atlas",
-              name: "Atlas",
-              status: "active",
-              progress: 72,
-            }),
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "atlas",
+                  name: "Atlas",
+                  status: "active",
+                  progress: 72,
+                },
+              },
+            ]),
           );
           yield* secondRuntime.provide(
-            Projects.writeInsertEffect({
-              id: "lumen",
-              name: "Lumen",
-              status: "blocked",
-              progress: 34,
-            }),
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "lumen",
+                  name: "Lumen",
+                  status: "blocked",
+                  progress: 34,
+                },
+              },
+            ]),
           );
 
           const firstVersion = runWithRuntime(firstRuntime, () => ProjectCards.version().get());
@@ -372,7 +415,9 @@ describe("Collection.liveQuery", () => {
           ).toEqual(["Atlas"]);
 
           yield* secondRuntime.provide(
-            Projects.writeUpdateEffect("lumen", { name: "Lumen Prime" }),
+            Projects.applyChanges([
+              { _tag: "Update", key: "lumen", changes: { name: "Lumen Prime" } },
+            ]),
           );
 
           expect(firstNotifications).toBe(0);
@@ -389,7 +434,11 @@ describe("Collection.liveQuery", () => {
             runWithRuntime(secondRuntime, () => ProjectCards.rows().map((card) => card.name)),
           ).toEqual(["Lumen Prime"]);
 
-          yield* firstRuntime.provide(Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" }));
+          yield* firstRuntime.provide(
+            Projects.applyChanges([
+              { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
+            ]),
+          );
 
           expect(firstNotifications).toBe(1);
           expect(runWithRuntime(firstRuntime, () => ProjectCards.version().get())).toBeGreaterThan(
@@ -400,8 +449,8 @@ describe("Collection.liveQuery", () => {
           ).toEqual(["Atlas Prime"]);
         } finally {
           unsubscribe();
-          yield* firstRuntime.disposeEffect;
-          yield* secondRuntime.disposeEffect;
+          yield* firstRuntime.dispose;
+          yield* secondRuntime.dispose;
         }
       }),
     ));
@@ -413,20 +462,22 @@ describe("Collection.liveQuery", () => {
         const Projects = Collection.define<Project, string, string>({
           name: "Projects.live-query-source-failure",
           getKey: (project) => project.id,
-          load: () =>
-            Effect.gen(function* () {
-              loads++;
-              if (loads > 1) {
-                return yield* Effect.fail("offline");
-              }
-              return [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }];
-            }),
+          sync: {
+            load: () =>
+              Effect.gen(function* () {
+                loads++;
+                if (loads > 1) {
+                  return yield* Effect.fail("offline");
+                }
+                return [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }];
+              }),
+          },
         });
         const live = Query.live((query) =>
           query.from({ project: Projects }).select(({ project }) => project.name),
         );
 
-        yield* live.preloadEffect();
+        yield* live.preload();
 
         expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Success",
@@ -434,7 +485,7 @@ describe("Collection.liveQuery", () => {
           value: ["Atlas"],
         });
 
-        const failure = yield* Effect.flip(live.refetchEffect());
+        const failure = yield* Effect.flip(live.refresh());
 
         expect(failure).toBe("offline");
         expect(asyncResultFacts(live.state.get())).toMatchObject({
@@ -471,7 +522,7 @@ describe("Collection.liveQuery", () => {
     });
 
     expect(ProjectCards.rows()).toEqual([]);
-    expect(asyncResultFacts(ProjectCards.state().get())).toMatchObject({
+    expect(asyncResultFacts(ProjectCards.result().get())).toMatchObject({
       _tag: "Failure",
       waiting: false,
       error: {
@@ -505,7 +556,7 @@ describe("Collection.liveQuery", () => {
     });
 
     expect(ProjectCards.rows()).toEqual([]);
-    expect(asyncResultFacts(ProjectCards.state().get())).toMatchObject({
+    expect(asyncResultFacts(ProjectCards.result().get())).toMatchObject({
       _tag: "Failure",
       waiting: false,
       error: {
@@ -531,7 +582,7 @@ describe("Collection.liveQuery", () => {
       query: (query) =>
         query
           .from({ project: Projects })
-          .where(({ project }) => eq(project.status, "active"))
+          .where(({ project }) => project.status === "active")
           .select(({ project }) => ({
             id: project.id,
             name: project.name,
@@ -553,7 +604,9 @@ describe("Collection.liveQuery", () => {
     ]);
 
     return Effect.runPromise(
-      Projects.writeUpdateEffect("lumen", { status: "active", progress: 48 }).pipe(
+      Projects.applyChanges([
+        { _tag: "Update", key: "lumen", changes: { status: "active", progress: 48 } },
+      ]).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual([
@@ -595,7 +648,7 @@ describe("Collection.liveQuery", () => {
     row.meta.labels.push("mutated");
 
     expect(ProjectCards.rows()[0]?.meta.labels).toEqual(["remote"]);
-    expect(ProjectCards.snapshot().rows[0]?.value.meta.labels).toEqual(["remote"]);
+    expect(Effect.runSync(ProjectCards.snapshot()).rows[0]?.value.meta.labels).toEqual(["remote"]);
   });
 
   it("materializes duplicate derived keys with normal collection last-write semantics", () => {
@@ -616,7 +669,7 @@ describe("Collection.liveQuery", () => {
       query: (query) =>
         query
           .from({ project: Projects })
-          .where(({ project }) => eq(project.status, "active"))
+          .where(({ project }) => project.status === "active")
           .select(({ project }) => ({
             id: "active",
             name: project.name,
@@ -631,7 +684,7 @@ describe("Collection.liveQuery", () => {
     expect(ProjectCards.index("byName", "Lumen").map((project) => project.$key)).toEqual([
       "active",
     ]);
-    expect(ProjectCards.snapshot().rows.map((row) => row.key)).toEqual(["active"]);
+    expect(Effect.runSync(ProjectCards.snapshot()).rows.map((row) => row.key)).toEqual(["active"]);
   });
 
   it("does not advance version or updatedAt for hidden duplicate-key row changes", () =>
@@ -654,7 +707,7 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: "active",
                 name: project.name,
@@ -663,7 +716,7 @@ describe("Collection.liveQuery", () => {
               .orderBy(({ project }) => project.name),
         });
         const version = ProjectCards.version();
-        const state = ProjectCards.state();
+        const state = ProjectCards.result();
         const firstVersion = version.get();
         const firstState = state.get();
         if (firstState._tag !== "Success") {
@@ -673,7 +726,7 @@ describe("Collection.liveQuery", () => {
         expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Lumen"]);
         expect(ProjectCards.get("active")?.progress).toBe(34);
 
-        yield* Projects.writeUpdateEffect("atlas", { progress: 90 });
+        yield* Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: { progress: 90 } }]);
 
         const unchangedState = state.get();
         if (unchangedState._tag !== "Success") {
@@ -686,7 +739,9 @@ describe("Collection.liveQuery", () => {
         expect(ProjectCards.index("byName", "Lumen").map((project) => project.$key)).toEqual([
           "active",
         ]);
-        expect(ProjectCards.snapshot().rows.map((row) => row.value.progress)).toEqual([34]);
+        expect(
+          Effect.runSync(ProjectCards.snapshot()).rows.map((row) => row.value.progress),
+        ).toEqual([34]);
       }),
     ));
 
@@ -708,22 +763,22 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
                 progress: project.progress,
               })),
         });
-        const state = ActiveProjectCards.state();
+        const state = ActiveProjectCards.result();
         const version = ActiveProjectCards.version();
         const firstVersion = version.get();
 
-        expect(ActiveProjectCards.state()).toBe(state);
+        expect(ActiveProjectCards.result()).toBe(state);
         expect(ActiveProjectCards.version()).toBe(version);
         expect(asyncResultFacts(state.get())).toMatchObject({ _tag: "Success", waiting: false });
 
-        yield* Projects.writeUpdateEffect("atlas", { progress: 80 });
+        yield* Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: { progress: 80 } }]);
 
         expect(version.get()).not.toBe(firstVersion);
         expect(ActiveProjectCards.rows().map((project) => project.progress)).toEqual([80]);
@@ -748,14 +803,14 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
                 progress: 0,
               })),
         });
-        const state = ActiveProjectCards.state();
+        const state = ActiveProjectCards.result();
         const first = state.get();
         const second = state.get();
 
@@ -766,14 +821,16 @@ describe("Collection.liveQuery", () => {
         }
         expect(second.timestamp).toBe(first.timestamp);
 
-        yield* Projects.writeUpdateEffect("atlas", { progress: 80 });
+        yield* Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: { progress: 80 } }]);
         const unchanged = state.get();
         if (unchanged._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
         expect(unchanged.timestamp).toBe(first.timestamp);
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" });
+        yield* Projects.applyChanges([
+          { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
+        ]);
         const changed = state.get();
         if (changed._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
@@ -805,12 +862,12 @@ describe("Collection.liveQuery", () => {
         );
         const firstVersion = ProjectCards.version().get();
 
-        expect(Downstream.data.get()).toEqual(["FB"]);
+        expect(Downstream.rows.get()).toEqual(["FB"]);
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Ea" });
+        yield* Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: { name: "Ea" } }]);
 
         expect(ProjectCards.version().get()).toBeGreaterThan(firstVersion);
-        expect(Downstream.data.get()).toEqual(["Ea"]);
+        expect(Downstream.rows.get()).toEqual(["Ea"]);
       }),
     ));
 
@@ -835,7 +892,7 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
@@ -843,8 +900,8 @@ describe("Collection.liveQuery", () => {
               })),
         });
 
-        const snapshot = yield* ActiveProjectCards.snapshotEffect();
-        const payload = yield* Collection.dehydrateEffect([ActiveProjectCards]);
+        const snapshot = yield* ActiveProjectCards.snapshot();
+        const payload = yield* dehydrateCollectionsEffect([ActiveProjectCards]);
 
         expect(snapshot.rows.map((row) => row.key)).toEqual(["atlas"]);
         expect(payload.collections).toHaveLength(1);
@@ -878,7 +935,7 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
@@ -888,31 +945,51 @@ describe("Collection.liveQuery", () => {
 
         try {
           yield* firstRuntime.provide(
-            Projects.writeInsertEffect([
-              { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-              { id: "first-blocked", name: "First Blocked", status: "blocked", progress: 12 },
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+              },
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "first-blocked",
+                  name: "First Blocked",
+                  status: "blocked",
+                  progress: 12,
+                },
+              },
             ]),
           );
           yield* secondRuntime.provide(
-            Projects.writeInsertEffect([
-              { id: "lumen", name: "Lumen", status: "active", progress: 34 },
-              { id: "second-blocked", name: "Second Blocked", status: "blocked", progress: 18 },
+            Projects.applyChanges([
+              {
+                _tag: "Upsert",
+                value: { id: "lumen", name: "Lumen", status: "active", progress: 34 },
+              },
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "second-blocked",
+                  name: "Second Blocked",
+                  status: "blocked",
+                  progress: 18,
+                },
+              },
             ]),
           );
 
-          const firstSnapshot = yield* firstRuntime.provide(ActiveProjectCards.snapshotEffect());
-          const secondSnapshot = yield* secondRuntime.provide(ActiveProjectCards.snapshotEffect());
+          const firstSnapshot = yield* firstRuntime.provide(ActiveProjectCards.snapshot());
+          const secondSnapshot = yield* secondRuntime.provide(ActiveProjectCards.snapshot());
           const firstPayload = yield* firstRuntime.provide(
-            Collection.dehydrateEffect([ActiveProjectCards]),
+            dehydrateCollectionsEffect([ActiveProjectCards]),
           );
           const secondPayload = yield* secondRuntime.provide(
-            Collection.dehydrateEffect([ActiveProjectCards]),
+            dehydrateCollectionsEffect([ActiveProjectCards]),
           );
 
-          yield* firstRuntime.provide(ActiveProjectCards.persistEffect(storage, { key: firstKey }));
-          yield* secondRuntime.provide(
-            ActiveProjectCards.persistEffect(storage, { key: secondKey }),
-          );
+          yield* firstRuntime.provide(ActiveProjectCards.persist(storage, { key: firstKey }));
+          yield* secondRuntime.provide(ActiveProjectCards.persist(storage, { key: secondKey }));
 
           const persistedFirst = JSON.parse(
             storage.values.get(firstKey) ?? "{}",
@@ -928,8 +1005,8 @@ describe("Collection.liveQuery", () => {
           expect(persistedFirst.rows.map((row) => row.key)).toEqual(["atlas"]);
           expect(persistedSecond.rows.map((row) => row.key)).toEqual(["lumen"]);
         } finally {
-          yield* firstRuntime.disposeEffect;
-          yield* secondRuntime.disposeEffect;
+          yield* firstRuntime.dispose;
+          yield* secondRuntime.dispose;
         }
       }),
     ));
@@ -973,7 +1050,7 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
@@ -984,8 +1061,8 @@ describe("Collection.liveQuery", () => {
           | Fiber.Fiber<
               Exit.Exit<
                 void,
-                | Collection.RowKeyChanged
-                | Collection.RowNotFound
+                | CollectionRowKeyChanged
+                | CollectionRowNotFound
                 | Collection.RuntimeError<"persist-failed">
               >,
               never
@@ -997,11 +1074,13 @@ describe("Collection.liveQuery", () => {
 
         try {
           write = runtime.runFork(
-            Projects.writeUpdateEffect("atlas", { progress: 90 }).pipe(Effect.exit),
+            Projects.applyChanges([
+              { _tag: "Update", key: "atlas", changes: { progress: 90 } },
+            ]).pipe(Effect.exit),
           );
           yield* Deferred.await(writeStarted);
 
-          snapshot = runtime.runFork(ActiveProjectCards.snapshotEffect().pipe(Effect.exit));
+          snapshot = runtime.runFork(ActiveProjectCards.snapshot().pipe(Effect.exit));
           const earlySnapshot = yield* Fiber.await(snapshot).pipe(
             Effect.timeoutOption("20 millis"),
           );
@@ -1024,7 +1103,7 @@ describe("Collection.liveQuery", () => {
           if (snapshot !== undefined) {
             yield* Fiber.await(snapshot).pipe(Effect.timeoutOption("100 millis"), Effect.ignore);
           }
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }
       }),
     ));
@@ -1068,7 +1147,7 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
@@ -1095,8 +1174,8 @@ describe("Collection.liveQuery", () => {
           | Fiber.Fiber<
               Exit.Exit<
                 void,
-                | Collection.RowKeyChanged
-                | Collection.RowNotFound
+                | CollectionRowKeyChanged
+                | CollectionRowNotFound
                 | Collection.RuntimeError<"persist-failed">
               >,
               never
@@ -1108,11 +1187,13 @@ describe("Collection.liveQuery", () => {
 
         try {
           write = runtime.runFork(
-            Projects.writeUpdateEffect("atlas", { progress: 90 }).pipe(Effect.exit),
+            Projects.applyChanges([
+              { _tag: "Update", key: "atlas", changes: { progress: 90 } },
+            ]).pipe(Effect.exit),
           );
           yield* Deferred.await(writeStarted);
 
-          snapshot = runtime.runFork(ProjectSummaries.snapshotEffect().pipe(Effect.exit));
+          snapshot = runtime.runFork(ProjectSummaries.snapshot().pipe(Effect.exit));
           const earlySnapshot = yield* Fiber.await(snapshot).pipe(
             Effect.timeoutOption("20 millis"),
           );
@@ -1137,7 +1218,7 @@ describe("Collection.liveQuery", () => {
           if (snapshot !== undefined) {
             yield* Fiber.await(snapshot).pipe(Effect.timeoutOption("100 millis"), Effect.ignore);
           }
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }
       }),
     ));
@@ -1192,7 +1273,7 @@ describe("Collection.liveQuery", () => {
         });
         markStoreExplicitCollectionSnapshotDefinition(Projects);
 
-        const failure = yield* Effect.flip(Collection.dehydrateEffect([Projects]));
+        const failure = yield* Effect.flip(dehydrateCollectionsEffect([Projects]));
 
         expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(failure).toMatchObject({
@@ -1235,7 +1316,7 @@ describe("Collection.liveQuery", () => {
           pendingMutations: [],
           updatedAt: 1,
         };
-        const failure = yield* Effect.flip(Projects.hydrateEffect(snapshot));
+        const failure = yield* Effect.flip(Projects.hydrate(snapshot));
 
         expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(failure).toMatchObject({
@@ -1280,16 +1361,16 @@ describe("Collection.liveQuery", () => {
             query: (query) =>
               query
                 .from({ project: Projects })
-                .where(({ project }) => eq(project.status, "active"))
+                .where(({ project }) => project.status === "active")
                 .select(({ project }) => ({
                   id: project.id,
                   name: project.name,
                   progress: project.progress,
                 })),
           });
-          const subscription = yield* Collection.subscribeEventsEffect();
+          const subscription = yield* subscribeCollectionEventsEffect();
 
-          yield* ActiveProjectCards.persistEffect(storage, { key });
+          yield* ActiveProjectCards.persist(storage, { key });
 
           const event = yield* PubSub.take(subscription);
           const persisted = JSON.parse(storage.values.get(key) ?? "{}") as Collection.Snapshot<
@@ -1332,7 +1413,7 @@ describe("Collection.liveQuery", () => {
             })),
         });
         const error = yield* Effect.flip(
-          ActiveProjectCards.persistEffect({
+          ActiveProjectCards.persist({
             getItem: () => null,
             setItem: () => {
               throw thrown;
@@ -1371,9 +1452,9 @@ describe("Collection.liveQuery", () => {
             })),
         });
 
-        const snapshotFailure = yield* Effect.flip(ActiveProjectCards.snapshotEffect());
+        const snapshotFailure = yield* Effect.flip(ActiveProjectCards.snapshot());
         const persistFailure = yield* Effect.flip(
-          ActiveProjectCards.persistEffect(Collection.memoryStorage()),
+          ActiveProjectCards.persist(Collection.memoryStorage()),
         );
 
         for (const failure of [snapshotFailure, persistFailure]) {
@@ -1411,7 +1492,7 @@ describe("Collection.liveQuery", () => {
 
         expect(ActiveProjectCards.rows()).toEqual([]);
         expect(ActiveProjectCards.get(Number.NaN)).toBeUndefined();
-        expect(asyncResultFacts(ActiveProjectCards.state().get())).toMatchObject({
+        expect(asyncResultFacts(ActiveProjectCards.result().get())).toMatchObject({
           _tag: "Failure",
           error: {
             _tag: "CollectionSnapshotCodecError",
@@ -1419,9 +1500,9 @@ describe("Collection.liveQuery", () => {
           },
         });
 
-        const snapshotFailure = yield* Effect.flip(ActiveProjectCards.snapshotEffect());
+        const snapshotFailure = yield* Effect.flip(ActiveProjectCards.snapshot());
         const persistFailure = yield* Effect.flip(
-          ActiveProjectCards.persistEffect(Collection.memoryStorage()),
+          ActiveProjectCards.persist(Collection.memoryStorage()),
         );
 
         for (const failure of [snapshotFailure, persistFailure]) {
@@ -1457,7 +1538,7 @@ describe("Collection.liveQuery", () => {
             })),
         });
 
-        const state = ProjectCards.state().get();
+        const state = ProjectCards.result().get();
         expect(asyncResultFacts(state)).toMatchObject({
           _tag: "Failure",
           waiting: false,
@@ -1473,7 +1554,7 @@ describe("Collection.liveQuery", () => {
         });
         expect(ProjectCards.rows()).toEqual([]);
 
-        const snapshotFailure = yield* Effect.flip(ProjectCards.snapshotEffect());
+        const snapshotFailure = yield* Effect.flip(ProjectCards.snapshot());
         expect(snapshotFailure).toBeInstanceOf(EffectInputCallbackError);
         expect(snapshotFailure).toMatchObject({
           _tag: "EffectInputCallbackError",
@@ -1514,7 +1595,7 @@ describe("Collection.liveQuery", () => {
             })),
         });
         const version = ProjectCards.version();
-        const state = ProjectCards.state();
+        const state = ProjectCards.result();
         const firstVersion = version.get();
         const firstState = state.get();
         if (firstState._tag !== "Success") {
@@ -1527,7 +1608,9 @@ describe("Collection.liveQuery", () => {
           "atlas",
         ]);
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Broken" });
+        yield* Projects.applyChanges([
+          { _tag: "Update", key: "atlas", changes: { name: "Broken" } },
+        ]);
 
         expect(asyncResultFacts(state.get())).toMatchObject({
           _tag: "Failure",
@@ -1550,7 +1633,9 @@ describe("Collection.liveQuery", () => {
           "atlas",
         ]);
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Atlas" });
+        yield* Projects.applyChanges([
+          { _tag: "Update", key: "atlas", changes: { name: "Atlas" } },
+        ]);
 
         const recovered = state.get();
         if (recovered._tag !== "Success") {
@@ -1588,19 +1673,21 @@ describe("Collection.liveQuery", () => {
             }),
         });
 
-        yield* ProjectCards.persistEffect(storage, { key });
+        yield* ProjectCards.persist(storage, { key });
         const firstPersisted = storage.values.get(key);
         expect(firstPersisted).toBeDefined();
 
-        yield* Projects.writeUpdateEffect("atlas", { name: "Broken" });
-        expect(asyncResultFacts(ProjectCards.state().get())).toMatchObject({
+        yield* Projects.applyChanges([
+          { _tag: "Update", key: "atlas", changes: { name: "Broken" } },
+        ]);
+        expect(asyncResultFacts(ProjectCards.result().get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
         });
         expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Atlas"]);
 
-        const snapshotFailure = yield* Effect.flip(ProjectCards.snapshotEffect());
-        const persistFailure = yield* Effect.flip(ProjectCards.persistEffect(storage, { key }));
+        const snapshotFailure = yield* Effect.flip(ProjectCards.snapshot());
+        const persistFailure = yield* Effect.flip(ProjectCards.persist(storage, { key }));
 
         expect(snapshotFailure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(snapshotFailure).toMatchObject({
@@ -1641,9 +1728,9 @@ describe("Collection.liveQuery", () => {
           updatedAt: 1,
         };
 
-        const hydrateFailure = yield* Effect.flip(ActiveProjectCards.hydrateEffect(snapshot));
+        const hydrateFailure = yield* Effect.flip(ActiveProjectCards.hydrate(snapshot));
         const restoreFailure = yield* Effect.flip(
-          ActiveProjectCards.restoreEffect(Collection.memoryStorage(), {
+          ActiveProjectCards.restore(Collection.memoryStorage(), {
             key: "readonly-hydrate-cache",
           }),
         );
@@ -1702,7 +1789,7 @@ describe("Collection.liveQuery", () => {
     expect(indexEvaluations).toBe(2);
 
     return Effect.runPromise(
-      Projects.writeUpdateEffect("lumen", { progress: 58 }).pipe(
+      Projects.applyChanges([{ _tag: "Update", key: "lumen", changes: { progress: 58 } }]).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             expect(ProjectCards.index("progressBand", "high").map((project) => project.id)).toEqual(
@@ -1772,7 +1859,7 @@ describe("Collection.liveQuery", () => {
       query: (query) =>
         query
           .from({ project: Projects })
-          .where(({ project }) => eq(project.status, "active"))
+          .where(({ project }) => project.status === "active")
           .select(({ project }) => ({
             id: project.id,
             name: project.name,
@@ -1789,7 +1876,7 @@ describe("Collection.liveQuery", () => {
     expect(Names.evaluate()).toEqual(["Atlas"]);
 
     return Effect.runPromise(
-      Projects.writeUpdateEffect("lumen", { status: "active" }).pipe(
+      Projects.applyChanges([{ _tag: "Update", key: "lumen", changes: { status: "active" } }]).pipe(
         Effect.tap(() => Effect.sync(() => expect(Names.evaluate()).toEqual(["Atlas", "Lumen"]))),
         Effect.asVoid,
       ),
@@ -1805,7 +1892,9 @@ describe("Collection.liveQuery", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.preload-source",
       getKey: (project) => project.id,
-      load,
+      sync: {
+        load,
+      },
     });
     const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
       name: "ProjectCards.live-query-collection.preload",
@@ -1819,7 +1908,7 @@ describe("Collection.liveQuery", () => {
     });
 
     return Effect.runPromise(
-      ActiveProjectCards.preloadEffect().pipe(
+      ActiveProjectCards.preload().pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             expect(load).toHaveBeenCalledTimes(1);
@@ -1837,11 +1926,13 @@ describe("Collection.liveQuery", () => {
         const Projects = Collection.define<Project>({
           name: "Projects.live-query-collection.collect-source",
           getKey: (project) => project.id,
-          load: () =>
-            Effect.succeed([
-              { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-              { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
-            ]),
+          sync: {
+            load: () =>
+              Effect.succeed([
+                { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+                { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+              ]),
+          },
         });
         const ActiveProjectCards = Collection.liveQuery<
           ProjectCard,
@@ -1853,7 +1944,7 @@ describe("Collection.liveQuery", () => {
           query: (query) =>
             query
               .from({ project: Projects })
-              .where(({ project }) => eq(project.status, "active"))
+              .where(({ project }) => project.status === "active")
               .select(({ project }) => ({
                 id: project.id,
                 name: project.name,
@@ -1861,12 +1952,12 @@ describe("Collection.liveQuery", () => {
               })),
         });
 
-        const collected = yield* Collection.collectEffect(ActiveProjectCards.preloadEffect());
-        const payload = yield* Collection.dehydrateEffect(collected.definitions);
+        const collected = yield* collectCollectionsEffect(ActiveProjectCards.preload());
+        const payload = yield* dehydrateCollectionsEffect(collected.definitions);
 
         expect(collected.definitions.map((definition) => definition.name)).toEqual([Projects.name]);
         expect(payload.collections.map((snapshot) => snapshot.name)).toEqual([Projects.name]);
-        yield* Collection.validateHydrationPayloadEffect(collected.definitions, payload);
+        yield* validateCollectionsHydrationEffect(collected.definitions, payload);
       }),
     ));
 
@@ -1893,15 +1984,15 @@ describe("Collection.liveQuery", () => {
                 progress: project.progress,
               })),
           });
-          const subscription = yield* Collection.subscribeEventsEffect();
+          const subscription = yield* subscribeCollectionEventsEffect();
 
-          const failure = yield* Effect.flip(Collection.applyChangesEffect(ActiveProjectCards, []));
+          const failure = yield* Effect.flip(ActiveProjectCards.applyChanges([]));
           const event = yield* PubSub.take(subscription).pipe(Effect.timeoutOption("20 millis"));
 
           expect(failure).toBeInstanceOf(ReadonlyCollectionMutation);
           expect(failure).toMatchObject({
             collection: "ProjectCards.live-query-collection.readonly-empty-apply",
-            operation: "applyChangesEffect",
+            operation: "applyChanges",
           });
           expect(Option.isNone(event)).toBe(true);
           expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas"]);
@@ -1933,10 +2024,10 @@ describe("Collection.liveQuery", () => {
                 progress: project.progress,
               })),
           });
-          const subscription = yield* Collection.subscribeEventsEffect();
+          const subscription = yield* subscribeCollectionEventsEffect();
 
           const failure = yield* Effect.flip(
-            Collection.applyChangesEffect(ActiveProjectCards, [
+            ActiveProjectCards.applyChanges([
               {
                 _tag: "Upsert",
                 value: { id: "orion", name: "Orion", progress: 20 },
@@ -1952,55 +2043,11 @@ describe("Collection.liveQuery", () => {
           expect(failure).toBeInstanceOf(ReadonlyCollectionMutation);
           expect(failure).toMatchObject({
             collection: "ProjectCards.live-query-collection.readonly-apply",
-            operation: "applyChangesEffect",
+            operation: "applyChanges",
           });
           expect(Option.isNone(event)).toBe(true);
           expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas"]);
           expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
-        }),
-      ),
-    ));
-
-  it("rejects change-feed subscriptions before subscribing derived read-only collections", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const Projects = Collection.define<Project>({
-            name: "Projects.live-query-collection.readonly-subscribe-source",
-            getKey: (project) => project.id,
-            initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-          });
-          const ActiveProjectCards = Collection.liveQuery<
-            ProjectCard,
-            string,
-            Collection.RuntimeError
-          >({
-            name: "ProjectCards.live-query-collection.readonly-subscribe",
-            getKey: (project) => project.id,
-            query: (query) =>
-              query.from({ project: Projects }).select(({ project }) => ({
-                id: project.id,
-                name: project.name,
-                progress: project.progress,
-              })),
-          });
-          let subscribed = false;
-
-          const failure = yield* Effect.flip(
-            Collection.subscribeChangesEffect(ActiveProjectCards, {
-              name: "ProjectCards.live-query-collection.readonly-subscribe-feed",
-              subscribe: () => {
-                subscribed = true;
-              },
-            }),
-          );
-
-          expect(failure).toBeInstanceOf(ReadonlyCollectionMutation);
-          expect(failure).toMatchObject({
-            collection: "ProjectCards.live-query-collection.readonly-subscribe",
-            operation: "subscribeChangesEffect",
-          });
-          expect(subscribed).toBe(false);
         }),
       ),
     ));
@@ -2023,7 +2070,7 @@ describe("Collection.liveQuery", () => {
     });
 
     return Effect.runPromise(
-      Effect.exit(ActiveProjectCards.updateEffect("atlas", { progress: 90 })).pipe(
+      Effect.exit(ActiveProjectCards.update("atlas", { progress: 90 })).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);

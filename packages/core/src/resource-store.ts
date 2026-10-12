@@ -101,19 +101,13 @@ export type ResourceStoreEvent =
 /** Effect-first event seam for adapters and diagnostics. */
 export interface ResourceStoreEventBus {
   /** Publishes a runtime event without exposing the backing PubSub. */
-  publishEffect(event: ResourceStoreEvent): Effect.Effect<void>;
+  publish(event: ResourceStoreEvent): Effect.Effect<void>;
   /** Subscribes to runtime events with the subscription bound to the caller's Scope. */
-  readonly subscribeEffect: Effect.Effect<
-    PubSub.Subscription<ResourceStoreEvent>,
-    never,
-    Scope.Scope
-  >;
+  readonly subscribe: Effect.Effect<PubSub.Subscription<ResourceStoreEvent>, never, Scope.Scope>;
   /** Shuts down the backing event queue. */
-  readonly shutdownEffect: Effect.Effect<void>;
+  readonly shutdown: Effect.Effect<void>;
   /** Effect-first shutdown diagnostic for tests and adapters. */
-  readonly isShutdownEffect: Effect.Effect<boolean>;
-  /** Synchronous shutdown diagnostic for assertions at host boundaries. */
-  isShutdownUnsafe(): boolean;
+  readonly isShutdown: Effect.Effect<boolean>;
 }
 
 /** Named module seam for store-local adapter state and cleanup. */
@@ -122,8 +116,7 @@ export interface ResourceStoreModuleRegistry {
   register(key: symbol, module: ResourceStoreModule): void;
   values(): ReadonlyArray<ResourceStoreModule>;
   clear(): void;
-  size(): number;
-  readonly sizeEffect: Effect.Effect<number>;
+  readonly size: Effect.Effect<number>;
 }
 
 /** Named fiber seam for background work owned by a Resource Store. */
@@ -131,8 +124,7 @@ export interface ResourceStoreFiberRegistry {
   track(fiber: ResourceStoreFiber): void;
   untrack(fiber: ResourceStoreFiber): void;
   drain(): ReadonlyArray<ResourceStoreFiber>;
-  size(): number;
-  readonly sizeEffect: Effect.Effect<number>;
+  readonly size: Effect.Effect<number>;
 }
 
 /** Stable Resource Store count snapshot that does not expose private maps. */
@@ -145,14 +137,12 @@ export interface ResourceStoreDiagnosticsSnapshot {
 
 /** Effect-first Resource Store diagnostics that do not expose private maps. */
 export interface ResourceStoreDiagnostics {
-  readonly eventBusShutdownEffect: Effect.Effect<boolean>;
-  readonly moduleCountEffect: Effect.Effect<number>;
-  readonly fiberCountEffect: Effect.Effect<number>;
-  readonly familyCountEffect: Effect.Effect<number>;
-  readonly tagCountEffect: Effect.Effect<number>;
-  readonly snapshotEffect: Effect.Effect<ResourceStoreDiagnosticsSnapshot>;
-  /** Synchronous host-boundary snapshot for traces and adapters. */
-  snapshotUnsafe(): ResourceStoreDiagnosticsSnapshot;
+  readonly eventBusShutdown: Effect.Effect<boolean>;
+  readonly moduleCount: Effect.Effect<number>;
+  readonly fiberCount: Effect.Effect<number>;
+  readonly familyCount: Effect.Effect<number>;
+  readonly tagCount: Effect.Effect<number>;
+  readonly snapshot: Effect.Effect<ResourceStoreDiagnosticsSnapshot>;
 }
 
 /**
@@ -198,7 +188,7 @@ export interface MutableResourceStore extends ResourceStore {
   readonly refTags: Map<string, Set<string>>;
   /** Mounted UI/resource bindings retaining a resource ref from gc collection. */
   readonly retainedRefs: Map<string, number>;
-  /** @internal Use `eventBus` or `Resource.subscribeEventsEffect`. */
+  /** @internal Use `eventBus` or `Resource.subscribeEvents`. */
   readonly events: PubSub.PubSub<ResourceStoreEvent>;
   /** @internal Use `fiberRegistry` for tracked background work. */
   readonly fibers: Set<ResourceStoreFiber>;
@@ -215,7 +205,7 @@ export class ResourceStoreDisposeError extends Data.TaggedError("ResourceStoreDi
 /** Store-local module state registered by Resource runtime helpers. */
 export interface ResourceStoreModule {
   /** Optional module-local cleanup work run when the Resource Store is disposed. */
-  readonly disposeEffect?: Effect.Effect<void, unknown>;
+  readonly dispose?: Effect.Effect<void, unknown>;
 }
 
 /** @internal Creates an empty mutable Resource Store implementation. */
@@ -235,11 +225,10 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
   });
 
   const eventBus: ResourceStoreEventBus = {
-    publishEffect: (event) => PubSub.publish(events, event).pipe(Effect.asVoid),
-    subscribeEffect: PubSub.subscribe(events),
-    shutdownEffect: PubSub.shutdown(events),
-    isShutdownEffect: Effect.sync(() => PubSub.isShutdownUnsafe(events)),
-    isShutdownUnsafe: () => PubSub.isShutdownUnsafe(events),
+    publish: (event) => PubSub.publish(events, event).pipe(Effect.asVoid),
+    subscribe: PubSub.subscribe(events),
+    shutdown: PubSub.shutdown(events),
+    isShutdown: Effect.sync(() => PubSub.isShutdownUnsafe(events)),
   };
   const moduleRegistry: ResourceStoreModuleRegistry = {
     get: (key) => modules.get(key),
@@ -250,8 +239,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     clear: () => {
       modules.clear();
     },
-    size: () => modules.size,
-    sizeEffect: Effect.sync(() => modules.size),
+    size: Effect.sync(() => modules.size),
   };
   const fiberRegistry: ResourceStoreFiberRegistry = {
     track: (fiber) => {
@@ -265,17 +253,15 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
       fibers.clear();
       return current;
     },
-    size: () => fibers.size,
-    sizeEffect: Effect.sync(() => fibers.size),
+    size: Effect.sync(() => fibers.size),
   };
   const diagnostics: ResourceStoreDiagnostics = {
-    eventBusShutdownEffect: eventBus.isShutdownEffect,
-    moduleCountEffect: moduleRegistry.sizeEffect,
-    fiberCountEffect: fiberRegistry.sizeEffect,
-    familyCountEffect: Effect.sync(() => families.size),
-    tagCountEffect: Effect.sync(() => tagIndex.size),
-    snapshotEffect: Effect.sync(snapshot),
-    snapshotUnsafe: snapshot,
+    eventBusShutdown: eventBus.isShutdown,
+    moduleCount: moduleRegistry.size,
+    fiberCount: fiberRegistry.size,
+    familyCount: Effect.sync(() => families.size),
+    tagCount: Effect.sync(() => tagIndex.size),
+    snapshot: Effect.sync(snapshot),
   };
 
   return {
@@ -327,7 +313,7 @@ const resourceStoreDisposeError = (cause: Cause.Cause<unknown>): ResourceStoreDi
   });
 
 /** Interrupts tracked fibers, runs module finalizers, and shuts down store events. */
-export const disposeResourceStoreEffect = (
+export const disposeResourceStore = (
   store: ResourceStore,
 ): Effect.Effect<void, ResourceStoreDisposeError> =>
   Effect.gen(function* () {
@@ -338,13 +324,13 @@ export const disposeResourceStoreEffect = (
     const modules = store.moduleRegistry.values();
     store.moduleRegistry.clear();
     const exits = yield* Effect.forEach(modules, (module) =>
-      Effect.exit(module.disposeEffect ?? Effect.void),
+      Effect.exit(module.dispose ?? Effect.void),
     );
     const failure = exits.find(Exit.isFailure);
     if (failure) {
       return yield* Effect.fail(resourceStoreDisposeError(failure.cause as Cause.Cause<unknown>));
     }
-  }).pipe(Effect.ensuring(store.eventBus.shutdownEffect));
+  }).pipe(Effect.ensuring(store.eventBus.shutdown));
 
 /** Effect Context service used to provide the active Resource Store. */
 export const ResourceStore = Context.Service<ResourceStore>("@sunfall/arc-core/ResourceStore");

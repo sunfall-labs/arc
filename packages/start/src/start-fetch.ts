@@ -7,7 +7,7 @@ import {
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
-import { makeStartRequestIdEffect, startJsonMediaType, startRequestIdHeader } from "./rpc.js";
+import { makeStartRequestId, startJsonMediaType, startRequestIdHeader } from "./rpc.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
 import type { StartTransportEndpointSource } from "./start-transport-endpoints.js";
 
@@ -96,7 +96,7 @@ export const getStartTransportHeadersEffect = (
         }),
     });
     if (!headers.has(startRequestIdHeader)) {
-      headers.set(startRequestIdHeader, yield* makeStartRequestIdEffect);
+      headers.set(startRequestIdHeader, yield* Effect.sync(makeStartRequestId));
     }
     headers.set("accept", startJsonMediaType);
     headers.set("content-type", startJsonMediaType);

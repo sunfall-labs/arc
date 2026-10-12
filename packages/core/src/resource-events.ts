@@ -9,7 +9,7 @@ import type {
 export const publishResourceStoreEvent = (
   store: ResourceStore,
   event: ResourceStoreEvent,
-): Effect.Effect<void> => store.eventBus.publishEffect(event);
+): Effect.Effect<void> => store.eventBus.publish(event);
 
 export const describeResourceStoreInvalidationCause = (
   cause: ResourceInvalidationCause,

@@ -1,12 +1,6 @@
 import { Context, Effect, Layer } from "effect";
-import type { EffectInput, PlainValue, PromiseSafeValue } from "./effect-like.js";
-import { isEffectLikeValue } from "./effect-input-sync.js";
-import {
-  EffectInputCallbackError,
-  EffectInputPromiseRejected,
-  isPromiseLikeValue,
-  invokeEffectInput,
-} from "./effect-like.js";
+import type { PlainValue } from "./effect-like.js";
+import { EffectInputPromiseRejected, isPromiseLikeValue } from "./effect-like.js";
 
 /** Runtime marker used by `isCapability(...)` to identify Capability definitions. */
 export const CapabilityTypeId: unique symbol = Symbol.for(
@@ -27,33 +21,18 @@ export interface Capability<Identifier, Shape> {
   readonly layer: (service: Shape) => Layer.Layer<Identifier>;
   /** Creates a test Layer for this capability. */
   readonly mock: (service: Shape) => Layer.Layer<Identifier>;
-  /** Accesses the provided service inside an Effect. */
-  readonly use: <A, E, R>(
-    f: (service: Shape) => Effect.Effect<A, E, R>,
-  ) => Effect.Effect<A, E, R | Identifier>;
   /**
-   * Accesses the service with a callback that may return a plain value or Effect.
+   * Accesses the provided service.
    *
-   * Direct Effect values are executable work. If the domain value itself is an
-   * Effect, return it from an Effect with `Effect.succeed(effectValue)`.
+   * The callback returns an Effect (run with the service's requirements) or a
+   * plain value. Promise-shaped returns are rejected as defects: adapt host
+   * Promise work with `Effect.tryPromise(...)` inside the callback. A callback
+   * that throws is a defect, as with `Effect.sync`.
    */
-  readonly useEffect: {
-    <A, E, R>(
-      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>,
-    ): Effect.Effect<PromiseSafeValue<A>, E | EffectInputCallbackError, R | Identifier>;
-    <A>(
-      f: (service: Shape) => PromiseSafeValue<A>,
-    ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Identifier>;
+  readonly use: {
+    <A, E, R>(f: (service: Shape) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R | Identifier>;
+    <A>(f: (service: Shape) => PlainValue<A>): Effect.Effect<PlainValue<A>, never, Identifier>;
   };
-  /**
-   * Synchronously reads the provided service and returns plain data.
-   *
-   * Promise-shaped values and direct Effect values are rejected. Use
-   * `useEffect(...)` when the service access performs Effect work.
-   */
-  readonly useSync: <A>(
-    f: (service: Shape) => PlainValue<A>,
-  ) => Effect.Effect<PlainValue<A>, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     service: Shape,
@@ -90,24 +69,24 @@ export namespace Capability {
    */
   export const define = <Shape>(key: string): Capability<Shape, Shape> => {
     const tag = Context.Service<Shape>(key);
-
-    function useEffect<A, E, R>(
-      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>,
-    ): Effect.Effect<PromiseSafeValue<A>, E | EffectInputCallbackError, R | Shape>;
-    function useEffect<A>(
-      f: (service: Shape) => PromiseSafeValue<A>,
-    ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Shape>;
-    function useEffect<A, E, R>(
+    const use = <A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R> | A,
-    ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape> {
-      return tag.use((service) =>
-        invokeEffectInput(
-          `Capability.useEffect(${key})`,
-          f as (service: Shape) => EffectInput<A, E, R>,
-          service,
-        ),
+    ): Effect.Effect<A, E, R | Shape> =>
+      tag.use((service) =>
+        Effect.suspend(() => {
+          const value = f(service);
+          if (Effect.isEffect(value)) {
+            return value as Effect.Effect<A, E, R>;
+          }
+          return isPromiseLikeValue(value)
+            ? Effect.die(
+                new EffectInputPromiseRejected({
+                  guidance: `Capability.use(${key}) callbacks must return an Effect or a plain value, not a Promise. Use Effect.tryPromise(...) at the host adapter seam.`,
+                }),
+              )
+            : Effect.succeed(value);
+        }),
       );
-    }
 
     return {
       [CapabilityTypeId]: CapabilityTypeId,
@@ -115,32 +94,7 @@ export namespace Capability {
       tag,
       layer: (service) => Layer.succeed(tag)(service),
       mock: (service) => Layer.succeed(tag)(service),
-      use: (f) => tag.use(f),
-      useEffect,
-      useSync: (f) =>
-        tag.use((service) =>
-          Effect.flatMap(
-            Effect.sync(() => f(service)),
-            (value) =>
-              isPromiseLikeValue(value)
-                ? Effect.die(
-                    new EffectInputPromiseRejected({
-                      guidance: `Capability.useSync(${key}) callbacks must return synchronous values, not Promises. Use Capability.useEffect(...) with Effect.tryPromise(...) at the host adapter seam.`,
-                    }),
-                  )
-                : isEffectLikeValue(value)
-                  ? Effect.die(
-                      new EffectInputCallbackError({
-                        operation: `Capability.useSync(${key})`,
-                        cause: new TypeError(
-                          "Capability.useSync callbacks must return plain data, not Effect values.",
-                        ),
-                        guidance: `Capability.useSync(${key}) callbacks must return plain data. Use Capability.useEffect(...) for Effect work.`,
-                      }),
-                    )
-                  : Effect.succeed(value),
-          ),
-        ),
+      use: use as Capability<Shape, Shape>["use"],
       provide: (effect, service) => Effect.provideService(effect, tag, service),
     };
   };

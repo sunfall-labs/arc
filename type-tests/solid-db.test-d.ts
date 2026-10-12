@@ -1,14 +1,13 @@
 import { Effect, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
+import { Context } from "effect";
+import { Collection, type QueryEvaluationError } from "@sunfall/arc-db";
 import {
-  Collection,
-  Query,
-  useCollection,
-  useLiveQuery,
+  SolidDb,
+  type CollectionBindingOptions,
   type CollectionHandle,
+  type LiveQueryBindingOptions,
   type LiveQueryHandle,
-  type UseCollectionOptions,
-  type UseLiveQueryOptions,
 } from "@sunfall/arc-solid-db";
 
 interface SolidDbProject {
@@ -16,124 +15,99 @@ interface SolidDbProject {
   readonly name: string;
 }
 
-interface SolidDbRuntimeError {
-  readonly _tag: "SolidDbRuntimeError";
-}
+declare const solidDbProjects: CollectionHandle<SolidDbProject, string, "load">;
+declare const solidDbLiveProjects: LiveQueryHandle<SolidDbProject, "query">;
+declare const solidDbPreloadObserverPromise: Promise<void>;
 
-declare const solidDbProjects: CollectionHandle<
+// Bindings: a collection's services join the binding's (and so the Component's) R.
+interface ProjectFeed {
+  readonly list: () => Effect.Effect<ReadonlyArray<SolidDbProject>, "load">;
+}
+const ProjectFeed = Context.Service<ProjectFeed>("type-tests/solid-db/ProjectFeed");
+declare const ServicefulProjects: Collection.Definition<
   SolidDbProject,
   string,
   "load",
-  SolidDbRuntimeError
+  ProjectFeed
 >;
-declare const solidDbLiveProjects: LiveQueryHandle<SolidDbProject, "query", SolidDbRuntimeError>;
-declare const solidDbPreloadObserverPromise: Promise<void>;
+const solidDbCollectionBinding: Effect.Effect<
+  CollectionHandle<SolidDbProject, string, "load">,
+  never,
+  ProjectFeed
+> = SolidDb.collection(ServicefulProjects);
+declare const ServiceFreeProjects: Collection.Definition<SolidDbProject, string>;
+const solidDbLiveQueryBinding: Effect.Effect<LiveQueryHandle<string, unknown>> = SolidDb.liveQuery(
+  (query) => query.from({ project: ServiceFreeProjects }).select(({ project }) => project.name),
+);
 
-const solidDbExports: Array<unknown> = [Collection, Query, useCollection, useLiveQuery];
+const solidDbExports: Array<unknown> = [SolidDb.collection, SolidDb.liveQuery];
 type Handles = CollectionHandle<any, any> | LiveQueryHandle<any, any>;
-type Options =
-  | UseCollectionOptions<"load", SolidDbRuntimeError>
-  | UseLiveQueryOptions<"query", SolidDbRuntimeError>;
-type Namespaces =
-  | Collection.Key
-  | Collection.RowNotFound
-  | Collection.RowKeyChanged
-  | Query.Builder<any, any>;
-const solidDbCollectionOptions: UseCollectionOptions<"load", SolidDbRuntimeError> = {
+type Options = CollectionBindingOptions<"load"> | LiveQueryBindingOptions<"query">;
+const solidDbCollectionOptions: CollectionBindingOptions<"load"> = {
   onPreloadFailure: () => Effect.void,
 };
-const solidDbLiveQueryOptions: UseLiveQueryOptions<"query", SolidDbRuntimeError> = {
+const solidDbLiveQueryOptions: LiveQueryBindingOptions<"query"> = {
+  onPreloadFailure: () => Effect.void,
+};
+const solidDbDepsLiveQueryOptions: LiveQueryBindingOptions<"query"> = {
+  // @ts-expect-error the query factory is tracked; signal/prop reads in it rebuild the query.
   deps: () => "status",
-  onPreloadFailure: () => Effect.void,
 };
-const solidDbBadCollectionOptions: UseCollectionOptions<"load", SolidDbRuntimeError> = {
+const solidDbBadCollectionOptions: CollectionBindingOptions<"load"> = {
   // @ts-expect-error Solid DB preload observers must return void or Effect, not Promise
   onPreloadFailure: () => solidDbPreloadObserverPromise,
 };
-const solidDbBadLiveQueryOptions: UseLiveQueryOptions<"query", SolidDbRuntimeError> = {
+const solidDbBadLiveQueryOptions: LiveQueryBindingOptions<"query"> = {
   // @ts-expect-error Solid DB live-query preload observers must return void or Effect, not Promise
   onPreloadFailure: () => solidDbPreloadObserverPromise,
 };
+
+// The collection handle is reactive reads only.
+const solidDbRows: ReadonlyArray<Collection.Row<SolidDbProject, string>> = solidDbProjects.rows();
+const solidDbRow: Collection.Row<SolidDbProject, string> | undefined = solidDbProjects.get("atlas");
+const solidDbIndex: ReadonlyArray<Collection.Row<SolidDbProject, string>> = solidDbProjects.index(
+  "byName",
+  "Atlas",
+);
 const solidDbPendingMutations: ReadonlyArray<Collection.PendingMutation<SolidDbProject, string>> =
   solidDbProjects.pendingMutations();
-const solidDbPreload: Effect.Effect<void, Collection.RuntimeError<"load"> | SolidDbRuntimeError> =
-  solidDbProjects.preloadEffect();
-const solidDbRefetch: Effect.Effect<void, Collection.RuntimeError<"load"> | SolidDbRuntimeError> =
-  solidDbProjects.refetchEffect();
-const solidDbInsert: Effect.Effect<
-  Collection.Transaction<SolidDbProject, string>,
-  Collection.RuntimeError<"load"> | SolidDbRuntimeError
-> = solidDbProjects.insertEffect({ id: "atlas", name: "Atlas" });
-const solidDbUpdate: Effect.Effect<
-  Collection.Transaction<SolidDbProject, string>,
-  | Collection.RuntimeError<"load">
-  | Collection.RowNotFound
-  | Collection.RowKeyChanged
-  | SolidDbRuntimeError
-> = solidDbProjects.updateEffect("atlas", { name: "Atlas Prime" });
-const solidDbDelete: Effect.Effect<
-  Collection.Transaction<SolidDbProject, string>,
-  Collection.RuntimeError<"load"> | Collection.RowNotFound | SolidDbRuntimeError
-> = solidDbProjects.deleteEffect("atlas");
-const solidDbWriteInsert: Effect.Effect<
-  void,
-  Collection.RuntimeError<"load"> | SolidDbRuntimeError
-> = solidDbProjects.writeInsertEffect({ id: "atlas", name: "Atlas" });
-const solidDbWriteUpdate: Effect.Effect<
-  void,
-  | Collection.RuntimeError<"load">
-  | Collection.RowNotFound
-  | Collection.RowKeyChanged
-  | SolidDbRuntimeError
-> = solidDbProjects.writeUpdateEffect("atlas", { name: "Atlas Prime" });
-const solidDbWriteDelete: Effect.Effect<
-  void,
-  Collection.RuntimeError<"load"> | SolidDbRuntimeError
-> = solidDbProjects.writeDeleteEffect("atlas");
-const solidDbFlushPending: Effect.Effect<
-  ReadonlyArray<Collection.Transaction<SolidDbProject, string>>,
-  Collection.RuntimeError<"load"> | SolidDbRuntimeError
-> = solidDbProjects.flushPendingMutationsEffect();
-const solidDbLivePreload: Effect.Effect<
-  void,
-  "query" | Query.EvaluationError | SolidDbRuntimeError
-> = solidDbLiveProjects.preloadEffect();
-const solidDbLiveRefetch: Effect.Effect<
-  void,
-  "query" | Query.EvaluationError | SolidDbRuntimeError
-> = solidDbLiveProjects.refetchEffect();
-const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.data;
-const solidDbLiveState: () => AsyncResult.AsyncResult<
-  ReadonlyArray<SolidDbProject>,
-  "query" | Query.EvaluationError
-> = solidDbLiveProjects.result;
-const solidDbLiveWaiting: boolean = solidDbLiveProjects.result().waiting;
-const solidDbLiveError: Option.Option<"query" | Query.EvaluationError> = AsyncResult.error(
-  solidDbLiveProjects.result(),
-);
+const solidDbPreloadFailure: Collection.RuntimeError<"load"> | undefined =
+  solidDbProjects.preloadFailure();
 const solidDbCollectionResult: () => AsyncResult.AsyncResult<
   void,
   Collection.RuntimeError<"load">
 > = solidDbProjects.result;
-// @ts-expect-error -- handles expose one `result()` accessor instead of state/waiting/error.
+// @ts-expect-error writes run `collection.update(...)` through `Component.callback`.
+solidDbProjects.updateEffect;
+// @ts-expect-error loads run `collection.refresh()` through `Component.callback`.
+solidDbProjects.refetchEffect;
+// @ts-expect-error handles expose one `result()` accessor instead of state/waiting/error.
 void solidDbProjects.state;
-void solidDbCollectionResult;
-const solidDbLivePreloadFailure: () =>
-  | "query"
-  | Query.EvaluationError
-  | SolidDbRuntimeError
-  | undefined = solidDbLiveProjects.preloadFailure;
+
+const solidDbLivePreload: Effect.Effect<void, "query" | QueryEvaluationError> =
+  solidDbLiveProjects.preload();
+const solidDbLiveRefetch: Effect.Effect<void, "query" | QueryEvaluationError> =
+  solidDbLiveProjects.refresh();
+const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.rows;
+const solidDbLiveState: () => AsyncResult.AsyncResult<
+  ReadonlyArray<SolidDbProject>,
+  "query" | QueryEvaluationError
+> = solidDbLiveProjects.result;
+const solidDbLiveWaiting: boolean = solidDbLiveProjects.result().waiting;
+const solidDbLiveError: Option.Option<"query" | QueryEvaluationError> = AsyncResult.error(
+  solidDbLiveProjects.result(),
+);
+const solidDbLivePreloadFailure: () => "query" | QueryEvaluationError | undefined =
+  solidDbLiveProjects.preloadFailure;
 void solidDbExports;
+void solidDbCollectionBinding;
+void solidDbLiveQueryBinding;
+void solidDbRows;
+void solidDbRow;
+void solidDbIndex;
 void solidDbPendingMutations;
-void solidDbPreload;
-void solidDbRefetch;
-void solidDbInsert;
-void solidDbUpdate;
-void solidDbDelete;
-void solidDbWriteInsert;
-void solidDbWriteUpdate;
-void solidDbWriteDelete;
-void solidDbFlushPending;
+void solidDbPreloadFailure;
+void solidDbCollectionResult;
 void solidDbLivePreload;
 void solidDbLiveRefetch;
 void solidDbLiveData;
@@ -143,8 +117,8 @@ void solidDbLiveError;
 void solidDbLivePreloadFailure;
 void solidDbCollectionOptions;
 void solidDbLiveQueryOptions;
+void solidDbDepsLiveQueryOptions;
 void solidDbBadCollectionOptions;
 void solidDbBadLiveQueryOptions;
 type _Handles = Handles;
 type _Options = Options;
-type _Namespaces = Namespaces;

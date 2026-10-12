@@ -3,15 +3,14 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
   Action,
-  eraseRuntime,
   makeRuntime,
-  read,
   Resource,
   ResourceFailure,
   ResourcePending,
   runWithRuntime,
   type SunfallArcRuntime,
 } from "../src/index.js";
+import { eraseRuntime, defaultRuntime } from "../src/internal.js";
 import { settleResult, settledResult } from "../src/async-result-settle.js";
 
 const runIn = <A, E, R, Services, RuntimeError>(
@@ -50,13 +49,13 @@ describe("AsyncResult settlement", () => {
   });
 
   it("settles a defecting Resource load to Failure instead of leaving it waiting", async () => {
-    const Crash = Resource.family<string, number>({
+    const Crash = Resource.define<string, number>({
       name: "Settlement.resource-defect",
       load: () => Effect.die(new Error("loader crashed")),
     });
     const ref = Crash("1");
 
-    const exit = await Effect.runPromiseExit(Resource.prefetchEffect(ref));
+    const exit = await Effect.runPromiseExit(Resource.preload(ref));
     expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
 
     const result = Resource.result(ref).get();
@@ -67,7 +66,7 @@ describe("AsyncResult settlement", () => {
     expect(AsyncResult.error(result)).toEqual(Option.none());
 
     try {
-      read(ref);
+      Effect.runSync(Resource.read(ref));
       expect.fail("expected ResourceFailure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -77,15 +76,15 @@ describe("AsyncResult settlement", () => {
 
   it("keeps the previous success when a refresh defects", async () => {
     let crash = false;
-    const Flaky = Resource.family<string, number>({
+    const Flaky = Resource.define<string, number>({
       name: "Settlement.resource-refresh-defect",
       load: () => (crash ? Effect.die("refresh crashed") : Effect.succeed(7)),
     });
     const ref = Flaky("1");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
     crash = true;
-    await Effect.runPromiseExit(Resource.refreshEffect(ref));
+    await Effect.runPromiseExit(Resource.refresh(ref));
 
     const result = Resource.result(ref).get();
     expect(result).toMatchObject({ _tag: "Failure", waiting: false });
@@ -95,7 +94,7 @@ describe("AsyncResult settlement", () => {
   it("returns an interrupted Resource load to its prior settled result", async () => {
     const started = Effect.runSync(Deferred.make<void>());
     let loads = 0;
-    const Slow = Resource.family<string, number>({
+    const Slow = Resource.define<string, number>({
       name: "Settlement.resource-interrupt",
       load: () =>
         Effect.gen(function* () {
@@ -110,11 +109,11 @@ describe("AsyncResult settlement", () => {
     const ref = Slow("1");
     const runtime = makeRuntime(Layer.empty);
 
-    await runIn(runtime, Resource.prefetchEffect(ref));
+    await runIn(runtime, Resource.preload(ref));
     const settled = runWithRuntime(runtime, () => Resource.result(ref).get());
     expect(settled).toMatchObject({ _tag: "Success", value: 1, waiting: false });
 
-    void runtime.runFork(Resource.refreshEffect(ref));
+    void runtime.runFork(Resource.refresh(ref));
     await Effect.runPromise(Deferred.await(started));
     expect(runWithRuntime(runtime, () => Resource.result(ref).get())).toMatchObject({
       _tag: "Success",
@@ -129,8 +128,8 @@ describe("AsyncResult settlement", () => {
       runtime,
       Effect.scoped(
         Effect.gen(function* () {
-          const subscription = yield* Resource.subscribeEventsEffect();
-          yield* Resource.deleteEffect(ref);
+          const subscription = yield* Resource.subscribeEvents();
+          yield* Resource.evict(ref);
           const taken = yield* PubSub.takeAll(subscription);
           events.push(...Array.from(taken, (event) => event._tag));
         }),
@@ -139,37 +138,37 @@ describe("AsyncResult settlement", () => {
     expect(events).toContain("ResourceInterrupted");
     expect(events).not.toContain("ResourceFailure");
 
-    await Effect.runPromise(runtime.disposeEffect);
+    await Effect.runPromise(runtime.dispose);
   });
 
   it("settles an interrupt-only refresh back to the prior settled success", async () => {
     let cancel = false;
-    const Cancellable = Resource.family<string, number>({
+    const Cancellable = Resource.define<string, number>({
       name: "Settlement.resource-cancelled-refresh",
       load: () => (cancel ? Effect.interrupt : Effect.succeed(3)),
     });
     const ref = Cancellable("1");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
     const settled = Resource.result(ref).get();
     cancel = true;
-    const exit = await Effect.runPromiseExit(Resource.refreshEffect(ref));
+    const exit = await Effect.runPromiseExit(Resource.refresh(ref));
 
     expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true);
     expect(Resource.result(ref).get()).toEqual(settled);
-    expect(read(ref)).toBe(3);
+    expect(Effect.runSync(Resource.read(ref))).toBe(3);
   });
 
   it("does not surface interruption of a waiting first load as a Failure", async () => {
     const started = Effect.runSync(Deferred.make<void>());
-    const Never = Resource.family<string, number>({
+    const Never = Resource.define<string, number>({
       name: "Settlement.resource-first-load-interrupt",
       load: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
     });
     const ref = Never("1");
     const runtime = makeRuntime(Layer.empty);
 
-    void runtime.runFork(Resource.prefetchEffect(ref));
+    void runtime.runFork(Resource.preload(ref));
     await Effect.runPromise(Deferred.await(started));
     expect(runWithRuntime(runtime, () => Resource.result(ref).get())).toMatchObject({
       _tag: "Initial",
@@ -177,19 +176,19 @@ describe("AsyncResult settlement", () => {
     });
 
     // A forced refresh supersedes (interrupts) the waiting load and starts its own.
-    const refresh = runtime.runFork(Resource.refreshEffect(ref));
+    const refresh = runtime.runFork(Resource.refresh(ref));
     expect(runWithRuntime(runtime, () => Resource.result(ref).get())).toMatchObject({
       _tag: "Initial",
       waiting: true,
     });
-    expect(() => runWithRuntime(runtime, () => read(ref))).toThrow(ResourcePending);
+    expect(() => runtime.runSync(Resource.read(ref))).toThrow(ResourcePending);
 
     await Effect.runPromise(Fiber.interrupt(refresh));
-    await Effect.runPromise(runtime.disposeEffect);
+    await Effect.runPromise(runtime.dispose);
   });
 
   it("stamps Resource successes with the Effect Clock", async () => {
-    const Clocked = Resource.family<string, number>({
+    const Clocked = Resource.define<string, number>({
       name: "Settlement.resource-clock",
       load: () => Effect.succeed(1),
     });
@@ -197,12 +196,12 @@ describe("AsyncResult settlement", () => {
 
     const runtime = makeRuntime(Layer.succeed(Clock.Clock)(fixedClock(12_345)));
 
-    await runIn(runtime, Resource.prefetchEffect(ref));
+    await runIn(runtime, Resource.preload(ref));
     expect(runWithRuntime(runtime, () => Resource.result(ref).get())).toMatchObject({
       _tag: "Success",
       timestamp: 12_345,
     });
-    await Effect.runPromise(runtime.disposeEffect);
+    await Effect.runPromise(runtime.dispose);
   });
 
   it("settles a defecting Action submission to Failure instead of leaving it waiting", async () => {
@@ -210,9 +209,9 @@ describe("AsyncResult settlement", () => {
       name: "Settlement.action-defect",
       run: () => Effect.die(new Error("action crashed")),
     });
-    const action = Action.use(Crash);
+    const action = Action.use(Crash, { runtime: defaultRuntime });
 
-    const exit = await Effect.runPromiseExit(action.submitEffect("go"));
+    const exit = await Effect.runPromiseExit(action.submit("go"));
     expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
 
     const state = action.state.get();
@@ -230,13 +229,13 @@ describe("AsyncResult settlement", () => {
           ? Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never))
           : Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
-    await Effect.runPromise(action.submitEffect("Ada"));
+    await Effect.runPromise(action.submit("Ada"));
     const settled = action.state.get();
     expect(settled.result).toMatchObject({ _tag: "Success", value: "Ada", waiting: false });
 
-    const submission = Effect.runFork(action.submitEffect("slow"));
+    const submission = Effect.runFork(action.submit("slow"));
     await Effect.runPromise(Deferred.await(started));
     expect(action.state.get().result.waiting).toBe(true);
     expect(action.state.get().input).toEqual(Option.some("slow"));

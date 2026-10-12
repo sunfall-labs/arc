@@ -7,7 +7,6 @@ import {
   deserializeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   describeStartAppGraph,
-  describeStartAppGraphEffect,
   enforceStartAppGraphDiagnosticsPolicy,
   serializeStartAppGraph,
   StartAppGraphDiagnosticsDtoError,
@@ -32,7 +31,6 @@ import {
   formatStartAgentGraph,
   formatStartAgentGraphImpact,
   queryStartAgentGraph,
-  queryStartAgentGraphEffect,
 } from "../src/agent-graph.js";
 import type {
   StartAgentGraph,
@@ -273,11 +271,6 @@ describe("Start app graph", () => {
             unknownRoutePreloadResources: [],
             unknownRoutePreloadCollections: [],
           });
-        });
-
-        const description = yield* describeStartAppGraphEffect(graph);
-        yield* Effect.sync(() => {
-          expect(description).toEqual(describeStartAppGraph(graph));
         });
       }),
     );
@@ -1303,11 +1296,9 @@ describe("Start app graph", () => {
     const byOwner = queryStartAgentGraph(graph, {
       text: "src/project/actions.ts",
     });
-    const byLabel = await Effect.runPromise(
-      queryStartAgentGraphEffect(graph, {
-        text: "Circular Route",
-      }),
-    );
+    const byLabel = queryStartAgentGraph(graph, {
+      text: "Circular Route",
+    });
 
     expect(byId.nodes.map((node) => node.id)).toEqual(["action:Project.bigint"]);
     expect(byOwner.nodes.map((node) => node.owner)).toEqual(["src/project/actions.ts"]);

@@ -1,4 +1,3 @@
-import { runFork } from "@sunfall/arc-core";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";
@@ -12,6 +11,10 @@ import { persistCollectionSnapshotEffect } from "./collection-persistence.js";
 import { makeLiveQueryCollectionMaterialization } from "./live-query-collection-materialization.js";
 import { collectionStoreEffect, type RuntimeCollectionStore } from "./runtime-collection-store.js";
 import { Query, type LiveQuery, type QueryFactory } from "./query-builder.js";
+import {
+  defaultCollectionDefinitionRegistry,
+  type CollectionDefinitionRegistryAdapter,
+} from "./collection-registry.js";
 import type { QueryEvaluationError } from "./query-plan.js";
 import type {
   AnyCollection,
@@ -41,8 +44,6 @@ export interface CollectionLiveQueryOptions<
   readonly query: LiveQuery<A, E, R> | QueryFactory<A, E, R>;
 }
 
-export type LiveQueryCollectionRegister = (name: string, definition: AnyCollection) => void;
-
 const readonlyCollectionMutation = (
   collection: string,
   operation: string,
@@ -62,7 +63,7 @@ export const makeLiveQueryCollectionDefinition = <
   R = never,
 >(
   options: CollectionLiveQueryOptions<A, K, E, R>,
-  register: LiveQueryCollectionRegister,
+  registry: CollectionDefinitionRegistryAdapter = defaultCollectionDefinitionRegistry,
 ): CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> => {
   const live = liveQueryFromInput(options.query);
   const readonlyFail = <Out>(operation: string): Effect.Effect<Out, ReadonlyCollectionMutation> =>
@@ -95,23 +96,24 @@ export const makeLiveQueryCollectionDefinition = <
       name: options.name,
       getKey: options.getKey,
       ...(options.indexes === undefined ? {} : { indexes: options.indexes }),
-      load: () => live.preloadEffect().pipe(Effect.map(() => live.evaluate())),
+      sync: {
+        load: () => live.preload().pipe(Effect.map(() => live.evaluate())),
+      },
     },
     name: options.name,
     readOnly: true,
     getKey: options.getKey,
-    state: () => materialization.state(),
+    result: () => materialization.state(),
     version: () => materialization.version(),
     get: (key) => materialization.get(key),
     rows: () => materialization.rows(),
     index: (index, value) => materialization.index(index, value),
     firstByIndex: (index, value) => materialization.firstByIndex(index, value),
-    preloadEffect: () => live.preloadEffect(),
-    refetchEffect: () => live.refetchEffect(),
-    pendingMutationsEffect: () => Effect.succeed([]),
+    preload: () => live.preload(),
+    refresh: () => live.refresh(),
     pendingMutations: () => [],
-    flushPendingMutationsEffect: () => Effect.succeed([]),
-    snapshotEffect: () =>
+    flushPendingMutations: () => Effect.succeed([]),
+    snapshot: () =>
       Effect.gen(function* () {
         const store = yield* collectionStoreEffect;
         const updatedAt = yield* Clock.currentTimeMillis;
@@ -121,7 +123,6 @@ export const makeLiveQueryCollectionDefinition = <
           materialization.snapshotWithStoreEffect(store, updatedAt),
         );
       }),
-    snapshot: () => materialization.snapshot(Date.now()),
     snapshotWithStore: (store, updatedAt) =>
       materialization.snapshotWithStore(store as RuntimeCollectionStore, updatedAt),
     snapshotWithStoreEffect: (store, updatedAt) =>
@@ -129,11 +130,8 @@ export const makeLiveQueryCollectionDefinition = <
     durableSnapshotSources: () => live.sources,
     hydratePreflightEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrateWithStoreEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
-    hydrateEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
-    hydrate: (snapshot, hydrateOptions) => {
-      void runFork(definition.hydrateEffect(snapshot, hydrateOptions));
-    },
-    persistEffect: <PE = never, PR = never>(
+    hydrate: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
+    persist: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
       persistOptions?: CollectionPersistOptions,
     ) =>
@@ -153,27 +151,15 @@ export const makeLiveQueryCollectionDefinition = <
           store,
         );
       }),
-    restoreEffect: <_PE = never, _PR = never>() =>
-      Effect.fail(readonlySnapshotCodecFailure("restore")),
-    insertEffect: () => readonlyFail("insert"),
-    updateEffect: () => readonlyFail("update"),
-    deleteEffect: () => readonlyFail("delete"),
-    writeInsertEffect: () => readonlyFail("writeInsert"),
-    writeInsert: (input, writeOptions) => {
-      void runFork(definition.writeInsertEffect(input, writeOptions));
-    },
-    writeUpdateEffect: () => readonlyFail("writeUpdate"),
-    writeUpdate: (key, changes, writeOptions) => {
-      void runFork(definition.writeUpdateEffect(key, changes, writeOptions));
-    },
-    writeDeleteEffect: () => readonlyFail("writeDelete"),
-    writeDelete: (key) => {
-      void runFork(definition.writeDeleteEffect(key));
-    },
+    restore: <_PE = never, _PR = never>() => Effect.fail(readonlySnapshotCodecFailure("restore")),
+    insert: () => readonlyFail("insert"),
+    update: () => readonlyFail("update"),
+    delete: () => readonlyFail("delete"),
+    applyChanges: () => readonlyFail("applyChanges"),
   };
   markStoreExplicitCollectionSnapshotDefinition(definition);
 
-  register(options.name, definition as AnyCollection);
+  registry.register(definition as AnyCollection);
 
   return definition;
 };

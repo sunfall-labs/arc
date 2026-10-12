@@ -6,6 +6,132 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## One Name Per Operation (Breaking)
+
+- Definition constructors are `define`, namespaced: `Resource.define` (which
+  also takes `request` + `resolver` in place of `load`, replacing
+  `Resource.requestFamily`), `Route.define` (replacing flat `route`),
+  `App.define` (replacing `defineApp`), `FileRoute.define(path)(options)`
+  (replacing `defineFileRoute`), and `Component.define` (replacing
+  `Component.make`).
+- No Arc operation carries an `Effect` suffix, and each has one form: the
+  Effect takes the plain name and every synchronous twin is removed
+  (`Resource.preload` / `refresh` / `read` / `hydrate` / ..., `Resource.evict`
+  for the old `deleteEffect`, `Route.preload` / `planNavigation` / ...,
+  Collection `preload` / `refresh` / `insert` / `update` / `delete` /
+  `applyChanges` / `snapshot` / ..., `Query.once`, `runtime.dispose`,
+  `createStartStreamedHtmlResponse`, `hydrateFromDocument`, the devtools store
+  methods, `installDevtoolsBridge`, `mountDevtoolsPanels`, and the rest; see
+  the migration notes for the full table). `Capability.use` is the one service
+  accessor (`useEffect` / `useSync` are gone), and the trivial
+  `ActionResult.*Effect` constructors and the `fail` alias are removed.
+- Handles share one vocabulary: `submit`, `dispatch`, `reset`, `preload`, and
+  `refresh` return Effects, and UI event handlers run them through
+  `Component.callback`. `result()` names every `AsyncResult` accessor
+  (Collection `state()` and `Query.Live.state` are now `result`), and row
+  accessors are `rows` (`Query.Live.data` and `LiveQueryHandle.data` are now
+  `rows`). Collection sync adapters provide `refresh` instead of `refetch`.
+- `Program.emit(...)` is the one command constructor (a message, the message an
+  Effect produces, or nothing for a `void` Effect); `Program.command`,
+  `Program.effect`, and `Program.dispatch` are removed. `Program.commands`
+  batches.
+- Routes are addressed by definition only: the router's `hrefByPath`,
+  `navigateByPath`, `matchByPath`, and `preloadByPathEffect`, the
+  `BrowserRouterPath` / `BrowserRouterRouteForPath` types, and the generated
+  route tree's path-keyed maps, helpers, and types (plus `hrefById` and
+  `isRoutePathMatch`) are removed. `navigateHref(href)` stays for raw hrefs,
+  and `Route.isMatch(route, match)` narrows a match.
+- Fixed: a Component whose first render read a pending Resource re-ran its
+  setup (and rebound its readers) once the read settled, because the render ran
+  in its caller's computation. Render now runs in a computation of the
+  instance's own, so only the render retries.
+
+## Components Are The Single Solid App Model (Breaking)
+
+- Solid UI is built from typed `Component`s only. `Component.make(name,
+function* (props) { ...; return () => <View /> })` setup now runs **once per
+  instance** (with that instance's props, under its Solid owner, with an
+  instance Scope) instead of once per runtime; render is the returned
+  zero-argument function. Per-runtime sharing is by construction: Resources and
+  Collections live in runtime stores, and `Component.provide` builds its Layer
+  once per runtime.
+- Setup-time bindings replace hooks, each adding its services to the
+  component's `R`: `Component.resource` (a suspending `ResourceReader` with
+  value-free `waiting` / `failure` status), `Component.action`,
+  `Component.program`, `Component.stream`, `Component.callback`,
+  `Component.router`, and `SolidDb.collection` / `SolidDb.liveQuery` from
+  `@sunfall/arc-solid-db`. `Component.instance` is the seam for writing more.
+  `Component.catchAll` joins `catchTags`.
+- The Resource reader is the only way to render Resource content. It keeps the
+  current or stale value across refreshes, so content stays mounted; status
+  chrome reads `waiting(input)` / `failure(input)`.
+- `Component.router(routes, options?)` creates the instance's router; the
+  routes' preload services and route Components' services and failures join the
+  component type, so `Component.launch` checks them again. `RouterProvider`
+  now takes `router`. Route components may be typed `Component`s
+  (`Route.withComponent` keeps the component type; core adds `RouteView`,
+  `RouteViewTypeId`, `RouteWithComponent`, and `Route.ComponentOf`).
+- `Component.embed(component, runtime)` takes its runtime explicitly and checks
+  it; the server renders with `embed`, the client hydrates with
+  `launch(..., { hydrate: true })`.
+- Removed: `RuntimeProvider`, `RuntimeProviderProps`, `RuntimeContext`,
+  `RuntimeContextMissing`, `useRuntime`, `createComponentScope`,
+  `useResource`, `useResourceResult`, `useResourceSuspense`, `useAction`,
+  `useProgram`, `useStream`, `useRuntimeEffect`, their handle/option types
+  (`ResourceHandle`, `UseResourceOptions`, `ActionHandle`, `ProgramHandle`,
+  `ProgramModelView`, `UseProgramOptions`, `RuntimeEffectRunner`),
+  `Component.Render<P>`/`Component.PropsOf` (render is now `Component.Render`,
+  children are `Component.Solid<P>`), and Solid DB's `useCollection`,
+  `useLiveQuery`, `UseCollectionOptions`, `UseLiveQueryOptions`. Core's internal
+  runtime-provider lifecycle helpers are removed with them.
+
+## One Action Binding And An Action Transport (Breaking)
+
+- Core adds `ActionTransport` (with `ActionTransportResponse`), the Action
+  counterpart of `ServerClient`: every Action instance looks it up on submit.
+  Served Actions run remotely and their response applies to the submitting
+  runtime; every other Action runs locally. Action submissions now report
+  `Server.ClientError` beside their own failures.
+- Start adds `makeActionTransportLayer({ actions, ... })`; a client runtime
+  that provides it routes served Actions over the network, so UI code submits
+  every Action through `Component.action(...)`. A superseded `parallel`
+  submission applies only its invalidations.
+- Removed: `StartAction.use`, `StartAction.Instance`, `StartAction.Result`,
+  `StartAction.State`, `submitStartActionEffect`, and the public
+  `StartActionClientOptions`. `StartAction.form`,
+  `StartAction.decodeFormDataEffect`, and `StartAction.Form` remain for
+  progressive no-JS forms. Devtools drops the Start-shaped action tracking
+  (`recordStartAction`, `recordStartActionEffect`, `trackStartActionEffect`,
+  `DevtoolsStartActionInstance`); every Action instance is tracked with
+  `recordAction` / `trackActionEffect`.
+- `Action.use(definition, { runtime })` and `Program.start(definition,
+{ runtime })` require an explicit runtime; the default-runtime fallbacks are
+  gone.
+
+## Whole-App Timeline Replaces Program Timelines (Breaking)
+
+- `Timeline.record(options?)` records every committed signal change set (user
+  Signals, Resource entries, Action state, Program models and failures, router
+  state, collection versions and load state) until its Scope closes, with
+  bounded retention (default 1000). Entries carry a `TimelineCause` and
+  `{ signal, name, previous, next }` changes.
+- `recording.travel(sequence)` renders the app at a past commit while committed
+  state, and every Effect computing from it, stays live; `recording.resume()`
+  renders the head again.
+- `Signal.make(initial, { name })` names a signal for entries;
+  `Signal.transaction(effect, { cause })` and `Signal.batch(f, { cause })`
+  label a commit.
+- Removed: Program `timeline` definition option, `ProgramTimelineOptions`,
+  `ProgramEvent` and its event variants (`Program.Event`, `Program.*Event`,
+  `Program.TimelineOptions`), `program.timeline`, `program.clearTimeline()`,
+  and the Solid `useProgram` handle's `timeline()` / `clearTimeline()`. A
+  Program's history is the Timeline filtered to `program.model`.
+- Devtools: `recordProgramEvent(...)`, `recordProgramEventEffect(...)`,
+  `trackProgramEffect(...)`, `DevtoolsProgramEvent`, and the `ProgramEvent`
+  runtime event are replaced by `recordTimelineEntry(...)`,
+  `recordTimelineEntryEffect(...)`, `trackTimelineEffect(recording)`,
+  `DevtoolsTimelineCommit`, and the `TimelineCommit` runtime event.
+
 ## Async State Is AsyncResult (Breaking)
 
 Arc's async state now uses Effect's `AsyncResult`

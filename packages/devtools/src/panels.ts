@@ -95,8 +95,16 @@ const requestTraceDetail = (trace: DevtoolsSummaryRequestTrace): string => {
   return failureOwners.length === 0 ? status : `${status} ${failureOwners.join(", ")}`;
 };
 
-const programEventSeverity = (tag: string): DevtoolsPanelSeverity =>
-  tag.endsWith("Failed") ? "error" : tag === "Disposed" ? "info" : "ok";
+const programEventSeverity = (event: string): DevtoolsPanelSeverity =>
+  event === "failure" ? "error" : "ok";
+
+/** The Program cause event (`message`, `failure`, `clearFailures`) of a Timeline commit summary. */
+const programCommitEvent = (data: DevtoolsSerializableValue): string => {
+  const cause = isSerializableRecord(data) ? data.cause : undefined;
+  const event =
+    cause !== undefined && cause !== null && isSerializableRecord(cause) ? cause.event : undefined;
+  return typeof event === "string" ? event : "commit";
+};
 
 const isSerializableRecord = (
   value: DevtoolsSerializableValue,
@@ -115,14 +123,10 @@ const programEventMetrics = (
     return [panelMetric("sequence", event.sequence)];
   }
 
-  const commandCount = programEventMetricValue(event.data.commandCount);
-  const commandId = programEventMetricValue(event.data.commandId);
-  const subscriptionCount = programEventMetricValue(event.data.count);
+  const changes = Array.isArray(event.data.changes) ? event.data.changes.length : undefined;
   return [
     panelMetric("sequence", programEventMetricValue(event.data.sequence) ?? event.sequence),
-    ...(commandCount === undefined ? [] : [panelMetric("commands", commandCount)]),
-    ...(commandId === undefined ? [] : [panelMetric("command", commandId)]),
-    ...(subscriptionCount === undefined ? [] : [panelMetric("subscriptions", subscriptionCount)]),
+    ...(changes === undefined ? [] : [panelMetric("changes", changes)]),
   ];
 };
 
@@ -238,8 +242,7 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     const name = event.target.id.startsWith("program:")
       ? event.target.id.slice("program:".length)
       : event.target.id;
-    const data = event.data as { readonly _tag?: unknown };
-    const tag = typeof data._tag === "string" ? data._tag : "ProgramEvent";
+    const tag = programCommitEvent(event.data);
     const severity = programEventSeverity(tag);
     const existing = programRuntimeEvents.get(name);
     const tags = existing?.tags ?? new Set<string>();
@@ -248,7 +251,7 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
       count: (existing?.count ?? 0) + 1,
       failures: (existing?.failures ?? 0) + (severity === "error" ? 1 : 0),
       latest: event.label,
-      messages: (existing?.messages ?? 0) + (tag === "Message" ? 1 : 0),
+      messages: (existing?.messages ?? 0) + (tag === "message" ? 1 : 0),
       severity: existing === undefined ? severity : maxSeverity([existing.severity, severity]),
       tags,
     });
@@ -256,8 +259,7 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
   const programEventItems = summary.runtime.events
     .filter((event) => event.target?.kind === "Program")
     .map((event) => {
-      const data = isSerializableRecord(event.data) ? event.data : {};
-      const tag = typeof data._tag === "string" ? data._tag : "ProgramEvent";
+      const tag = programCommitEvent(event.data);
       const programName = event.target?.id.startsWith("program:")
         ? event.target.id.slice("program:".length)
         : (event.target?.id ?? "Program");

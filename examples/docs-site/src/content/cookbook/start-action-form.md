@@ -40,13 +40,13 @@ const form = StartAction.form(SubmitProjectName, {
 
 ## Enhance without changing semantics
 
-Enhanced clients can intercept submit and call the same Action through `submitEffect`.
+Enhanced clients intercept submit and call the same Action through its Component binding. The client runtime's `makeActionTransportLayer({ actions: [SubmitProjectName] })` routes it to the server, so the handle (and its result type) is the same one a local Action uses.
 
 ```ts
-const rename = StartAction.use(SubmitProjectName);
+const rename = yield * Component.action(SubmitProjectName);
 
 const submit = (formData: FormData) =>
-  StartAction.decodeFormDataEffect(ProjectNameFormInput, formData).pipe(
-    Effect.flatMap(({ name }) => rename.submitEffect({ id: project.id, name })),
+  StartAction.decodeFormData(ProjectNameFormInput, formData).pipe(
+    Effect.flatMap(({ name }) => rename.submit({ id: project.id, name })),
   );
 ```

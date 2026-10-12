@@ -1,4 +1,4 @@
-import { routeById, routeTree } from "./routeTree.gen.js";
+import { routeById, routes } from "./routeTree.gen.js";
 import {
   projectConsoleActionSources,
   projectConsoleServerFunctionSources,
@@ -8,7 +8,7 @@ import {
 // modules are available. Production app topology should come from the generated
 // `virtual:sunfall-arc/app-graph` artifact.
 export const projectConsoleStartGraph = {
-  routes: routeTree,
+  routes,
   routeById,
   serverFunctions: projectConsoleServerFunctionSources,
   actions: projectConsoleActionSources,

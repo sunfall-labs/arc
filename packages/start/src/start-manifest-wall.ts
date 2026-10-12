@@ -1,10 +1,9 @@
-import type { ActionDefinition, ServerFunction } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
 import {
   createStartAppGraph,
-  serializeStartAppGraph as serializeStartAppGraphArtifact,
+  serializeStartAppGraph,
   validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphWireSchemasEffect,
   type StartAppGraph,
@@ -65,24 +64,17 @@ export interface StartViteDevSsrOptions<
   RuntimeError = never,
 > extends StartHostForkRunnerOptions<RuntimeError> {}
 
-type AnyActionDefinition = ActionDefinition<any, any, any, any>;
-
 /**
  * Vite plugin options for Start manifests, route discovery, and build policy.
  *
- * Prefer source definitions (`serverFunctions`, `actions`, `fileRoutes`) for
- * small apps and explicit manifests when integrating with generated build
- * steps.
+ * Server functions and actions are declared through `serverFunctionSources` /
+ * `actionSources` (or prebuilt manifests from generated build steps).
  */
 export interface SunfallArcStartOptions {
-  /** Unsupported for manifest generation: use `serverFunctionSources` with explicit module/export metadata. */
-  readonly serverFunctions?: ReadonlyArray<ServerFunction<any, any, any, any>>;
   /** Prebuilt server-function manifest definitions. */
   readonly serverFunctionManifest?: Iterable<ServerFunctionManifestDefinition>;
   /** Server-function sources with explicit module/export references. */
   readonly serverFunctionSources?: Iterable<ServerFunctionManifestSource>;
-  /** Unsupported for manifest generation: use `actionSources` with explicit module/export metadata. */
-  readonly actions?: ReadonlyArray<AnyActionDefinition>;
   /** Prebuilt action manifest definitions. */
   readonly actionManifest?: Iterable<ActionManifestDefinition>;
   /** Action sources with explicit module/export references. */
@@ -180,20 +172,8 @@ export type StartAppGraphError =
   | ServerFunctionManifestError
   | ActionManifestError
   | FileRouteManifestError
-  | StartManifestDirectReferenceError
   | StartTransportEndpointPathError
   | StartTransportEndpointConflictError;
-
-export type StartManifestDirectReferenceKind = "serverFunctions" | "actions";
-
-export class StartManifestDirectReferenceError extends Data.TaggedError(
-  "StartManifestDirectReferenceError",
-)<{
-  readonly kind: StartManifestDirectReferenceKind;
-  readonly count: number;
-  readonly serverEntry: string;
-  readonly guidance: string;
-}> {}
 
 /** Compile-time define values generated from the Start Manifest Wall. */
 export interface StartManifestWallDefineValues {
@@ -219,23 +199,6 @@ export const defaultStartBuildWireSchemaPolicy: Required<StartAppGraphWireSchema
 export const defaultStartBuildPolicy: StartBuildPolicy = {
   wireSchemas: defaultStartBuildWireSchemaPolicy,
 };
-
-const directReferenceGuidance = (kind: StartManifestDirectReferenceKind): string =>
-  kind === "serverFunctions"
-    ? "Direct `serverFunctions` arrays only carry wire names, not implementation export names. Use `serverFunctionSources` with explicit `module` and `exportName`, or provide `serverFunctionManifest` entries."
-    : "Direct `actions` arrays only carry wire names, not implementation export names. Use `actionSources` with explicit `module` and `exportName`, or provide `actionManifest` entries.";
-
-const directReferenceError = (
-  kind: StartManifestDirectReferenceKind,
-  count: number,
-  serverEntry: string,
-): StartManifestDirectReferenceError =>
-  new StartManifestDirectReferenceError({
-    kind,
-    count,
-    serverEntry,
-    guidance: directReferenceGuidance(kind),
-  });
 
 const normalizeDiscoveredFileRoutePath = (path: string): string =>
   path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
@@ -373,96 +336,39 @@ export const discoverFileRoutesEffect = (
   });
 };
 
-/** Synchronous facade for Vite hooks and other sync host boundaries. */
-export const discoverFileRoutes = (options: FileRouteDiscoveryOptions = {}): readonly string[] =>
-  Effect.runSync(discoverFileRoutesEffect(options));
-
-const serverFunctionDefinitionsFromOptionsEffect = (
+const serverFunctionDefinitionsFromOptions = (
   options: SunfallArcStartOptions,
-  serverEntry: string,
-): Effect.Effect<Iterable<ServerFunctionManifestDefinition>, StartManifestDirectReferenceError> => {
-  if (options.serverFunctionManifest) {
-    return Effect.succeed(options.serverFunctionManifest);
-  }
+): Iterable<ServerFunctionManifestDefinition> =>
+  options.serverFunctionManifest ??
+  Array.from(options.serverFunctionSources ?? [], (source) =>
+    serverFunctionManifestDefinition(source.fn, source),
+  );
 
-  if (options.serverFunctionSources) {
-    return Effect.succeed(
-      Array.from(options.serverFunctionSources, (source) =>
-        serverFunctionManifestDefinition(source.fn, source),
-      ),
-    );
-  }
-
-  const direct = options.serverFunctions ?? [];
-  return direct.length === 0
-    ? Effect.succeed([])
-    : Effect.fail(directReferenceError("serverFunctions", direct.length, serverEntry));
-};
-
-const actionDefinitionsFromOptionsEffect = (
+const actionDefinitionsFromOptions = (
   options: SunfallArcStartOptions,
-  serverEntry: string,
-): Effect.Effect<Iterable<ActionManifestDefinition>, StartManifestDirectReferenceError> => {
-  if (options.actionManifest) {
-    return Effect.succeed(options.actionManifest);
-  }
-
-  if (options.actionSources) {
-    return Effect.succeed(
-      Array.from(options.actionSources, (source) =>
-        actionManifestDefinition(source.action, source),
-      ),
-    );
-  }
-
-  const direct = options.actions ?? [];
-  return direct.length === 0
-    ? Effect.succeed([])
-    : Effect.fail(directReferenceError("actions", direct.length, serverEntry));
-};
+): Iterable<ActionManifestDefinition> =>
+  options.actionManifest ??
+  Array.from(options.actionSources ?? [], (source) =>
+    actionManifestDefinition(source.action, source),
+  );
 
 /** Builds the server-function manifest from plugin options. */
 export const makeStartServerFunctionManifestEffect = (
   options: SunfallArcStartOptions = {},
-): Effect.Effect<
-  ServerFunctionManifest,
-  ServerFunctionManifestError | StartManifestDirectReferenceError
-> => {
-  const serverEntry = options.serverEntry ?? defaultServerEntry;
-  return Effect.gen(function* () {
-    const definitions = yield* serverFunctionDefinitionsFromOptionsEffect(options, serverEntry);
-    return yield* makeServerFunctionManifest(
-      definitions,
-      options.rpcPath === undefined ? {} : { rpcPath: options.rpcPath },
-    );
-  });
-};
-
-/** Synchronously serializes the Start server-function manifest. */
-export const serializeStartServerFunctionManifest = (
-  options: SunfallArcStartOptions = {},
-): string =>
-  Effect.runSync(
-    Effect.map(makeStartServerFunctionManifestEffect(options), serializeServerFunctionManifest),
+): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> =>
+  makeServerFunctionManifest(
+    serverFunctionDefinitionsFromOptions(options),
+    options.rpcPath === undefined ? {} : { rpcPath: options.rpcPath },
   );
 
 /** Builds the Start action manifest from plugin options. */
 export const makeStartActionManifestEffect = (
   options: SunfallArcStartOptions = {},
-): Effect.Effect<ActionManifest, ActionManifestError | StartManifestDirectReferenceError> => {
-  const serverEntry = options.serverEntry ?? defaultServerEntry;
-  return Effect.gen(function* () {
-    const definitions = yield* actionDefinitionsFromOptionsEffect(options, serverEntry);
-    return yield* makeActionManifest(
-      definitions,
-      options.actionPath === undefined ? {} : { actionPath: options.actionPath },
-    );
-  });
-};
-
-/** Synchronously serializes the Start action manifest. */
-export const serializeStartActionManifest = (options: SunfallArcStartOptions = {}): string =>
-  Effect.runSync(Effect.map(makeStartActionManifestEffect(options), serializeActionManifest));
+): Effect.Effect<ActionManifest, ActionManifestError> =>
+  makeActionManifest(
+    actionDefinitionsFromOptions(options),
+    options.actionPath === undefined ? {} : { actionPath: options.actionPath },
+  );
 
 const isFileRouteManifest = (value: unknown): value is FileRouteManifest =>
   typeof value === "object" &&
@@ -599,10 +505,6 @@ export const makeStartFileRouteManifestEffect = (
   return Effect.succeed(createFileRouteManifest([], options.fileRouteOptions));
 };
 
-/** Synchronously serializes the Start file-route manifest. */
-export const serializeStartFileRouteManifest = (options: SunfallArcStartOptions = {}): string =>
-  Effect.runSync(Effect.map(makeStartFileRouteManifestEffect(options), serializeFileRouteManifest));
-
 /** Combines route, server-function, and action manifests into a Start app graph. */
 export const makeStartAppGraphEffect = (
   options: SunfallArcStartOptions = {},
@@ -667,10 +569,6 @@ export const makeStartBuildAppGraphEffect = (
     return graph;
   });
 
-/** Synchronously serializes the policy-checked Start app graph. */
-export const serializeStartAppGraph = (options: SunfallArcStartOptions = {}): string =>
-  Effect.runSync(Effect.map(makeStartBuildAppGraphEffect(options), serializeStartAppGraphArtifact));
-
 /** Creates the production define values for a policy-checked Start app graph. */
 export const createStartManifestWallDefineValues = (
   graph: StartAppGraph,
@@ -678,7 +576,7 @@ export const createStartManifestWallDefineValues = (
   __SUNFALL_ARC_SERVER_FUNCTIONS__: serializeServerFunctionManifest(graph.serverFunctions),
   __SUNFALL_ARC_ACTIONS__: serializeActionManifest(graph.actions),
   __SUNFALL_ARC_FILE_ROUTES__: serializeFileRouteManifest(graph.routes),
-  __SUNFALL_ARC_APP_GRAPH__: serializeStartAppGraphArtifact(graph),
+  __SUNFALL_ARC_APP_GRAPH__: serializeStartAppGraph(graph),
 });
 
 /** Builds the production define values from plugin options. */

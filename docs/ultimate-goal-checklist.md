@@ -160,10 +160,11 @@ Last evidence pass: May 17, 2026.
     `packages/react/src/hooks.ts`, and `type-tests/framework.test-d.ts` keep
     Program-domain failures separate from adapter/runtime provision failures
     through `Program.RuntimeError<E, ER>` and hook `ER` parameters.
-- [x] Program timeline retention is an internal runtime policy.
-  - Evidence: `packages/core/src/program-runtime-timeline.ts` owns Program event
-    retention and disabled timeline behavior, with coverage in
-    `packages/core/test/program.test.ts`.
+- [x] State history is one whole-app Timeline, not a per-Program policy.
+  - Evidence: `packages/core/src/timeline.ts` records every commit through the
+    `signal-transaction.ts` recorder seam, with coverage in
+    `packages/core/test/timeline.test.ts` and
+    `packages/solid/test/timeline.test.ts`.
 - [x] Program facade is separated from contract, story, and runtime execution.
   - Evidence: `packages/core/src/program.ts` preserves public exports while
     `program-contract.ts`, `program-primitives.ts`, `program-story.ts`, and

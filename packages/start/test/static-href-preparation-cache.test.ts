@@ -12,8 +12,8 @@ describe("Start static href preparation cache", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-          const ProjectById = Resource.family({
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const ProjectById = Resource.define({
             name: "Start.Static.Cache.Project.coalesced",
             load: (
               _id: string,
@@ -43,7 +43,7 @@ describe("Start static href preparation cache", () => {
               Effect.gen(function* () {
                 yield* Deferred.succeed(prepareStarted, undefined);
                 yield* Deferred.await(releasePrepare);
-                yield* Resource.hydrateEffect(payload);
+                yield* Resource.hydrate(payload);
                 return yield* startStaticHydratedHrefPreparationOutcomeEffect(payload);
               }),
             ),
@@ -78,8 +78,8 @@ describe("Start static href preparation cache", () => {
         Effect.scoped(
           Effect.gen(function* () {
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-            const ProjectById = Resource.family({
+            yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+            const ProjectById = Resource.define({
               name: "Start.Static.Cache.Project.stale",
               load: (
                 _id: string,
@@ -109,7 +109,7 @@ describe("Start static href preparation cache", () => {
               runtime.provide(
                 Effect.gen(function* () {
                   const currentPayload = payload();
-                  yield* Resource.hydrateEffect(currentPayload);
+                  yield* Resource.hydrate(currentPayload);
                   return yield* startStaticHydratedHrefPreparationOutcomeEffect(currentPayload);
                 }),
               ),

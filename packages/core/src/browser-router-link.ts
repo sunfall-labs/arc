@@ -131,9 +131,7 @@ export interface BrowserRouterLinkPreloader {
   /** Starts a fresh preload, interrupting any previous hover preload first. */
   preload(): void;
   /** Interrupts the active hover preload, when one is running. */
-  interruptEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for UI adapter cleanup hooks. */
-  interrupt(): void;
+  interrupt(): Effect.Effect<void>;
 }
 
 /** Stable facts that decide whether an in-flight link preload still belongs to the rendered anchor. */
@@ -196,7 +194,7 @@ export interface BrowserRouterLinkPreloaderOptions<ER = unknown> {
   /** Dynamic gate for disabled preloads or links outside this router. */
   readonly enabled: () => boolean;
   /** Builds the current route preload Effect after route services have already been provided. */
-  readonly preloadEffect: () => Effect.Effect<void, unknown, never>;
+  readonly preload: () => Effect.Effect<void, unknown, never>;
 }
 
 /**
@@ -250,7 +248,7 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     interrupt();
     const currentRevision = ++revision;
     preloadFiber = options.runtime.runFork(
-      options.preloadEffect().pipe(
+      options.preload().pipe(
         Effect.catchCause(() => Effect.void),
         Effect.ensuring(
           Effect.sync(() => {
@@ -263,5 +261,5 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     );
   };
 
-  return { bindPreloadIdentity, interruptEffect, interrupt, preload };
+  return { bindPreloadIdentity, interrupt: interruptEffect, preload };
 };

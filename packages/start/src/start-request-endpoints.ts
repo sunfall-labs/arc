@@ -1,8 +1,8 @@
 import {
-  Action,
+  ActionTransport,
   Server,
   ServerRpcProtocolError,
-  applyResponseContextEffect,
+  applyResponseContext,
   type EffectInputCallbackError,
   makeResponseContext,
   type ActionDefinition,
@@ -11,11 +11,13 @@ import {
   type AppDefinitionRegistryActionRequirements,
   type AppDefinitionRegistryServerFunctionRequirements,
   type ActionDefinitionRequirements,
+  type AnySunfallArcRuntime,
   type SunfallArcRuntime,
   type Route,
   type ResponseContext,
 } from "@sunfall/arc-core";
-import { Cause, Effect, Exit, type Scope } from "effect";
+import { makeActionInstance } from "@sunfall/arc-core/internal";
+import { Cause, Effect, Exit, Option, type Scope } from "effect";
 import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
@@ -177,7 +179,7 @@ export const createServerRpcResponseEffectWithRuntime = <
  * Handles one server-function RPC request and encodes the protocol response.
  *
  * This is the low-level RPC endpoint handler. Most applications use
- * `createRequestHandlerEffect`, which routes RPC, actions, and SSR together.
+ * `createRequestHandler`, which routes RPC, actions, and SSR together.
  */
 export const createServerRpcResponseEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
@@ -202,9 +204,9 @@ export const createServerRpcResponseEffect = <
   return Effect.ensuring(
     Effect.flatMap(
       createServerRpcResponseEffectWithRuntime(app, request, runtime, responseContext),
-      (response) => applyResponseContextEffect(responseContext, response),
+      (response) => applyResponseContext(responseContext, response),
     ),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+    runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,
@@ -311,9 +313,21 @@ export const createServerActionResponseEffectWithRuntime = <
             return input;
           }
 
-          const instance = Action.use(action as unknown as ActionDefinition<any, any, never, any>);
+          // The request runtime is already running this endpoint, so it adds
+          // no startup failures to the submission.
+          const instance = makeActionInstance(
+            action as unknown as ActionDefinition<any, any, never, any>,
+            runtime as unknown as AnySunfallArcRuntime<never>,
+          );
+          // The action endpoint is where served Actions run: never route this
+          // submission through an ActionTransport the calling fiber may carry.
           const exit = yield* Effect.exit(
-            withStartActionObservability(action.name, instance.submitEffect(input)),
+            withStartActionObservability(
+              action.name,
+              Effect.provideService(instance.submit(input), ActionTransport, {
+                submit: () => Option.none(),
+              }),
+            ),
           );
           const failureKind = yield* actionFailureKindEffect(action, exit);
           const metaExit = yield* Effect.exit(
@@ -395,9 +409,9 @@ export const createServerActionResponseEffect = <
   return Effect.ensuring(
     Effect.flatMap(
       createServerActionResponseEffectWithRuntime(app, request, runtime, actions, responseContext),
-      (response) => applyResponseContextEffect(responseContext, response),
+      (response) => applyResponseContext(responseContext, response),
     ),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+    runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,

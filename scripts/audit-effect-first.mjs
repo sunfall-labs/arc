@@ -265,13 +265,13 @@ const allowed = [
       ),
       seam(
         "packages/solid/src/component.ts",
-        "Solid embedded Component setup async memo Adapter",
-        /const setupRenderToken = <P>\(fiber: Fiber\.Fiber<Component\.Render<P>, unknown>\) =>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+        "Solid Component instance setup async memo Adapter",
+        /const setupRenderToken = \(fiber: Fiber\.Fiber<Component\.Render, unknown>\) =>\s*Effect\.runPromise\(Effect\.map\(Effect\.exit\(Fiber\.join\(fiber\)\), renderFromExit\)\);/,
       ),
       seam(
         "packages/solid/src/route-render-scope.ts",
         "Solid lazy route component async memo Adapter",
-        /createMemo<RouteComponent>\(\(\) =>\s*Effect\.runPromise\(\s*Fiber\.join\(preload\)\.pipe\(/,
+        /createMemo<\{ readonly component: unknown \}>\(\(\) =>\s*Effect\.runPromise\(\s*Fiber\.join\(preload\)\.pipe\(/,
       ),
       seam(
         "packages/start/src/request-runtime-response.ts",
@@ -295,7 +295,7 @@ const allowed = [
     name: "Promise return type",
     seams: [
       seam(
-        "packages/start/src/fetch-adapter.ts",
+        "packages/start/src/fetch.ts",
         "Fetch host Promise handler facade",
         /export type StartFetchPromiseHandler\s*=\s*\(request:\s*Request\)\s*=>\s*Promise<Response>;/,
       ),
@@ -392,22 +392,12 @@ const allowed = [
       seam(
         "type-tests/framework.test-d.ts",
         "Promise negative fixture promisedSqliteRow",
-        /declare const promisedSqliteRow:\s*Promise<Collection\.SQLiteStorageRow\s*\|\s*null>;/,
-      ),
-      seam(
-        "type-tests/framework.test-d.ts",
-        "Promise negative fixture promisedChangeFeedSubscription",
-        /declare const promisedChangeFeedSubscription:\s*Promise<Collection\.ChangeFeedSubscription>;/,
+        /declare const promisedSqliteRow:\s*Promise<SQLitePersistence\.Row\s*\|\s*null>;/,
       ),
       seam(
         "type-tests/framework.test-d.ts",
         "Promise negative fixture startResponsePromise",
         /declare const startResponsePromise:\s*Promise<Response>;/,
-      ),
-      seam(
-        "type-tests/solid.test-d.ts",
-        "Solid RuntimeProvider Promise observer negative fixture",
-        /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/,
       ),
       seam(
         "type-tests/solid-db.test-d.ts",
@@ -416,8 +406,8 @@ const allowed = [
       ),
       seam(
         "type-tests/db.test-d.ts",
-        "DB preload controller observer Promise negative fixture",
-        /declare const dbPreloadObserverPromise:\s*Promise<void>;/,
+        "DB sync adapter Promise negative fixture",
+        /declare const promiseRows:\s*Promise<ReadonlyArray<Project>>;/,
       ),
       seam(
         "type-tests/core.test-d.ts",
@@ -1064,8 +1054,8 @@ const banned = [
       ),
       seam(
         "examples/docs-site/src/main.tsx",
-        "docs-site dev-only BrowserRpcLive dynamic import",
-        /\(await import\(\)\)\.BrowserRpcLive/,
+        "docs-site dev-only makeRpcClientLayer dynamic import",
+        /\(await import\(\)\)\.makeRpcClientLayer\(\)/,
       ),
       seam(
         "examples/docs-site/src/main.tsx",
@@ -1198,7 +1188,7 @@ const assertMarkdownSnippetExtraction = () => {
       "pnpm verify",
       "```",
       "```tsx",
-      "<RuntimeProvider />",
+      "<RouterProvider />",
       "```",
     ].join("\n"),
   );

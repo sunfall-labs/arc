@@ -19,7 +19,7 @@ pnpm --filter @sunfall/arc-starter-basic verify
 The starter proves:
 
 - Start SSR with an Effect-returning `createRequestHandler`;
-- browser hydration with the synchronous `hydrateFromDocument` host facade,
-  which runs `hydrateFromDocumentEffect(...)` before the UI mounts;
+- browser hydration that runs `hydrateFromDocument(...)` on the client runtime
+  before `Component.launch` hydrates the server markup;
 - a route-owned Resource preload declared in file route metadata;
 - server-only module leakage checks after production build.

@@ -2,6 +2,7 @@ import {
   Cause,
   Effect,
   Fiber,
+  type Layer,
   Metric,
   Request as EffectRequest,
   RequestResolver,
@@ -15,6 +16,7 @@ import {
   Action,
   ActionInterrupted,
   ActionResult,
+  type ActionTransport,
   Capability,
   EffectInputCallbackError,
   Form,
@@ -31,58 +33,66 @@ import {
   RuntimeDisposeError,
   Server,
   Signal,
+  disposeResourceStore,
+  makeMemoryBrowserHistoryAdapter,
+  makeResourceStore,
+  makeRuntime,
+  type ActionSubmissionConcurrency,
+  type ActionState,
+  type ActionResultInvalidationRequirements,
+  type AnySunfallArcRuntime,
+  RouterRouteNotRegistered,
+  type BrowserHistoryAdapter,
+  type BrowserHistoryWindow,
+  type BrowserNavigateArgs,
+  type BrowserRouterError,
+  type BrowserRouterHostController,
+  type BrowserRouterState,
+  type SunfallArcRuntime,
+  type EffectInput,
+  type MemoryBrowserHistoryAdapter,
+  type ParamsForPath,
+  type RoutePreloadResult,
+  type ResourceHydrationPayload,
+  type ResourceSnapshotCodecOperation,
+  type ResourceStore,
+  Timeline,
+  TimelineAlreadyRecording,
+  TimelineEntryUnavailable,
+  type TimelineCause,
+  type TimelineEntry,
+  type TimelineRecording,
+  App,
+} from "@sunfall/arc-core";
+import {
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
   buildRoutePath,
   cloneResourceSnapshotValue,
-  defineApp,
-  disposeResourceStoreEffect,
   hrefForRouteInput,
   invokeEffectInput,
   isRouteParamName,
   makeActionSubmissionController,
   makeCoreDefinitionRegistry,
   makeCoreDefinitionRegistryAdapter,
-  makeMemoryBrowserHistoryAdapter,
   makeResourceDefinitionRegistry,
-  makeResourceStore,
-  makeRuntime,
   makeRuntimeUiScope,
   makeRuntimeUiScopeFrame,
   makeWindowBrowserHistoryAdapter,
   matchRoutePath,
   parseRoutePathSegments,
-  read,
-  route,
   routeParamsFromSegments,
   routePathFromSegments,
   routePathSlug,
   toEffect,
-  validateResourceHydrationInputEffect,
-  type ActionSubmissionConcurrency,
-  type ActionState,
-  type ActionResultInvalidationRequirements,
-  type AnySunfallArcRuntime,
-  type BrowserHistoryAdapter,
-  type BrowserHistoryWindow,
   type BrowserRouterLinkClickDecision,
   type BrowserRouterLinkIgnoreReason,
   type BrowserRouterLinkPreloadDecision,
   type BrowserRouterLinkPreloadIdentity,
-  type BrowserRouterHostController,
-  type SunfallArcRuntime,
-  type EffectInput,
-  type MemoryBrowserHistoryAdapter,
-  type ParamsForPath,
-  type RoutePreloadResult,
-  type ResourceHydrationInput,
-  type ResourceHydrationPayload,
-  type ResourceSnapshotCodecOperation,
-  type ResourceStore,
   type RuntimeUiScopeFrame,
   type UiScope,
-} from "@sunfall/arc-core";
+} from "@sunfall/arc-core/internal";
 // @ts-expect-error MutableResourceStore is an internal store implementation, not a root export.
 import type { MutableResourceStore } from "@sunfall/arc-core";
 // @ts-expect-error unsafeMutableResourceStore is an internal store implementation escape hatch, not a root export.
@@ -93,44 +103,32 @@ import {
   Collection,
   CollectionRowKeyChanged,
   CollectionRowNotFound,
-  Query,
   CollectionSnapshotCodecError,
   CollectionStorageError,
-  ReadonlyCollectionMutation,
+  Query,
   QueryEvaluationError,
+  ReadonlyCollectionMutation,
+  SQLitePersistence,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidTableName,
-  eq,
-  flushCollectionsPendingMutationsEffect,
-  makeCollectionReactivePreloadController,
-  makeSQLitePersistenceStorage,
-  serverCollectionOptions,
 } from "@sunfall/arc-db";
 import {
-  useCollection,
-  useLiveQuery,
-  type CollectionHandle,
-  type LiveQueryHandle,
-} from "@sunfall/arc-solid-db";
+  collectCollectionsEffect,
+  collectionStoreEffect,
+  dehydrateCollections,
+  dehydrateCollectionsEffect,
+  hydrateCollectionsEffect,
+  validateCollectionsHydrationEffect,
+  type CollectionStoreDiagnosticsSnapshot,
+  type CollectionStoreEvent,
+} from "@sunfall/arc-db/internal";
+import { SolidDb, type CollectionHandle, type LiveQueryHandle } from "@sunfall/arc-solid-db";
 import {
-  createBrowserRouter,
+  Component,
   RouterContextMissing,
-  RuntimeProvider,
   RouterProvider,
-  RouterRouteNotRegistered,
-  useAction,
-  useResource,
-  useResourceSuspense,
-  useProgram,
-  useRuntimeEffect,
-  useStream,
-  type BrowserNavigateArgs,
+  useRouter,
   type BrowserRouter,
-  type BrowserRouterError,
-  type BrowserRouterPath,
-  type BrowserRouterRouteForPath,
-  type BrowserRouterState,
-  type ProgramHandle,
   type RouterLinkProps,
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
@@ -138,13 +136,9 @@ import {
   describeDevtoolsPanels,
   describeDevtoolsSummary,
   makeDevtoolsStore,
-  normalizeAppGraphCollectionDefinitions,
-  normalizeAppGraphUnknownRoutePreloadCollections,
-  normalizeDevtoolsAppGraphDiagnostics,
-  normalizeRouteModulePreloadCollections,
   type DevtoolsCollectionStoreEvent,
   type DevtoolsInvalidationPlan,
-  type DevtoolsProgramEvent,
+  type DevtoolsTimelineCommit,
   type DevtoolsPanels,
   type DevtoolsRequestTrace,
   type DevtoolsRequestTraceTeardown,
@@ -158,50 +152,47 @@ import {
   type DevtoolsSummary,
 } from "@sunfall/arc-devtools";
 import {
-  Action as StartRootAction,
-  defineApp as startRootDefineApp,
+  normalizeAppGraphCollectionDefinitions,
+  normalizeAppGraphUnknownRoutePreloadCollections,
+  normalizeDevtoolsAppGraphDiagnostics,
+  normalizeRouteModulePreloadCollections,
+} from "../packages/devtools/src/app-graph-normalizer.js";
+import {
   createRequestHandler,
-  createRequestHandlerEffect,
+  createStartStreamedHtmlResponse,
+  hydrateFromDocument,
+  makeRpcClientLayer,
+  StartAction,
+  makeActionTransportLayer,
+  type StartActionInvalidationPlan,
+  type StartFetch,
+  type StartHydrationError,
+  type StartRequestHandler,
+  type StartRequestHandlerError,
+  type StartRequestTrace,
+  type StartStreamedHtmlResponseOptions,
+  FileRoute,
+} from "@sunfall/arc-start";
+import {
   createFileRouteDefinitionsModule,
   createFileRouteModuleReferences,
   createGeneratedFileRouteDefinitionsModule,
-  createServerActionResponseEffect,
-  createServerRpcResponseEffect,
-  createStartAgentGraphImpact,
-  createStartAgentGraphImpactEffect,
-  createStartAgentGraph,
-  createStartAgentGraphEffect,
-  createStartStreamedHtmlResponseEffect,
   defaultGeneratedFileRouteDefinitionsHeader,
-  defineFileRoute,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
-  hydrateFromDocument,
-  hydrateFromDocumentEffect,
-  hydrateStartHydrationChunksFromDocument,
-  hydrateStartHydrationChunksFromDocumentEffect,
-  makeStartEffectRpcGroup,
-  makeRpcClient,
-  makeRpcClientLayer,
-  preloadRequest,
-  preloadRequestEffect,
+  type FileRouteDefinitionsModuleOptions,
+  type GeneratedFileRouteDefinitionsModuleOptions,
+} from "../packages/start/src/file-route-modules.js";
+import type { FileRouteManifest } from "../packages/start/src/file-routes.js";
+import {
+  createServerActionResponseEffect,
+  createServerRpcResponseEffect,
+} from "../packages/start/src/start-request-endpoints.js";
+import {
+  createStartAgentGraphImpact,
+  createStartAgentGraph,
   formatStartAgentGraphImpact,
   queryStartAgentGraph,
-  queryStartAgentGraphEffect,
-  readStartHydrationChunks,
-  read as startRootRead,
-  Resource as StartRootResource,
-  route as startRootRoute,
-  Route as StartRootRoute,
-  serverFunctionToEffectRpc,
-  Server as StartRootServer,
-  Signal as StartRootSignal,
-  StartAction,
-  startActionForm,
-  startRequestCountMetric,
-  startRequestDurationMetric,
-  startRequestStatusMetric,
-  startTransportEndpointEnvelopeEffect,
   formatStartAgentGraph,
   type StartAgentGraph,
   type StartAgentGraphEdge,
@@ -221,43 +212,49 @@ import {
   type StartAgentGraphQueryResult,
   type StartAgentGraphSelfReview,
   type StartAgentGraphSummary,
-  type FileRouteDefinitionsModuleOptions,
-  type FileRouteManifest,
-  type GeneratedFileRouteDefinitionsModuleOptions,
-  type StartActionInvalidationPlan,
-  type StartEffectRpcCompatibilityArtifact,
-  type StartHydrationError,
-  type StartRequestHandler,
-  type StartRequestHandlerError,
-  type StartRequestTrace,
+} from "../packages/start/src/agent-graph.js";
+import type { StartAppGraphDiagnostics } from "../packages/start/src/app-graph.js";
+import {
+  hydrateStartHydrationChunksFromDocumentEffect,
+  readStartHydrationChunksEffect,
+  streamHydrationConsumedAttribute,
+} from "../packages/start/src/hydration.js";
+import { preloadRequest } from "../packages/start/src/start-request-preload.js";
+import {
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric,
   type StartRequestTraceTeardown,
-  type StartAppGraphDiagnostics,
-  type StartFetch,
-  type StartStreamedHtmlResponseOptions,
+} from "../packages/start/src/request-trace.js";
+import {
+  startTransportEndpointEnvelopeEffect,
   type StartTransportDiagnosticsOptions,
   type StartTransportEndpointEnvelope,
-  streamHydrationConsumedAttribute,
-  submitStartActionEffect,
-} from "@sunfall/arc-start";
+} from "../packages/start/src/rpc.js";
 import {
   sunfallArcStart,
   FileRouteDefinitionsFileWriteError,
-  handleSsrDevRequestEffect,
-  loadStartAppGraphDiagnostics,
-  loadStartAppGraphDiagnosticsEffect,
-  startDevServerFromVite,
   StartDevServerError,
   StartHandlerNotFound,
-  writeFileRouteDefinitionsFileEffect,
   type SunfallArcStartPlugin,
-  type FileRouteDefinitionsFileWriteFailure,
-  type FileRouteDefinitionsFileWriteResult,
+} from "@sunfall/arc-start/vite";
+import {
+  handleSsrDevRequest,
+  startDevServerFromVite,
+  type StartDevServer,
+  type StartSsrRequestHandler,
+} from "../packages/start/src/start-vite-dev-ssr.js";
+import {
+  loadStartAppGraphDiagnostics,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
-  type StartDevServer,
   type StartAppGraphDiagnosticsLoadError,
-  type StartSsrRequestHandler,
-} from "@sunfall/arc-start/vite";
+} from "../packages/start/src/start-vite-diagnostics-loader.js";
+import {
+  writeFileRouteDefinitionsFileEffect,
+  type FileRouteDefinitionsFileWriteFailure,
+  type FileRouteDefinitionsFileWriteResult,
+} from "../packages/start/src/generated-route-definitions.js";
 import {
   createStartDiagnosticsReport as createSubpathStartDiagnosticsReport,
   formatStartDiagnosticsReport as formatSubpathStartDiagnosticsReport,
@@ -269,152 +266,72 @@ import {
   type StartDiagnosticsReportStatus as SubpathStartDiagnosticsReportStatus,
   type StartDiagnosticsReportSummary as SubpathStartDiagnosticsReportSummary,
 } from "@sunfall/arc-start/diagnostics-report";
-import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "@sunfall/arc-start/cli";
-import "@sunfall/arc-start/virtual";
+import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "../packages/start/src/cli.js";
 import {
-  createNodeHandler,
-  createNodeHandlerEffect,
-  createNodeServerHandler,
-  nodeRequestOrigin,
-  nodeRequestToWebRequest,
-  nodeRequestToWebRequestEffect,
+  createFetchHandler,
   toFetchHandler,
-  toFetchHandlerEffect,
-  writeNodeResponse,
-  writeNodeResponseEffect,
   type StartFetchHandler,
-  type StartFetchHandlerEffect,
   type StartFetchPromiseHandler,
   type StartFetchPromiseHandlerOptions,
   type StartFetchPromiseHandlerRuntimeOptions,
+} from "@sunfall/arc-start/fetch";
+import {
+  createNodeHandler,
+  createNodeServerHandler,
+  nodeRequestOrigin,
+  nodeRequestToWebRequest,
+  writeNodeResponse,
   type StartForkRuntime,
   type StartNodeAdapterError,
   type StartNodeHandler,
-  type StartNodeHandlerEffect,
   type StartNodeOriginPolicy,
   type StartNodeRequestOptions,
+  type StartNodeServerHandler,
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions,
-} from "@sunfall/arc-start/adapters";
-import {
-  createFetchHandler as createSubpathFetchHandler,
-  toFetchHandler as toSubpathFetchHandler,
-  toFetchHandlerEffect as toSubpathFetchHandlerEffect,
-  type StartFetchHandler as SubpathStartFetchHandler,
-  type StartFetchHandlerEffect as SubpathStartFetchHandlerEffect,
-  type StartFetchPromiseHandler as SubpathStartFetchPromiseHandler,
-  type StartFetchPromiseHandlerOptions as SubpathStartFetchPromiseHandlerOptions,
-  type StartFetchPromiseHandlerRuntimeOptions as SubpathStartFetchPromiseHandlerRuntimeOptions,
-} from "@sunfall/arc-start/fetch-adapter";
-import {
-  createNodeHandler as createSubpathNodeHandler,
-  createNodeHandlerEffect as createSubpathNodeHandlerEffect,
-  createNodeServerHandler as createSubpathNodeServerHandler,
-  nodeRequestOrigin as subpathNodeRequestOrigin,
-  nodeRequestToWebRequest as subpathNodeRequestToWebRequest,
-  nodeRequestToWebRequestEffect as subpathNodeRequestToWebRequestEffect,
-  writeNodeResponse as subpathWriteNodeResponse,
-  writeNodeResponseEffect as subpathWriteNodeResponseEffect,
-  type StartForkRuntime as SubpathStartForkRuntime,
-  type StartNodeHandler as SubpathStartNodeHandler,
-  type StartNodeHandlerEffect as SubpathStartNodeHandlerEffect,
-  type StartNodeOriginPolicy as SubpathStartNodeOriginPolicy,
-  type StartNodeRequestOptions as SubpathStartNodeRequestOptions,
-  type StartNodeServerHandler as SubpathStartNodeServerHandler,
-  type StartNodeServerHandlerOptions as SubpathStartNodeServerHandlerOptions,
-  type StartNodeServerHandlerRuntimeOptions as SubpathStartNodeServerHandlerRuntimeOptions,
-  type WriteNodeResponseOptions as SubpathWriteNodeResponseOptions,
-} from "@sunfall/arc-start/node-adapter";
-import {
-  createFetchHandler as createPackagedFetchHandler,
-  toFetchHandler as toPackagedFetchHandler,
-  toFetchHandlerEffect as toPackagedFetchHandlerEffect,
-  type StartFetchHandler as PackagedStartFetchHandler,
-  type StartFetchHandlerEffect as PackagedStartFetchHandlerEffect,
-  type StartFetchPromiseHandler as PackagedStartFetchPromiseHandler,
-  type StartFetchPromiseHandlerOptions as PackagedStartFetchPromiseHandlerOptions,
-  type StartFetchPromiseHandlerRuntimeOptions as PackagedStartFetchPromiseHandlerRuntimeOptions,
-} from "@sunfall/arc-start-fetch";
-import {
-  createNodeHandler as createPackagedNodeHandler,
-  createNodeHandlerEffect as createPackagedNodeHandlerEffect,
-  createNodeServerHandler as createPackagedNodeServerHandler,
-  nodeRequestOrigin as packagedNodeRequestOrigin,
-  nodeRequestToWebRequest as packagedNodeRequestToWebRequest,
-  nodeRequestToWebRequestEffect as packagedNodeRequestToWebRequestEffect,
-  writeNodeResponse as packagedWriteNodeResponse,
-  writeNodeResponseEffect as packagedWriteNodeResponseEffect,
-  type StartForkRuntime as PackagedStartForkRuntime,
-  type StartNodeHandler as PackagedStartNodeHandler,
-  type StartNodeHandlerEffect as PackagedStartNodeHandlerEffect,
-  type StartNodeOriginPolicy as PackagedStartNodeOriginPolicy,
-  type StartNodeRequestOptions as PackagedStartNodeRequestOptions,
-  type StartNodeServerHandlerOptions as PackagedStartNodeServerHandlerOptions,
-  type StartNodeServerHandlerRuntimeOptions as PackagedStartNodeServerHandlerRuntimeOptions,
-  type WriteNodeResponseOptions as PackagedWriteNodeResponseOptions,
-} from "@sunfall/arc-start-node";
-import sunfallArcTsrxDefault, {
-  sunfallArcTsrx,
-  type SunfallArcTsrxOptions,
-} from "@sunfall/arc-tsrx";
+} from "@sunfall/arc-start/node";
+import { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 import type { PluginOption } from "vite";
 import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/domain.contract.js";
 import "@sunfall/arc-start/virtual";
 import { diagnosticsPolicyViolations as virtualDiagnosticsPolicyViolations } from "virtual:sunfall-arc/app-graph";
 import {
-  hrefById as virtualHrefByIdForRoute,
-  hrefByPath as virtualHrefByPathForRoute,
-  isRoutePathMatch as isVirtualRoutePathMatch,
-  layoutsByPath as virtualLayoutsByPath,
+  layoutsById as virtualLayoutsById,
   metadataById as virtualMetadataById,
-  routeIdByPath as virtualRouteIdByPath,
   routeById as virtualRouteById,
-  routeByPath as virtualRouteByPath,
   routes as virtualFileRoutes,
   type FileRouteLayouts as VirtualFileRouteLayouts,
   type FileRouteMetadataModules as VirtualFileRouteMetadataModules,
-  type Href as VirtualHref,
-  type HrefArgs as VirtualHrefArgs,
-  type HrefById as VirtualHrefById,
-  type HrefByPath as VirtualHrefByPath,
+  type FileRouteHrefOptions as VirtualHref,
+  type FileRouteHrefArgs as VirtualHrefArgs,
+  type FileRouteHrefOptionsById as VirtualHrefById,
   type FileRouteId as VirtualFileRouteId,
-  type FileRoutePath as VirtualFileRoutePath,
-  type Match as VirtualMatch,
-  type ParamsById as VirtualParamsById,
-  type RouteId as VirtualRouteId,
-  type RoutePath as VirtualRoutePath,
-  type SearchByPath as VirtualSearchByPath,
+  type FileRouteParamsById as VirtualParamsById,
+  type FileRouteId as VirtualRouteId,
 } from "virtual:sunfall-arc/routes";
 import type {
   FileRouteHrefOptionsById as ProjectConsoleFileRouteHrefOptionsById,
-  FileRouteHrefOptionsByPath as ProjectConsoleFileRouteHrefOptionsByPath,
   FileRouteLayouts as ProjectConsoleFileRouteLayouts,
   FileRouteMetadataModules as ProjectConsoleFileRouteMetadataModules,
   FileRouteId as ProjectConsoleFileRouteId,
   FileRouteParamsById as ProjectConsoleFileRouteParamsById,
-  FileRoutePath as ProjectConsoleFileRoutePath,
-  FileRouteSearchByPath as ProjectConsoleFileRouteSearchByPath,
-  Href as ProjectConsoleHref,
-  HrefArgs as ProjectConsoleHrefArgs,
-  HrefById as ProjectConsoleHrefById,
-  HrefByPath as ProjectConsoleHrefByPath,
-  Match as ProjectConsoleMatch,
-  ParamsById as ProjectConsoleParamsById,
-  RouteIdByPath as ProjectConsoleRouteIdByPath,
-  RouteId as ProjectConsoleRouteId,
-  RoutePath as ProjectConsoleRoutePath,
+  FileRouteSearchById as ProjectConsoleFileRouteSearchById,
+  FileRouteHrefOptions as ProjectConsoleHref,
+  FileRouteHrefArgs as ProjectConsoleHrefArgs,
+  FileRouteHrefOptionsById as ProjectConsoleHrefById,
+  FileRouteParamsById as ProjectConsoleParamsById,
+  FileRouteId as ProjectConsoleRouteId,
   RouteTree as ProjectConsoleRouteTree,
 } from "../examples/project-console/src/routeTree.gen.js";
 import {
-  layoutsByPath as projectConsoleLayoutsByPath,
+  layoutsById as projectConsoleLayoutsById,
   metadataById as projectConsoleMetadataById,
-  hrefById as projectConsoleHrefById,
-  hrefByPath as projectConsoleHrefByPath,
-  isRoutePathMatch as isProjectConsoleRoutePathMatch,
-  routeIdByPath as projectConsoleRouteIdByPath,
-  routeByPath as projectConsoleRouteByPath,
+  routeById as projectConsoleRouteById,
 } from "../examples/project-console/src/routeTree.gen.js";
+
+/** Type-level only: the value a setup-time binding produces inside a Component setup. */
+const bound = <A>(_binding: Effect.Effect<A, any, any>): A => undefined as never;
 
 const tsrxOptions: SunfallArcTsrxOptions = {
   optimizeDeps: {
@@ -422,17 +339,7 @@ const tsrxOptions: SunfallArcTsrxOptions = {
   },
 };
 const tsrxPlugins: PluginOption[] = sunfallArcTsrx(tsrxOptions);
-const defaultTsrxPlugins: PluginOption[] = sunfallArcTsrxDefault();
 void tsrxPlugins;
-void defaultTsrxPlugins;
-const startRootAction: typeof Action = StartRootAction;
-const startRootResource: typeof Resource = StartRootResource;
-const startRootRouteNamespace: typeof Route = StartRootRoute;
-const startRootRouteHelper: typeof route = startRootRoute;
-const startRootServer: typeof Server = StartRootServer;
-const startRootSignal: typeof Signal = StartRootSignal;
-const startRootAppHelper: typeof defineApp = startRootDefineApp;
-const startRootReadHelper: typeof read = startRootRead;
 const startRootRpcEndpointHelper: typeof createServerRpcResponseEffect =
   createServerRpcResponseEffect;
 const startRootActionEndpointHelper: typeof createServerActionResponseEffect =
@@ -444,14 +351,6 @@ const startTransportEnvelopeEffect: Effect.Effect<StartTransportEndpointEnvelope
     new Request("https://example.com/__sunfall-arc/rpc"),
     startTransportEnvelopeOptions,
   );
-void startRootAction;
-void startRootResource;
-void startRootRouteNamespace;
-void startRootRouteHelper;
-void startRootServer;
-void startRootSignal;
-void startRootAppHelper;
-void startRootReadHelper;
 void startRootRpcEndpointHelper;
 void startRootActionEndpointHelper;
 void startTransportEnvelopeEffect;
@@ -514,10 +413,8 @@ const wrappedEffectValueCheck: Effect.Effect<Effect.Effect<number>> = wrappedEff
 void wrappedEffectValueCheck;
 // @ts-expect-error Program.next models cannot be Effect-shaped values; wrap domain Effects in Effect.succeed(...)
 Program.next(effectNumberValue);
-// @ts-expect-error Program dispatch commands cannot accept Effect-shaped messages
-Program.dispatch(effectNumberValue);
 // @ts-expect-error Program commands cannot emit Effect-shaped messages
-Program.command<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
+Program.emit<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
 // @ts-expect-error Program subscriptions cannot emit Effect-shaped messages
 Program.subscription(Stream.succeed(effectNumberValue));
 // @ts-expect-error Program initial models cannot be Effect-shaped values
@@ -532,9 +429,9 @@ Program.next<unknown, "bad">(promisedProject);
 // @ts-expect-error Effects cannot hide Program.next Promise-shaped model values
 Effect.succeed(Program.next(promisedProject));
 // @ts-expect-error Program commands cannot emit Promise-shaped messages
-Program.command<unknown>(Effect.succeed(promisedProject));
-// @ts-expect-error Program dispatch commands cannot accept Promise-shaped messages
-Program.dispatch(promisedProject);
+Program.emit<unknown>(Effect.succeed(promisedProject));
+// @ts-expect-error Program commands cannot emit Promise-shaped messages
+Program.emit(promisedProject);
 // @ts-expect-error Program subscriptions cannot emit Promise-shaped messages
 Program.subscription(Stream.succeed(promisedProject));
 // @ts-expect-error Program message types cannot be Promise-shaped
@@ -544,9 +441,10 @@ Program.define<number, undefined>({ initial: 0, update: (model: number) => model
 // @ts-expect-error Program message types cannot be void because command Effects use undefined as the no-message sentinel
 Program.define<number, void>({ initial: 0, update: (model: number) => model });
 // @ts-expect-error Program dispatch commands cannot accept undefined messages
-Program.dispatch<undefined>(undefined);
-// @ts-expect-error Program commands cannot use undefined as their message type
-Program.command<undefined>(Effect.succeed(undefined));
+Program.emit<undefined>(undefined);
+// An Effect that completes with `void` is a command that emits nothing.
+const programBackgroundCommand: Program.Command<"done"> = Program.emit(Effect.void);
+void programBackgroundCommand;
 // @ts-expect-error Program initial models cannot be Promise-shaped
 Program.define<typeof promisedNumber, "noop">({
   initial: promisedNumber,
@@ -590,16 +488,10 @@ ActionResult.success(effectNumberValue);
 ActionResult.success<unknown>(promisedProject);
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads hidden behind explicit any
 ActionResult.success<any>(promisedProject);
-// @ts-expect-error ActionResult.successEffect rejects Promise-shaped payloads
-ActionResult.successEffect(promisedProject);
 // @ts-expect-error ActionResult.failure rejects Promise-shaped errors
 ActionResult.failure(promisedProject);
 // @ts-expect-error ActionResult.failure rejects Effect-shaped errors
 ActionResult.failure(effectNumberValue);
-// @ts-expect-error ActionResult.fail rejects Promise-shaped errors
-ActionResult.fail(promisedProject);
-// @ts-expect-error ActionResult.failureEffect rejects Promise-shaped errors
-ActionResult.failureEffect(promisedProject);
 // @ts-expect-error ActionResult field validation errors cannot be Promise-shaped
 ActionResult.fieldError<{ readonly name: string }, "name", Project>("name", promisedProject);
 ActionResult.fieldError<{ readonly name: string }, "name", Effect.Effect<number>>(
@@ -682,18 +574,18 @@ void actionSubmissionIdleState;
 void actionSubmissionSuccessState;
 void actionSubmissionState;
 
-const ProjectRoute = route("/projects/:id", {
+const ProjectRoute = Route.define("/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
 });
-const OptionsFreeProjectRoute = route("/options-free-projects/:id");
+const OptionsFreeProjectRoute = Route.define("/options-free-projects/:id");
 Route.href(OptionsFreeProjectRoute, {
   params: { id: "atlas" },
 });
 // @ts-expect-error options-free routes still preserve inferred path params
 Route.href(OptionsFreeProjectRoute, { params: {} });
 void OptionsFreeProjectRoute;
-const StaticProjectRoute = route("/static-projects");
+const StaticProjectRoute = Route.define("/static-projects");
 Route.href(StaticProjectRoute);
 Route.href(StaticProjectRoute, {});
 
@@ -829,7 +721,7 @@ class TypedProjectForbidden extends Schema.TaggedError<TypedProjectForbidden>()(
   "TypedProjectForbidden",
   { id: Schema.String },
 ) {}
-const TypedProjectRoute = route("/typed-projects/:id", {
+const TypedProjectRoute = Route.define("/typed-projects/:id", {
   error: Schema.Union([TypedProjectNotFound, TypedProjectForbidden]),
   preload: ({ params }) =>
     params.id === "secret"
@@ -840,29 +732,31 @@ const typedProjectRouteFailure: Route.PreloadFailure<typeof TypedProjectRoute> =
   new TypedProjectNotFound({ id: "atlas" });
 // @ts-expect-error the route failure is exactly the error schema's type
 const typedProjectRouteFailureWrong: Route.PreloadFailure<typeof TypedProjectRoute> = "missing";
-const untypedPreloadRoute = route("/untyped-projects/:id", { preload: () => Effect.fail("x") });
+const untypedPreloadRoute = Route.define("/untyped-projects/:id", {
+  preload: () => Effect.fail("x"),
+});
 const untypedProjectRouteFailure: unknown extends Route.PreloadFailure<typeof untypedPreloadRoute>
   ? true
   : false = true;
-const staticRoute = route("/static");
+const staticRoute = Route.define("/static");
 const staticRouteFailure: [Route.PreloadFailure<typeof staticRoute>] extends [never]
   ? true
   : false = true;
 const typedProjectPreload: Effect.Effect<
   void,
   RoutePreloadError<TypedProjectNotFound | TypedProjectForbidden>
-> = Route.preloadEffect(TypedProjectRoute.match("/typed-projects/atlas")!);
-route("/typed-projects/:id", {
+> = Route.preload(TypedProjectRoute.match("/typed-projects/atlas")!);
+Route.define("/typed-projects/:id", {
   error: TypedProjectNotFound,
   // @ts-expect-error preload may fail only with the route error schema's type
   preload: () => Effect.fail(new TypedProjectForbidden({ id: "atlas" })),
 });
-route("/typed-projects/:id", {
+Route.define("/typed-projects/:id", {
   error: TypedProjectNotFound,
   // @ts-expect-error untyped failures are rejected when the route declares an error schema
   preload: () => Effect.fail("missing"),
 });
-route("/typed-projects/:id", {
+Route.define("/typed-projects/:id", {
   error: TypedProjectNotFound,
   preload: () => Effect.void,
 });
@@ -883,13 +777,11 @@ void untypedProjectRouteFailure;
 void staticRouteFailure;
 void typedProjectPreload;
 void typedProjectOutletProps;
-const projectBrowserRouter: BrowserRouter<readonly [typeof ProjectRoute]> = createBrowserRouter(
-  [ProjectRoute] as const,
-  { initialHref: "/projects/atlas", history: browserHistoryAdapter },
-);
+const projectBrowserRouter: BrowserRouter<readonly [typeof ProjectRoute]> =
+  useRouter<readonly [typeof ProjectRoute]>();
 const projectBrowserRouterCoreProjection: Omit<
   BrowserRouterHostController<readonly [typeof ProjectRoute]>,
-  "state" | "match" | "start" | "dispose" | "disposeEffect"
+  "state" | "match" | "start" | "dispose" | "dispose"
 > = projectBrowserRouter;
 const projectBrowserRouterState: BrowserRouterState<readonly [typeof ProjectRoute]> =
   projectBrowserRouter.state();
@@ -906,7 +798,7 @@ projectBrowserRouter.navigate(ProjectRoute, {
 const projectBrowserRouterPreload: Effect.Effect<
   void,
   BrowserRouterError<readonly [typeof ProjectRoute]>
-> = projectBrowserRouter.preloadEffect(ProjectRoute, {
+> = projectBrowserRouter.preload(ProjectRoute, {
   params: { id: "atlas" },
   search: {},
 });
@@ -947,21 +839,8 @@ if (coreRouterLinkClickDecision._tag === "Navigate") {
   void href;
   void replace;
 }
-const mixedProjectBrowserRouter = createBrowserRouter([StaticProjectRoute, ProjectRoute] as const, {
-  initialHref: "/projects/atlas",
-});
-type MixedProjectRouterPath = BrowserRouterPath<
-  readonly [typeof StaticProjectRoute, typeof ProjectRoute]
->;
-const mixedProjectRouterPath: MixedProjectRouterPath = "/projects/:id";
-const mixedStaticRouterPath: MixedProjectRouterPath = "/static-projects";
-// @ts-expect-error browser router paths are drawn from the configured route tuple
-const badMixedProjectRouterPath: MixedProjectRouterPath = "/missing";
-type MixedProjectRouteByPath = BrowserRouterRouteForPath<
-  readonly [typeof StaticProjectRoute, typeof ProjectRoute],
-  "/projects/:id"
->;
-const mixedProjectRouteByPath: MixedProjectRouteByPath = ProjectRoute;
+const mixedProjectBrowserRouter =
+  useRouter<readonly [typeof StaticProjectRoute, typeof ProjectRoute]>();
 const projectBrowserNavigateArgs: BrowserNavigateArgs<typeof ProjectRoute> = [
   {
     params: { id: "atlas" },
@@ -969,15 +848,14 @@ const projectBrowserNavigateArgs: BrowserNavigateArgs<typeof ProjectRoute> = [
   },
 ];
 const staticBrowserNavigateArgs: BrowserNavigateArgs<typeof StaticProjectRoute> = [];
-mixedProjectBrowserRouter.hrefByPath("/static-projects");
-mixedProjectBrowserRouter.hrefByPath("/projects/:id", {
+mixedProjectBrowserRouter.href(StaticProjectRoute);
+mixedProjectBrowserRouter.href(ProjectRoute, {
   params: { id: "atlas" },
   search: { tab: "activity" },
 });
 mixedProjectBrowserRouter.navigate(StaticProjectRoute);
-mixedProjectBrowserRouter.navigateByPath("/static-projects");
-mixedProjectBrowserRouter.navigateByPath(
-  "/projects/:id",
+mixedProjectBrowserRouter.navigate(
+  ProjectRoute,
   {
     params: { id: "atlas" },
     search: {},
@@ -987,23 +865,14 @@ mixedProjectBrowserRouter.navigateByPath(
 const mixedProjectBrowserRouterPreload: Effect.Effect<
   void,
   BrowserRouterError<readonly [typeof StaticProjectRoute, typeof ProjectRoute]>
-> = mixedProjectBrowserRouter.preloadByPathEffect("/projects/:id", {
+> = mixedProjectBrowserRouter.preload(ProjectRoute, {
   params: { id: "atlas" },
   search: {},
 });
-const mixedProjectBrowserRouterMatch = mixedProjectBrowserRouter.matchByPath("/projects/:id");
-if (mixedProjectBrowserRouterMatch) {
-  const id: string = mixedProjectBrowserRouterMatch.params.id;
-  const tab: "overview" | "activity" | undefined = mixedProjectBrowserRouterMatch.search.tab;
-  void id;
-  void tab;
-}
-// @ts-expect-error browser router path helpers reject unknown route paths
-mixedProjectBrowserRouter.hrefByPath("/missing");
-// @ts-expect-error browser router path helpers preserve route params
-mixedProjectBrowserRouter.hrefByPath("/projects/:id", { params: {} });
-// @ts-expect-error browser router path helpers preserve static route params
-mixedProjectBrowserRouter.hrefByPath("/static-projects", { params: { id: "atlas" } });
+// @ts-expect-error browser router hrefs preserve route params
+mixedProjectBrowserRouter.href(ProjectRoute, { params: {} });
+// @ts-expect-error browser router hrefs preserve static route params
+mixedProjectBrowserRouter.href(StaticProjectRoute, { params: { id: "atlas" } });
 // @ts-expect-error browser router href preserves route params
 projectBrowserRouter.href(ProjectRoute, { params: {} });
 const projectRouterLinkProps: RouterLinkProps<typeof ProjectRoute> = {
@@ -1027,10 +896,6 @@ void projectBrowserRouterPreload;
 void projectBrowserRouterCoreProjection;
 void projectBrowserRouterState;
 void projectBrowserRouterMatch;
-void mixedProjectRouterPath;
-void mixedStaticRouterPath;
-void badMixedProjectRouterPath;
-void mixedProjectRouteByPath;
 void projectBrowserNavigateArgs;
 void staticBrowserNavigateArgs;
 void mixedProjectBrowserRouterPreload;
@@ -1050,7 +915,7 @@ Route.href(ProjectRoute, {
   search: { sort: "name" },
 });
 
-const BrandedProjectRoute = route("/branded-projects/:id", {
+const BrandedProjectRoute = Route.define("/branded-projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
 });
 const brandedRouterLinkProps: RouterLinkProps<typeof BrandedProjectRoute> = {
@@ -1076,7 +941,7 @@ void badBrandedRouterLinkProps;
 // @ts-expect-error branded route params reject accidental plain strings
 Route.href(BrandedProjectRoute, { params: { id: "atlas" } });
 
-const OptionalProjectRoute = route("/optional-projects/:id?", {});
+const OptionalProjectRoute = Route.define("/optional-projects/:id?", {});
 
 Route.href(OptionalProjectRoute);
 Route.href(OptionalProjectRoute, { params: {} });
@@ -1086,8 +951,8 @@ Route.href(OptionalProjectRoute, { params: { id: "atlas" } });
 Route.href(OptionalProjectRoute, { params: { slug: "atlas" } });
 
 const generatedRouteTree = [
-  defineFileRoute("/")({}),
-  defineFileRoute("/generated-projects/:id")({}),
+  FileRoute.define("/")({}),
+  FileRoute.define("/generated-projects/:id")({}),
 ] as const;
 const generatedRouteById = {
   route_root: generatedRouteTree[0],
@@ -1102,55 +967,39 @@ Route.href(generatedRouteById.route_generated_projects_$id, {
 Route.href(generatedRouteById.route_generated_projects_$id, { params: {} });
 
 const projectConsoleRouteId: ProjectConsoleFileRouteId = "route_projects_$id";
-const projectConsoleRoutePath: ProjectConsoleFileRoutePath = "/projects/:id";
 const projectConsoleFriendlyRouteId: ProjectConsoleRouteId = projectConsoleRouteId;
-const projectConsoleFriendlyRoutePath: ProjectConsoleRoutePath = projectConsoleRoutePath;
 const projectConsoleRouteParams: ProjectConsoleFileRouteParamsById["route_projects_$id"] = {
   id: makeProjectConsoleProjectId("atlas"),
 };
 const projectConsoleFriendlyRouteParams: ProjectConsoleParamsById["route_projects_$id"] =
   projectConsoleRouteParams;
-const projectConsoleRouteSearch: ProjectConsoleFileRouteSearchByPath["/projects/:id"] = {
+const projectConsoleRouteSearch: ProjectConsoleFileRouteSearchById["route_projects_$id"] = {
   tab: "activity",
 };
 const projectConsoleHrefOptions: ProjectConsoleFileRouteHrefOptionsById["route_projects_$id"] = {
   params: projectConsoleRouteParams,
   search: projectConsoleRouteSearch,
 };
-const projectConsoleHrefOptionsByPath: ProjectConsoleFileRouteHrefOptionsByPath["/projects/:id"] = {
-  params: projectConsoleRouteParams,
-  search: projectConsoleRouteSearch,
-};
 const projectConsoleFriendlyHrefById: ProjectConsoleHrefById["route_projects_$id"] =
   projectConsoleHrefOptions;
-const projectConsoleFriendlyHrefByPath: ProjectConsoleHrefByPath["/projects/:id"] =
-  projectConsoleHrefOptionsByPath;
 const projectConsoleFriendlyHref: ProjectConsoleHref<"route_projects_$id"> =
   projectConsoleHrefOptions;
 const projectConsoleFriendlyHrefArgs: ProjectConsoleHrefArgs<"route_projects_$id"> = [
   projectConsoleHrefOptions,
 ];
 
-Route.href(projectConsoleRouteByPath["/projects/:id"], projectConsoleHrefOptionsByPath);
-projectConsoleHrefById("route_projects_$id", projectConsoleHrefOptions);
-projectConsoleHrefByPath("/projects/:id", projectConsoleHrefOptionsByPath);
-projectConsoleHrefById("route_root");
-projectConsoleHrefByPath("/");
-const projectConsoleRouteIdForPath: ProjectConsoleRouteIdByPath["/projects/:id"] =
-  projectConsoleRouteIdByPath["/projects/:id"];
+Route.href(projectConsoleRouteById.route_projects_$id, projectConsoleHrefOptions);
+Route.href(projectConsoleRouteById.route_root);
 const projectConsoleLayouts: ProjectConsoleFileRouteLayouts<"route_projects_$id"> =
-  projectConsoleLayoutsByPath("/projects/:id");
+  projectConsoleLayoutsById("route_projects_$id");
 const projectConsoleMetadataModules: ProjectConsoleFileRouteMetadataModules<"route_projects_$id"> =
   projectConsoleMetadataById("route_projects_$id");
-void projectConsoleRouteIdForPath;
 void projectConsoleLayouts;
 void projectConsoleMetadataModules;
 declare const projectConsoleBroadMatch: Route.Match<ProjectConsoleRouteTree[number]> | undefined;
-if (isProjectConsoleRoutePathMatch("/projects/:id", projectConsoleBroadMatch)) {
-  const match: ProjectConsoleMatch<"/projects/:id"> = projectConsoleBroadMatch;
-  void match;
+if (Route.isMatch(projectConsoleRouteById.route_projects_$id, projectConsoleBroadMatch)) {
   projectConsoleBroadMatch.params.id;
-  // @ts-expect-error generated route-match narrowing exposes only declared params
+  // @ts-expect-error route-match narrowing exposes only declared params
   projectConsoleBroadMatch.params.slug;
 }
 
@@ -1159,32 +1008,15 @@ const virtualRouteList: readonly Route.Definition<string, unknown, unknown, any>
 const virtualRouteByIdMap: Readonly<
   Record<string, Route.Definition<string, unknown, unknown, any>>
 > = virtualRouteById;
-const virtualRouteByPathMap: Readonly<
-  Record<string, Route.Definition<string, unknown, unknown, any>>
-> = virtualRouteByPath;
 const virtualFileRouteId: VirtualFileRouteId = "route_anything";
-const virtualFileRoutePath: VirtualFileRoutePath = "/anything";
 const virtualRouteId: VirtualRouteId = virtualFileRouteId;
-const virtualRoutePath: VirtualRoutePath = virtualFileRoutePath;
 const virtualParamsById: VirtualParamsById = {};
-const virtualSearchByPath: VirtualSearchByPath = {};
 const virtualHrefById: VirtualHrefById = {};
-const virtualHrefByPath: VirtualHrefByPath = {};
-const virtualRouteIdByPathMap: Readonly<Record<string, string>> = virtualRouteIdByPath;
-const virtualLayouts: VirtualFileRouteLayouts<VirtualRouteId> =
-  virtualLayoutsByPath(virtualRoutePath);
+const virtualLayouts: VirtualFileRouteLayouts<VirtualRouteId> = virtualLayoutsById(virtualRouteId);
 const virtualMetadataModules: VirtualFileRouteMetadataModules<VirtualRouteId> =
   virtualMetadataById(virtualRouteId);
 declare const virtualHref: VirtualHref<VirtualRouteId>;
 declare const virtualHrefArgs: VirtualHrefArgs<VirtualRouteId>;
-declare const virtualMatch: Route.Match<(typeof virtualFileRoutes)[number]> | undefined;
-if (isVirtualRoutePathMatch(virtualRoutePath, virtualMatch)) {
-  const narrowed: VirtualMatch<VirtualRoutePath> = virtualMatch;
-  void narrowed;
-}
-virtualHrefByIdForRoute(virtualRouteId, ...virtualHrefArgs);
-virtualHrefByPathForRoute(virtualRoutePath, ...virtualHrefArgs);
-void virtualRouteIdByPathMap;
 void virtualLayouts;
 void virtualMetadataModules;
 const emptyFileRouteManifest: FileRouteManifest = {
@@ -1235,10 +1067,6 @@ const startDiagnosticsLoadEffect: Effect.Effect<
   LoadedStartAppGraphDiagnostics,
   StartAppGraphDiagnosticsLoadError
 > = loadStartAppGraphDiagnostics(startDiagnosticsLoadOptions);
-const startDiagnosticsLoadEffectAlias: Effect.Effect<
-  LoadedStartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsLoadError
-> = loadStartAppGraphDiagnosticsEffect(startDiagnosticsLoadOptions);
 declare const loadedStartDiagnostics: LoadedStartAppGraphDiagnostics;
 const startDiagnosticsReportInput: SubpathStartDiagnosticsReportInput = {
   diagnostics: loadedStartDiagnostics.diagnostics,
@@ -1264,8 +1092,6 @@ const startAgentGraphInput: StartAgentGraphInput = {
   diagnosticsPolicyViolations: loadedStartDiagnostics.diagnosticsPolicyViolations,
 };
 const startAgentGraph: StartAgentGraph = createStartAgentGraph(startAgentGraphInput);
-const startAgentGraphEffect: Effect.Effect<StartAgentGraph> =
-  createStartAgentGraphEffect(startAgentGraphInput);
 const startAgentGraphQueryKind: StartAgentGraphQueryKind = "route";
 const startAgentGraphQuery: StartAgentGraphQuery = {
   kind: startAgentGraphQueryKind,
@@ -1275,8 +1101,6 @@ const startAgentGraphQueryResult: StartAgentGraphQueryResult = queryStartAgentGr
   startAgentGraph,
   startAgentGraphQuery,
 );
-const startAgentGraphQueryEffect: Effect.Effect<StartAgentGraphQueryResult> =
-  queryStartAgentGraphEffect(startAgentGraph, startAgentGraphQuery);
 const startAgentGraphFormatOptions: StartAgentGraphFormatOptions = {
   query: startAgentGraphQuery,
   verbose: false,
@@ -1293,8 +1117,6 @@ const startAgentGraphImpact: StartAgentGraphImpact = createStartAgentGraphImpact
   startAgentGraphQuery,
   startAgentGraphImpactOptions,
 );
-const startAgentGraphImpactEffect: Effect.Effect<StartAgentGraphImpact> =
-  createStartAgentGraphImpactEffect(startAgentGraph, startAgentGraphQuery);
 const startAgentGraphImpactText: string = formatStartAgentGraphImpact(startAgentGraphImpact);
 const startAgentGraphImpactItem: StartAgentGraphImpactItem | undefined =
   startAgentGraphImpact.items[0];
@@ -1315,11 +1137,8 @@ void startDiagnosticsReportStatus;
 void startDiagnosticsReportSummary;
 void startDiagnosticsReportFindingKind;
 void startDiagnosticsReportOwnerGroup;
-void startAgentGraphEffect;
 void startAgentGraphQueryResult;
-void startAgentGraphQueryEffect;
 void startAgentGraphText;
-void startAgentGraphImpactEffect;
 void startAgentGraphImpactText;
 void startAgentGraphImpactRelationKind;
 void startAgentGraphSummary;
@@ -1328,26 +1147,18 @@ void startAgentGraphNodeKind;
 void startAgentGraphNodeStatus;
 void startAgentGraphEdgeKind;
 void projectConsoleRouteId;
-void projectConsoleRoutePath;
 void projectConsoleFriendlyRouteId;
-void projectConsoleFriendlyRoutePath;
 void projectConsoleHrefOptions;
 void projectConsoleFriendlyRouteParams;
 void projectConsoleFriendlyHrefById;
-void projectConsoleFriendlyHrefByPath;
 void projectConsoleFriendlyHref;
 void projectConsoleFriendlyHrefArgs;
 void virtualRouteList;
 void virtualRouteByIdMap;
-void virtualRouteByPathMap;
 void virtualFileRouteId;
-void virtualFileRoutePath;
 void virtualRouteId;
-void virtualRoutePath;
 void virtualParamsById;
-void virtualSearchByPath;
 void virtualHrefById;
-void virtualHrefByPath;
 void virtualHref;
 void virtualHrefArgs;
 void generatedFileRouteModule;
@@ -1359,7 +1170,6 @@ void generatedFileRouteHeader;
 void invalidFileRouteExportName;
 void invalidFileRouteIdentifier;
 void startDiagnosticsLoadEffect;
-void startDiagnosticsLoadEffectAlias;
 void startDiagnosticsReportInput;
 void startDiagnosticsReport;
 void startDiagnosticsReportText;
@@ -1368,20 +1178,11 @@ void startDiagnosticsReportSummary;
 void startDiagnosticsReportFindingKind;
 void startDiagnosticsReportOwnerGroup;
 
-// @ts-expect-error generated routeByPath keeps canonical href param checks
-Route.href(projectConsoleRouteByPath["/projects/:id"], { params: {} });
-
-// @ts-expect-error generated href helper keeps canonical href param checks
-projectConsoleHrefByPath("/projects/:id", { params: {} });
-
-// @ts-expect-error generated href helper keeps route id union checked
-projectConsoleHrefById("route_missing", {});
+// @ts-expect-error generated route definitions keep canonical href param checks
+Route.href(projectConsoleRouteById.route_projects_$id, { params: {} });
 
 // @ts-expect-error generated route id union rejects unknown ids
 const projectConsoleUnknownRouteId: ProjectConsoleFileRouteId = "route_missing";
-
-// @ts-expect-error generated route path union rejects unknown paths
-const projectConsoleUnknownRoutePath: ProjectConsoleFileRoutePath = "/missing";
 
 const projectConsolePlainParams: ProjectConsoleFileRouteParamsById["route_projects_$id"] = {
   // @ts-expect-error generated params preserve branded project ids
@@ -1394,7 +1195,7 @@ const projectConsoleBadHrefOptions: ProjectConsoleFileRouteHrefOptionsById["rout
   search: { tab: "activity" },
 };
 
-const projectConsoleBadSearch: ProjectConsoleFileRouteSearchByPath["/projects/:id"] = {
+const projectConsoleBadSearch: ProjectConsoleFileRouteSearchById["route_projects_$id"] = {
   // @ts-expect-error generated search options preserve schema literals
   tab: "timeline",
 };
@@ -1478,7 +1279,7 @@ ProjectTag({ id: "atlas" });
 // @ts-expect-error resource tag input must match the tag definition
 ProjectTag({ slug: "atlas" });
 
-const ProjectById = Resource.family<string, Project, ProjectError | Server.ClientError>({
+const ProjectById = Resource.define<string, Project, ProjectError | Server.ClientError>({
   name: "Project.byId",
   input: Schema.String,
   output: ProjectSchema,
@@ -1504,17 +1305,17 @@ class AdapterCleanupError {
   readonly _tag = "AdapterCleanupError";
 }
 adapterResourceStore.moduleRegistry.register(Symbol("adapter-module"), {
-  disposeEffect: Effect.void,
+  dispose: Effect.void,
 });
 adapterResourceStore.moduleRegistry.register(Symbol("adapter-cleanup-error"), {
-  disposeEffect: Effect.fail(new AdapterCleanupError()),
+  dispose: Effect.fail(new AdapterCleanupError()),
 });
 const adapterResourceStoreModuleCount: Effect.Effect<number> =
-  adapterResourceStore.diagnostics.moduleCountEffect;
+  adapterResourceStore.diagnostics.moduleCount;
 const adapterResourceStoreEventBusShutdown: Effect.Effect<boolean> =
-  adapterResourceStore.diagnostics.eventBusShutdownEffect;
+  adapterResourceStore.diagnostics.eventBusShutdown;
 const adapterResourceStoreDispose: Effect.Effect<void, ResourceStoreDisposeError> =
-  disposeResourceStoreEffect(adapterResourceStore);
+  disposeResourceStore(adapterResourceStore);
 const publicResourceStoreRuntime = makeRuntime();
 // @ts-expect-error ResourceStore internals are intentionally not public.
 publicResourceStoreRuntime.resourceStore.entries;
@@ -1537,11 +1338,6 @@ const resourceSnapshot: Resource.Snapshot<string, Project> = {
   },
 };
 const directResourceHydrationPayload: ResourceHydrationPayload = { resources: [resourceSnapshot] };
-const directResourceHydrationInput: ResourceHydrationInput = directResourceHydrationPayload;
-const validatedResourceSnapshotsEffect: Effect.Effect<
-  ReadonlyArray<Resource.Snapshot>,
-  ResourceSnapshotCodecError
-> = validateResourceHydrationInputEffect(directResourceHydrationInput, resourceSnapshotOperation);
 void resourceFamilyRegistration;
 void resourceTagRegistration;
 void resourceDefinitionDiagnostics;
@@ -1550,18 +1346,15 @@ void adapterResourceStoreModuleCount;
 void adapterResourceStoreEventBusShutdown;
 void adapterResourceStoreDispose;
 void typedAdapterResourceStore;
-void validatedResourceSnapshotsEffect;
 
-Resource.prefetchEffect(ProjectById("atlas"));
-const deleteProjectEffect: Effect.Effect<void> = Resource.deleteEffect(ProjectById("atlas"));
+Resource.preload(ProjectById("atlas"));
+const deleteProjectEffect: Effect.Effect<void> = Resource.evict(ProjectById("atlas"));
 const projectReadEffect: Effect.Effect<
   Project,
   Resource.ReadError<string, Project, ProjectError | Server.ClientError>,
   ProjectApi
-> = Resource.readEffect(ProjectById("atlas"));
-const projectRead: Project = Resource.read(ProjectById("atlas"));
-const projectReadViaHelper: Project = read(ProjectById("atlas"));
-const projectSuspenseRead: Project = useResourceSuspense(ProjectById("atlas"))();
+> = Resource.read(ProjectById("atlas"));
+const projectSuspenseRead: Project = bound(Component.resource(ProjectById))("atlas");
 const projectResourcePending = new ResourcePending({
   ref: ProjectById("atlas"),
   reason: "Pending",
@@ -1601,8 +1394,6 @@ const projectResourceFailureRef: Resource.Ref<
   ProjectError | Server.ClientError,
   ProjectApi
 > = typedProjectResourceFailure.ref;
-void projectRead;
-void projectReadViaHelper;
 void projectSuspenseRead;
 void projectResourcePendingState;
 void projectResourcePendingPrevious;
@@ -1613,113 +1404,105 @@ void projectResourceFailureInput;
 void projectResourceFailureRef;
 void deleteProjectEffect;
 
-Resource.family<string, Project>({
+Resource.define<string, Project>({
   name: "Project.asyncResource",
   // @ts-expect-error resource loaders must return Effect or a pure value, not Promise
   load: () => promisedProject,
 });
 
-Resource.family<string, Project>({
+Resource.define<string, Project>({
   name: "Project.asyncResourceEffect",
   // @ts-expect-error resource loaders cannot return Effects that succeed with Promise-shaped values
   load: () => Effect.succeed(promisedProject),
 });
 
-Resource.family<string, unknown>({
+Resource.define<string, unknown>({
   name: "Project.asyncResourceUnknown",
   // @ts-expect-error resource loaders cannot hide Promise-shaped values behind explicit unknown
   load: () => promisedProject,
 });
 
-Resource.family<string, unknown>({
+Resource.define<string, unknown>({
   name: "Project.asyncResourceUnknownEffect",
   // @ts-expect-error resource loaders cannot hide Effect Promise successes behind explicit unknown
   load: () => Effect.succeed(promisedProject),
 });
 
-Resource.family<string, Effect.Effect<number>>({
+Resource.define<string, Effect.Effect<number>>({
   name: "Project.effectValuedResource",
   // @ts-expect-error explicit Effect-valued resource outputs must be wrapped in Effect.succeed(...)
   load: () => effectNumberValue,
 });
 
-Resource.family<string, Effect.Effect<number>>({
+Resource.define<string, Effect.Effect<number>>({
   name: "Project.wrappedEffectValuedResource",
   load: () => Effect.succeed(effectNumberValue),
 });
 
 // @ts-expect-error unannotated resource loaders must return Effect or a pure value, not Promise
-Resource.family({
+Resource.define({
   name: "Project.asyncResourceInferred",
   load: () => promisedProject,
 });
 
 // @ts-expect-error unannotated resource loaders cannot return callable-then-shaped values
-Resource.family({
+Resource.define({
   name: "Project.thenableResourceInferred",
   load: () => thenableProject,
 });
 
 // @ts-expect-error unannotated resource loaders cannot return Effects that succeed with callable-then-shaped values
-Resource.family({
+Resource.define({
   name: "Project.thenableResourceEffectInferred",
   load: () => Effect.succeed(thenableProject),
 });
 
-const BrandedProjectById = Resource.family<ProjectId, Project, ProjectError>({
+const BrandedProjectById = Resource.define<ProjectId, Project, ProjectError>({
   name: "Project.byBrandedId",
   input: ProjectId,
   output: ProjectSchema,
   load: (id) => Effect.succeed({ id, name: "Branded" }),
 });
 
-Resource.prefetchEffect(BrandedProjectById(atlasProjectId));
+Resource.preload(BrandedProjectById(atlasProjectId));
 
 // @ts-expect-error branded resource inputs reject accidental plain strings
-Resource.prefetchEffect(BrandedProjectById("atlas"));
+Resource.preload(BrandedProjectById("atlas"));
 
 const resourceHydrateEffect: Effect.Effect<
   void,
   ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
-> = Resource.hydrateEffect({ resources: [] });
+> = Resource.hydrate({ resources: [] });
 // @ts-expect-error Resource hydration accepts payload objects, not raw snapshot arrays
-Resource.hydrateEffect([resourceSnapshot]);
-// @ts-expect-error synchronous Resource hydration accepts payload objects, not raw snapshot arrays
 Resource.hydrate([resourceSnapshot]);
-// @ts-expect-error Resource hydration validation accepts payload objects, not raw snapshot arrays
-validateResourceHydrationInputEffect([resourceSnapshot], resourceSnapshotOperation);
 const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, ResourceSnapshotCodecError> =
-  Resource.decodeHydrationPayloadEffect('{"resources":[]}');
+  Resource.decodeHydrationPayload('{"resources":[]}');
 const resourceDehydrateEffect: Effect.Effect<
   ReadonlyArray<Resource.Snapshot>,
   ResourceSnapshotCodecError
-> = Resource.dehydrateEffect([]);
+> = Resource.dehydrate([]);
 const resourceHydrationPayloadEffect: Effect.Effect<
   Resource.HydrationPayload,
   ResourceSnapshotCodecError
-> = Resource.hydrationPayloadEffect([]);
+> = Resource.hydrationPayload([]);
 declare const frameworkResourceTagAlias: Resource.Tag;
 declare const frameworkResourceInvalidationAlias: Resource.Invalidation;
 declare const frameworkResourceInvalidationTargetAlias: Resource.InvalidationTarget;
 declare const frameworkResourceInvalidationCauseAlias: Resource.InvalidationCause;
 declare const frameworkResourceInvalidationPlanEntryAlias: Resource.InvalidationPlanEntry;
 declare const frameworkResourceInvalidationPlanAlias: Resource.InvalidationPlan;
-declare const frameworkResourceHydrationInputAlias: Resource.HydrationInput;
-const frameworkResourceHydrationPayloadAlias: Resource.HydrationPayload =
-  frameworkResourceHydrationInputAlias;
+declare const frameworkResourceHydrationPayloadAlias: Resource.HydrationPayload;
 declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
 declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
 void resourceDehydrateEffect;
 void resourceHydrationPayloadEffect;
 void directResourceHydrationPayload;
-void directResourceHydrationInput;
 void frameworkResourceTagAlias;
 void frameworkResourceInvalidationAlias;
 void frameworkResourceInvalidationTargetAlias;
 void frameworkResourceInvalidationCauseAlias;
 void frameworkResourceInvalidationPlanEntryAlias;
 void frameworkResourceInvalidationPlanAlias;
-void frameworkResourceHydrationInputAlias;
 void frameworkResourceHydrationPayloadAlias;
 void frameworkResourceHydrationOptionsAlias;
 void frameworkResourceStatusAlias;
@@ -1730,22 +1513,22 @@ interface ProjectRequest extends EffectRequest.Request<Project, ProjectError> {
 }
 const ProjectRequest = EffectRequest.tagged<ProjectRequest>("ProjectRequest");
 declare const projectRequestResolver: RequestResolver.RequestResolver<ProjectRequest>;
-const ProjectByRequest = Resource.requestFamily({
+const ProjectByRequest = Resource.define({
   name: "Project.byRequest",
   input: ProjectId,
   output: ProjectSchema,
   request: (id: ProjectId) => ProjectRequest({ id }),
   resolver: projectRequestResolver,
 });
-Effect.map(Resource.prefetchEffect(ProjectByRequest(atlasProjectId)), (project) => {
+Effect.map(Resource.preload(ProjectByRequest(atlasProjectId)), (project) => {
   project.id.toUpperCase();
   project.name.toUpperCase();
 });
 
-// @ts-expect-error Resource.requestFamily preserves the request input type
+// @ts-expect-error Resource.define preserves the request input type
 ProjectByRequest("atlas");
 
-const ServicefulProjectResource = Resource.family<
+const ServicefulProjectResource = Resource.define<
   string,
   Project,
   ProjectError | Server.ClientError,
@@ -1754,22 +1537,22 @@ const ServicefulProjectResource = Resource.family<
   name: "Project.servicefulInvalidation",
   load: (id) => ProjectApi.use((api) => api.get(id)),
 });
-const servicefulInvalidationEffect: Effect.Effect<void, never, ProjectApi> =
-  Resource.invalidateEffect(ServicefulProjectResource("atlas"));
-// @ts-expect-error Resource invalidation preserves service requirements from direct ref targets
-const servicefulInvalidationWithoutService: Effect.Effect<void> = Resource.invalidateEffect(
+const servicefulInvalidationEffect: Effect.Effect<void, never, ProjectApi> = Resource.invalidate(
   ServicefulProjectResource("atlas"),
 );
-const servicefulInvalidationPlan = Resource.planInvalidation(ServicefulProjectResource("atlas"));
-const servicefulInvalidationPlanEffect: Effect.Effect<void, never, ProjectApi> =
-  Resource.runInvalidationPlanEffect(servicefulInvalidationPlan);
-const servicefulProjectReadViaHelper: Project = read(ServicefulProjectResource("atlas"));
+// @ts-expect-error Resource invalidation preserves service requirements from direct ref targets
+const servicefulInvalidationWithoutService: Effect.Effect<void> = Resource.invalidate(
+  ServicefulProjectResource("atlas"),
+);
+const servicefulInvalidationPlanEffect: Effect.Effect<void, never, ProjectApi> = Effect.flatMap(
+  Resource.planInvalidation(ServicefulProjectResource("atlas")),
+  Resource.runInvalidationPlan,
+);
 void servicefulInvalidationEffect;
 void servicefulInvalidationWithoutService;
 void servicefulInvalidationPlanEffect;
-void servicefulProjectReadViaHelper;
 
-const InferredProjectById = Resource.family({
+const InferredProjectById = Resource.define({
   name: "Project.inferredById",
   input: ProjectId,
   output: ProjectSchema,
@@ -1780,7 +1563,7 @@ const inferredProjectEffect: Effect.Effect<
   Project,
   Resource.LoadError<ProjectError | Server.ClientError>,
   ProjectApi
-> = Resource.prefetchEffect(InferredProjectById(atlasProjectId));
+> = Resource.preload(InferredProjectById(atlasProjectId));
 void inferredProjectEffect;
 
 // @ts-expect-error inferred branded resource inputs reject accidental plain strings
@@ -1801,55 +1584,61 @@ const ProjectsCollection = Collection.define<
       unique: true,
     },
   },
-  load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
-  onUpdate: (updates, context) =>
-    ProjectApi.use((api) => {
-      context.transaction.mutations.map((mutation) => mutation.key);
-      return api
-        .rename({
-          id: updates[0]!.key,
-          name: updates[0]!.value.name,
-        })
-        .pipe(Effect.asVoid);
-    }),
+  sync: {
+    load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
+    update: ({ updates, transaction }) =>
+      ProjectApi.use((api) => {
+        transaction.mutations.map((mutation) => mutation.key);
+        return api
+          .rename({
+            id: updates[0]!.key,
+            name: updates[0]!.value.name,
+          })
+          .pipe(Effect.asVoid);
+      }),
+  },
 });
 
-Collection.rows(ProjectsCollection).map((project) => {
+ProjectsCollection.rows().map((project) => {
   project.name;
   project.$synced;
   // @ts-expect-error live collection rows preserve row shape
   project.slug;
 });
 ProjectsCollection.index("byName", "Atlas").map((project) => project.name.toUpperCase());
-Collection.firstByIndex(ProjectsCollection, "byName", "Atlas")?.name.toUpperCase();
+ProjectsCollection.firstByIndex("byName", "Atlas")?.name.toUpperCase();
 
 const InferredProjectsCollection = Collection.define({
   name: "Projects.inferredCollection",
   output: Schema.Array(ProjectSchema),
   getKey: (project) => project.id,
-  load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
-  onUpdate: (updates) =>
-    ProjectApi.use((api) =>
-      api
-        .rename({
-          id: updates[0]!.key,
-          name: updates[0]!.value.name,
-        })
-        .pipe(Effect.asVoid),
-    ),
+  sync: {
+    load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
+    update: ({ updates }) =>
+      ProjectApi.use((api) =>
+        api
+          .rename({
+            id: updates[0]!.key,
+            name: updates[0]!.value.name,
+          })
+          .pipe(Effect.asVoid),
+      ),
+  },
 });
 const inferredCollectionPreload: Effect.Effect<
   void,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | EffectInputCallbackError,
   ProjectApi
-> = InferredProjectsCollection.preloadEffect();
+> = InferredProjectsCollection.preload();
 void inferredCollectionPreload;
-InferredProjectsCollection.writeInsertEffect({ id: "atlas", name: "Atlas" });
+InferredProjectsCollection.applyChanges([
+  { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
+]);
 
 // @ts-expect-error inferred collections preserve row shape
-InferredProjectsCollection.writeInsertEffect({ id: "atlas" });
+InferredProjectsCollection.applyChanges([{ _tag: "Upsert", value: { id: "atlas" } }]);
 
-const projectsSnapshot = ProjectsCollection.snapshot();
+const projectsSnapshot = Effect.runSync(ProjectsCollection.snapshot());
 projectsSnapshot.rows.map((row) => {
   row.key.toUpperCase();
   row.value.name.toUpperCase();
@@ -1860,35 +1649,29 @@ projectsSnapshot.pendingMutations.map((pending) =>
   pending.transaction.mutations.map((mutation) => mutation.key.toUpperCase()),
 );
 
-Effect.map(ProjectsCollection.snapshotEffect(), (snapshot) =>
-  snapshot.rows.map((row) => row.value.name),
-);
-Effect.map(ProjectsCollection.pendingMutationsEffect(), (pending) =>
-  pending.map((entry) => entry.transaction.id),
-);
+Effect.map(ProjectsCollection.snapshot(), (snapshot) => snapshot.rows.map((row) => row.value.name));
 ProjectsCollection.pendingMutations().map((pending) => pending.attempts.toFixed());
-Effect.map(ProjectsCollection.flushPendingMutationsEffect(), (transactions) =>
+Effect.map(ProjectsCollection.flushPendingMutations(), (transactions) =>
   transactions.map((transaction) =>
     transaction.mutations.map((mutation) => mutation.key.toUpperCase()),
   ),
 );
-Collection.flushPendingMutationsEffect(ProjectsCollection);
+ProjectsCollection.flushPendingMutations();
 const projectHydrateEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = ProjectsCollection.hydrateEffect(projectsSnapshot);
+> = ProjectsCollection.hydrate(projectsSnapshot);
 void projectHydrateEffect;
 
 const projectMemoryStorage = Collection.memoryStorage();
-ProjectsCollection.persistEffect(projectMemoryStorage, { key: "projects" });
-ProjectsCollection.restoreEffect(projectMemoryStorage, { key: "projects", replace: false });
-Collection.persistEffect(ProjectsCollection, projectMemoryStorage);
-Collection.restoreEffect(ProjectsCollection, projectMemoryStorage);
-const collectionStoreEffect: Effect.Effect<Collection.Store> = Collection.storeEffect();
+ProjectsCollection.persist(projectMemoryStorage, { key: "projects" });
+ProjectsCollection.restore(projectMemoryStorage, { key: "projects", replace: false });
+ProjectsCollection.persist(projectMemoryStorage);
+ProjectsCollection.restore(projectMemoryStorage);
 Effect.map(collectionStoreEffect, (store) => {
-  const diagnostics: Collection.StoreDiagnosticsSnapshot = store.diagnostics.snapshot();
-  const diagnosticsEffect: Effect.Effect<Collection.StoreDiagnosticsSnapshot> =
-    store.diagnostics.snapshotEffect;
+  const diagnosticsEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot> =
+    store.diagnostics.snapshot;
+  const diagnostics: CollectionStoreDiagnosticsSnapshot = Effect.runSync(diagnosticsEffect);
   diagnostics.collectionCount.toFixed();
   diagnostics.rowCount.toFixed();
   diagnostics.pendingMutationCount.toFixed();
@@ -1901,7 +1684,7 @@ const projectBrowserStorage = Collection.storage({
 const projectBrowserPersistEffect: Effect.Effect<
   void,
   CollectionStorageError | CollectionSnapshotCodecError | EffectInputCallbackError
-> = Collection.persistEffect(ProjectsCollection, projectBrowserStorage);
+> = ProjectsCollection.persist(projectBrowserStorage);
 void projectBrowserPersistEffect;
 
 const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectError>(
@@ -1911,40 +1694,28 @@ const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectErr
   },
 );
 
-const ServerProjectsCollection = Collection.define(
-  serverCollectionOptions<Project, string, ProjectError>({
-    id: "Projects.serverCollection",
-    getKey: (project) => project.id,
+// Server functions plug into sync adapters directly.
+const ServerProjectsCollection = Collection.define<
+  Project,
+  string,
+  ProjectError | Server.ClientError | EffectInputCallbackError
+>({
+  name: "Projects.serverCollection",
+  getKey: (project) => project.id,
+  sync: {
     load: ListProjectsForCollection,
     update: (payload) => {
       payload.updates[0]!.key.toUpperCase();
       payload.transaction.mutations.map((mutation) => mutation.key.toUpperCase());
       return Effect.void;
     },
-  }),
-);
+  },
+});
 
-declare const projectRowsEffect: Effect.Effect<readonly Project[]>;
 declare const projectRowsPromise: Promise<readonly Project[]>;
 declare const promisedBoolean: Promise<boolean>;
 declare const promisedStorageText: Promise<string | null>;
-declare const promisedSqliteRow: Promise<Collection.SQLiteStorageRow | null>;
-declare const promisedChangeFeedSubscription: Promise<Collection.ChangeFeedSubscription>;
-Collection.define(
-  Collection.serverOptions<Project>({
-    name: "Projects.serverNamespaceCollection",
-    getKey: (project) => project.id,
-    load: () => projectRowsEffect,
-  }),
-);
-Collection.define(
-  Collection.serverOptions<Project>({
-    name: "Projects.promiseServerNamespaceCollection",
-    getKey: (project) => project.id,
-    // @ts-expect-error server collection loaders must return Effect or a pure value, not Promise
-    load: () => projectRowsPromise,
-  }),
-);
+declare const promisedSqliteRow: Promise<SQLitePersistence.Row | null>;
 const syncAdapter: Collection.SyncAdapter<Project> = {
   name: "projects-sync",
   load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
@@ -1958,105 +1729,60 @@ const promiseSyncAdapter: Collection.SyncAdapter<Project> = {
   // @ts-expect-error sync adapter loaders must return Effect or a pure value, not Promise
   load: () => projectRowsPromise,
 };
-Collection.define(
-  Collection.syncOptions<Project, string, Server.ClientError>({
-    name: "Projects.syncCollection",
-    getKey: (project) => project.id,
-    sync: syncAdapter,
-  }),
-);
-Collection.define(
-  Collection.syncOptions<Project, string, Server.ClientError>({
-    name: "Projects.serverSyncCollection",
-    getKey: (project) => project.id,
-    sync: Collection.serverSyncAdapter<Project>({
-      name: "Projects.serverSyncCollection",
-      getKey: (project) => project.id,
-      load: () => projectRowsEffect,
-    }),
-  }),
-);
-const ProjectRowsResource = Resource.family<void, ReadonlyArray<Project>, ProjectError>({
+Collection.define<Project, string, Server.ClientError>({
+  name: "Projects.syncCollection",
+  getKey: (project) => project.id,
+  sync: syncAdapter,
+});
+const ProjectRowsResource = Resource.define<void, ReadonlyArray<Project>, ProjectError>({
   name: "Project.rows",
   load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
 });
-Collection.define(
-  Collection.syncOptions<Project, string, Resource.LoadError<ProjectError>>({
-    name: "Projects.resourceSyncCollection",
-    getKey: (project) => project.id,
-    sync: Collection.resourceSyncAdapter({
-      ref: ProjectRowsResource(undefined),
-      update: (payload) => {
-        payload.updates.map((update) => update.value.name.toUpperCase());
-      },
-    }),
-  }),
-);
-const querySyncClient: Collection.QuerySyncClient<Project> = {
-  fetchQuery: ({ queryKey, queryFn }) => {
-    queryKey.map((part) => String(part));
-    return queryFn();
-  },
-  invalidateQueries: ({ queryKey }) => {
-    queryKey.map((part) => String(part));
-  },
-};
-const promiseQuerySyncClient: Collection.QuerySyncClient<Project> = {
-  // @ts-expect-error query sync clients must return Effect or a pure value, not Promise
-  fetchQuery: () => projectRowsPromise,
-  // @ts-expect-error query invalidation must return Effect or a pure value, not Promise
-  invalidateQueries: () => promisedVoid,
-};
-Collection.define(
-  Collection.syncOptions<Project, string, EffectInputCallbackError>({
-    name: "Projects.querySyncCollection",
-    getKey: (project) => project.id,
-    sync: Collection.querySyncAdapter({
-      queryKey: ["projects"],
-      queryFn: () => [{ id: "atlas", name: "Atlas" }],
-      queryClient: querySyncClient,
-      invalidateOnMutation: false,
-      mutationInvalidation:
-        "rollback-on-failure" satisfies Collection.QuerySyncMutationInvalidationPolicy,
-      update: (payload) => {
-        payload.updates.map((update) => update.value.name.toUpperCase());
-      },
-    }),
-  }),
-);
-Collection.querySyncAdapter<Project>({
-  // @ts-expect-error query sync keys must not contain Promise-shaped values
-  queryKey: ["projects", promisedString],
-  queryFn: () => [],
-  queryClient: querySyncClient,
+// A Resource ref backs a collection: loads, refreshes, and follows Resource.changes.
+const ResourceProjectsCollection = Collection.define({
+  name: "Projects.resourceSyncCollection",
+  output: ProjectSchema,
+  getKey: (project) => project.id,
+  sync: ProjectRowsResource(undefined),
 });
-Collection.querySyncAdapter<Project>({
-  // @ts-expect-error query sync keys must not contain nested Promise-shaped values
-  queryKey: ["projects", { filter: promisedString }],
-  queryFn: () => [],
-  queryClient: querySyncClient,
+const resourceProjectsPreload: Effect.Effect<
+  void,
+  Collection.RuntimeError<Resource.LoadError<ProjectError>>
+> = ResourceProjectsCollection.preload();
+void resourceProjectsPreload;
+// Remote changes stream through sync.changes; the collection owns the subscription.
+declare const projectChangeStream: Stream.Stream<
+  ReadonlyArray<Collection.Change<Project, string>>,
+  ProjectError,
+  ProjectApi
+>;
+const ChangeFedProjectsCollection = Collection.define({
+  name: "Projects.changeFedCollection",
+  output: ProjectSchema,
+  getKey: (project) => project.id,
+  sync: { changes: () => projectChangeStream },
 });
-Collection.querySyncAdapter<Project>({
-  // @ts-expect-error query sync keys must not contain direct Effect values
-  queryKey: ["projects", effectNumberValue],
-  queryFn: () => [],
-  queryClient: querySyncClient,
-});
+const changeFedProjectsPreload: Effect.Effect<
+  void,
+  Collection.RuntimeError<ProjectError>,
+  ProjectApi
+> = ChangeFedProjectsCollection.preload();
+void changeFedProjectsPreload;
 
-Collection.define(
-  serverCollectionOptions<Project>({
-    name: "Projects.badServerCollection",
-    getKey: (project) => project.id,
-    // @ts-expect-error server collection loader output must satisfy the row type
+Collection.define<Project>({
+  name: "Projects.badServerCollection",
+  getKey: (project) => project.id,
+  sync: {
+    // @ts-expect-error sync loader output must satisfy the row type
     load: () => Effect.succeed([{ id: "atlas" }]),
-  }),
-);
+  },
+});
 
 const flushAllProjectsEffect: Effect.Effect<
   ReadonlyArray<Collection.FlushAllPendingMutationsResult>,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | EffectInputCallbackError,
   ProjectApi
-> = Collection.flushAllPendingMutationsEffect([ProjectsCollection, ServerProjectsCollection]);
+> = Collection.flushAllPendingMutations([ProjectsCollection, ServerProjectsCollection]);
 Effect.map(flushAllProjectsEffect, (results) =>
   results.map((result) => result.transactions.map((transaction) => transaction.collection)),
 );
@@ -2080,7 +1806,7 @@ const backgroundSyncProjectsEffect: Effect.Effect<
   Collection.BackgroundSyncResult,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | EffectInputCallbackError,
   ProjectApi
-> = Collection.backgroundSyncPendingMutationsEffect([ProjectsCollection], {
+> = Collection.backgroundSyncPendingMutations([ProjectsCollection], {
   trigger: "online",
   adapter: backgroundSyncAdapter,
 });
@@ -2090,7 +1816,7 @@ Effect.map(backgroundSyncProjectsEffect, (result) => {
   return result.results.map((flushResult) => flushResult._tag);
 });
 Effect.map(
-  Collection.backgroundSyncPendingMutationsEffect([ProjectsCollection], {
+  Collection.backgroundSyncPendingMutations([ProjectsCollection], {
     trigger: "online",
     adapter: backgroundSyncAdapter,
   }),
@@ -2104,56 +1830,22 @@ const collectionChanges: ReadonlyArray<Collection.Change<Project, string>> = [
   { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
   { _tag: "Delete", key: "lumen" },
 ];
-Collection.applyChangesEffect(ProjectsCollection, collectionChanges, {
+ProjectsCollection.applyChanges(collectionChanges, {
   origin: "remote",
   synced: true,
 });
-const changeFeedAdapter: Collection.ChangeFeedAdapter<
-  Project,
-  string,
-  never,
-  never,
-  ProjectError | Server.ClientError,
-  ProjectApi
-> = {
-  name: "projects-feed",
-  subscribe: (context) => {
-    context.collection.toUpperCase();
-    const emitted: EffectInput<
-      void,
-      ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-      ProjectApi
-    > = context.emit([{ _tag: "Upsert", value: { id: "atlas", name: "Atlas" } }]);
-    void emitted;
-    context.emitChanges([{ _tag: "Upsert", value: { id: "atlas", name: "Atlas" } }]);
-    return {
-      unsubscribe: () => undefined,
-    };
-  },
-};
-const promiseChangeFeedAdapter: Collection.ChangeFeedAdapter<Project> = {
-  name: "projects-promise-feed",
-  // @ts-expect-error change feed subscriptions must return Effect or a pure value, not Promise
-  subscribe: () => promisedChangeFeedSubscription,
-};
-const changeFeedSubscriptionEffect: Effect.Effect<
-  void,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  Scope.Scope | ProjectApi
-> = Collection.subscribeChangesEffect(ProjectsCollection, changeFeedAdapter);
-void changeFeedSubscriptionEffect;
 Effect.map(
-  flushCollectionsPendingMutationsEffect([ProjectsCollection], {
+  Collection.flushAllPendingMutations([ProjectsCollection], {
     skip: ({ collection }) => collection.name === "Projects.collection",
   }),
   (results) => results.map((result) => result._tag),
 );
-flushCollectionsPendingMutationsEffect([ProjectsCollection], {
+Collection.flushAllPendingMutations([ProjectsCollection], {
   // @ts-expect-error static flush skip values must return Effect or a pure value, not Promise
   skip: promisedBoolean,
 });
 
-const sqliteStorage = Collection.sqliteStorage(
+const sqliteStorage = SQLitePersistence.storage(
   {
     table: () => ({
       get: (key) => {
@@ -2171,21 +1863,21 @@ const sqliteStorage = Collection.sqliteStorage(
   },
   { namespace: "workspace:a", schemaVersion: 1 },
 );
-const promisePersistenceCollection = Collection.define(
-  Collection.persistedOptions<Project>({
-    name: "Projects.promisePersistence",
-    getKey: (project) => project.id,
-    load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-    persistence: {
-      storage: {
-        // @ts-expect-error persistence storage reads must return Effect or a pure value, not Promise
-        getItem: () => promisedStorageText,
-        setItem: () => undefined,
-      },
+const promisePersistenceCollection = Collection.define<Project>({
+  name: "Projects.promisePersistence",
+  getKey: (project) => project.id,
+  persistence: {
+    storage: {
+      // @ts-expect-error persistence storage reads must return Effect or a pure value, not Promise
+      getItem: () => promisedStorageText,
+      setItem: () => undefined,
     },
-  }),
-);
-const invalidSqliteTableStorage = Collection.sqliteStorage(
+  },
+  sync: {
+    load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
+  },
+});
+const invalidSqliteTableStorage = SQLitePersistence.storage(
   {
     table: () => ({
       get: () => null,
@@ -2199,14 +1891,14 @@ const invalidSqliteTableGetEffect: Effect.Effect<
   EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
 > = toEffect(invalidSqliteTableStorage.getItem("projects"));
 void invalidSqliteTableGetEffect;
-const sqliteStorageTopLevel = makeSQLitePersistenceStorage({
+const sqliteStorageTopLevel = SQLitePersistence.storage({
   table: () => ({
     get: () => null,
     upsert: () => undefined,
   }),
 });
-const sqliteStatementStorage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver({
+const sqliteStatementStorage = SQLitePersistence.storage(
+  SQLitePersistence.statementDriver({
     execute: (_sql, params) => {
       params?.map((param) => param?.valueOf());
     },
@@ -2216,21 +1908,21 @@ const sqliteStatementStorage = Collection.sqliteStorage(
     },
   }),
 );
-const promiseSqliteStorage = Collection.sqliteStorage({
+const promiseSqliteStorage = SQLitePersistence.storage({
   table: () => ({
     // @ts-expect-error SQLite table reads must return Effect or a pure value, not Promise
     get: () => promisedSqliteRow,
     upsert: () => undefined,
   }),
 });
-const promiseSqliteStatementStorage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver({
+const promiseSqliteStatementStorage = SQLitePersistence.storage(
+  SQLitePersistence.statementDriver({
     // @ts-expect-error SQLite statement execution must return Effect or a pure value, not Promise
     execute: () => promisedVoid,
     select: () => [],
   }),
 );
-const sqlitePreparedStatementDatabase = Collection.sqlitePreparedStatementDatabase({
+const sqlitePreparedStatementDatabase = SQLitePersistence.preparedStatementDatabase({
   prepare: (sql) => {
     sql.toUpperCase();
     return {
@@ -2244,85 +1936,81 @@ const sqlitePreparedStatementDatabase = Collection.sqlitePreparedStatementDataba
     };
   },
 });
-const sqlitePreparedStatementStorage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver(sqlitePreparedStatementDatabase),
+const sqlitePreparedStatementStorage = SQLitePersistence.storage(
+  SQLitePersistence.statementDriver(sqlitePreparedStatementDatabase),
 );
-const sqliteMemoryStatementDatabase = Collection.sqliteMemoryStatementDatabase();
-const sqliteMemoryStatementStorage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver(sqliteMemoryStatementDatabase),
+const sqliteMemoryStatementDatabase = SQLitePersistence.memoryStatementDatabase();
+const sqliteMemoryStatementStorage = SQLitePersistence.storage(
+  SQLitePersistence.statementDriver(sqliteMemoryStatementDatabase),
 );
 sqliteMemoryStatementDatabase
   .tableRows("collection_snapshots")
   .map((row) => row.schemaVersion.toFixed());
-ProjectsCollection.persistEffect(sqliteStorage);
-ProjectsCollection.restoreEffect(sqliteStorageTopLevel);
-ProjectsCollection.restoreEffect(sqliteStatementStorage);
-ProjectsCollection.restoreEffect(sqlitePreparedStatementStorage);
-ProjectsCollection.restoreEffect(sqliteMemoryStatementStorage);
+ProjectsCollection.persist(sqliteStorage);
+ProjectsCollection.restore(sqliteStorageTopLevel);
+ProjectsCollection.restore(sqliteStatementStorage);
+ProjectsCollection.restore(sqlitePreparedStatementStorage);
+ProjectsCollection.restore(sqliteMemoryStatementStorage);
 
-const PersistedProjectsCollection = Collection.define(
-  Collection.persistedOptions<
-    Project,
-    string,
-    never,
-    never,
-    EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
-  >({
-    name: "Projects.persistedCollection",
-    getKey: (project) => project.id,
+const PersistedProjectsCollection = Collection.define<
+  Project,
+  string,
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
+>({
+  name: "Projects.persistedCollection",
+  getKey: (project) => project.id,
+  persistence: {
+    storage: sqliteStorage,
+    key: "projects",
+    loadAfterRestore: true,
+  },
+  sync: {
     load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-    persistence: {
-      storage: sqliteStorage,
-      key: "projects",
-      loadAfterRestore: true,
-    },
-  }),
-);
-PersistedProjectsCollection.preloadEffect();
-PersistedProjectsCollection.writeInsertEffect({ id: "atlas", name: "Atlas" });
+  },
+});
+PersistedProjectsCollection.preload();
+PersistedProjectsCollection.applyChanges([
+  { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
+]);
 
-Collection.define(
-  Collection.persistedOptions<
-    Project,
-    string,
-    never,
-    never,
-    EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
-  >({
-    name: "Projects.badPersistedCollection",
-    getKey: (project) => project.id,
-    persistence: {
-      storage: sqliteStorage,
-    },
-    // @ts-expect-error persisted collection loader output must satisfy the row type
-    load: () => Effect.succeed([{ id: "atlas" }]),
-  }),
-);
+Collection.define<
+  Project,
+  string,
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
+>({
+  name: "Projects.badPersistedCollection",
+  getKey: (project) => project.id,
+  persistence: {
+    storage: sqliteStorage,
+  },
+  // @ts-expect-error persisted collection loader output must satisfy the row type
+  load: () => Effect.succeed([{ id: "atlas" }]),
+});
 
-const collectionPayload = Collection.dehydrate([ProjectsCollection]);
+const collectionPayload = dehydrateCollections([ProjectsCollection]);
 const collectionDehydrateEffect: Effect.Effect<
   Collection.HydrationPayload,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = Collection.dehydrateEffect([ProjectsCollection]);
+> = dehydrateCollectionsEffect([ProjectsCollection]);
 const collectionHydratePayloadEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = Collection.hydratePayloadEffect([ProjectsCollection], collectionPayload);
+> = hydrateCollectionsEffect([ProjectsCollection], collectionPayload);
 const collectionValidateHydrationPayloadEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = Collection.validateHydrationPayloadEffect([ProjectsCollection], collectionPayload, {
+> = validateCollectionsHydrationEffect([ProjectsCollection], collectionPayload, {
   replace: false,
 });
 void collectionDehydrateEffect;
 void collectionHydratePayloadEffect;
 void collectionValidateHydrationPayloadEffect;
-Effect.map(Collection.collectEffect(ProjectsCollection.preloadEffect()), (collected) => {
+Effect.map(collectCollectionsEffect(ProjectsCollection.preload()), (collected) => {
   collected.value;
   collected.definitions.map((definition) => definition.name);
 });
 
-const StartApp = defineApp({
+const StartApp = App.define({
   routes: [ProjectRoute] as const,
   client: {},
 });
@@ -2403,11 +2091,12 @@ const promiseStartDiagnosticsCliLoaderIo: FrameworkStartDiagnosticsCliIo = {
   loadDiagnosticsEffect: () => promisedString,
 };
 declare const startResponsePromise: Promise<Response>;
-// @ts-expect-error root Start request handlers must return Effect, not Promise
-const promiseStartRequestHandler: StartRequestHandler = () => startResponsePromise;
-const startRequestHandler: StartRequestHandler = () => Effect.succeed(new Response("ok"));
-// @ts-expect-error root Start request handlers must return Effect, not plain Response
-const syncStartRequestHandler: StartRequestHandler = () => new Response("ok");
+// @ts-expect-error Start host adapters reject request handlers that return Promise
+const promiseStartRequestHandler = toFetchHandler(() => startResponsePromise);
+const startRequestHandler = toFetchHandler(() => Effect.succeed(new Response("ok")));
+// @ts-expect-error Start host adapters reject request handlers that return a plain Response
+const syncStartRequestHandler = toFetchHandler(() => new Response("ok"));
+const builtStartRequestHandler: StartRequestHandler = createRequestHandler(StartApp);
 const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("ok");
 // @ts-expect-error Vite dev SSR handlers must return Response or Effect, not Promise
 const promiseViteStartSsrRequestHandler: StartSsrRequestHandler = () => startResponsePromise;
@@ -2432,22 +2121,10 @@ const streamedHtmlResponseOptions: StartStreamedHtmlResponseOptions = {
   hydrationPlan: { streamedResourceChunks: [] },
   tail: "</body></html>",
 };
-const streamedHtmlResponseEffect: Effect.Effect<Response> = createStartStreamedHtmlResponseEffect(
+const streamedHtmlResponseEffect: Effect.Effect<Response> = createStartStreamedHtmlResponse(
   streamedHtmlResponseOptions,
 );
 void streamedHtmlResponseEffect;
-const effectRpc = serverFunctionToEffectRpc(
-  Server.fn("Project.effectRpc", {
-    input: ProjectSchema,
-    output: ProjectSchema,
-    error: Schema.String,
-    handler: (project) => project,
-  }),
-);
-effectRpc._tag.toUpperCase();
-makeStartEffectRpcGroup([]);
-declare const effectRpcCompatibility: StartEffectRpcCompatibilityArtifact;
-effectRpcCompatibility.procedures.map((procedure) => procedure.schemas.payload.valueOf());
 void startRequestHandler;
 void syncStartRequestHandler;
 void viteStartSsrRequestHandler;
@@ -2455,22 +2132,22 @@ void promiseViteStartSsrRequestHandler;
 void scopedViteStartSsrRequestHandler;
 void serviceViteStartSsrRequestHandler;
 void startVitePlugin;
-preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas"), {
+preloadRequest(StartApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection],
 });
 Effect.map(
   preloadRequest(StartApp, new Request("https://example.com/projects/atlas")),
   (result) => result.routePlan.href,
 );
-toFetchHandlerEffect(createRequestHandlerEffect(StartApp));
-createNodeHandlerEffect(createRequestHandlerEffect(StartApp));
-createNodeServerHandler(createRequestHandlerEffect(StartApp), {
+toFetchHandler(createRequestHandler(StartApp));
+createNodeHandler(createRequestHandler(StartApp));
+createNodeServerHandler(createRequestHandler(StartApp), {
   onError: (_error, _request, response) =>
     Effect.sync(() => {
       response.statusCode = 500;
     }),
 });
-createNodeServerHandler(createRequestHandlerEffect(StartApp), {
+createNodeServerHandler(createRequestHandler(StartApp), {
   // @ts-expect-error Node server error hooks must return Effect or a pure value, not Promise
   onError: () => promisedVoid,
 });
@@ -2495,20 +2172,17 @@ const rootNodeWebRequest: Request = nodeRequestToWebRequest(
   nodeIncomingMessage,
   rootNodeRequestOptions,
 );
-nodeRequestToWebRequestEffect(nodeIncomingMessage, rootNodeRequestOptions).pipe(
-  Effect.map((request) => request.url),
-);
-writeNodeResponseEffect(nodeServerResponse, new Response("ok"), rootWriteNodeOptions).pipe(
+writeNodeResponse(nodeServerResponse, new Response("ok"), rootWriteNodeOptions).pipe(
   Effect.map(() => undefined),
 );
 writeNodeResponse(nodeServerResponse, new Response(null, { status: 204 }), { headOnly: true }).pipe(
   Effect.map(() => undefined),
 );
-const rootFetchHandlerEffect: StartFetchHandlerEffect<Scope.Scope> = toFetchHandlerEffect(
-  createRequestHandlerEffect(StartApp),
+const rootFetchHandlerEffect: StartFetchHandler<Scope.Scope> = toFetchHandler(
+  createRequestHandler(StartApp),
 );
 const rootFetchHandler: StartFetchHandler<Scope.Scope> = toFetchHandler(
-  createRequestHandlerEffect(StartApp),
+  createRequestHandler(StartApp),
 );
 const rootFetchPromiseOptions: StartFetchPromiseHandlerOptions = {};
 const rootFetchRuntimeOptions: StartFetchPromiseHandlerRuntimeOptions<Scope.Scope> = {
@@ -2518,11 +2192,11 @@ declare const rootFetchPromiseHandler: StartFetchPromiseHandler;
 const rootFetchPromise: Promise<Response> = rootFetchPromiseHandler(
   new Request("https://example.com/projects/atlas"),
 );
-const rootNodeHandlerEffect: StartNodeHandlerEffect<Scope.Scope> = createNodeHandlerEffect(
-  createRequestHandlerEffect(StartApp),
+const rootNodeHandlerEffect: StartNodeHandler<Scope.Scope> = createNodeHandler(
+  createRequestHandler(StartApp),
 );
 const rootNodeHandler: StartNodeHandler<Scope.Scope> = createNodeHandler(
-  createRequestHandlerEffect(StartApp),
+  createRequestHandler(StartApp),
 );
 rootFetchHandlerEffect(new Request("https://example.com/projects/atlas"));
 rootFetchHandler(new Request("https://example.com/projects/atlas"));
@@ -2534,136 +2208,18 @@ void rootNodeRuntimeOptions;
 void rootFetchPromiseOptions;
 void rootFetchRuntimeOptions;
 void rootFetchPromise;
-const packagedFetchHandlerEffect: PackagedStartFetchHandlerEffect<Scope.Scope> =
-  toPackagedFetchHandlerEffect(createRequestHandlerEffect(StartApp));
-const packagedFetchHandlerAlias: PackagedStartFetchHandler<Scope.Scope> = toPackagedFetchHandler(
-  createRequestHandlerEffect(StartApp),
-);
-packagedFetchHandlerEffect(new Request("https://example.com/projects/atlas")).pipe(
-  Effect.map((response) => response.status),
-);
-packagedFetchHandlerAlias(new Request("https://example.com/projects/atlas")).pipe(
-  Effect.map((response) => response.status),
-);
-const packagedFetchHandler = toPackagedFetchHandler(createRequestHandlerEffect(StartApp));
-packagedFetchHandler(new Request("https://example.com/projects/atlas")).pipe(
-  Effect.map((response) => response.status),
-);
-const packagedFetchPromiseHandler = createPackagedFetchHandler(
-  createRequestHandlerEffect(StartApp),
-);
-const packagedFetchPromiseOptions: PackagedStartFetchPromiseHandlerOptions = {};
-const packagedFetchRuntimeOptions: PackagedStartFetchPromiseHandlerRuntimeOptions<Scope.Scope> = {
-  runtime: makeRuntime(),
-};
-declare const packagedFetchPromiseHandlerType: PackagedStartFetchPromiseHandler;
-void packagedFetchPromiseHandler;
-void packagedFetchPromiseOptions;
-void packagedFetchRuntimeOptions;
-void packagedFetchPromiseHandlerType;
-const subpathFetchHandlerEffect: SubpathStartFetchHandlerEffect<Scope.Scope> =
-  toSubpathFetchHandlerEffect(createRequestHandlerEffect(StartApp));
-const subpathFetchHandlerAlias: SubpathStartFetchHandler<Scope.Scope> = toSubpathFetchHandler(
-  createRequestHandlerEffect(StartApp),
-);
-subpathFetchHandlerEffect(new Request("https://example.com/projects/atlas")).pipe(
-  Effect.map((response) => response.status),
-);
-subpathFetchHandlerAlias(new Request("https://example.com/projects/atlas")).pipe(
-  Effect.map((response) => response.status),
-);
-const subpathFetchPromiseHandler = createSubpathFetchHandler(createRequestHandlerEffect(StartApp));
-const subpathFetchPromiseOptions: SubpathStartFetchPromiseHandlerOptions = {};
-const subpathFetchRuntimeOptions: SubpathStartFetchPromiseHandlerRuntimeOptions<Scope.Scope> = {
-  runtime: makeRuntime(),
-};
-declare const subpathFetchPromiseHandlerType: SubpathStartFetchPromiseHandler;
-void subpathFetchPromiseHandler;
-void subpathFetchPromiseOptions;
-void subpathFetchRuntimeOptions;
-void subpathFetchPromiseHandlerType;
-const packagedNodeHandlerEffect: PackagedStartNodeHandlerEffect<Scope.Scope> =
-  createPackagedNodeHandlerEffect(createRequestHandlerEffect(StartApp));
-const packagedNodeHandlerAlias: PackagedStartNodeHandler<Scope.Scope> = createPackagedNodeHandler(
-  createRequestHandlerEffect(StartApp),
-);
-packagedNodeHandlerEffect(nodeIncomingMessage, nodeServerResponse).pipe(
-  Effect.map((response) => response.status),
-);
-packagedNodeHandlerAlias(nodeIncomingMessage, nodeServerResponse).pipe(
-  Effect.map((response) => response.status),
-);
-const packagedNodeOriginPolicy: PackagedStartNodeOriginPolicy = { trustForwardedHeaders: true };
-const packagedNodeRequestOptions: PackagedStartNodeRequestOptions = { ...packagedNodeOriginPolicy };
-const packagedWriteNodeOptions: PackagedWriteNodeResponseOptions = { headOnly: true };
-const packagedNodeServerOptions: PackagedStartNodeServerHandlerOptions = {
-  runtime: startForkRuntime,
-};
-const packagedNodeRuntimeOptions: PackagedStartNodeServerHandlerRuntimeOptions<Scope.Scope> = {
-  runtime: makeRuntime(),
-};
-packagedNodeRequestOrigin(nodeIncomingMessage, packagedNodeRequestOptions);
-packagedNodeRequestToWebRequest(nodeIncomingMessage, packagedNodeRequestOptions);
-packagedNodeRequestToWebRequestEffect(nodeIncomingMessage, packagedNodeRequestOptions);
-packagedWriteNodeResponseEffect(nodeServerResponse, new Response("ok"), packagedWriteNodeOptions);
-packagedWriteNodeResponse(nodeServerResponse, new Response("ok"), packagedWriteNodeOptions);
-declare const packagedStartForkRuntime: PackagedStartForkRuntime;
-void packagedNodeServerOptions;
-void packagedNodeRuntimeOptions;
-void packagedStartForkRuntime;
-const packagedNodeHandler = createPackagedNodeHandler(createRequestHandlerEffect(StartApp));
-packagedNodeHandler(nodeIncomingMessage, nodeServerResponse).pipe(
-  Effect.map((response) => response.status),
-);
-const packagedNodeServerHandler = createPackagedNodeServerHandler(
-  createRequestHandlerEffect(StartApp),
-);
-void packagedNodeServerHandler;
-const subpathNodeHandlerEffect: SubpathStartNodeHandlerEffect<Scope.Scope> =
-  createSubpathNodeHandlerEffect(createRequestHandlerEffect(StartApp));
-const subpathNodeHandler: SubpathStartNodeHandler<Scope.Scope> = createSubpathNodeHandler(
-  createRequestHandlerEffect(StartApp),
-);
-const subpathNodeOriginPolicy: SubpathStartNodeOriginPolicy = { trustForwardedHeaders: true };
-const subpathNodeRequestOptions: SubpathStartNodeRequestOptions = { ...subpathNodeOriginPolicy };
-const subpathWriteNodeOptions: SubpathWriteNodeResponseOptions = { headOnly: false };
-const subpathNodeServerOptions: SubpathStartNodeServerHandlerOptions = {
-  runtime: startForkRuntime,
-};
-const subpathNodeRuntimeOptions: SubpathStartNodeServerHandlerRuntimeOptions<Scope.Scope> = {
-  runtime: makeRuntime(),
-};
-subpathNodeRequestOrigin(nodeIncomingMessage, subpathNodeRequestOptions);
-subpathNodeRequestToWebRequest(nodeIncomingMessage, subpathNodeRequestOptions);
-subpathNodeRequestToWebRequestEffect(nodeIncomingMessage, subpathNodeRequestOptions);
-subpathWriteNodeResponseEffect(nodeServerResponse, new Response("ok"), subpathWriteNodeOptions);
-subpathWriteNodeResponse(nodeServerResponse, new Response("ok"), subpathWriteNodeOptions);
-subpathNodeHandlerEffect(nodeIncomingMessage, nodeServerResponse);
-subpathNodeHandler(nodeIncomingMessage, nodeServerResponse);
-declare const subpathStartForkRuntime: SubpathStartForkRuntime;
-void subpathNodeServerOptions;
-void subpathNodeRuntimeOptions;
-void subpathStartForkRuntime;
-const subpathNodeServerHandler: SubpathStartNodeServerHandler = createSubpathNodeServerHandler(
-  createRequestHandlerEffect(StartApp),
-);
-void subpathNodeServerHandler;
-Effect.map(
-  preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas")),
-  (result) =>
-    result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
+Effect.map(preloadRequest(StartApp, new Request("https://example.com/projects/atlas")), (result) =>
+  result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
 );
 const hydrationDocument: Pick<Document, "getElementById"> = {
   getElementById: () => null,
 };
-hydrateFromDocument(hydrationDocument, undefined, {
-  collections: [ProjectsCollection],
-});
 const hydrationRuntime = makeRuntime();
-hydrateFromDocument(hydrationDocument, undefined, {
-  collections: [ProjectsCollection],
-  runtime: hydrationRuntime,
-});
+hydrationRuntime.runSync(
+  hydrateFromDocument(hydrationDocument, undefined, {
+    collections: [ProjectsCollection],
+  }),
+);
 interface RuntimeDocumentService {
   readonly readDocument: () => string;
 }
@@ -2678,64 +2234,26 @@ const typedRuntime = makeRuntime(
   }),
 );
 const runtimeProvidedEffect: Effect.Effect<string> = typedRuntime.provide(
-  RuntimeDocumentService.useSync((service) => service.readDocument()),
+  RuntimeDocumentService.use((service) => service.readDocument()),
 );
 const runtimeMissingRequirementEffect: Effect.Effect<string, never, RuntimeMissingService> =
-  typedRuntime.provide(RuntimeMissingService.useSync((service) => service.readMissing()));
+  typedRuntime.provide(RuntimeMissingService.use((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine provide preserves services that are not in the runtime
 const runtimeMissingRequirementErased: Effect.Effect<string> = typedRuntime.provide(
-  RuntimeMissingService.useSync((service) => service.readMissing()),
+  RuntimeMissingService.use((service) => service.readMissing()),
 );
-RuntimeProvider({ runtime: typedRuntime });
-RuntimeProvider({
-  source: RuntimeDocumentService.layer({
-    readDocument: () => "ok",
-  }),
-  onDisposeFailure: (error) => {
-    const phase: "resource-store" | "managed-runtime" = error.phase;
-    const cause: Cause.Cause<unknown> = error.cause;
-    const typedError: RuntimeDisposeError = error;
-    void phase;
-    void cause;
-    void typedError;
-    return Effect.void;
-  },
-});
-// @ts-expect-error RuntimeProvider ownership must choose either runtime or source
-RuntimeProvider({
-  runtime: typedRuntime,
-  source: RuntimeDocumentService.layer({
-    readDocument: () => "ok",
-  }),
-});
-RuntimeProvider({
-  source: RuntimeDocumentService.layer({
-    readDocument: () => "ok",
-  }),
-  // @ts-expect-error RuntimeProvider dispose observers must return EffectInput, not Promise work
-  onDisposeFailure: () => promisedVoid,
-});
-// @ts-expect-error host-owned runtime providers do not own disposal, so they do not accept disposal observers
-RuntimeProvider({
-  runtime: typedRuntime,
-  onDisposeFailure: () => Effect.void,
-});
-// @ts-expect-error RuntimeProvider source creates provider-owned runtimes; existing runtimes use the runtime prop
-RuntimeProvider({ source: typedRuntime });
-const typedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> =
-  typedRuntime.disposeEffect;
-typedRuntime.runSync(RuntimeDocumentService.useSync((service) => service.readDocument()));
+const typedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = typedRuntime.dispose;
+typedRuntime.runSync(RuntimeDocumentService.use((service) => service.readDocument()));
 // @ts-expect-error Runtime Spine cannot run an effect with services it does not provide
-typedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
+typedRuntime.runSync(RuntimeMissingService.use((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine cannot fork an effect with services it does not provide
-typedRuntime.runFork(RuntimeMissingService.useSync((service) => service.readMissing()));
+typedRuntime.runFork(RuntimeMissingService.use((service) => service.readMissing()));
 declare const erasedRuntime: AnySunfallArcRuntime<never>;
-const erasedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> =
-  erasedRuntime.disposeEffect;
+const erasedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = erasedRuntime.dispose;
 const erasedRuntimeProvidedEffect: Effect.Effect<string> = erasedRuntime.provide(
-  RuntimeMissingService.useSync((service) => service.readMissing()),
+  RuntimeMissingService.use((service) => service.readMissing()),
 );
-erasedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
+erasedRuntime.runSync(RuntimeMissingService.use((service) => service.readMissing()));
 const runtimeUiScope: UiScope = makeRuntimeUiScope(erasedRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(erasedRuntime);
 void runtimeProvidedEffect;
@@ -2751,29 +2269,29 @@ const viteDevServer = startDevServerFromVite({
   transformIndexHtml: () => promisedString,
 });
 const viteDevSsrEffect: Effect.Effect<Response, StartHandlerNotFound | StartDevServerError> =
-  handleSsrDevRequestEffect(viteDevServer, new Request("https://example.com/"));
+  handleSsrDevRequest(viteDevServer, new Request("https://example.com/"));
 const servicefulDevServer: StartDevServer<RuntimeMissingService> = {
   ssrLoadModule: () =>
-    RuntimeMissingService.useSync(() => ({
+    RuntimeMissingService.use(() => ({
       default: () => new Response("ok"),
     })),
-  transformIndexHtml: (_url, html) => RuntimeMissingService.useSync(() => html),
+  transformIndexHtml: (_url, html) => RuntimeMissingService.use(() => html),
 };
 const servicefulDevSsrEffect: Effect.Effect<
   Response,
   StartHandlerNotFound | StartDevServerError,
   RuntimeMissingService
-> = handleSsrDevRequestEffect(servicefulDevServer, new Request("https://example.com/"));
+> = handleSsrDevRequest(servicefulDevServer, new Request("https://example.com/"));
 void viteDevSsrEffect;
 void servicefulDevSsrEffect;
 // @ts-expect-error Runtime Spine exposes provide/runFork/runSync, not Promise runners
 hydrationRuntime.runPromise(Effect.void);
 hydrationRuntime.runSync(
-  hydrateFromDocumentEffect(hydrationDocument, undefined, {
+  hydrateFromDocument(hydrationDocument, undefined, {
     collections: [ProjectsCollection],
   }),
 );
-const startHydrationEffect: Effect.Effect<unknown, StartHydrationError> = hydrateFromDocumentEffect(
+const startHydrationEffect: Effect.Effect<unknown, StartHydrationError> = hydrateFromDocument(
   hydrationDocument,
   undefined,
   {
@@ -2790,11 +2308,7 @@ const streamHydrationDocument = {
     },
   ],
 };
-readStartHydrationChunks(streamHydrationDocument, { includeConsumed: true });
-hydrateStartHydrationChunksFromDocument(streamHydrationDocument, {
-  collections: [ProjectsCollection],
-  runtime: hydrationRuntime,
-});
+readStartHydrationChunksEffect(streamHydrationDocument, { includeConsumed: true });
 hydrationRuntime.runSync(
   hydrateStartHydrationChunksFromDocumentEffect(streamHydrationDocument, {
     collections: [ProjectsCollection],
@@ -2802,10 +2316,10 @@ hydrationRuntime.runSync(
   }),
 );
 
-ProjectsCollection.updateEffect("atlas", { name: "Atlas Revenue" });
+ProjectsCollection.update("atlas", { name: "Atlas Revenue" });
 
 // @ts-expect-error collection key type is preserved
-ProjectsCollection.updateEffect(123, { name: "Atlas Revenue" });
+ProjectsCollection.update(123, { name: "Atlas Revenue" });
 
 Collection.define<Project>({
   name: "Projects.badCollection",
@@ -2824,7 +2338,7 @@ Collection.define<Project>({
 const ProjectNames = Query.live((query) =>
   query
     .from({ project: ProjectsCollection })
-    .where(({ project }) => eq(project.id, "atlas"))
+    .where(({ project }) => project.id === "atlas")
     .select(({ project }) => project.name),
 );
 const projectNamesPreloadEffect: Effect.Effect<
@@ -2835,7 +2349,7 @@ const projectNamesPreloadEffect: Effect.Effect<
   | Schema.SchemaError
   | QueryEvaluationError,
   ProjectApi
-> = ProjectNames.preloadEffect();
+> = ProjectNames.preload();
 const projectNamesRefetchEffect: Effect.Effect<
   void,
   | ProjectError
@@ -2844,7 +2358,7 @@ const projectNamesRefetchEffect: Effect.Effect<
   | Schema.SchemaError
   | QueryEvaluationError,
   ProjectApi
-> = ProjectNames.refetchEffect();
+> = ProjectNames.refresh();
 const projectNamesOnceEffect: Effect.Effect<
   ReadonlyArray<string>,
   | ProjectError
@@ -2853,7 +2367,7 @@ const projectNamesOnceEffect: Effect.Effect<
   | Schema.SchemaError
   | QueryEvaluationError,
   ProjectApi
-> = Query.onceEffect((query) =>
+> = Query.once((query) =>
   query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
 );
 void projectNamesPreloadEffect;
@@ -2874,10 +2388,10 @@ if (projectNamesState._tag === "Failure") {
   void projectNamesLastGood;
 }
 
-ProjectNames.data.get().map((name) => name.toUpperCase());
+ProjectNames.rows.get().map((name) => name.toUpperCase());
 
 // @ts-expect-error live query select result is string
-ProjectNames.data.get().map((name) => name.toFixed());
+ProjectNames.rows.get().map((name) => name.toFixed());
 const defaultTypedProjectNameFactory: Query.Factory<string> = (query) =>
   // @ts-expect-error serviceful query factories must spell their error/requirement channels
   query.from({ project: ProjectsCollection }).select(({ project }) => project.name);
@@ -2904,73 +2418,48 @@ const ProjectNameCards = Collection.liveQuery<
       name: project.name,
     })),
 });
-const solidProjects = useCollection(ProjectsCollection, {
-  preload: false,
-  onPreloadFailure: (error) => {
-    const typedError:
-      | ProjectError
-      | Server.ClientError
-      | CollectionSnapshotCodecError
-      | Schema.SchemaError = error;
-    void typedError;
-    return Effect.void;
-  },
-});
-useCollection(ProjectsCollection, {
-  // @ts-expect-error Solid DB collection preload observers must return EffectInput, not Promise work.
-  onPreloadFailure: () => promisedVoid,
-});
-const solidProjectsHandle: CollectionHandle<
-  Project,
-  string,
-  ProjectError | Server.ClientError,
-  never
-> = solidProjects;
-const solidProjectResource = useResource(ProjectById("atlas"));
-const solidProjectResourceValue: Option.Option<Project> = AsyncResult.value(
-  solidProjectResource.result(),
+// A collection's services join the binding's (and so the Component's) R.
+const solidProjectsBinding: Effect.Effect<
+  CollectionHandle<Project, string, ProjectError | Server.ClientError>,
+  never,
+  ProjectApi
+> = SolidDb.collection(ProjectsCollection);
+void solidProjectsBinding;
+const solidProjects = bound(
+  SolidDb.collection(ProjectsCollection, {
+    preload: false,
+    onPreloadFailure: (error) => {
+      const typedError:
+        | ProjectError
+        | Server.ClientError
+        | CollectionSnapshotCodecError
+        | Schema.SchemaError = error;
+      void typedError;
+      return Effect.void;
+    },
+  }),
 );
-const solidProjectResourcePrefetch: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError>
-> = solidProjectResource.prefetchEffect();
-interface SolidRuntimeStartupError {
-  readonly _tag: "SolidRuntimeStartupError";
-}
-const solidProjectResourceWithRuntimeError = useResource<
-  string,
-  Project,
+bound(
+  SolidDb.collection(ProjectsCollection, {
+    // @ts-expect-error Solid DB collection preload observers must return EffectInput, not Promise work.
+    onPreloadFailure: () => promisedVoid,
+  }),
+);
+const solidProjectsHandle: CollectionHandle<Project, string, ProjectError | Server.ClientError> =
+  solidProjects;
+// A Resource family's typed error joins E and its services join R.
+const solidProjectReaderBinding: Effect.Effect<
+  Component.ResourceReader<string, Project, ProjectError | Server.ClientError>,
   ProjectError | Server.ClientError,
-  ProjectApi,
-  SolidRuntimeStartupError
->(ProjectById("atlas"), {
-  onPreloadFailure: (error) => {
-    const typedError:
-      | Resource.LoadError<ProjectError | Server.ClientError>
-      | SolidRuntimeStartupError = error;
-    void typedError;
-  },
-});
-useResource(ProjectById("atlas"), {
-  // @ts-expect-error resource preload failure observers must return values or Effects, not Promises
-  onPreloadFailure: () => promisedVoid,
-});
-const solidProjectResourceRuntimeErrorPrefetch: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError> | SolidRuntimeStartupError
-> = solidProjectResourceWithRuntimeError.prefetchEffect();
-const solidProjectResourcePreloadFailure:
-  | Resource.LoadError<ProjectError | Server.ClientError>
-  | SolidRuntimeStartupError
-  | undefined = solidProjectResourceWithRuntimeError.preloadFailure();
+  ProjectApi
+> = Component.resource(ProjectById);
+const solidProjectReader = bound(solidProjectReaderBinding);
+const solidProjectResourceValue: Project = solidProjectReader("atlas");
+const solidProjectResourceFailure:
+  | Cause.Cause<Resource.LoadError<ProjectError | Server.ClientError>>
+  | undefined = solidProjectReader.failure("atlas");
 void solidProjectResourceValue;
-void solidProjectResourcePrefetch;
-void solidProjectResourceRuntimeErrorPrefetch;
-void solidProjectResourcePreloadFailure;
-const solidProjectPreloadEffect: Effect.Effect<
-  void,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
-> = solidProjects.preloadEffect();
+void solidProjectResourceFailure;
 const solidProjectPreloadFailure:
   | ProjectError
   | Server.ClientError
@@ -2978,103 +2467,10 @@ const solidProjectPreloadFailure:
   | Schema.SchemaError
   | undefined = solidProjects.preloadFailure();
 solidProjects.pendingMutations().map((pending) => pending.transaction.id);
-const solidProjectInsertEffect: Effect.Effect<
-  Collection.Transaction<Project, string>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-> = solidProjects.insertEffect({ id: "lumen", name: "Lumen" });
-const solidProjectUpdateEffect: Effect.Effect<
-  Collection.Transaction<Project, string>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-  | CollectionRowNotFound
-  | CollectionRowKeyChanged
-> = solidProjects.updateEffect("atlas", { name: "Atlas Revenue" });
-const solidProjectDeleteEffect: Effect.Effect<
-  Collection.Transaction<Project, string>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-  | CollectionRowNotFound
-> = solidProjects.deleteEffect("atlas");
-const solidProjectWriteInsertEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-> = solidProjects.writeInsertEffect({ id: "orion", name: "Orion" });
-const solidProjectWriteUpdateEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-  | CollectionRowNotFound
-  | CollectionRowKeyChanged
-> = solidProjects.writeUpdateEffect("orion", { name: "Orion Prime" });
-const solidProjectWriteDeleteEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-> = solidProjects.writeDeleteEffect("orion");
-const solidProjectFlushEffect: Effect.Effect<
-  ReadonlyArray<Collection.Transaction<Project, string>>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-> = solidProjects.flushPendingMutationsEffect();
-void solidProjectPreloadEffect;
+// @ts-expect-error writes run `ProjectsCollection.insert(...)` through `Component.callback`.
+solidProjects.insertEffect;
 void solidProjectPreloadFailure;
-void solidProjectInsertEffect;
-void solidProjectUpdateEffect;
-void solidProjectDeleteEffect;
-void solidProjectWriteInsertEffect;
-void solidProjectWriteUpdateEffect;
-void solidProjectWriteDeleteEffect;
-void solidProjectFlushEffect;
-const solidProjectsWithRuntimeError = useCollection<
-  Project,
-  string,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  SolidRuntimeStartupError
->(ProjectsCollection, { preload: false });
-const solidProjectPreloadRuntimeErrorEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | SolidRuntimeStartupError
-> = solidProjectsWithRuntimeError.preloadEffect();
-const solidProjectInsertRuntimeErrorEffect: Effect.Effect<
-  Collection.Transaction<Project, string>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-  | SolidRuntimeStartupError
-> = solidProjectsWithRuntimeError.insertEffect({ id: "lumen", name: "Lumen" });
-void solidProjectPreloadRuntimeErrorEffect;
-void solidProjectInsertRuntimeErrorEffect;
-const solidProjectNames = useLiveQuery(
+const solidProjectNamesBinding = SolidDb.liveQuery(
   (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
   {
     preload: false,
@@ -3090,7 +2486,18 @@ const solidProjectNames = useLiveQuery(
     },
   },
 );
-useLiveQuery<
+// The live query's sources' services join R.
+const solidProjectNamesServices: Effect.Effect<
+  LiveQueryHandle<
+    string,
+    ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
+  >,
+  never,
+  ProjectApi
+> = solidProjectNamesBinding;
+void solidProjectNamesServices;
+const solidProjectNames = bound(solidProjectNamesBinding);
+SolidDb.liveQuery<
   string,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
   ProjectApi
@@ -3100,24 +2507,23 @@ useLiveQuery<
 });
 const solidProjectNamesHandle: LiveQueryHandle<
   string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  never
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
 > = solidProjectNames;
-const solidProjectNamesWithDeps = useLiveQuery(
+SolidDb.liveQuery(
   (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
   {
     preload: false,
+    // @ts-expect-error the query factory is tracked; signal/prop reads in it rebuild the query.
     deps: () => "atlas",
   },
 );
-const solidProjectStream = useStream(
+const solidProjectStreamBinding: Effect.Effect<() => Project, never, ProjectApi> = Component.stream(
   Stream.suspend(() =>
     Stream.fromEffect(ProjectApi.use((api) => api.get("atlas")).pipe(Effect.orDie)),
   ),
   { id: "loading", name: "Loading" },
 );
-const solidProjectStreamValue: Project = solidProjectStream();
-void solidProjectNamesWithDeps;
+const solidProjectStreamValue: Project = bound(solidProjectStreamBinding)();
 void solidProjectStreamValue;
 const solidProjectNamesPreloadEffect: Effect.Effect<
   void,
@@ -3126,7 +2532,7 @@ const solidProjectNamesPreloadEffect: Effect.Effect<
   | CollectionSnapshotCodecError
   | Schema.SchemaError
   | QueryEvaluationError
-> = solidProjectNames.preloadEffect();
+> = solidProjectNames.preload();
 const solidProjectNamesError: Option.Option<
   | ProjectError
   | Server.ClientError
@@ -3144,30 +2550,12 @@ const solidProjectNamesPreloadFailure:
 void solidProjectNamesPreloadEffect;
 void solidProjectNamesError;
 void solidProjectNamesPreloadFailure;
-const solidProjectNamesWithRuntimeError = useLiveQuery<
-  string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  ProjectApi,
-  SolidRuntimeStartupError
->((query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name), {
-  preload: false,
-});
-const solidProjectNamesRuntimeErrorPreloadEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | SolidRuntimeStartupError
-> = solidProjectNamesWithRuntimeError.preloadEffect();
-void solidProjectNamesRuntimeErrorPreloadEffect;
 
 ProjectNameCards.rows().map((project) => {
   project.name.toUpperCase();
   project.$synced.valueOf();
 });
-Effect.map(ProjectNameCards.updateEffect("atlas", { name: "Atlas Prime" }), () => undefined);
+Effect.map(ProjectNameCards.update("atlas", { name: "Atlas Prime" }), () => undefined);
 
 const TopLevelProjectNameCards = Collection.liveQuery({
   name: "ProjectNameCards.topLevel",
@@ -3189,8 +2577,10 @@ const topLevelProjectNameCardsPreload: Effect.Effect<
   | QueryEvaluationError
   | ReadonlyCollectionMutation,
   ProjectApi
-> = TopLevelProjectNameCards.preloadEffect();
-const solidTopLevelProjectNameCards = useCollection(TopLevelProjectNameCards, { preload: false });
+> = TopLevelProjectNameCards.preload();
+const solidTopLevelProjectNameCards = bound(
+  SolidDb.collection(TopLevelProjectNameCards, { preload: false }),
+);
 const solidTopLevelProjectNameCardsHandle: CollectionHandle<
   { readonly id: string; readonly name: string },
   string,
@@ -3199,8 +2589,7 @@ const solidTopLevelProjectNameCardsHandle: CollectionHandle<
   | CollectionSnapshotCodecError
   | Schema.SchemaError
   | QueryEvaluationError
-  | ReadonlyCollectionMutation,
-  never
+  | ReadonlyCollectionMutation
 > = solidTopLevelProjectNameCards;
 void solidProjectsHandle;
 void solidProjectNamesHandle;
@@ -3233,7 +2622,7 @@ const ProjectTaskTitles = Query.live((query) =>
     .select(({ project, task }) => `${project.name}:${task.title}`),
 );
 
-ProjectTaskTitles.data.get().map((title) => title.toUpperCase());
+ProjectTaskTitles.rows.get().map((title) => title.toUpperCase());
 
 const IndexedProjectTaskTitles = Query.live((query) =>
   query
@@ -3242,7 +2631,7 @@ const IndexedProjectTaskTitles = Query.live((query) =>
     .select(({ project, task }) => `${project.name}:${task.title}`),
 );
 
-IndexedProjectTaskTitles.data.get().map((title) => title.toUpperCase());
+IndexedProjectTaskTitles.rows.get().map((title) => title.toUpperCase());
 
 const ProjectTaskRows = Query.live((query) =>
   query.from({ project: ProjectsCollection }).join(
@@ -3253,7 +2642,7 @@ const ProjectTaskRows = Query.live((query) =>
   ),
 );
 
-ProjectTaskRows.data.get().map(({ project, task }) => `${project.name}:${task.title}`);
+ProjectTaskRows.rows.get().map(({ project, task }) => `${project.name}:${task.title}`);
 
 Query.live((query) =>
   query.from({ project: ProjectsCollection }).join(
@@ -3280,7 +2669,7 @@ const ProjectCounts = Query.live((query) =>
     })),
 );
 
-ProjectCounts.data.get().map((group) => group.count.toFixed());
+ProjectCounts.rows.get().map((group) => group.count.toFixed());
 
 Query.live((query) =>
   query.from({ project: ProjectsCollection }).groupBy(({ project }) => ({ name: project.name }), {
@@ -3382,18 +2771,19 @@ const frameworkGroupKeyAlias: Query.GroupKey<{
 };
 void frameworkGroupKeyAlias;
 
-const projectsHandle = useCollection(ProjectsCollection);
+const projectsHandle = bound(SolidDb.collection(ProjectsCollection));
 projectsHandle.rows().map((project) => project.name);
 projectsHandle.get("atlas")?.name.toUpperCase();
 projectsHandle.index("byName", "Atlas").map((project) => project.name.toUpperCase());
-projectsHandle.firstByIndex("byName", "Atlas")?.name.toUpperCase();
 
-const projectNamesHandle = useLiveQuery((query) =>
-  query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+const projectNamesHandle = bound(
+  SolidDb.liveQuery((query) =>
+    query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+  ),
 );
-projectNamesHandle.data().map((name) => name.toUpperCase());
+projectNamesHandle.rows().map((name) => name.toUpperCase());
 
-const ProjectRoutePlan = Route.planNavigationEffect([ProjectRoute] as const, "/projects/atlas");
+const ProjectRoutePlan = Route.planNavigation([ProjectRoute] as const, "/projects/atlas");
 Effect.map(ProjectRoutePlan, (plan) => {
   if (plan._tag === "Matched") {
     plan.match.params.id;
@@ -3428,22 +2818,23 @@ ProjectApi.layer({
 });
 
 ProjectApi.use((api) => api.get("atlas"));
-ProjectApi.useEffect((api) => api.get("atlas"));
-ProjectApi.useEffect(() => ({ id: "atlas", name: "Pure Project" }));
-// @ts-expect-error synchronous capability callbacks must not return direct Effect values; use useEffect instead
-ProjectApi.useSync(() => effectNumberValue);
+ProjectApi.use(() => ({ id: "atlas", name: "Pure Project" }));
+const capabilityEffectReturn: Effect.Effect<number> = ProjectApi.use(() => effectNumberValue).pipe(
+  Effect.provide(ProjectApi.layer({} as never)),
+);
+void capabilityEffectReturn;
 const projectProgramRuntime = makeRuntime(
   ProjectApi.layer({
     get: (id) => Effect.succeed({ id, name: "Runtime Project" }),
     rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
   }),
 );
-const runUiEffect = useRuntimeEffect<RuntimeStartupError>();
-const uiEffectJoin: Effect.Effect<
-  Project,
-  ProjectError | Server.ClientError | RuntimeStartupError
-> = Fiber.join(runUiEffect(ProjectApi.use((api) => api.get("atlas"))));
-void uiEffectJoin;
+// Event handlers run Effects through `Component.callback`: services join R,
+// and failures must be handled.
+const uiCallback: Effect.Effect<(id: string) => void, never, ProjectApi> = Component.callback(
+  (id: string) => ProjectApi.use((api) => api.get(id)).pipe(Effect.ignore),
+);
+void uiCallback;
 
 type ProjectProgramModel = { readonly selected: Project | undefined; readonly loading: boolean };
 type ProjectProgramMessage =
@@ -3458,14 +2849,13 @@ const ProjectProgram = Program.define<
   ProjectApi
 >({
   name: "ProjectProgram",
-  timeline: { limit: 50 },
   initial: { selected: undefined, loading: false },
   update: (model, message) => {
     switch (message._tag) {
       case "Load":
         return Program.next(
           { ...model, loading: true },
-          Program.command<ProjectProgramMessage, ProjectError | Server.ClientError, ProjectApi>(
+          Program.emit<ProjectProgramMessage, ProjectError | Server.ClientError, ProjectApi>(
             ProjectApi.use((api) =>
               Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }) as const),
             ),
@@ -3477,7 +2867,7 @@ const ProjectProgram = Program.define<
         return model.selected
           ? Program.next(
               model,
-              Program.dispatch<ProjectProgramMessage>({ _tag: "Load", id: model.selected.id }),
+              Program.emit<ProjectProgramMessage>({ _tag: "Load", id: model.selected.id }),
             )
           : model;
     }
@@ -3487,7 +2877,7 @@ const ProjectProgram = Program.define<
 });
 
 // @ts-expect-error serviceful Program.start requires an explicit runtime carrying Program services
-Program.start(ProjectProgram);
+Program.start(ProjectProgram, { runtime: makeRuntime() });
 const projectProgramStartOptions: Program.StartOptions<ProjectApi> = {
   runtime: projectProgramRuntime,
 };
@@ -3498,27 +2888,67 @@ type ProjectProgramRemainingRuntimeRequirements = Program.RuntimeRemainingRequir
 const missingProgramRuntimeRequirement =
   null as unknown as ProjectProgramRemainingRuntimeRequirements;
 const projectProgram = Program.start(ProjectProgram, { runtime: projectProgramRuntime });
-read(projectProgram.model).selected?.name.toUpperCase();
-const projectProgramTimeline: ReadonlyArray<
-  Program.Event<
-    ProjectProgramModel,
-    ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError
-  >
-> = read(projectProgram.timeline);
-projectProgramTimeline.map((event) => event.sequence.toFixed());
+projectProgram.model.get().selected?.name.toUpperCase();
+const projectTimelineRecord: Effect.Effect<
+  TimelineRecording,
+  TimelineAlreadyRecording,
+  Scope.Scope
+> = Timeline.record({ limit: 50 });
+declare const projectTimeline: TimelineRecording;
+// A Program's history is the app Timeline filtered to its model signal.
+const projectProgramHistory: ReadonlyArray<TimelineEntry> = projectTimeline.entries
+  .get()
+  .filter((entry) => entry.changes.some((change) => change.signal === projectProgram.model));
+projectProgramHistory.map((entry) => entry.sequence.toFixed());
+const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]?.cause);
+const projectTimelinePosition: number | undefined = projectTimeline.position.get();
+const projectTimelineTravel: Effect.Effect<void, TimelineEntryUnavailable> =
+  projectTimeline.travel(1);
+const projectTimelineResume: Effect.Effect<void> = projectTimeline.resume();
+// @ts-expect-error travel takes a recorded sequence number
+projectTimeline.travel("1");
+// @ts-expect-error Timeline entries are read-only
+projectTimeline.entries.set([]);
+const projectProgramCause: TimelineCause | undefined = projectProgramHistory[0]?.cause;
+if (projectProgramCause?._tag === "Program") {
+  const program: string | undefined = projectProgramCause.program;
+  const event: "message" | "failure" | "clearFailures" = projectProgramCause.event;
+  void program;
+  void event;
+}
+const renameCause: TimelineCause = { _tag: "User", label: "Rename project" };
+const namedTimelineSignal = Signal.make("Atlas", { name: "Project.title" });
+const labelledTransaction: Effect.Effect<void> = Signal.transaction(
+  Effect.sync(() => namedTimelineSignal.set("Apollo")),
+  { cause: renameCause },
+);
+const labelledBatch: number = Signal.batch(() => 1, { cause: renameCause });
+// @ts-expect-error Timeline causes are a closed tagged union
+Signal.batch(() => 1, { cause: { _tag: "Custom", label: "nope" } });
+// @ts-expect-error signal names are strings
+Signal.make(0, { name: 1 });
+// @ts-expect-error Program history lives on the app Timeline, not on the Program instance
 projectProgram.clearTimeline();
+// @ts-expect-error Program definitions no longer carry per-program timeline retention
+Program.define<number, "tick">({ initial: 0, update: (model) => model, timeline: false });
+void projectTimelineRecord;
+void projectTimelineLabel;
+void projectTimelinePosition;
+void projectTimelineTravel;
+void projectTimelineResume;
+void labelledTransaction;
+void labelledBatch;
 const projectProgramDispatchEffect: Effect.Effect<
   void,
   Program.Failure<
     ProjectProgramMessage,
     ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
   >
-> = projectProgram.dispatchEffect({ _tag: "Load", id: "atlas" });
+> = projectProgram.dispatch({ _tag: "Load", id: "atlas" });
 void projectProgramDispatchEffect;
-projectProgram.dispatch({ _tag: "Refresh" });
+void projectProgram.dispatch({ _tag: "Refresh" });
 // @ts-expect-error Program dispatch messages keep payloads typed
-projectProgram.dispatch({ _tag: "Load" });
+void projectProgram.dispatch({ _tag: "Load" });
 const ProjectProgramWithMissingService = Program.define<
   ProjectProgramModel,
   ProjectProgramMessage,
@@ -3529,8 +2959,8 @@ const ProjectProgramWithMissingService = Program.define<
   update: (model) =>
     Program.next(
       model,
-      Program.effect(
-        RuntimeMissingService.useSync((service) => service.readMissing()).pipe(Effect.asVoid),
+      Program.emit(
+        RuntimeMissingService.use((service) => service.readMissing()).pipe(Effect.asVoid),
       ),
     ),
 });
@@ -3558,7 +2988,7 @@ const projectProgramRuntimeErrorDispatch: Effect.Effect<
     | Program.Disposed
     | ProgramRuntimeStartupError
   >
-> = projectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
+> = projectProgramWithRuntimeError.dispatch({ _tag: "Load", id: "atlas" });
 const projectProgramStep: Effect.Effect<
   Program.Step<
     ProjectProgramModel,
@@ -3600,37 +3030,28 @@ void projectProgramStoryEntry;
 void projectProgramRuntimeErrorDispatch;
 void projectProgramStartOptions;
 void missingProgramRuntimeRequirement;
-const solidProjectProgram: ProgramHandle<
-  ProjectProgramModel,
-  ProjectProgramMessage,
-  ProjectError | Server.ClientError | EffectInputCallbackError,
-  ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
-> = useProgram(ProjectProgram);
+const solidProjectProgramBinding: Effect.Effect<
+  Component.ProgramHandle<
+    ProjectProgramModel,
+    ProjectProgramMessage,
+    ProjectError | Server.ClientError
+  >,
+  never,
+  ProjectApi
+> = Component.program(ProjectProgram);
+const solidProjectProgram = bound(solidProjectProgramBinding);
 solidProjectProgram.model().selected?.id.toUpperCase();
 solidProjectProgram.failures().map((failure) => failure.phase);
-solidProjectProgram.timeline().map((event) => event._tag);
-solidProjectProgram.clearTimeline();
 // @ts-expect-error Solid Program dispatch messages keep payloads typed
-solidProjectProgram.dispatch({ _tag: "Loaded" });
-const solidProjectProgramWithRuntimeError = useProgram<
-  ProjectProgramModel,
-  ProjectProgramMessage,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  SolidRuntimeStartupError
->(ProjectProgram);
-const solidProjectProgramRuntimeErrorDispatch: Effect.Effect<
+void solidProjectProgram.dispatch({ _tag: "Loaded" });
+const solidProjectProgramDispatch: Effect.Effect<
   void,
   Program.Failure<
     ProjectProgramMessage,
-    | ProjectError
-    | Server.ClientError
-    | EffectInputCallbackError
-    | Program.Disposed
-    | SolidRuntimeStartupError
+    ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
   >
-> = solidProjectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
-void solidProjectProgramRuntimeErrorDispatch;
+> = solidProjectProgram.dispatch({ _tag: "Load", id: "atlas" });
+void solidProjectProgramDispatch;
 
 Program.define<number, "bad">({
   initial: 0,
@@ -3674,16 +3095,14 @@ Program.define<typeof promisedNumber, "bad">({
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
 
 // @ts-expect-error capability callbacks must return Effect or a pure value, not Promise
-ProjectApi.useEffect(() => promisedProject);
-// @ts-expect-error synchronous capability callbacks must not smuggle Promise work
-ProjectApi.useSync(() => promisedProject);
+ProjectApi.use(() => promisedProject);
 
-Resource.family<string, Project>({
+Resource.define<string, Project>({
   name: "Project.bad",
   // @ts-expect-error resource loader output must satisfy the resource value type
   load: (id) => ({ id }),
 });
-Resource.family<string, Project>({
+Resource.define<string, Project>({
   name: "Project.promiseKey",
   // @ts-expect-error custom resource keys must return a string synchronously, not Promise
   key: () => promisedString,
@@ -3693,21 +3112,21 @@ Resource.tag<{ readonly id: string }>("Project.promiseTagKey", {
   // @ts-expect-error custom resource tag keys must return a string synchronously, not Promise
   key: () => promisedString,
 });
-Resource.family<string, Project>({
+Resource.define<string, Project>({
   name: "Project.promiseProvides",
   load: (id) => ({ id, name: "Atlas" }),
   // @ts-expect-error resource provides callbacks must return tag metadata synchronously, not Promise
   provides: () => promisedProjects,
 });
 
-route("/promise-preload", {
+Route.define("/promise-preload", {
   // @ts-expect-error route preload must return Effect or a pure value, not Promise
   preload: () => promisedVoid,
 });
 // @ts-expect-error annotated route preload results still reject Promise-shaped values
 const annotatedPromiseRoutePreloadResult: RoutePreloadResult = promisedVoid;
 
-defineFileRoute("/promise-file-preload")({
+FileRoute.define("/promise-file-preload")({
   // @ts-expect-error file route preload must return Effect or a pure value, not Promise
   preload: () => promisedVoid,
 });
@@ -3717,17 +3136,22 @@ interface RoutePreloadApi {
 }
 
 const RoutePreloadApi = Capability.define<RoutePreloadApi>("RoutePreloadApi");
-const ServicePreloadRoute = route("/service-projects/:id", {
+const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
-const FileRoutePreloadBuilder = defineFileRoute("/file-preload-helper/:id");
-const FileRoutePreloadHelperRoute = FileRoutePreloadBuilder.preload(
-  {
-    resources: [FileRoutePreloadBuilder.resource(ProjectById, ({ params }) => params.id)],
-    collections: [ProjectsCollection],
-  },
-  ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
-).route();
+const FileRoutePreloadHelperRoute = FileRoute.define("/file-preload-helper/:id")({
+  preloadResources: [ProjectById],
+  preloadCollections: [ProjectsCollection],
+  preload: ({ params }) =>
+    Effect.all(
+      [
+        Resource.preload(ProjectById(params.id)),
+        ProjectsCollection.preload(),
+        RoutePreloadApi.use((api) => api.warm(params.id)),
+      ],
+      { discard: true },
+    ),
+});
 const fileRoutePreloadHelperRequirements: Route.PreloadRequirements<
   typeof FileRoutePreloadHelperRoute
 > = {} as ProjectApi | RoutePreloadApi;
@@ -3736,47 +3160,26 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
   void,
   Route.PreloadError,
   ProjectApi | RoutePreloadApi
-> = Route.preloadEffect(fileRoutePreloadHelperMatch);
-const NamedFileRoutePreloadBuilder = defineFileRoute("/file-preload-helper-named");
-const NamedFileRoutePreloadHelperRoute = NamedFileRoutePreloadBuilder.preload(
-  {
-    collections: [ProjectsCollection.name, { name: ProjectsCollection.name }],
+> = Route.preload(fileRoutePreloadHelperMatch);
+const BrandedFileRoutePreloadHelperRoute = FileRoute.define("/file-preload-branded/:id")({
+  params: Schema.Struct({ id: ProjectId }),
+  search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
+  preloadResources: [BrandedProjectById],
+  preloadCollections: [ProjectsCollection],
+  preload: ({ params, search }) => {
+    const id: ProjectId = params.id;
+    const tab: "overview" | "activity" | undefined = search.tab;
+    void tab;
+    return Effect.all(
+      [
+        Resource.preload(BrandedProjectById(id)),
+        ProjectsCollection.preload(),
+        RoutePreloadApi.use((api) => api.warm(params.id)),
+      ],
+      { discard: true },
+    );
   },
-  () => RoutePreloadApi.use((api) => api.warm("atlas")),
-).route();
-const namedFileRoutePreloadHelperRequirements: Route.PreloadRequirements<
-  typeof NamedFileRoutePreloadHelperRoute
-> = {} as RoutePreloadApi;
-FileRoutePreloadBuilder.resource(ProjectById, ({ params }) => params.id);
-// @ts-expect-error file route preload helper rejects Promise-shaped preload work
-FileRoutePreloadBuilder.preload({}, () => promisedVoid);
-FileRoutePreloadBuilder.resource(ProjectById, ({ params }) => {
-  // @ts-expect-error path params remain typed for helper resource selectors
-  params.missing;
-  return params.id;
 });
-FileRoutePreloadBuilder.resource(
-  ProjectById,
-  () =>
-    // @ts-expect-error resource selector input must match the resource family input
-    123,
-);
-const BrandedFileRoutePreloadBuilder = defineFileRoute("/file-preload-branded/:id");
-const BrandedFileRoutePreloadHelperRoute = BrandedFileRoutePreloadBuilder.preload(
-  {
-    params: Schema.Struct({ id: ProjectId }),
-    search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-    resources: ({ resource }) => [
-      resource(BrandedProjectById, ({ params, search }) => {
-        const id: ProjectId = params.id;
-        const tab: "overview" | "activity" | undefined = search.tab;
-        return id;
-      }),
-    ],
-    collections: [ProjectsCollection],
-  },
-  ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
-).route();
 const brandedFileRoutePreloadHelperRequirements: Route.PreloadRequirements<
   typeof BrandedFileRoutePreloadHelperRoute
 > = {} as ProjectApi | RoutePreloadApi;
@@ -3784,77 +3187,37 @@ const brandedFileRouteHref: Route.HrefOptions<typeof BrandedFileRoutePreloadHelp
   params: { id: atlasProjectId },
   search: { tab: "overview" },
 };
-void brandedFileRoutePreloadHelperRequirements;
-void brandedFileRouteHref;
-
-const SpreadFreeFileRoutePreloadRoute = BrandedFileRoutePreloadBuilder.preload(
-  {
-    params: Schema.Struct({ id: ProjectId }),
-    search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-    resources: ({ resource }) => [resource(BrandedProjectById, ({ params }) => params.id)],
-    collections: [ProjectsCollection],
-  },
-  ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
-).route({
-  component: () => undefined,
-});
-const spreadFreeFileRoutePreloadRequirements: Route.PreloadRequirements<
-  typeof SpreadFreeFileRoutePreloadRoute
-> = {} as ProjectApi | RoutePreloadApi;
-const spreadFreeFileRouteHref: Route.HrefOptions<typeof SpreadFreeFileRoutePreloadRoute> = {
-  params: { id: atlasProjectId },
-  search: { tab: "overview" },
-};
-BrandedFileRoutePreloadBuilder.preload({
-  params: Schema.Struct({ id: ProjectId }),
-}).route({
-  // @ts-expect-error spread-free file-route preload keeps params/search on the preload definition
-  params: Schema.Struct({ id: Schema.String }),
-});
-void spreadFreeFileRoutePreloadRequirements;
-void spreadFreeFileRouteHref;
-
-BrandedFileRoutePreloadBuilder.preload({
-  params: Schema.Struct({ id: ProjectId }),
-  resources: ({ resource }) => [
-    resource(
-      BrandedProjectById,
-      () =>
-        // @ts-expect-error schema-aware resource selectors reject plain strings for branded inputs
-        "atlas",
-    ),
-  ],
-});
-
 const badBrandedFileRouteHref: Route.HrefOptions<typeof BrandedFileRoutePreloadHelperRoute> = {
   params: {
-    // @ts-expect-error schema-aware file-route helper carries branded params into route hrefs
+    // @ts-expect-error schema-aware file routes carry branded params into route hrefs
     id: "atlas",
   },
 };
+void brandedFileRoutePreloadHelperRequirements;
+void brandedFileRouteHref;
 void badBrandedFileRouteHref;
 declare const servicePreloadMatch: Route.Match<typeof ServicePreloadRoute>;
 const serviceRoutePreloadRequirements: Route.PreloadRequirements<typeof ServicePreloadRoute> =
   {} as RoutePreloadApi;
 const serviceRoutePreload: Effect.Effect<void, Route.PreloadError, RoutePreloadApi> =
-  Route.preloadEffect(servicePreloadMatch);
+  Route.preload(servicePreloadMatch);
 const serviceRoutePreloadPlan: Effect.Effect<
   Route.PreloadPlan<typeof ServicePreloadRoute>,
   Route.PreloadError,
   RoutePreloadApi
-> = Route.planPreloadEffect(servicePreloadMatch);
+> = Route.planPreload(servicePreloadMatch);
 const serviceRouteNavigationPlan: Effect.Effect<
   Route.NavigationPlan<typeof ServicePreloadRoute>,
   Route.NavigationError,
   RoutePreloadApi
-> = Route.planNavigationEffect([ServicePreloadRoute] as const, "/service-projects/atlas");
-const routePreloadMissingStartApp = defineApp({
+> = Route.planNavigation([ServicePreloadRoute] as const, "/service-projects/atlas");
+const routePreloadMissingStartApp = App.define({
   routes: [ServicePreloadRoute] as const,
   client: {},
   server: typedRuntime,
 });
 const routePreloadMissingStartEffect: Effect.Effect<unknown, unknown, RoutePreloadApi> =
-  preloadRequestEffect(
+  preloadRequest(
     routePreloadMissingStartApp,
     new Request("https://example.com/service-projects/atlas"),
   );
@@ -3862,89 +3225,63 @@ const routePreloadMissingStartHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RoutePreloadApi
-> = createRequestHandlerEffect(routePreloadMissingStartApp)(
+> = createRequestHandler(routePreloadMissingStartApp)(
   new Request("https://example.com/service-projects/atlas"),
 );
 const routePreloadMissingFetchAdapterEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RoutePreloadApi
-> = toFetchHandlerEffect(createRequestHandlerEffect(routePreloadMissingStartApp))(
-  new Request("https://example.com/service-projects/atlas"),
-);
-const routePreloadMissingSubpathFetchAdapterEffect: Effect.Effect<
-  Response,
-  StartRequestHandlerError,
-  Scope.Scope | RoutePreloadApi
-> = toSubpathFetchHandlerEffect(createRequestHandlerEffect(routePreloadMissingStartApp))(
+> = toFetchHandler(createRequestHandler(routePreloadMissingStartApp))(
   new Request("https://example.com/service-projects/atlas"),
 );
 const routePreloadMissingNodeAdapterEffect: Effect.Effect<
   Response,
   StartNodeAdapterError | StartRequestHandlerError,
   Scope.Scope | RoutePreloadApi
-> = createNodeHandlerEffect(createRequestHandlerEffect(routePreloadMissingStartApp))(
+> = createNodeHandler(createRequestHandler(routePreloadMissingStartApp))(
   { method: "GET", url: "/", headers: {} } as import("node:http").IncomingMessage,
   {} as import("node:http").ServerResponse,
 );
 // @ts-expect-error bare fetch handler aliases default to service-free, so route preload services stay visible
-const erasedRoutePreloadFetchHandler: SubpathStartFetchHandlerEffect = toSubpathFetchHandlerEffect(
-  createRequestHandlerEffect(routePreloadMissingStartApp),
+const erasedRoutePreloadFetchHandler: StartFetchHandler = toFetchHandler(
+  createRequestHandler(routePreloadMissingStartApp),
 );
 // @ts-expect-error bare Node handler aliases default to service-free, so route preload services stay visible
-const erasedRoutePreloadNodeHandler: SubpathStartNodeHandlerEffect = createNodeHandlerEffect(
-  createRequestHandlerEffect(routePreloadMissingStartApp),
+const erasedRoutePreloadNodeHandler: StartNodeHandler = createNodeHandler(
+  createRequestHandler(routePreloadMissingStartApp),
 );
 // @ts-expect-error Promise-shaped fetch facades must receive a runtime for non-Scope handler requirements
-createSubpathFetchHandler(createRequestHandlerEffect(routePreloadMissingStartApp));
+createFetchHandler(createRequestHandler(routePreloadMissingStartApp));
 // @ts-expect-error Node callback facades must receive a runtime for non-Scope handler requirements
-createSubpathNodeServerHandler(createRequestHandlerEffect(routePreloadMissingStartApp));
+createNodeServerHandler(createRequestHandler(routePreloadMissingStartApp));
 // @ts-expect-error effect-first fetch adapters cannot hide requirements through partial generics
-toSubpathFetchHandlerEffect<StartRequestHandlerError>(
-  createRequestHandlerEffect(routePreloadMissingStartApp),
-);
+toFetchHandler<StartRequestHandlerError>(createRequestHandler(routePreloadMissingStartApp));
 // @ts-expect-error effect-first Node adapters cannot hide requirements through partial generics
-createNodeHandlerEffect<StartRequestHandlerError>(
-  createRequestHandlerEffect(routePreloadMissingStartApp),
-);
+createNodeHandler<StartRequestHandlerError>(createRequestHandler(routePreloadMissingStartApp));
 const routePreloadRuntime = makeRuntime(
   RoutePreloadApi.layer({
     warm: () => Effect.void,
   }),
 );
-createBrowserRouter([ServicePreloadRoute] as const, {
-  initialHref: "/service-projects/atlas",
-  runtime: routePreloadRuntime,
+// Route preload services join the Component that creates the router, so
+// `launch` checks them against what is provided.
+const ServicePreloadApp = Component.define("ServicePreloadApp", function* () {
+  const router = yield* Component.router([ServicePreloadRoute] as const, {
+    initialHref: "/service-projects/atlas",
+  });
+  return () => RouterProvider({ router });
 });
-// @ts-expect-error serviceful browser router preloads require an explicit preload-capable runtime
-createBrowserRouter([ServicePreloadRoute] as const);
-createBrowserRouter([ServicePreloadRoute] as const, {
-  initialHref: "/service-projects/atlas",
-  // @ts-expect-error serviceful browser router preloads require a runtime carrying preload services
-  runtime: makeRuntime(),
-});
-RouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-  runtime: routePreloadRuntime,
-});
-// @ts-expect-error serviceful RouterProvider routes require an explicit preload-capable runtime
-RouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-});
-RouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-  // @ts-expect-error serviceful RouterProvider runtime must carry preload services
-  runtime: makeRuntime(),
-});
-const routePreloadProvidedStartApp = defineApp({
+declare const servicePreloadRoot: HTMLElement;
+Component.launch(ServicePreloadApp, servicePreloadRoot, { runtime: routePreloadRuntime });
+// @ts-expect-error a route's preload services must be provided before launch
+Component.launch(ServicePreloadApp, servicePreloadRoot);
+const routePreloadProvidedStartApp = App.define({
   routes: [ServicePreloadRoute] as const,
   client: {},
   server: routePreloadRuntime,
 });
-const routePreloadProvidedStartEffect: Effect.Effect<unknown, unknown> = preloadRequestEffect(
+const routePreloadProvidedStartEffect: Effect.Effect<unknown, unknown> = preloadRequest(
   routePreloadProvidedStartApp,
   new Request("https://example.com/service-projects/atlas"),
 );
@@ -3952,28 +3289,28 @@ const routePreloadProvidedStartHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope
-> = createRequestHandlerEffect(routePreloadProvidedStartApp)(
+> = createRequestHandler(routePreloadProvidedStartApp)(
   new Request("https://example.com/service-projects/atlas"),
 );
-const routePreloadFetchFacade = createSubpathFetchHandler(
-  createRequestHandlerEffect(routePreloadMissingStartApp),
+const routePreloadFetchFacade = createFetchHandler(
+  createRequestHandler(routePreloadMissingStartApp),
   { runtime: routePreloadRuntime },
 );
-const routePreloadNodeFacade = createSubpathNodeServerHandler(
-  createRequestHandlerEffect(routePreloadMissingStartApp),
+const routePreloadNodeFacade = createNodeServerHandler(
+  createRequestHandler(routePreloadMissingStartApp),
   { runtime: routePreloadRuntime },
 );
 const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.registryAction",
-  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
+  run: () => RuntimeDocumentService.use((service) => service.readDocument()),
 });
 const RegistryReadDocumentRpc = Server.fn<void, string, never, RuntimeDocumentService>(
   "RuntimeDocument.registryRpc",
   {
-    handler: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
+    handler: () => RuntimeDocumentService.use((service) => service.readDocument()),
   },
 );
-const startRegistryMissingApp = defineApp({
+const startRegistryMissingApp = App.define({
   routes: [] as const,
   client: {},
   registry: {
@@ -3985,10 +3322,10 @@ const startRegistryMissingHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RuntimeDocumentService
-> = createRequestHandlerEffect(startRegistryMissingApp)(
+> = createRequestHandler(startRegistryMissingApp)(
   new Request("https://example.com/__sunfall-arc/rpc"),
 );
-const startRegistryProvidedApp = defineApp({
+const startRegistryProvidedApp = App.define({
   routes: [] as const,
   client: {},
   server: typedRuntime,
@@ -4001,15 +3338,15 @@ const startRegistryProvidedHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope
-> = createRequestHandlerEffect(startRegistryProvidedApp)(
+> = createRequestHandler(startRegistryProvidedApp)(
   new Request("https://example.com/__sunfall-arc/rpc"),
 );
 const startOptionsActionHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RuntimeDocumentService
-> = createRequestHandlerEffect(
-  defineApp({
+> = createRequestHandler(
+  App.define({
     routes: [] as const,
     client: {},
   }),
@@ -4022,7 +3359,6 @@ void serviceRouteNavigationPlan;
 void routePreloadMissingStartEffect;
 void routePreloadMissingStartHandlerEffect;
 void routePreloadMissingFetchAdapterEffect;
-void routePreloadMissingSubpathFetchAdapterEffect;
 void routePreloadMissingNodeAdapterEffect;
 void erasedRoutePreloadFetchHandler;
 void erasedRoutePreloadNodeHandler;
@@ -4053,11 +3389,15 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
 
-Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" });
-Action.planInvalidationEffect(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }).pipe(
+Effect.runSync(
+  Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }),
+);
+Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }).pipe(
   Effect.map((plan) => plan.targets.length),
 );
-const touch = Action.use(TouchProject);
+// Action instances run on an explicit runtime; services it lacks stay visible.
+const emptyActionRuntime = makeRuntime();
+const touch = Action.use(TouchProject, { runtime: emptyActionRuntime });
 touch.invalidationPlan.get()?.entries.map((entry) => entry.ref.key);
 const PureServicefulInvalidationAction = Action.define({
   name: "Project.pureServicefulInvalidation",
@@ -4066,20 +3406,25 @@ const PureServicefulInvalidationAction = Action.define({
 });
 const pureServicefulInvalidationSubmit: Effect.Effect<
   Project,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   ProjectApi
-> = Action.use(PureServicefulInvalidationAction).submitEffect({ id: "atlas" });
+> = Action.use(PureServicefulInvalidationAction, { runtime: emptyActionRuntime }).submit({
+  id: "atlas",
+});
 // @ts-expect-error action invalidation requirements from serviceful Resources stay visible
 const pureServicefulInvalidationSubmitErased: Effect.Effect<Project> = Action.use(
   PureServicefulInvalidationAction,
-).submitEffect({ id: "atlas" });
-const pureServicefulInvalidationPlan = Action.planInvalidation(
-  PureServicefulInvalidationAction,
-  { id: "atlas", name: "Atlas" },
-  { id: "atlas" },
+  { runtime: emptyActionRuntime },
+).submit({ id: "atlas" });
+const pureServicefulInvalidationPlan = Effect.runSync(
+  Action.planInvalidation(
+    PureServicefulInvalidationAction,
+    { id: "atlas", name: "Atlas" },
+    { id: "atlas" },
+  ),
 );
 const pureServicefulInvalidationPlanRun: Effect.Effect<void, never, ProjectApi> =
-  Resource.runInvalidationPlanEffect(pureServicefulInvalidationPlan);
+  Resource.runInvalidationPlan(pureServicefulInvalidationPlan);
 const ResultServicefulInvalidationAction = Action.define({
   name: "Project.resultServicefulInvalidation",
   run: (input: { readonly id: string }) =>
@@ -4090,13 +3435,16 @@ const ResultServicefulInvalidationAction = Action.define({
 });
 const resultServicefulInvalidationSubmit: Effect.Effect<
   unknown,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   ProjectApi
-> = Action.use(ResultServicefulInvalidationAction).submitEffect({ id: "atlas" });
+> = Action.use(ResultServicefulInvalidationAction, { runtime: emptyActionRuntime }).submit({
+  id: "atlas",
+});
 // @ts-expect-error ActionResult invalidation requirements stay visible through Action.use
 const resultServicefulInvalidationSubmitErased: Effect.Effect<unknown> = Action.use(
   ResultServicefulInvalidationAction,
-).submitEffect({ id: "atlas" });
+  { runtime: emptyActionRuntime },
+).submit({ id: "atlas" });
 const resultWithServicefulInvalidation = ActionResult.withInvalidation(
   ActionResult.success({ id: "atlas", name: "Atlas" }),
   [ServicefulProjectResource("atlas")],
@@ -4116,11 +3464,13 @@ const fieldErrorWithServicefulInvalidationRequirement: ActionResultInvalidationR
   typeof fieldErrorWithServicefulInvalidation
 > = {} as ProjectApi;
 Effect.map(
-  ActionResult.successEffect(
-    { id: "atlas", name: "Atlas" },
-    {
-      invalidates: [ServicefulProjectResource("atlas")],
-    },
+  Effect.succeed(
+    ActionResult.success(
+      { id: "atlas", name: "Atlas" },
+      {
+        invalidates: [ServicefulProjectResource("atlas")],
+      },
+    ),
   ),
   (result) => {
     const requirement: ActionResultInvalidationRequirements<typeof result> = {} as ProjectApi;
@@ -4136,19 +3486,19 @@ void resultWithServicefulInvalidationRequirement;
 void fieldErrorWithServicefulInvalidationRequirement;
 const ReadDocumentAction = Action.define<void, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.readAction",
-  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
+  run: () => RuntimeDocumentService.use((service) => service.readDocument()),
 });
-const readDocumentAction = Action.use(ReadDocumentAction);
+const readDocumentAction = Action.use(ReadDocumentAction, { runtime: emptyActionRuntime });
 const readDocumentActionSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   RuntimeDocumentService
-> = readDocumentAction.submitEffect(undefined);
+> = readDocumentAction.submit(undefined);
 const readDocumentRuntimeAction = Action.use(ReadDocumentAction, { runtime: typedRuntime });
 const readDocumentRuntimeActionSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted
-> = readDocumentRuntimeAction.submitEffect(undefined);
+  Server.ClientError | ActionInterrupted
+> = readDocumentRuntimeAction.submit(undefined);
 const readDocumentRuntimeActionDefinitionRun: EffectInput<string, never, RuntimeDocumentService> =
   readDocumentRuntimeAction.definition.run(undefined);
 const ReadDocumentAndMissingAction = Action.define<
@@ -4160,8 +3510,8 @@ const ReadDocumentAndMissingAction = Action.define<
   name: "RuntimeDocument.readAndMissingAction",
   run: () =>
     Effect.zipWith(
-      RuntimeDocumentService.useSync((service) => service.readDocument()),
-      RuntimeMissingService.useSync((service) => service.readMissing()),
+      RuntimeDocumentService.use((service) => service.readDocument()),
+      RuntimeMissingService.use((service) => service.readMissing()),
       (document, missing) => `${document}:${missing}`,
     ),
 });
@@ -4170,12 +3520,12 @@ const readDocumentAndMissingRuntimeAction = Action.use(ReadDocumentAndMissingAct
 });
 const readDocumentAndMissingRuntimeActionSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   RuntimeMissingService
-> = readDocumentAndMissingRuntimeAction.submitEffect(undefined);
+> = readDocumentAndMissingRuntimeAction.submit(undefined);
 // @ts-expect-error runtime-bound actions still preserve services not supplied by the runtime
 const readDocumentAndMissingRuntimeActionSubmitErased: Effect.Effect<string> =
-  readDocumentAndMissingRuntimeAction.submitEffect(undefined);
+  readDocumentAndMissingRuntimeAction.submit(undefined);
 interface RuntimeStartupError {
   readonly _tag: "RuntimeStartupError";
 }
@@ -4188,36 +3538,27 @@ const readDocumentRuntimeErrorAction = Action.use(ReadDocumentAction, {
 });
 const readDocumentRuntimeErrorSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted | RuntimeStartupError
-> = readDocumentRuntimeErrorAction.submitEffect(undefined);
-const solidReadDocumentAction = useAction(ReadDocumentAction);
-const solidReadDocumentActionSubmit: Effect.Effect<
-  string,
-  EffectInputCallbackError | ActionInterrupted
-> = solidReadDocumentAction.submitEffect(undefined);
-const solidReadDocumentRuntimeErrorAction = useAction<
-  void,
-  string,
+  Server.ClientError | ActionInterrupted | RuntimeStartupError
+> = readDocumentRuntimeErrorAction.submit(undefined);
+// Component bindings: the definition's services join the Component's R, and
+// submissions see the instance's context (no runtime errors: it has started).
+const solidReadDocumentActionBinding: Effect.Effect<
+  Component.ActionHandle<void, string, never>,
   never,
-  RuntimeDocumentService,
-  RuntimeStartupError
->(ReadDocumentAction);
-const solidReadDocumentRuntimeErrorSubmit: Effect.Effect<
-  string,
-  EffectInputCallbackError | ActionInterrupted | RuntimeStartupError
-> = solidReadDocumentRuntimeErrorAction.submitEffect(undefined);
+  RuntimeDocumentService
+> = Component.action(ReadDocumentAction);
+const solidReadDocumentAction = bound(solidReadDocumentActionBinding);
+const solidReadDocumentActionSubmit: Effect.Effect<string, Server.ClientError | ActionInterrupted> =
+  solidReadDocumentAction.submit(undefined);
 void readDocumentActionSubmit;
 void readDocumentRuntimeActionSubmit;
 void readDocumentRuntimeActionDefinitionRun;
 void readDocumentRuntimeErrorSubmit;
 void solidReadDocumentActionSubmit;
-void solidReadDocumentRuntimeErrorSubmit;
-const solidTouchProject = useAction(TouchProject);
-solidTouchProject
-  .submitEffect({ id: "atlas" })
-  .pipe(Effect.map((project) => project.name.toUpperCase()));
-// @ts-expect-error Solid action hook preserves action input type
-solidTouchProject.submitEffect({ slug: "atlas" });
+const solidTouchProject = bound(Component.action(TouchProject));
+solidTouchProject.submit({ id: "atlas" }).pipe(Effect.map((project) => project.name.toUpperCase()));
+// @ts-expect-error Component action handles preserve the action input type
+solidTouchProject.submit({ slug: "atlas" });
 
 const InferredTouchProject = Action.define({
   name: "Project.inferredTouch",
@@ -4232,16 +3573,16 @@ const InferredTouchProject = Action.define({
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project, input) => [ProjectTag({ id: project.id }), ProjectTag({ id: input.id })],
 });
-const inferredTouch = Action.use(InferredTouchProject);
+const inferredTouch = Action.use(InferredTouchProject, { runtime: emptyActionRuntime });
 const inferredTouchSubmit: Effect.Effect<
   Project,
-  ProjectError | Server.ClientError | EffectInputCallbackError | ActionInterrupted,
+  ProjectError | Server.ClientError | Server.ClientError | ActionInterrupted,
   ProjectApi
-> = inferredTouch.submitEffect({ id: "atlas", name: "Atlas" });
+> = inferredTouch.submit({ id: "atlas", name: "Atlas" });
 void inferredTouchSubmit;
 
 // @ts-expect-error inferred actions preserve schema input
-inferredTouch.submitEffect({ id: "atlas" });
+inferredTouch.submit({ id: "atlas" });
 
 const TouchProjectWithResultInvalidation = Action.define<
   { readonly id: string },
@@ -4263,127 +3604,35 @@ Action.define<{ readonly id: string }, ActionResult<Project>>({
   run: () => ActionResult.success(promisedProject),
 });
 
-Action.planInvalidation(
-  TouchProjectWithResultInvalidation,
-  ActionResult.success(
-    { id: "atlas", name: "Atlas" },
-    { invalidates: [ProjectTag({ id: "atlas" })] },
+Effect.runSync(
+  Action.planInvalidation(
+    TouchProjectWithResultInvalidation,
+    ActionResult.success(
+      { id: "atlas", name: "Atlas" },
+      { invalidates: [ProjectTag({ id: "atlas" })] },
+    ),
+    { id: "atlas" },
   ),
-  { id: "atlas" },
 );
 
-submitStartActionEffect(TouchProject, { id: "atlas" }).pipe(
-  Effect.map((result) => {
-    if (result._tag === "Success") {
-      result.value.name.toUpperCase();
-    }
-    result.hydration?.resources.map((resource) => resource.key.toUpperCase());
-    result.invalidation?.entries.map((entry) => entry.ref.family.toUpperCase());
-  }),
-);
 interface StartTransportEnv {
   readonly token: string;
 }
 declare const authenticatedStartFetch: StartFetch<never, StartTransportEnv>;
 declare const startTransportRuntime: SunfallArcRuntime<StartTransportEnv, never>;
-const startActionTransportRequirementsEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError,
-  StartTransportEnv
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-  },
-);
-const startActionTransportRuntimeOnlyEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError,
-  StartTransportEnv
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    transportRuntime: startTransportRuntime,
-  },
-);
-// @ts-expect-error transportRuntime only provides fetch work; action response metadata still needs an application runtime/caller runtime
-const startActionTransportRuntimeOnlyErased: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    transportRuntime: startTransportRuntime,
-  },
-);
-const startActionHydrationRuntimeProvidedEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    runtime: startTransportRuntime,
-  },
-);
-const startActionSplitRuntimesProvidedEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    responseRuntime: startTransportRuntime,
-    transportRuntime: startTransportRuntime,
-  },
-);
-const startActionWithServicefulTransport = StartAction.use(TouchProject, {
-  fetch: authenticatedStartFetch,
-});
-const startActionWithServicefulTransportSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted,
-  StartTransportEnv
-> = startActionWithServicefulTransport.submitEffect({ id: "atlas" });
-const startActionWithProvidedTransport = StartAction.use(TouchProject, {
-  fetch: authenticatedStartFetch,
-  transportRuntime: startTransportRuntime,
+// Start provides the ActionTransport that routes served Actions to the server.
+const startActionTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+  actions: [TouchProject],
   actionManifest: { actionPath: "/custom/action" },
 });
-const startActionWithProvidedTransportSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted,
-  StartTransportEnv
-> = startActionWithProvidedTransport.submitEffect({ id: "atlas" });
-const startActionWithResponseRuntime = StartAction.use(TouchProject, {
+const startActionServicefulTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+  actions: [TouchProject],
   fetch: authenticatedStartFetch,
-  runtime: startTransportRuntime,
   transportRuntime: startTransportRuntime,
 });
-const startActionWithResponseRuntimeSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted
-> = startActionWithResponseRuntime.submitEffect({ id: "atlas" });
-const startActionWithSplitRuntimes = StartAction.use(TouchProject, {
-  fetch: authenticatedStartFetch,
-  responseRuntime: startTransportRuntime,
-  transportRuntime: startTransportRuntime,
-});
-const startActionWithSplitRuntimesSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted
-> = startActionWithSplitRuntimes.submitEffect({ id: "atlas" });
-// @ts-expect-error RPC ServerClient cannot hide a serviceful fetch without a transport runtime
-makeRpcClient({ fetch: authenticatedStartFetch });
-makeRpcClient({ fetch: authenticatedStartFetch, transportRuntime: startTransportRuntime });
-makeRpcClient({
+// @ts-expect-error a serviceful fetch needs a transport runtime that provides its services
+makeActionTransportLayer({ actions: [TouchProject], fetch: authenticatedStartFetch });
+makeRpcClientLayer({
   fetch: authenticatedStartFetch,
   transportRuntime: startTransportRuntime,
   serverFunctionManifest: { rpcPath: "/custom/rpc" },
@@ -4391,57 +3640,30 @@ makeRpcClient({
 // @ts-expect-error RPC ServerClient layers cannot hide a serviceful fetch without a transport runtime
 makeRpcClientLayer({ fetch: authenticatedStartFetch });
 makeRpcClientLayer({ fetch: authenticatedStartFetch, transportRuntime: startTransportRuntime });
-void startActionTransportRequirementsEffect;
-void startActionTransportRuntimeOnlyEffect;
-void startActionTransportRuntimeOnlyErased;
-void startActionHydrationRuntimeProvidedEffect;
-void startActionSplitRuntimesProvidedEffect;
-void startActionWithServicefulTransportSubmit;
-void startActionWithProvidedTransportSubmit;
-void startActionWithResponseRuntimeSubmit;
-void startActionWithSplitRuntimesSubmit;
+void startActionTransport;
+void startActionServicefulTransport;
 
-// @ts-expect-error Start action submissions require the action input shape
-submitStartActionEffect(TouchProject, { slug: "atlas" });
+// The same Action handle submits locally or through the transport: the result
+// and error types are the Action's own (plus transport failures).
+const touchHandle = bound(Component.action(TouchProject));
+touchHandle.submit({ id: "atlas" }).pipe(Effect.map((project) => project.name.toUpperCase()));
+touchHandle.input().pipe(Option.map((input) => input.id.toUpperCase()));
+// @ts-expect-error Action handles preserve action input fields
+touchHandle.submit({ slug: "atlas" });
+// @ts-expect-error StartAction no longer creates client instances; use Component.action
+StartAction.use(TouchProject);
 
-// @ts-expect-error Start action submissions reject wrong input value types
-submitStartActionEffect(TouchProject, { id: 123 });
-
-submitStartActionEffect(TouchProjectWithResultInvalidation, { id: "atlas" }).pipe(
-  Effect.map((result) => {
-    if (result._tag === "Success") {
-      result.value.name.toUpperCase();
-    }
-  }),
-);
-
-const touchStart = StartAction.use(TouchProject);
-touchStart.state.get().result._tag;
-touchStart.state.get().input.pipe(Option.map((input) => input.id.toUpperCase()));
-touchStart.invalidation.get()?.entries.map((entry) => entry.ref.key.toUpperCase());
-touchStart.hydration.get()?.resources.map((resource) => resource.key.toUpperCase());
-touchStart.submitEffect({ id: "atlas" }).pipe(
-  Effect.map((result) => {
-    if (result._tag === "Success") {
-      result.value.name.toUpperCase();
-    }
-  }),
-);
-
-// @ts-expect-error StartAction client instances preserve action input fields
-touchStart.submitEffect({ slug: "atlas" });
-
-startActionForm(TouchProject, {
+StartAction.form(TouchProject, {
   actionManifest: { actionPath: "/custom/action" },
   input: { id: "atlas" },
 });
 
-startActionForm(TouchProject, {
+StartAction.form(TouchProject, {
   // @ts-expect-error progressive action form defaults must match known action input fields
   input: { slug: "atlas" },
 });
 
-startActionForm(TouchProject, {
+StartAction.form(TouchProject, {
   // @ts-expect-error progressive action form defaults must match action input value types
   input: { id: 123 },
 });
@@ -4465,10 +3687,16 @@ StartAction.form(TouchProject, {
 });
 
 const devtoolsStore: DevtoolsStore = makeDevtoolsStore();
-const devtoolsProgramEvent: DevtoolsProgramEvent = projectProgramTimeline[0]!;
-const devtoolsTrackProgramEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackProgramEffect(projectProgram);
-declare const dbCollectionStoreEvent: Collection.StoreEvent;
+const devtoolsTimelineCommit: DevtoolsTimelineCommit = {
+  sequence: 1,
+  label: Timeline.describe(renameCause),
+  cause: renameCause,
+  changes: [{ signal: "Project.title", previous: "Atlas", next: "Apollo" }],
+};
+Effect.runSync(devtoolsStore.recordTimelineEntry(projectProgramHistory[0]!));
+const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackTimeline(projectTimeline);
+declare const dbCollectionStoreEvent: CollectionStoreEvent;
 declare const startRuntimeRequestTrace: StartRequestTrace;
 const devtoolsRuntimeRequestTrace: DevtoolsRequestTrace = startRuntimeRequestTrace;
 const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
@@ -4486,9 +3714,9 @@ const devtoolsCollectionRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "CollectionStoreEvent",
   event: dbCollectionStoreEvent,
 };
-const devtoolsProgramRuntimeEvent: DevtoolsRuntimeEvent = {
-  _tag: "ProgramEvent",
-  event: devtoolsProgramEvent,
+const devtoolsTimelineRuntimeEvent: DevtoolsRuntimeEvent = {
+  _tag: "TimelineCommit",
+  commit: devtoolsTimelineCommit,
 };
 const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "RequestTrace",
@@ -4497,7 +3725,7 @@ const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
 const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
   devtoolsResourceRuntimeEvent,
   devtoolsCollectionRuntimeEvent,
-  devtoolsProgramRuntimeEvent,
+  devtoolsTimelineRuntimeEvent,
   devtoolsRequestRuntimeEvent,
 ];
 const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
@@ -4507,7 +3735,7 @@ const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
   routePlans: [],
   events: devtoolsRuntimeEvents,
 };
-devtoolsStore.recordRuntimeEvent(devtoolsResourceRuntimeEvent);
+Effect.runSync(devtoolsStore.recordRuntimeEvent(devtoolsResourceRuntimeEvent));
 declare const startAppGraphDiagnostics: StartAppGraphDiagnostics;
 const devtoolsStartAppGraphDiagnosticsFromStart: DevtoolsStartAppGraphDiagnostics =
   startAppGraphDiagnostics;
@@ -4527,11 +3755,11 @@ const devtoolsStartAppGraphSummary: DevtoolsSummary = describeDevtoolsSummary({
 const devtoolsStartAppGraphPanels: DevtoolsPanels = describeDevtoolsPanels({
   appGraph: loadedStartDiagnostics.diagnostics,
 });
-devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
+Effect.runSync(devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics));
 const devtoolsSetStartAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.setAppGraphDiagnosticsEffect(loadedStartDiagnostics.diagnostics);
+  devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
 const devtoolsCollectionStoreEvent: DevtoolsCollectionStoreEvent = dbCollectionStoreEvent;
-devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent);
+Effect.runSync(devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent));
 const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   targets: [
     {
@@ -4559,43 +3787,40 @@ const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
 };
 const startInvalidationPlan: StartActionInvalidationPlan = serializedInvalidationPlan;
 const devtoolsInvalidationPlanFromStart: DevtoolsInvalidationPlan = startInvalidationPlan;
-devtoolsStore.recordActionState("Project.touch", "Success", {
-  serializedInvalidationPlan: startInvalidationPlan,
-});
-devtoolsStore.recordActionState("Project.touch", "Success", {
-  serializedInvalidationPlan: touchStart.invalidation.get(),
-});
-devtoolsStore.recordActionState("Project.touch", "Success", {
-  invalidationPlan: Action.planInvalidation(
-    TouchProject,
-    { id: "atlas", name: "Atlas" },
-    { id: "atlas" },
-  ),
-});
-const devtoolsStartInvalidationIndex: number = devtoolsStore.recordSerializedInvalidation(
-  devtoolsInvalidationPlanFromStart,
+Effect.runSync(
+  devtoolsStore.recordActionState("Project.touch", "Success", {
+    serializedInvalidationPlan: startInvalidationPlan,
+  }),
+);
+Effect.runSync(
+  devtoolsStore.recordActionState("Project.touch", "Success", {
+    invalidationPlan: Effect.runSync(
+      Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }),
+    ),
+  }),
+);
+const devtoolsStartInvalidationIndex: number = Effect.runSync(
+  devtoolsStore.recordSerializedInvalidation(devtoolsInvalidationPlanFromStart),
 );
 const devtoolsSerializedInvalidationIndexEffect: Effect.Effect<number> =
-  devtoolsStore.recordSerializedInvalidationEffect(startInvalidationPlan);
-devtoolsStore.recordActionStateEffect("Project.touch", "Success", {
+  devtoolsStore.recordSerializedInvalidation(startInvalidationPlan);
+devtoolsStore.recordActionState("Project.touch", "Success", {
   serializedInvalidationPlan: startInvalidationPlan,
 });
-devtoolsStore.recordStartAction(touchStart);
-devtoolsStore.recordStartActionEffect(touchStart);
-const devtoolsTrackStartActionEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackStartActionEffect(touchStart);
+const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackAction(touch);
 
-devtoolsStore.recordActionState("Project.touch", "Success", {
-  invalidationPlan: Action.planInvalidation(
-    TouchProject,
-    { id: "atlas", name: "Atlas" },
-    { id: "atlas" },
-  ),
-  // @ts-expect-error devtools action state accepts either live or serialized invalidation plans, not both
-  serializedInvalidationPlan,
-});
+Effect.runSync(
+  devtoolsStore.recordActionState("Project.touch", "Success", {
+    invalidationPlan: Effect.runSync(
+      Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }),
+    ),
+    // @ts-expect-error devtools action state accepts either live or serialized invalidation plans, not both
+    serializedInvalidationPlan,
+  }),
+);
 void devtoolsRuntimeSnapshot;
-void devtoolsTrackProgramEffect;
+void devtoolsTrackTimelineEffect;
 void devtoolsStartAppGraphDiagnosticsFromStart;
 void devtoolsLoadedStartAppGraphDiagnostics;
 void normalizedDevtoolsStartAppGraphDiagnostics;
@@ -4607,13 +3832,15 @@ void devtoolsStartAppGraphPanels;
 void devtoolsSetStartAppGraphDiagnosticsEffect;
 void devtoolsStartInvalidationIndex;
 void devtoolsSerializedInvalidationIndexEffect;
-void devtoolsTrackStartActionEffect;
+void devtoolsTrackActionEffect;
 
 // @ts-expect-error invalidation planning value must match the action output type
-Action.planInvalidation(TouchProject, { id: "atlas" }, { id: "atlas" });
+Effect.runSync(Action.planInvalidation(TouchProject, { id: "atlas" }, { id: "atlas" }));
 
-// @ts-expect-error invalidation planning input must match the action input type
-Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { slug: "atlas" });
+Effect.runSync(
+  // @ts-expect-error invalidation planning input must match the action input type
+  Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { slug: "atlas" }),
+);
 
 Action.define<{ readonly id: string }, Project>({
   name: "Project.badAction",
@@ -4790,7 +4017,7 @@ Form.data(browserFormData, { omitFields: ["__sunfall_arc_action"] }).tags;
 const projectFormDataDecode: Effect.Effect<
   ProjectFormDataValues,
   Form.ValidationError<ProjectFormDataValues, Schema.SchemaError>
-> = Form.decodeFormDataEffect(ProjectFormDataSchema, browserFormData, {
+> = Form.decodeFormData(ProjectFormDataSchema, browserFormData, {
   omitFields: new Set(["__sunfall_arc_action"]),
 });
 void projectFormDataDecode;

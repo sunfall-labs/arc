@@ -1,8 +1,5 @@
-import {
-  invokeEffectInput,
-  type EffectInput,
-  type EffectInputCallbackError,
-} from "@sunfall/arc-core";
+import { type EffectInput, type EffectInputCallbackError } from "@sunfall/arc-core";
+import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
 import type {
   AnyCollection,
@@ -11,6 +8,7 @@ import type {
   CollectionRequirements,
   CollectionTransaction,
 } from "./collection-contract.js";
+import { collectionStoreEffect, runWithCollectionStore } from "./runtime-collection-store.js";
 
 type IterableCollection<Collections> =
   Collections extends Iterable<infer Collection> ? Extract<Collection, AnyCollection> : never;
@@ -208,11 +206,13 @@ const shouldSkipCollection = <SkipError, SkipRequirements>(
 const backgroundSyncPending = (
   collections: ReadonlyArray<AnyCollection>,
 ): Effect.Effect<ReadonlyArray<CollectionBackgroundSyncPending>> =>
-  Effect.forEach(collections, (collection) =>
-    Effect.map(collection.pendingMutationsEffect(), (pending) => ({
-      collection: collection.name,
-      transactions: pending.map((entry) => entry.transaction),
-    })),
+  Effect.map(collectionStoreEffect, (store) =>
+    runWithCollectionStore(store, () =>
+      collections.map((collection) => ({
+        collection: collection.name,
+        transactions: collection.pendingMutations().map((entry) => entry.transaction),
+      })),
+    ),
   );
 
 /**
@@ -254,7 +254,7 @@ export const flushCollectionsPendingMutationsEffect = <
           transactions: [],
         });
       } else {
-        const transactions = yield* collection.flushPendingMutationsEffect();
+        const transactions = yield* collection.flushPendingMutations();
         results.push({
           _tag: "Flushed",
           collection: collection.name,

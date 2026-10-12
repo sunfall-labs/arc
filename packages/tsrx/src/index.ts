@@ -72,6 +72,3 @@ export const sunfallArcTsrx = (options: SunfallArcTsrxOptions = {}): PluginOptio
     solid(options.solid),
   ];
 };
-
-/** Default export for `plugins: sunfallArcTsrx()` style Vite configs. */
-export default sunfallArcTsrx;

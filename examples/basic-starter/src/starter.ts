@@ -8,7 +8,7 @@ export const StarterWelcome = Schema.Struct({
 
 export type StarterWelcome = typeof StarterWelcome.Type;
 
-export const WelcomeResource = Resource.family({
+export const WelcomeResource = Resource.define({
   name: "Starter.welcome",
   input: Schema.String,
   output: StarterWelcome,

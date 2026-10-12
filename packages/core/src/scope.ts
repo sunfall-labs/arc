@@ -79,8 +79,7 @@ export class UiScope {
     );
   }
 
-  /** Effect-first disposal for integrations that already run inside Effect. */
-  captureDisposeEffect(): Effect.Effect<void> {
+  private captureDisposeEffect(): Effect.Effect<void> {
     if (this.disposed) {
       return Effect.void;
     }
@@ -103,13 +102,11 @@ export class UiScope {
   }
 
   /**
-   * Effect-first disposal for integrations that already run inside Effect.
-   *
-   * Disposal capture is suspended until this Effect runs. Host cleanup hooks
-   * that need immediate invalidation should use the owning
-   * `RuntimeUiScopeFrame.dispose()` convenience instead.
+   * Closes the scope: interrupts forked fibers, then runs finalizers in
+   * reverse registration order. Disposal is captured when the Effect runs;
+   * host cleanup hooks fork it so the scope closes to new work immediately.
    */
-  disposeEffect(): Effect.Effect<void> {
+  dispose(): Effect.Effect<void> {
     return Effect.suspend(() => this.captureDisposeEffect());
   }
 }
@@ -137,14 +134,10 @@ export interface RuntimeUiScopeFrame<ER = unknown> {
   /** Runs synchronous construction with both runtime and UI scope installed. */
   run<A>(f: () => A): A;
   /**
-   * Synchronously marks the frame disposed and returns the captured cleanup
-   * Effect. Use this when the caller wants to join cleanup explicitly.
+   * Runtime-bound, failure-swallowing disposal. Host cleanup hooks fork it on
+   * `runtime`; forking starts synchronously, so the frame closes immediately.
    */
-  captureDisposeEffect(): Effect.Effect<void>;
-  /** Runtime-bound, failure-swallowing disposal for host cleanup hooks. */
-  disposeEffect(): Effect.Effect<void>;
-  /** Synchronously closes the frame to new work and forks captured cleanup. */
-  dispose(): void;
+  dispose(): Effect.Effect<void>;
 }
 
 /** Creates a runtime-owned UI frame for adapter component or route lifetimes. */
@@ -156,17 +149,7 @@ export const makeRuntimeUiScopeFrame = <ER>(
     runtime,
     scope,
     run: (f) => runWithRuntime(runtime, () => runWithScope(scope, f)),
-    captureDisposeEffect: () =>
-      runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
-    disposeEffect: () =>
-      Effect.suspend(() => runtime.provide(scope.captureDisposeEffect())).pipe(
-        Effect.catchCause(() => Effect.void),
-      ),
-    dispose: () => {
-      void runtime.runFork(
-        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
-      );
-    },
+    dispose: () => runtime.provide(scope.dispose()).pipe(Effect.catchCause(() => Effect.void)),
   };
 };
 
@@ -204,12 +187,9 @@ export const scoped = <A>(f: (scope: UiScope) => A): A => {
  * The finalizer can return void or an Effect. It is ignored when no scope is active,
  * which makes it safe for framework adapters to call conditionally.
  */
-export const onScopeDispose = (finalizer: () => EffectInput<void>): void => {
+export const onDispose = (finalizer: () => EffectInput<void>): void => {
   currentScope?.addFinalizer(finalizer);
 };
-
-/** Alias for onScopeDispose, intended for framework-style cleanup hooks. */
-export const onDispose = onScopeDispose;
 
 /**
  * Forks an Effect into the current UiScope.

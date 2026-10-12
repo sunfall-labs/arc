@@ -106,20 +106,17 @@ const parseCookies = (header: string | null): ReadonlyMap<string, string> => {
   return cookies;
 };
 
-/** Creates the request service value from a web `Request`. */
-export const makeRequestContext = (request: Request): RequestContext => ({
-  request,
-  url: new URL(request.url),
-  headers: request.headers,
-  cookies: parseCookies(request.headers.get("cookie")),
-});
-
 /** Creates the request service value and reports host parsing failures as typed Effects. */
-export const makeRequestContextEffect = (
+export const makeRequestContext = (
   request: Request,
 ): Effect.Effect<RequestContext, EffectInputCallbackError> =>
   Effect.try({
-    try: () => makeRequestContext(request),
+    try: () => ({
+      request,
+      url: new URL(request.url),
+      headers: request.headers,
+      cookies: parseCookies(request.headers.get("cookie")),
+    }),
     catch: (cause) =>
       new EffectInputCallbackError({
         operation: "RequestContext.make",
@@ -251,19 +248,6 @@ export const serializeResponseCookie = (
   name: string,
   value: string,
   options: ResponseCookieOptions = {},
-): string => {
-  const result = serializeResponseCookieResult(name, value, options);
-  if (result._tag === "Failure") {
-    throw result.error;
-  }
-  return result.value;
-};
-
-/** Effect version of `serializeResponseCookie(...)` with typed validation errors. */
-export const serializeResponseCookieEffect = (
-  name: string,
-  value: string,
-  options: ResponseCookieOptions = {},
 ): Effect.Effect<string, ResponseCookieSerializationError> => {
   const result = serializeResponseCookieResult(name, value, options);
   return result._tag === "Success" ? Effect.succeed(result.value) : Effect.fail(result.error);
@@ -334,14 +318,14 @@ export const makeResponseContext = (): ResponseContext => {
           }),
       }),
     setCookie: (name, value, options) =>
-      Effect.flatMap(serializeResponseCookieEffect(name, value, options), (cookie) =>
+      Effect.flatMap(serializeResponseCookie(name, value, options), (cookie) =>
         Effect.sync(() => {
           cookies.push(cookie);
         }),
       ),
     deleteCookie: (name, options) =>
       Effect.flatMap(
-        serializeResponseCookieEffect(name, "", {
+        serializeResponseCookie(name, "", {
           ...options,
           expires: new Date(0),
           maxAge: 0,
@@ -354,8 +338,7 @@ export const makeResponseContext = (): ResponseContext => {
   };
 };
 
-/** Applies accumulated status, headers, and cookies to a final `Response`. */
-export const applyResponseContext = (context: ResponseContext, response: Response): Response => {
+const applyResponseContextUnsafe = (context: ResponseContext, response: Response): Response => {
   const headers = new Headers(response.headers);
   context.headers.forEach((value, key) => {
     headers.set(key, value);
@@ -377,12 +360,12 @@ export const applyResponseContext = (context: ResponseContext, response: Respons
 };
 
 /** Applies accumulated response metadata and reports host failures as typed Effects. */
-export const applyResponseContextEffect = (
+export const applyResponseContext = (
   context: ResponseContext,
   response: Response,
 ): Effect.Effect<Response, EffectInputCallbackError> =>
   Effect.try({
-    try: () => applyResponseContext(context, response),
+    try: () => applyResponseContextUnsafe(context, response),
     catch: (cause) =>
       new EffectInputCallbackError({
         operation: "ResponseContext.apply",
@@ -398,7 +381,7 @@ export const provideRequest =
   <A, E, R>(
     effect: Effect.Effect<A, E, R>,
   ): Effect.Effect<A, E | EffectInputCallbackError, Exclude<R, RequestContext>> =>
-    Effect.flatMap(makeRequestContextEffect(request), (requestContext) =>
+    Effect.flatMap(makeRequestContext(request), (requestContext) =>
       Effect.provideService(effect, RequestContext, requestContext),
     );
 

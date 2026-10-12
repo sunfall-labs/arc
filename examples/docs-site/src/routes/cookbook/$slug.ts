@@ -1,12 +1,15 @@
-import { defineFileRoute } from "@sunfall/arc-start";
+import { Resource } from "@sunfall/arc-core";
+import { FileRoute } from "@sunfall/arc-start";
+import { Effect } from "effect";
 import { RecipeBySlug, RecipeIndex, RecipeRouteParams } from "../../content.js";
 
-const RouteBuilder = defineFileRoute("/cookbook/:slug");
-
-export const Route = RouteBuilder.preload({
+export const Route = FileRoute.define("/cookbook/:slug")({
   params: RecipeRouteParams,
-  resources: ({ resource }) => [
-    resource(RecipeIndex, () => "all" as const),
-    resource(RecipeBySlug, ({ params }) => params.slug),
-  ],
-}).route();
+  preloadResources: [RecipeIndex, RecipeBySlug],
+  preloadCollections: [],
+  preload: ({ params }) =>
+    Effect.all(
+      [Resource.preload(RecipeIndex("all")), Resource.preload(RecipeBySlug(params.slug))],
+      { discard: true },
+    ),
+});

@@ -1,13 +1,14 @@
+import { Route } from "@sunfall/arc-core";
 import {
-  Route,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader,
-} from "@sunfall/arc-core";
+} from "@sunfall/arc-core/internal";
 import { createComponent, createMemo, createRenderEffect, merge, omit, onCleanup } from "solid-js";
 import { Dynamic, type DynamicProps, type JSX } from "@solidjs/web";
+import { Effect } from "effect";
 import { useRouter } from "./router.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -93,7 +94,7 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
   const preloader = makeBrowserRouterLinkPreloader({
     runtime: router.runtime,
     enabled: () => preloadDecision(false)._tag === "Preload",
-    preloadEffect: () => router.preloadEffect<R>(route(), ...currentHrefArgs()),
+    preload: () => router.preload<R>(route(), ...currentHrefArgs()),
   });
 
   createRenderEffect(
@@ -110,7 +111,7 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     },
   );
   onCleanup(() => {
-    preloader.interrupt();
+    void Effect.runFork(preloader.interrupt());
   });
 
   const onMouseEnter: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {

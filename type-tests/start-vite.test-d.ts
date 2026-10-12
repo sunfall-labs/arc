@@ -1,59 +1,25 @@
 import { Effect } from "effect";
-import type { EffectInput, SunfallArcRuntime } from "@sunfall/arc-core";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import {
-  actionManifestVirtualModuleId,
-  appGraphRuntimeDiagnosticsVirtualModuleId,
-  appGraphVirtualModuleId,
-  defaultFileRouteDirectory,
-  defaultFileRouteGeneratedFile,
-  defaultServerEntry,
-  defaultStartBuildPolicy,
-  defaultStartBuildWireSchemaPolicy,
   sunfallArcStart,
-  fileRouteDefinitionsVirtualModuleId,
-  fileRouteManifestVirtualModuleId,
-  handleSsrDevRequestEffect,
-  handleSsrDevMiddlewareEffect,
-  handleSsrDevRequest,
-  loadStartAppGraphDiagnostics,
-  loadStartAppGraphDiagnosticsEffect,
-  planStartPrerenderPages,
-  resolveStartPrerenderOptions,
-  runStartViteDiagnosticsGateEffect,
-  runStartPrerenderEffect,
-  serverFunctionManifestVirtualModuleId,
-  StartDevServerError,
-  StartHandlerNotFound,
-  StartPrerenderError,
-  StartAppGraphDiagnosticsRunnerError,
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
+  FileRouteDiscoveryError,
+  StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
-  validateStartAppGraphDiagnosticsPolicyEffect,
-  validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
-  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
-  validateStartBuildPolicyEffect,
-  writeFileRouteDefinitionsFile,
-  writeFileRouteDefinitionsFileEffect,
-  startDevServerFromVite,
-  type SunfallArcStartOptions,
-  type SunfallArcStartPlugin,
+  StartDevServerError,
+  StartHandlerNotFound,
+  StartPrerenderError,
+  StartServerOnlyModuleError,
+  StartStaticClientPolicyError,
   type FileRouteDiscoveryOptions,
-  type FileRouteDefinitionsFileWriteFailure,
-  type FileRouteDefinitionsFileWriteResult,
-  type HandleSsrDevMiddlewareOptions,
-  type HandleSsrDevRequestOptions,
-  type LoadedStartAppGraphDiagnostics,
-  type LoadStartAppGraphDiagnosticsOptions,
-  type ResolvedStartPrerenderOptions,
-  type StartAppGraphDiagnosticsLoadError,
+  type FileRouteGenerationOptions,
+  type FileRouteManifestOptions,
   type StartBuildPolicy,
   type StartBuildPolicyError,
-  type StartDevMiddlewareNext,
-  type StartDevServer,
   type StartPrerenderConfig,
   type StartPrerenderFailureEvent,
   type StartPrerenderOptions,
@@ -61,55 +27,50 @@ import {
   type StartPrerenderPageContext,
   type StartPrerenderPageInput,
   type StartPrerenderPageOptions,
-  type StartPrerenderPlannedPage,
-  type StartPrerenderResult,
-  type StartPrerenderRunOptions,
   type StartPrerenderSuccessEvent,
-  type StartSsrHandlerModule,
-  type StartViteDevServer,
+  type StartStaticClientPolicy,
   type StartViteDevSsrOptions,
+  type SunfallArcStartOptions,
+  type SunfallArcStartPlugin,
+  type SunfallArcStartResolvedConfig,
 } from "@sunfall/arc-start/vite";
 
 const viteExports: Array<unknown> = [
-  actionManifestVirtualModuleId,
-  appGraphRuntimeDiagnosticsVirtualModuleId,
-  appGraphVirtualModuleId,
-  defaultFileRouteDirectory,
-  defaultFileRouteGeneratedFile,
-  defaultServerEntry,
-  defaultStartBuildPolicy,
-  defaultStartBuildWireSchemaPolicy,
   sunfallArcStart,
-  fileRouteDefinitionsVirtualModuleId,
-  fileRouteManifestVirtualModuleId,
-  handleSsrDevRequestEffect,
-  handleSsrDevMiddlewareEffect,
-  handleSsrDevRequest,
-  loadStartAppGraphDiagnostics,
-  loadStartAppGraphDiagnosticsEffect,
-  planStartPrerenderPages,
-  resolveStartPrerenderOptions,
-  runStartViteDiagnosticsGateEffect,
-  runStartPrerenderEffect,
-  serverFunctionManifestVirtualModuleId,
-  StartDevServerError,
-  StartHandlerNotFound,
-  StartPrerenderError,
-  StartAppGraphDiagnosticsRunnerError,
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
+  FileRouteDiscoveryError,
+  StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
-  validateStartAppGraphDiagnosticsPolicyEffect,
-  validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
-  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
-  validateStartBuildPolicyEffect,
-  writeFileRouteDefinitionsFile,
-  writeFileRouteDefinitionsFileEffect,
-  startDevServerFromVite,
+  StartDevServerError,
+  StartHandlerNotFound,
+  StartPrerenderError,
+  StartServerOnlyModuleError,
+  StartStaticClientPolicyError,
 ];
+type ViteTypes =
+  | FileRouteDiscoveryOptions
+  | FileRouteGenerationOptions
+  | FileRouteManifestOptions
+  | StartBuildPolicy
+  | StartBuildPolicyError
+  | StartPrerenderConfig
+  | StartPrerenderFailureEvent
+  | StartPrerenderOptions
+  | StartPrerenderPage
+  | StartPrerenderPageContext
+  | StartPrerenderPageInput
+  | StartPrerenderPageOptions
+  | StartPrerenderSuccessEvent
+  | StartStaticClientPolicy
+  | StartViteDevSsrOptions
+  | SunfallArcStartOptions
+  | SunfallArcStartPlugin
+  | SunfallArcStartResolvedConfig;
+
 const diagnosticsBuildPolicyOptions = {
   buildPolicy: {
     wireSchemas: false,
@@ -136,53 +97,19 @@ type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
     ? true
     : false
 >;
-type ViteTypes =
-  | SunfallArcStartOptions
-  | SunfallArcStartPlugin
-  | FileRouteDiscoveryOptions
-  | FileRouteDefinitionsFileWriteFailure
-  | FileRouteDefinitionsFileWriteResult
-  | LoadedStartAppGraphDiagnostics
-  | LoadStartAppGraphDiagnosticsOptions
-  | ResolvedStartPrerenderOptions
-  | StartAppGraphDiagnosticsLoadError
-  | StartBuildPolicy
-  | StartBuildPolicyError
-  | StartDevMiddlewareNext
-  | StartDevServer
-  | StartPrerenderConfig
-  | StartPrerenderFailureEvent
-  | StartPrerenderOptions
-  | StartPrerenderPage
-  | StartPrerenderPageContext
-  | StartPrerenderPageInput
-  | StartPrerenderPageOptions
-  | StartPrerenderPlannedPage
-  | StartPrerenderResult
-  | StartPrerenderRunOptions
-  | StartPrerenderSuccessEvent
-  | StartViteDevServer
-  | StartSsrHandlerModule
-  | StartViteDevSsrOptions
-  | HandleSsrDevMiddlewareOptions
-  | HandleSsrDevRequestOptions;
+
 interface ViteDevSsrService {
   readonly value: string;
 }
 declare const viteDevSsrRuntime: SunfallArcRuntime<ViteDevSsrService, "dev-ssr-runtime">;
-declare const servicefulDevSsrServer: StartDevServer<ViteDevSsrService>;
-declare const servicefulDevSsrModule: StartSsrHandlerModule<"handler-error", ViteDevSsrService>;
-declare const hostViteDevServer: StartViteDevServer;
-declare const devSsrNodeRequest: Parameters<typeof handleSsrDevMiddlewareEffect>[1];
-declare const devSsrNodeResponse: Parameters<typeof handleSsrDevMiddlewareEffect>[2];
-const devMiddlewareNext: StartDevMiddlewareNext = (error?: unknown) => {
-  void error;
-};
 const devSsrStartOptions = {
   devSsr: {
     runtime: viteDevSsrRuntime,
   },
 } satisfies SunfallArcStartOptions;
+const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
+  runtime: viteDevSsrRuntime,
+};
 const prerenderStartOptions = {
   prerender: {
     enabled: true,
@@ -202,31 +129,39 @@ const prerenderStartOptions = {
     filter: ({ path }) => !path.startsWith("/private"),
   },
 } satisfies SunfallArcStartOptions;
-const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
-  runtime: viteDevSsrRuntime,
+declare const promisedVoid: Promise<void>;
+const effectReturningPrerenderOptions: StartPrerenderOptions = {
+  pages: [],
+  onSuccess: () => Effect.void,
+  onError: () => Effect.void,
 };
-const servicefulDevSsrEffect: Effect.Effect<Response, unknown, ViteDevSsrService> =
-  handleSsrDevRequestEffect(servicefulDevSsrServer, new Request("https://example.com"));
-const servicefulDevSsrRequestAlias: typeof handleSsrDevRequestEffect = handleSsrDevRequest;
-const devSsrRequestOptions: HandleSsrDevRequestOptions = {
-  serverEntry: defaultServerEntry,
-  handlerExport: "handleRequest",
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
+const promiseReturningSuccessPrerenderOptions: StartPrerenderOptions = {
+  pages: [],
+  // @ts-expect-error Start prerender callbacks must return EffectInput, not Promise work.
+  onSuccess: () => promisedVoid,
 };
-const devSsrMiddlewareOptions: HandleSsrDevMiddlewareOptions = {
-  ...devSsrRequestOptions,
-  runOptions: { signal: new AbortController().signal },
+const promiseReturningErrorPrerenderOptions: StartPrerenderOptions = {
+  pages: [],
+  // @ts-expect-error Start prerender callbacks must return EffectInput, not Promise work.
+  onError: () => promisedVoid,
 };
-const servicefulDevSsrMiddlewareEffect: Effect.Effect<void, never, ViteDevSsrService> =
-  handleSsrDevMiddlewareEffect(
-    servicefulDevSsrServer,
-    devSsrNodeRequest,
-    devSsrNodeResponse,
-    devMiddlewareNext,
-    devSsrMiddlewareOptions,
-  );
-const hostDevSsrServer: StartDevServer = startDevServerFromVite(hostViteDevServer);
+declare const viteRoot: string;
+const discoveryOptions: FileRouteDiscoveryOptions = {
+  root: viteRoot,
+  routeDirectory: "src/routes",
+  extensions: [".tsx"],
+  fileRouteGeneration: { outputFile: "src/routes/routeTree.gen.ts" },
+};
+const plugin: SunfallArcStartPlugin = sunfallArcStart({
+  ...diagnosticsBuildPolicyOptions,
+  serverEntry: "/src/server.tsx",
+  fileRouteOptions: { routeDirectory: "src/routes" },
+});
+const prerenderError = new StartPrerenderError({
+  operation: "render-page",
+  message: "Could not render.",
+  path: "/docs",
+});
 const startDevServerError = new StartDevServerError({
   operation: "load-module",
   error: "missing",
@@ -234,104 +169,23 @@ const startDevServerError = new StartDevServerError({
 const startHandlerNotFound = new StartHandlerNotFound({
   exportName: "default",
 });
-void devSsrStartOptions;
-void devSsrOptions;
-void servicefulDevSsrEffect;
-void servicefulDevSsrRequestAlias;
-void servicefulDevSsrMiddlewareEffect;
-void servicefulDevSsrModule;
-void hostDevSsrServer;
-void devMiddlewareNext;
-void devSsrRequestOptions;
-void devSsrMiddlewareOptions;
-void startDevServerError;
-void startHandlerNotFound;
-declare const viteRoot: string;
-declare const promisedVoid: Promise<void>;
-const discoveryOptions: FileRouteDiscoveryOptions = {
-  root: viteRoot,
-  routeDirectory: "src/routes",
-  extensions: [".tsx"],
-  fileRouteGeneration: { outputFile: "src/routes/routeTree.gen.ts" },
-};
-void discoveryOptions;
-declare const viteManifest: Parameters<typeof writeFileRouteDefinitionsFile>[1];
-const resolvedPrerenderOptions: ResolvedStartPrerenderOptions | undefined =
-  resolveStartPrerenderOptions(prerenderStartOptions.prerender);
-const effectReturningPrerenderOptions: StartPrerenderOptions = {
-  pages: [],
-  onSuccess: () => Effect.void,
-  onError: () => Effect.void,
-};
-void effectReturningPrerenderOptions;
-const promiseReturningSuccessPrerenderOptions: StartPrerenderOptions = {
-  pages: [],
-  // @ts-expect-error Start prerender callbacks must return EffectInput, not Promise work.
-  onSuccess: () => promisedVoid,
-};
-void promiseReturningSuccessPrerenderOptions;
-const promiseReturningErrorPrerenderOptions: StartPrerenderOptions = {
-  pages: [],
-  // @ts-expect-error Start prerender callbacks must return EffectInput, not Promise work.
-  onError: () => promisedVoid,
-};
-void promiseReturningErrorPrerenderOptions;
-type ResolvedPrerenderOnSuccess = NonNullable<ResolvedStartPrerenderOptions["onSuccess"]>;
-type ResolvedPrerenderOnError = NonNullable<ResolvedStartPrerenderOptions["onError"]>;
-const resolvedPrerenderOnSuccess: ResolvedPrerenderOnSuccess = () => Effect.void;
-const resolvedPrerenderOnError: ResolvedPrerenderOnError = () => Effect.void;
-const resolvedPrerenderOnSuccessReturn: EffectInput<void, unknown, never> =
-  null as unknown as ReturnType<ResolvedPrerenderOnSuccess>;
-const resolvedPrerenderOnErrorReturn: EffectInput<void, unknown, never> =
-  null as unknown as ReturnType<ResolvedPrerenderOnError>;
-// @ts-expect-error Resolved prerender callbacks must return EffectInput, not Promise work.
-const promiseReturningResolvedPrerenderSuccess: ResolvedPrerenderOnSuccess = () => promisedVoid;
-// @ts-expect-error Resolved prerender callbacks must return EffectInput, not Promise work.
-const promiseReturningResolvedPrerenderError: ResolvedPrerenderOnError = () => promisedVoid;
-void resolvedPrerenderOnSuccess;
-void resolvedPrerenderOnError;
-void resolvedPrerenderOnSuccessReturn;
-void resolvedPrerenderOnErrorReturn;
-void promiseReturningResolvedPrerenderSuccess;
-void promiseReturningResolvedPrerenderError;
-const plannedPrerenderPages: readonly StartPrerenderPlannedPage[] = planStartPrerenderPages(
-  viteManifest,
-  prerenderStartOptions.prerender,
-);
-const prerenderRunOptions: StartPrerenderRunOptions = {
-  root: viteRoot,
-  outDir: "dist",
-  manifest: viteManifest,
-  prerender: prerenderStartOptions.prerender,
-  serverEntry: defaultServerEntry,
-};
-const prerenderEffect = runStartPrerenderEffect(prerenderRunOptions);
-const prerenderError = new StartPrerenderError({
-  operation: "render-page",
-  message: "Could not render.",
-  path: "/docs",
-});
 declare const routeOutputFailure: FileRouteDefinitionsOutputPathError;
 declare const routeWriteFailure: FileRouteDefinitionsFileWriteError;
 const routeOutputGuidance: string = routeOutputFailure.guidance;
 const routeWriteOperation: "read-existing" | "create-directory" | "write-file" =
   routeWriteFailure.operation;
-const routeDefinitionsWriteResult: FileRouteDefinitionsFileWriteResult | undefined =
-  writeFileRouteDefinitionsFile(viteRoot, viteManifest);
-const routeDefinitionsWriteEffect: Effect.Effect<
-  FileRouteDefinitionsFileWriteResult | undefined,
-  FileRouteDefinitionsFileWriteFailure
-> = writeFileRouteDefinitionsFileEffect(viteRoot, viteManifest);
 void viteExports;
-void diagnosticsBuildPolicyOptions;
+void devSsrStartOptions;
+void devSsrOptions;
 void prerenderStartOptions;
+void effectReturningPrerenderOptions;
+void promiseReturningSuccessPrerenderOptions;
+void promiseReturningErrorPrerenderOptions;
+void discoveryOptions;
+void plugin;
+void prerenderError;
+void startDevServerError;
+void startHandlerNotFound;
 void routeOutputGuidance;
 void routeWriteOperation;
-void routeDefinitionsWriteResult;
-void routeDefinitionsWriteEffect;
-void resolvedPrerenderOptions;
-void plannedPrerenderPages;
-void prerenderRunOptions;
-void prerenderEffect;
-void prerenderError;
 type _ViteTypes = ViteTypes;

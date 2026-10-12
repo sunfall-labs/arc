@@ -1,23 +1,10 @@
 import { Effect, Schema } from "effect";
 import type { ActionResultInvalidationRequirements } from "./action-result.js";
-import {
-  ActionInterrupted,
-  makeActionSubmissionController,
-  type ActionState,
-} from "./action-submission.js";
+import { ActionInterrupted, type ActionState } from "./action-submission.js";
 import { type ActionOptimisticTransaction, type ActionRollback } from "./action-optimistic.js";
-import {
-  invalidationsFor,
-  invalidationsForEffect,
-  makeActionExecutionWorkflow,
-} from "./action-execution-workflow.js";
-import {
-  actionDefinitionRegistry,
-  clearActionDefinitionRegistryUnsafe,
-  coreDefinitionRegistryDiagnostics,
-  getActionDefinition,
-  registerActionDefinition,
-} from "./definition-registry.js";
+import { invalidationsForEffect } from "./action-execution-workflow.js";
+import { makeActionInstance } from "./action-instance.js";
+import { registerActionDefinition } from "./definition-registry.js";
 import type {
   EffectInput,
   EffectInputError,
@@ -33,7 +20,8 @@ import {
   type RetrySchedule,
 } from "./resource.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
-import { currentOrDefaultRuntime, getCurrentRuntime, type SunfallArcRuntime } from "./runtime.js";
+import type { AnySunfallArcRuntime, SunfallArcRuntime } from "./runtime.js";
+import type { ServerClientError } from "./server.js";
 import type { ReadableSignal } from "./signal.js";
 
 /** Expert-public structural marker used to recognize Action Definitions. */
@@ -137,7 +125,7 @@ export interface ActionOptions<I, A, E = never, R = never> {
 /**
  * Live action controller returned by Action.use.
  *
- * Read state in UI code and submit through submitEffect.
+ * Read state in UI code and submit through submit.
  */
 export interface ActionInstance<
   I,
@@ -149,36 +137,31 @@ export interface ActionInstance<
   InvalidationRequirements = DefinitionRequirements | ActionResultInvalidationRequirements<A>,
 > {
   readonly definition: ActionDefinition<I, A, DefinitionError, DefinitionRequirements>;
-  readonly state: ReadableSignal<ActionState<I, A, E | EffectInputCallbackError>>;
+  /**
+   * Submission state. Failures include `ServerClientError`: a runtime that
+   * provides an `ActionTransport` serving this Action submits it remotely.
+   */
+  readonly state: ReadableSignal<
+    ActionState<I, A, E | EffectInputCallbackError | ServerClientError>
+  >;
   readonly invalidationPlan: ReadableSignal<
     ResourceInvalidationPlan<InvalidationRequirements> | undefined
   >;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
-  submitEffect(input: I): Effect.Effect<A, E | EffectInputCallbackError | ActionInterrupted, R>;
+  submit(
+    input: I,
+  ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError | ActionInterrupted, R>;
   /** Resets visible action state as an Effect. */
-  resetEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for UI event handlers. */
-  reset(): void;
+  reset(): Effect.Effect<void>;
 }
 
 /** Runtime options for constructing an Action Instance from a definition. */
 export interface ActionUseOptions<R = never, ER = never> {
   /** Runtime that provides action services, the Resource Store, and runtime errors. */
-  readonly runtime?: SunfallArcRuntime<R, ER>;
+  readonly runtime: SunfallArcRuntime<R, ER>;
 }
 
 export type { ActionOptimisticTransaction, ActionRollback } from "./action-optimistic.js";
-
-export {
-  ActionInterrupted,
-  makeActionSubmissionController,
-  type ActionSubmissionController,
-  type ActionSubmissionControllerOptions,
-  type ActionSubmissionDecision,
-  type ActionSubmissionFiber,
-  type ActionSubmissionRun,
-  type ActionState,
-} from "./action-submission.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 type ActionRuntimeProvidedRequirements<R> = R | ResourceStoreState;
@@ -252,32 +235,21 @@ export namespace Action {
   /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
-  export const planInvalidation = <I, A, E, R>(
-    definition: ActionDefinition<I, A, E, R>,
-    value: A,
-    input: I,
-  ): ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> =>
-    Resource.planInvalidation(invalidationsFor(definition, value, input));
-
   /** Effect-first invalidation planning that reports action callback throws in the error channel. */
-  export const planInvalidationEffect = <I, A, E, R>(
+  export const planInvalidation = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     value: A,
     input: I,
   ): Effect.Effect<
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>,
     EffectInputCallbackError
-  > =>
-    Effect.flatMap(
-      invalidationsForEffect(definition, value, input),
-      Resource.planInvalidationEffect,
-    );
+  > => Effect.flatMap(invalidationsForEffect(definition, value, input), Resource.planInvalidation);
 
   /**
    * Defines and registers a reusable action without binding it to UI state.
    *
-   * Registered actions are available through `Action.definitions()`,
-   * `Action.get(...)`, and the default `defineApp(...)` registry snapshot. Use
+   * Registered actions are available through the default `App.define(...)`
+   * registry snapshot. Use
    * `Action.use(...)` to create an instance for a component or interaction
    * boundary.
    *
@@ -448,58 +420,17 @@ export namespace Action {
     return action;
   }
 
-  /** Registered action definitions keyed by action name. */
-  export const definitions = (): ReadonlyMap<string, AnyActionDefinition> =>
-    actionDefinitionRegistry<AnyActionDefinition>();
-
-  /** Looks up a registered action definition by action name. */
-  export const get = (name: string): AnyActionDefinition | undefined =>
-    getActionDefinition<AnyActionDefinition>(name);
-
-  /** Registry diagnostics, including duplicate action/server registrations. */
-  export const registryDiagnostics = coreDefinitionRegistryDiagnostics;
-
-  /**
-   * Test-only reset for registered action definitions.
-   *
-   * Unsafe because it mutates process-wide state observed by later
-   * `defineApp(...)` calls.
-   */
-  export const clearRegistryUnsafe = (): void => {
-    clearActionDefinitionRegistryUnsafe();
-  };
-
   /**
    * Creates a live action instance with state, optimistic updates, and invalidation.
    *
-   * The returned instance submits through submitEffect.
+   * The instance runs on `runtime`: its services discharge the definition's
+   * requirements, and a runtime-provided `ActionTransport` that serves the
+   * definition submits it remotely. UI code binds Actions with its renderer
+   * adapter (Solid's `Component.action(...)`), which supplies the runtime.
    */
-  export function use<I, A, E = never, R = never>(
-    definition: ActionDefinition<I, A, E, R>,
-  ): ActionInstance<
-    I,
-    A,
-    E,
-    R | ActionResultInvalidationRequirements<A>,
-    E,
-    R,
-    R | ActionResultInvalidationRequirements<A>
-  >;
   export function use<I, A, E = never, R = never, RRuntime = never, ER = never>(
     definition: ActionDefinition<I, A, E, R>,
-    options: { readonly runtime: SunfallArcRuntime<RRuntime, ER> },
-  ): ActionInstance<
-    I,
-    A,
-    E | ER,
-    ActionRuntimeRemainingRequirements<R | ActionResultInvalidationRequirements<A>, RRuntime>,
-    E,
-    R,
-    R | ActionResultInvalidationRequirements<A>
-  >;
-  export function use<I, A, E = never, R = never, RRuntime = never, ER = never>(
-    definition: ActionDefinition<I, A, E, R>,
-    options: ActionUseOptions<RRuntime, ER> = {},
+    options: ActionUseOptions<RRuntime, ER>,
   ): ActionInstance<
     I,
     A,
@@ -509,56 +440,6 @@ export namespace Action {
     R,
     R | ActionResultInvalidationRequirements<A>
   > {
-    const ambientRuntime = getCurrentRuntime();
-    const runtime = options.runtime ?? ambientRuntime ?? currentOrDefaultRuntime();
-    const shouldRunOnCapturedRuntime =
-      options.runtime !== undefined || ambientRuntime !== undefined;
-    const submissions = makeActionSubmissionController<
-      I,
-      A,
-      E | ER | EffectInputCallbackError,
-      ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
-    >(
-      definition.policy?.concurrency === undefined
-        ? { actionName: definition.name }
-        : { actionName: definition.name, concurrency: definition.policy.concurrency },
-    );
-
-    const runAtActionBoundary = <Value, Error, Requirements>(
-      effect: Effect.Effect<Value, Error, Requirements>,
-    ): Effect.Effect<Value, Error | ER, Requirements> =>
-      shouldRunOnCapturedRuntime
-        ? ((runtime as unknown as SunfallArcRuntime<RRuntime, ER>).provide(effect) as Effect.Effect<
-            Value,
-            Error | ER,
-            Requirements
-          >)
-        : effect;
-
-    const workflow = makeActionExecutionWorkflow({
-      definition,
-      submissions,
-      runAtActionBoundary,
-    });
-    const submitEffect = workflow.submitEffect as (
-      input: I,
-    ) => Effect.Effect<
-      A,
-      E | ER | EffectInputCallbackError | ActionInterrupted,
-      ActionRuntimeRemainingRequirements<R | ActionResultInvalidationRequirements<A>, RRuntime>
-    >;
-
-    return {
-      definition,
-      state: submissions.state,
-      invalidationPlan: submissions.invalidationPlan,
-      submitEffect,
-      resetEffect: workflow.resetEffect,
-      reset: () => {
-        void runtime.runFork(
-          workflow.captureResetEffect().pipe(Effect.catchCause(() => Effect.void)),
-        );
-      },
-    };
+    return makeActionInstance(definition, options.runtime as AnySunfallArcRuntime<ER>) as never;
   }
 }

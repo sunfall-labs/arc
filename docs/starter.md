@@ -1,12 +1,15 @@
 # Starters
 
+New to Arc? Read [The Golden Path](golden-path.md) first: it picks the tool
+for each job and builds one feature end to end. Then copy a starter.
+
 Use the smallest starter that proves the path you need:
 
-| Starter                                                   | Use it when                                                                        | Run                  | Verify                                                      |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------- |
-| [`examples/basic-starter`](../examples/basic-starter)     | You want the smallest copyable full-stack app shell.                               | `pnpm starter:dev`   | `pnpm starter:verify`                                       |
-| [`examples/project-console`](../examples/project-console) | You want the golden path with actions, forms, collections, mocks, and diagnostics. | `pnpm example:dev`   | `pnpm --filter @sunfall/arc-example-project-console verify` |
-| [`examples/docs-site`](../examples/docs-site)             | You want the cookbook/docs-site dogfood path.                                      | `pnpm docs-site:dev` | `pnpm docs-site:verify`                                     |
+| Starter                                                   | Use it when                                                                         | Run                  | Verify                                                      |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------- |
+| [`examples/basic-starter`](../examples/basic-starter)     | You want the smallest copyable full-stack app shell.                                | `pnpm starter:dev`   | `pnpm starter:verify`                                       |
+| [`examples/project-console`](../examples/project-console) | You want the full example with actions, forms, collections, mocks, and diagnostics. | `pnpm example:dev`   | `pnpm --filter @sunfall/arc-example-project-console verify` |
+| [`examples/docs-site`](../examples/docs-site)             | You want the cookbook/docs-site dogfood path.                                       | `pnpm docs-site:dev` | `pnpm docs-site:verify`                                     |
 
 The source examples are workspace packages for framework development.
 `pnpm starter:package` writes standalone copies of the basic and
@@ -33,12 +36,18 @@ The basic starter includes:
 - one file route generated into `src/routeTree.gen.ts`;
 - one route-owned Resource preload declared in route metadata;
 - Start SSR through `createRequestHandler`;
-- browser hydration through the synchronous `hydrateFromDocument` host facade,
-  which runs `hydrateFromDocumentEffect(...)` before the UI mounts;
+- one typed `Component` tree, rendered on the server with
+  `Component.embed(App, runtime)` and hydrated in the browser with
+  `Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() })`
+  after `runtime.provide(hydrateFromDocument(document))` restores the server
+  payload in the same client Effect, so the route-preloaded Resource reads
+  synchronously (no loading flash);
 - a production leak scan for `starter.server` sentinels.
 
-Use the project console when you need the larger golden path with forms,
-actions, local-first collections, mocks, and diagnostics. Use the basic starter
+Use the project console when you need the larger example with forms,
+actions (one `Component.action` binding, with the server-served rename routed
+through Start's `makeActionTransportLayer`), local-first collections, mocks, and
+diagnostics. Use the basic starter
 when you need the smallest copyable app shell.
 
 The docs site example lives at

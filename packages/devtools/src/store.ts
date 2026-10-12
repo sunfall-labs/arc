@@ -1,12 +1,13 @@
 import type {
   ActionInstance,
   ActionState,
-  ProgramEvent,
-  ProgramInstance,
   ResourceInvalidationPlan,
   ResourceStoreEvent,
   Route,
+  TimelineEntry,
+  TimelineRecording,
 } from "@sunfall/arc-core";
+import { Timeline } from "@sunfall/arc-core";
 import { Effect, Option } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
@@ -17,7 +18,6 @@ import type {
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSnapshot,
-  DevtoolsStartActionInstance,
   DevtoolsStartAppGraphDiagnostics,
   DevtoolsStore,
   DevtoolsStoreOptions,
@@ -53,9 +53,6 @@ const actionStateFacts = <I, A, E>(
   input: Option.getOrUndefined(state.input),
 });
 
-type AnyActionInstance = ActionInstance<any, any, any, any>;
-type AnyStartActionInstance = DevtoolsStartActionInstance<any, any, any>;
-
 const normalizeHistoryLimit = (value: number | undefined, fallback: number): number =>
   value === undefined || !Number.isFinite(value) || value <= 0
     ? fallback
@@ -72,8 +69,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
   const serializationPolicy = options.serializationPolicy;
   let nextEventSequence = 0;
   let nextRequestTraceSequence = 0;
-  let nextProgramIdentity = 0;
-  const programIdentities = new WeakMap<object, string>();
   let snapshot: DevtoolsSnapshot = {
     resources: [],
     actions: [],
@@ -397,37 +392,22 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     });
   };
 
-  const recordStartAction = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>): void => {
-    const { tag, waiting, input } = actionStateFacts(action.state.get());
-    const serializedInvalidationPlan = action.invalidation.get();
-    recordActionState(action.definition.name, tag, {
-      waiting,
-      ...(input === undefined ? {} : { input }),
-      ...(serializedInvalidationPlan === undefined ? {} : { serializedInvalidationPlan }),
-    });
-  };
-
-  const recordProgramEvent = <Model, Message, E>(event: ProgramEvent<Model, Message, E>): void => {
+  const recordTimelineEntry = (entry: TimelineEntry): void => {
     recordRuntimeEvent({
-      _tag: "ProgramEvent",
-      event,
+      _tag: "TimelineCommit",
+      at: entry.at,
+      commit: {
+        sequence: entry.sequence,
+        label: Timeline.describe(entry.cause),
+        ...(entry.cause === undefined ? {} : { cause: entry.cause }),
+        changes: entry.changes.map((change) => ({
+          signal: change.name,
+          previous: change.previous,
+          next: change.next,
+        })),
+      },
     });
   };
-  const trackedProgramName = (program: ProgramInstance<any, any, any>): string => {
-    const existing = programIdentities.get(program as object);
-    if (existing !== undefined) {
-      return existing;
-    }
-
-    const name = `Program#${++nextProgramIdentity}`;
-    programIdentities.set(program as object, name);
-    return name;
-  };
-  const withTrackedProgramName = <Model, Message, E>(
-    event: ProgramEvent<Model, Message, E>,
-    name: string,
-  ): ProgramEvent<Model, Message, E> =>
-    event.program === undefined ? { ...event, program: name } : event;
 
   const getSnapshotEffect = () =>
     Effect.sync(() => copyDevtoolsSnapshot(snapshot, serializationPolicy));
@@ -477,25 +457,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       }),
       (unsubscribe) => Effect.sync(unsubscribe),
     ).pipe(Effect.asVoid);
-  const recordStartActionEffect = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) =>
-    Effect.sync(() => {
-      recordStartAction(action);
-    });
-  const trackStartActionEffect = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        recordStartAction(action);
-        const unsubscribeState = action.state.subscribe(() => recordStartAction(action));
-        const unsubscribeInvalidation = action.invalidation.subscribe(() =>
-          recordStartAction(action),
-        );
-        return () => {
-          unsubscribeState();
-          unsubscribeInvalidation();
-        };
-      }),
-      (unsubscribe) => Effect.sync(unsubscribe),
-    ).pipe(Effect.asVoid);
   const recordRoutePlanEffect = (plan: Route.NavigationPlan) =>
     Effect.sync(() => recordSerializedRoutePlan(describeRoutePlan(plan)));
   const recordSerializedRoutePlanEffect = (plan: DevtoolsRoutePlan) =>
@@ -514,25 +475,24 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
         event,
       });
     });
-  const recordProgramEventEffect = <Model, Message, E>(event: ProgramEvent<Model, Message, E>) =>
+  const recordTimelineEntryEffect = (entry: TimelineEntry) =>
     Effect.sync(() => {
-      recordProgramEvent(event);
+      recordTimelineEntry(entry);
     });
-  const trackProgramEffect = <Model, Message, E>(program: ProgramInstance<Model, Message, E>) =>
+  const trackTimelineEffect = (recording: TimelineRecording) =>
     Effect.acquireRelease(
       Effect.sync(() => {
-        const name = trackedProgramName(program);
         let observedSequence = 0;
-        const recordNewEvents = () => {
-          for (const event of program.timeline.get()) {
-            if (event.sequence > observedSequence) {
-              observedSequence = event.sequence;
-              recordProgramEvent(withTrackedProgramName(event, name));
+        const recordNewEntries = () => {
+          for (const entry of recording.entries.get()) {
+            if (entry.sequence > observedSequence) {
+              observedSequence = entry.sequence;
+              recordTimelineEntry(entry);
             }
           }
         };
-        recordNewEvents();
-        return program.timeline.subscribe(recordNewEvents);
+        recordNewEntries();
+        return recording.entries.subscribe(recordNewEntries);
       }),
       (unsubscribe) => Effect.sync(unsubscribe),
     ).pipe(Effect.asVoid);
@@ -552,81 +512,26 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
   const getCausalGraphEffect = () => Effect.sync(() => describeDevtoolsCausalGraph(summaryInput()));
 
   const store = {
-    getSnapshot: () => Effect.runSync(getSnapshotEffect()),
-    getSnapshotEffect,
-    setSnapshot: (next: DevtoolsSnapshot) => {
-      Effect.runSync(setSnapshotEffect(next));
-    },
-    setSnapshotEffect,
-    setAppGraphDiagnostics: (appGraph: DevtoolsStartAppGraphDiagnostics) => {
-      Effect.runSync(setAppGraphDiagnosticsEffect(appGraph));
-    },
-    setAppGraphDiagnosticsEffect,
-    clearAppGraphDiagnostics: () => {
-      Effect.runSync(clearAppGraphDiagnosticsEffect());
-    },
-    clearAppGraphDiagnosticsEffect,
-    recordInvalidation: (plan: ResourceInvalidationPlan) => {
-      return Effect.runSync(recordInvalidationEffect(plan));
-    },
-    recordInvalidationEffect,
-    recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => {
-      return Effect.runSync(recordSerializedInvalidationEffect(plan));
-    },
-    recordSerializedInvalidationEffect,
-    recordActionState: (
-      action: string,
-      state: string,
-      actionOptions: DevtoolsRecordActionStateOptions = {},
-    ) => {
-      Effect.runSync(recordActionStateEffect(action, state, actionOptions));
-    },
-    recordActionStateEffect,
-    recordAction: (action: AnyActionInstance) => {
-      Effect.runSync(recordActionEffect(action));
-    },
-    recordActionEffect,
-    trackActionEffect,
-    recordStartAction: (action: AnyStartActionInstance) => {
-      Effect.runSync(recordStartActionEffect(action));
-    },
-    recordStartActionEffect,
-    trackStartActionEffect,
-    recordRoutePlan: (plan: Route.NavigationPlan) => {
-      return Effect.runSync(recordRoutePlanEffect(plan));
-    },
-    recordRoutePlanEffect,
-    recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => {
-      return Effect.runSync(recordSerializedRoutePlanEffect(plan));
-    },
-    recordSerializedRoutePlanEffect,
-    recordResourceEvent: (event: ResourceStoreEvent) => {
-      Effect.runSync(recordResourceEventEffect(event));
-    },
-    recordResourceEventEffect,
-    recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => {
-      Effect.runSync(recordCollectionEventEffect(event));
-    },
-    recordCollectionEventEffect,
-    recordProgramEvent: (event) => {
-      Effect.runSync(recordProgramEventEffect(event));
-    },
-    recordProgramEventEffect,
-    trackProgramEffect,
-    recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => {
-      Effect.runSync(recordRuntimeEventEffect(event));
-    },
-    recordRuntimeEventEffect,
-    recordRequestTrace: (trace: DevtoolsRequestTrace) => {
-      Effect.runSync(recordRequestTraceEffect(trace));
-    },
-    recordRequestTraceEffect,
-    getSummary: () => Effect.runSync(getSummaryEffect()),
-    getSummaryEffect,
-    getPanels: () => Effect.runSync(getPanelsEffect()),
-    getPanelsEffect,
-    getCausalGraph: () => Effect.runSync(getCausalGraphEffect()),
-    getCausalGraphEffect,
+    getSnapshot: getSnapshotEffect,
+    setSnapshot: setSnapshotEffect,
+    setAppGraphDiagnostics: setAppGraphDiagnosticsEffect,
+    clearAppGraphDiagnostics: clearAppGraphDiagnosticsEffect,
+    recordInvalidation: recordInvalidationEffect,
+    recordSerializedInvalidation: recordSerializedInvalidationEffect,
+    recordActionState: recordActionStateEffect,
+    recordAction: recordActionEffect,
+    trackAction: trackActionEffect,
+    recordRoutePlan: recordRoutePlanEffect,
+    recordSerializedRoutePlan: recordSerializedRoutePlanEffect,
+    recordResourceEvent: recordResourceEventEffect,
+    recordCollectionEvent: recordCollectionEventEffect,
+    recordTimelineEntry: recordTimelineEntryEffect,
+    trackTimeline: trackTimelineEffect,
+    recordRuntimeEvent: recordRuntimeEventEffect,
+    recordRequestTrace: recordRequestTraceEffect,
+    getSummary: getSummaryEffect,
+    getPanels: getPanelsEffect,
+    getCausalGraph: getCausalGraphEffect,
   } satisfies DevtoolsStore;
 
   return store;

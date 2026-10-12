@@ -1,7 +1,7 @@
 import { Cause, Deferred, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import {
-  disposeResourceStoreEffect,
+  disposeResourceStore,
   makeResourceStore,
   makeRuntime,
   Resource,
@@ -23,14 +23,14 @@ describe("Resource Store disposal", () => {
   it("shuts down its event pubsub", () => {
     const store = makeResourceStore();
 
-    expect(store.eventBus.isShutdownUnsafe()).toBe(false);
+    expect(Effect.runSync(store.eventBus.isShutdown)).toBe(false);
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* disposeResourceStoreEffect(store);
-        const shutdown = yield* store.diagnostics.eventBusShutdownEffect;
+        yield* disposeResourceStore(store);
+        const shutdown = yield* store.diagnostics.eventBusShutdown;
         expect(shutdown).toBe(true);
-        yield* disposeResourceStoreEffect(store);
+        yield* disposeResourceStore(store);
       }),
     );
   });
@@ -39,19 +39,19 @@ describe("Resource Store disposal", () => {
     const store = makeResourceStore();
     let secondFinalizerRan = false;
     store.moduleRegistry.register(Symbol("failing-module"), {
-      disposeEffect: Effect.fail("dispose failed"),
+      dispose: Effect.fail("dispose failed"),
     });
     store.moduleRegistry.register(Symbol("second-module"), {
-      disposeEffect: Effect.sync(() => {
+      dispose: Effect.sync(() => {
         secondFinalizerRan = true;
       }),
     });
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const error = yield* Effect.flip(disposeResourceStoreEffect(store));
-        const shutdown = yield* store.diagnostics.eventBusShutdownEffect;
-        const moduleCount = yield* store.diagnostics.moduleCountEffect;
+        const error = yield* Effect.flip(disposeResourceStore(store));
+        const shutdown = yield* store.diagnostics.eventBusShutdown;
+        const moduleCount = yield* store.diagnostics.moduleCount;
         expect(error).toBeInstanceOf(ResourceStoreDisposeError);
         expect(error.cause.reasons.find(Cause.isFailReason)?.error).toBe("dispose failed");
         expect(shutdown).toBe(true);
@@ -64,7 +64,7 @@ describe("Resource Store disposal", () => {
   it("exposes stable diagnostics count snapshots without private store maps", () => {
     const runtime = makeRuntime();
     const ProjectTag = Resource.tag("ResourceStore.diagnostics.project");
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "ResourceStore.diagnostics.project",
       load: (id: string) => Effect.succeed({ id }),
       provides: () => [ProjectTag],
@@ -74,10 +74,10 @@ describe("Resource Store disposal", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Resource.prefetchEffect(Project("atlas")));
-        const snapshot = yield* runtime.resourceStore.diagnostics.snapshotEffect;
-        const familyCount = yield* runtime.resourceStore.diagnostics.familyCountEffect;
-        const tagCount = yield* runtime.resourceStore.diagnostics.tagCountEffect;
+        yield* runtime.provide(Resource.preload(Project("atlas")));
+        const snapshot = yield* runtime.resourceStore.diagnostics.snapshot;
+        const familyCount = yield* runtime.resourceStore.diagnostics.familyCount;
+        const tagCount = yield* runtime.resourceStore.diagnostics.tagCount;
 
         expect(snapshot).toEqual({
           fiberCount: 0,
@@ -87,16 +87,16 @@ describe("Resource Store disposal", () => {
         });
         expect(familyCount).toBe(1);
         expect(tagCount).toBe(1);
-        expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
+        expect(Effect.runSync(runtime.resourceStore.diagnostics.snapshot)).toEqual(snapshot);
         expect(snapshot).not.toHaveProperty("families");
         expect(snapshot).not.toHaveProperty("tagIndex");
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
   it("ignores deletes for refs that were never present in the store", () => {
     const runtime = makeRuntime();
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "ResourceStore.delete-absent",
       load: (id: string) => Effect.succeed({ id }),
     });
@@ -104,11 +104,11 @@ describe("Resource Store disposal", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const before = yield* runtime.resourceStore.diagnostics.snapshotEffect;
-        yield* runtime.provide(Resource.deleteEffect(ref));
-        const after = yield* runtime.resourceStore.diagnostics.snapshotEffect;
+        const before = yield* runtime.resourceStore.diagnostics.snapshot;
+        yield* runtime.provide(Resource.evict(ref));
+        const after = yield* runtime.resourceStore.diagnostics.snapshot;
         expect(after).toEqual(before);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -122,11 +122,11 @@ describe("Resource Store disposal", () => {
       fiberRegistry: store.fiberRegistry,
       diagnostics: store.diagnostics,
     };
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "ResourceStore.fake-adapter",
       load: (id: string) => Effect.succeed({ id }),
     });
-    const provided = runtime.provide(Resource.prefetchEffect(Project("atlas")), {
+    const provided = runtime.provide(Resource.preload(Project("atlas")), {
       // @ts-expect-error structural ResourceStore adapters are intentionally rejected at runtime.
       resourceStore: fakeStore,
     });
@@ -142,8 +142,8 @@ describe("Resource Store disposal", () => {
           });
         }
       }).pipe(
-        Effect.ensuring(Effect.orDie(disposeResourceStoreEffect(store))),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(Effect.orDie(disposeResourceStore(store))),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -160,11 +160,11 @@ describe("Resource Store disposal", () => {
       fiberRegistry: store.fiberRegistry,
       diagnostics: store.diagnostics,
     };
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "ResourceStore.fake-global-marker",
       load: (id: string) => Effect.succeed({ id }),
     });
-    const provided = runtime.provide(Resource.prefetchEffect(Project("atlas")), {
+    const provided = runtime.provide(Resource.preload(Project("atlas")), {
       // @ts-expect-error the implementation marker is private and cannot be recreated with Symbol.for.
       resourceStore: fakeStore,
     });
@@ -180,18 +180,18 @@ describe("Resource Store disposal", () => {
           });
         }
       }).pipe(
-        Effect.ensuring(Effect.orDie(disposeResourceStoreEffect(store))),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(Effect.orDie(disposeResourceStore(store))),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
 
-  it("untracks stale readEffect refresh fibers when they complete", () => {
+  it("untracks stale read refresh fibers when they complete", () => {
     const runtime = makeRuntime();
     const secondStarted = Effect.runSync(Deferred.make<void>());
     const releaseSecond = Effect.runSync(Deferred.make<void>());
     let loads = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "ResourceStore.stale-read-fiber-cleanup",
       load: () =>
         Effect.gen(function* () {
@@ -210,29 +210,29 @@ describe("Resource Store disposal", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Resource.prefetchEffect(ref));
+        yield* runtime.provide(Resource.preload(ref));
         yield* Effect.sleep("5 millis");
 
-        const staleValue = yield* runtime.provide(Resource.readEffect(ref));
+        const staleValue = yield* runtime.provide(Resource.read(ref));
         expect(staleValue).toBe(1);
 
         yield* Deferred.await(secondStarted);
-        const duringRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
+        const duringRefresh = yield* runtime.resourceStore.diagnostics.fiberCount;
         expect(duringRefresh).toBe(2);
 
         yield* Deferred.succeed(releaseSecond, undefined);
         yield* Effect.sleep("10 millis");
 
-        const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
+        const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCount;
         expect(afterRefresh).toBe(0);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
-  it("does not retain synchronously completed stale readEffect refresh fibers", () => {
+  it("does not retain synchronously completed stale read refresh fibers", () => {
     const runtime = makeRuntime();
     let loads = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "ResourceStore.sync-stale-read-fiber-cleanup",
       load: () => Effect.succeed(++loads),
       policy: {
@@ -243,16 +243,16 @@ describe("Resource Store disposal", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Resource.prefetchEffect(ref));
+        yield* runtime.provide(Resource.preload(ref));
         yield* Effect.sleep("5 millis");
 
-        const staleValue = yield* runtime.provide(Resource.readEffect(ref));
+        const staleValue = yield* runtime.provide(Resource.read(ref));
         expect(staleValue).toBe(1);
         expect(loads).toBe(2);
 
-        const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
+        const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCount;
         expect(afterRefresh).toBe(0);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -273,7 +273,7 @@ describe("Resource Store disposal", () => {
     }) as typeof globalThis.setTimeout;
 
     const runtime = makeRuntime();
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "ResourceStore.unref-gc-timer",
       load: () => Effect.succeed(1),
       policy: {
@@ -284,8 +284,8 @@ describe("Resource Store disposal", () => {
     try {
       await Effect.runPromise(
         runtime
-          .provide(Resource.prefetchEffect(Count(undefined)))
-          .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+          .provide(Resource.preload(Count(undefined)))
+          .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
       );
       expect(unrefCalls).toBeGreaterThan(0);
     } finally {

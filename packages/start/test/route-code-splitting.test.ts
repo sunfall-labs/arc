@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { sunfallArcStart } from "../src/vite.js";
 import {
-  sunfallArcStart,
   loadStartRouteComponentSplitModule,
   resolveStartRouteComponentSplitModuleId,
   transformStartRouteAutoCodeSplitting,
-} from "../src/vite.js";
+} from "../src/route-code-splitting.js";
 
 const splitImportId = (transformed: string): string => {
   const match = transformed.match(/import\("([^"]+)"\)/);
@@ -57,6 +57,7 @@ const typecheckGeneratedRouteModule = (transformed: string): void => {
             skipLibCheck: true,
             paths: {
               "@sunfall/arc-core": [`${workspaceRelative}/packages/core/src/index.ts`],
+              "@sunfall/arc-core/internal": [`${workspaceRelative}/packages/core/src/internal.ts`],
               "@sunfall/arc-start": [`${workspaceRelative}/packages/start/src/index.ts`],
               effect: [`${workspaceRelative}/node_modules/effect/dist/index.d.ts`],
               "effect/*": [
@@ -92,10 +93,10 @@ describe("Start route code splitting", () => {
   it("rewrites imported route components into lazy split modules", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@sunfall/arc-start";',
+        'import { FileRoute } from "@sunfall/arc-start";',
         'import { HomePage } from "../HomePage.js";',
         "",
-        'export const Route = defineFileRoute("/")({',
+        'export const Route = FileRoute.define("/")({',
         "  component: HomePage,",
         "});",
       ].join("\n"),
@@ -123,11 +124,11 @@ describe("Start route code splitting", () => {
   it("keeps component imports eager when the component identifier is used elsewhere", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@sunfall/arc-start";',
+        'import { FileRoute } from "@sunfall/arc-start";',
         'import { HomePage } from "../HomePage.js";',
         "",
         "export const title = HomePage.title;",
-        'export const Route = defineFileRoute("/")({',
+        'export const Route = FileRoute.define("/")({',
         "  component: HomePage,",
         "});",
       ].join("\n"),
@@ -150,10 +151,10 @@ describe("Start route code splitting", () => {
   it("extracts same-file function route components into generated virtual chunks", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@sunfall/arc-start";',
+        'import { FileRoute } from "@sunfall/arc-start";',
         'import { Button } from "../Button.js";',
         "",
-        'export const Route = defineFileRoute("/")({',
+        'export const Route = FileRoute.define("/")({',
         "  component: HomePage,",
         "});",
         "",
@@ -169,7 +170,7 @@ describe("Start route code splitting", () => {
     expect(transformed).toContain("__SunfallArcRoute.lazyComponent");
     expect(transformed).not.toContain("function HomePage()");
     expect(transformed).not.toContain('import { Button } from "../Button.js";');
-    expect(transformed).toContain('import { defineFileRoute } from "@sunfall/arc-start";');
+    expect(transformed).toContain('import { FileRoute } from "@sunfall/arc-start";');
 
     const moduleId = splitImportId(transformed ?? "");
     const moduleCode = loadStartRouteComponentSplitModule(moduleId);
@@ -186,7 +187,7 @@ describe("Start route code splitting", () => {
   it("extracts same-file const route components into generated virtual chunks", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'export const Route = defineFileRoute("/")({',
+        'export const Route = FileRoute.define("/")({',
         "  component: HomePage,",
         "});",
         "",
@@ -208,9 +209,9 @@ describe("Start route code splitting", () => {
   it("keeps same-file components eager when they depend on route-local bindings", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@sunfall/arc-start";',
+        'import { FileRoute } from "@sunfall/arc-start";',
         'const title = "Home";',
-        'export const Route = defineFileRoute("/")({',
+        'export const Route = FileRoute.define("/")({',
         "  component: HomePage,",
         "});",
         "",
@@ -228,9 +229,9 @@ describe("Start route code splitting", () => {
   it("keeps same-file components eager when the component identifier is used elsewhere", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@sunfall/arc-start";',
+        'import { FileRoute } from "@sunfall/arc-start";',
         "const alsoHome = HomePage;",
-        'export const Route = defineFileRoute("/")({',
+        'export const Route = FileRoute.define("/")({',
         "  component: HomePage,",
         "});",
         "",
@@ -252,9 +253,9 @@ describe("Start route code splitting", () => {
     plugin.config({ root: "/workspace" });
     plugin.configResolved({ root: "/workspace", command: "serve" });
     const code = [
-      'import { defineFileRoute } from "@sunfall/arc-start";',
+      'import { FileRoute } from "@sunfall/arc-start";',
       'import { HomePage } from "../HomePage.js";',
-      'export const Route = defineFileRoute("/")({ component: HomePage });',
+      'export const Route = FileRoute.define("/")({ component: HomePage });',
     ].join("\n");
 
     expect(plugin.transform(code, "/workspace/src/routes/index.tsx", { ssr: true })).toBeNull();
@@ -272,9 +273,9 @@ describe("Start route code splitting", () => {
     plugin.config({ root: "/workspace" });
     plugin.configResolved({ root: "/workspace", command: "serve" });
     const code = [
-      'import { defineFileRoute } from "@sunfall/arc-start";',
+      'import { FileRoute } from "@sunfall/arc-start";',
       'import { HomePage } from "../HomePage.js";',
-      'export const Route = defineFileRoute("/")({ component: HomePage });',
+      'export const Route = FileRoute.define("/")({ component: HomePage });',
     ].join("\n");
 
     expect(plugin.transform(code, "/workspace/src/routes/index.tsx", { ssr: false })).toBeNull();

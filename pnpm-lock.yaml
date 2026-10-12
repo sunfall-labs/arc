@@ -320,18 +320,6 @@ importers:
         specifier: '*'
         version: 8.0.12(@types/node@25.7.0)(jiti@2.7.0)(yaml@2.9.0)
 
-  packages/start-fetch:
-    dependencies:
-      '@sunfall/arc-start':
-        specifier: workspace:*
-        version: link:../start
-
-  packages/start-node:
-    dependencies:
-      '@sunfall/arc-start':
-        specifier: workspace:*
-        version: link:../start
-
   packages/tsrx:
     dependencies:
       '@solidjs/vite-plugin':

@@ -1,4 +1,3 @@
-import { Effect } from "effect";
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsCausalEdgeId as causalEdgeId,
@@ -831,7 +830,3 @@ export const describeDevtoolsCausalGraph = (
     runtimeEvents: normalized.runtimeEvents,
   });
 };
-
-export const describeDevtoolsCausalGraphEffect = (
-  input: DevtoolsSummaryInput = {},
-): Effect.Effect<DevtoolsCausalGraph> => Effect.sync(() => describeDevtoolsCausalGraph(input));

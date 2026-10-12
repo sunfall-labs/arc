@@ -1,4 +1,4 @@
-import { Signal, type WritableSignal } from "@sunfall/arc-core";
+import { Signal, type TimelineCollectionCause, type WritableSignal } from "@sunfall/arc-core";
 import type { Deferred } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type {
@@ -56,6 +56,8 @@ export interface OptimisticRowStack<A extends object, K extends CollectionKey> {
 }
 
 export interface CollectionState<A extends object, K extends CollectionKey, E> {
+  /** Collection name, used for signal labels and `Timeline` causes. */
+  readonly name: string;
   readonly rows: Map<K, StoredRow<A, K>>;
   readonly pendingMutations: Map<string, PendingMutationEntry<A, K>>;
   readonly optimisticRows: Map<K, OptimisticRowStack<A, K>>;
@@ -71,22 +73,24 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   persistenceRestored: boolean;
   /** True while this store runs the definition's `follow` stream. */
   following: boolean;
+  /** True while this store runs the definition's `sync.changes` stream. */
+  followingChanges: boolean;
   /** Source snapshot (by reference) that the synced rows were last loaded from. */
   syncedSource: unknown;
 }
 
-export const makeCollectionState = <
-  A extends object,
-  K extends CollectionKey,
-  E,
->(): CollectionState<A, K, E> => ({
+export const makeCollectionState = <A extends object, K extends CollectionKey, E>(
+  name: string,
+): CollectionState<A, K, E> => ({
+  name,
   rows: new Map(),
   pendingMutations: new Map(),
   optimisticRows: new Map(),
   indexCache: new Map(),
-  version: Signal.make(0),
+  version: Signal.make(0, { name: `${name}.version` }),
   loadState: Signal.make<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>(
     AsyncResult.initial(),
+    { name: `${name}.loadState` },
   ),
   nextTransactionId: 0,
   nextMutationAttemptId: 0,
@@ -96,12 +100,38 @@ export const makeCollectionState = <
   initialDataError: undefined,
   persistenceRestored: false,
   following: false,
+  followingChanges: false,
   syncedSource: undefined,
 });
 
+const collectionCause = (
+  state: CollectionState<any, any, any>,
+  event: TimelineCollectionCause["event"],
+): { readonly cause: TimelineCollectionCause } => ({
+  cause: { _tag: "Collection", collection: state.name, event },
+});
+
+/** Publishes a row change: the one write path for a collection's version signal. */
 export const bumpCollectionState = (state: CollectionState<any, any, any>): void => {
   state.indexCache.clear();
-  state.version.update((value) => value + 1);
+  Signal.batch(() => state.version.update((value) => value + 1), collectionCause(state, "change"));
+};
+
+/** Restores a captured version after rolling rows back to a snapshot. */
+export const restoreCollectionVersion = (
+  state: CollectionState<any, any, any>,
+  version: number,
+): void => {
+  state.indexCache.clear();
+  Signal.batch(() => state.version.set(version), collectionCause(state, "change"));
+};
+
+/** The one write path for a collection's load state. */
+export const commitCollectionLoadState = <E>(
+  state: CollectionState<any, any, E>,
+  loadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
+): void => {
+  Signal.batch(() => state.loadState.set(loadState), collectionCause(state, "sync"));
 };
 
 export const augmentCollectionRow = <A extends object, K extends CollectionKey>(

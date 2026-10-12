@@ -1,7 +1,7 @@
-import { defineApp } from "@sunfall/arc-core";
-import { routeTree } from "./routeTree.gen.js";
+import { App } from "@sunfall/arc-core";
+import { routes } from "./routeTree.gen.js";
 
-export const app = defineApp({
-  routes: routeTree,
+export const app = App.define({
+  routes,
   client: { name: "BrowserLive" },
 });

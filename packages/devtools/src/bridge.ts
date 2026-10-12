@@ -65,8 +65,7 @@ const restoreDevtoolsBridgeTarget = (
   }
 };
 
-/** Installs an app-side Devtools provider without coupling the app to an extension UI. */
-export const installDevtoolsBridge = (
+const installDevtoolsBridgeProvider = (
   provider: DevtoolsBridgeProvider,
   target: DevtoolsBridgeTarget = globalThis as DevtoolsBridgeTarget,
 ): DevtoolsBridgeInstall => {
@@ -100,13 +99,16 @@ export const installDevtoolsBridge = (
   };
 };
 
-/** Scoped Effect helper for installing and automatically uninstalling the bridge. */
-export const installDevtoolsBridgeEffect = (
+/**
+ * Installs an app-side Devtools provider without coupling the app to an
+ * extension UI, uninstalling it when the Scope closes (or on `uninstall()`).
+ */
+export const installDevtoolsBridge = (
   provider: DevtoolsBridgeProvider,
   target?: DevtoolsBridgeTarget,
 ): Effect.Effect<DevtoolsBridgeInstall, never, Scope.Scope> =>
   Effect.acquireRelease(
-    Effect.sync(() => installDevtoolsBridge(provider, target)),
+    Effect.sync(() => installDevtoolsBridgeProvider(provider, target)),
     (bridge) =>
       Effect.sync(() => {
         bridge.uninstall();

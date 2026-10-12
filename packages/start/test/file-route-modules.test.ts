@@ -48,36 +48,12 @@ describe("file route definition module generation", () => {
 
       /** Ordered app-specific route definitions discovered from Start file routes. */
       export const routes = [route_root, route_projects_new, route_projects_$id] as const;
-      /** Alias for \`routes\`, kept for router-style naming and generated-file ergonomics. */
-      export const routeTree = routes;
       /** Map from generated route id to the exact route definition for that file route. */
       export const routeById = {
         route_root: route_root,
         route_projects_new: route_projects_new,
         route_projects_$id: route_projects_$id,
       } as const;
-      /** Map from route path pattern to the exact route definition for that file route. */
-      export const routeByPath = {
-        "/": route_root,
-        "/projects/new": route_projects_new,
-        "/projects/:id": route_projects_$id,
-      } as const;
-      /** Map from route path pattern to generated route id. */
-      export const routeIdByPath = {
-        "/": "route_root",
-        "/projects/new": "route_projects_new",
-        "/projects/:id": "route_projects_$id",
-      } as const;
-      /** Builds a typed href for a generated route id. */
-      export const hrefById = <Id extends RouteId>(
-        id: Id,
-        ...args: Route.HrefArgs<RouteById[Id]>
-      ): string => Route.href(routeById[id], ...args);
-      /** Builds a typed href for a generated route path pattern. */
-      export const hrefByPath = <Path extends RoutePath>(
-        path: Path,
-        ...args: Route.HrefArgs<RouteByPath[Path]>
-      ): string => Route.href(routeByPath[path], ...args);
 
       /** Layout modules that wrap each generated route, ordered from source-scope root to leaf. */
       export const fileRouteLayoutsById = {
@@ -94,28 +70,16 @@ describe("file route definition module generation", () => {
         route_projects_$id: [],
       } as const;
       /** Returns layout modules for a generated route id. */
-      export const layoutsById = <Id extends RouteId>(id: Id): FileRouteLayouts<Id> =>
+      export const layoutsById = <Id extends FileRouteId>(id: Id): FileRouteLayouts<Id> =>
         fileRouteLayoutsById[id];
-      /** Returns layout modules for a generated route path pattern. */
-      export const layoutsByPath = <Path extends RoutePath>(
-        path: Path,
-      ): FileRouteLayouts<RouteIdByPath[Path]> => layoutsById(routeIdByPath[path]);
       /** Returns the nearest error boundary module for a generated route id, when one exists. */
-      export const errorBoundaryById = <Id extends RouteId>(id: Id): FileRouteErrorBoundary<Id> =>
-        (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
+      export const errorBoundaryById = <Id extends FileRouteId>(id: Id): FileRouteErrorBoundary<Id> =>
+        (fileRouteErrorBoundaryById as Partial<Record<FileRouteId, unknown>>)[
           id
         ] as FileRouteErrorBoundary<Id>;
-      /** Returns the nearest error boundary module for a generated route path, when one exists. */
-      export const errorBoundaryByPath = <Path extends RoutePath>(
-        path: Path,
-      ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);
       /** Returns metadata modules for a generated route id. */
-      export const metadataById = <Id extends RouteId>(id: Id): FileRouteMetadataModules<Id> =>
+      export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
         fileRouteMetadataById[id];
-      /** Returns metadata modules for a generated route path pattern. */
-      export const metadataByPath = <Path extends RoutePath>(
-        path: Path,
-      ): FileRouteMetadataModules<RouteIdByPath[Path]> => metadataById(routeIdByPath[path]);
 
       /** Route, layout, error boundary, and metadata modules discovered by Start. */
       export const fileRouteModules = [
@@ -261,21 +225,13 @@ describe("file route definition module generation", () => {
       ] as const;
 
       /** Tuple type for the generated app-specific route tree. */
-      export type RouteTree = typeof routeTree;
+      export type RouteTree = typeof routes;
       /** Map type keyed by generated route id. */
       export type RouteById = typeof routeById;
-      /** Map type keyed by route path pattern. */
-      export type RouteByPath = typeof routeByPath;
-      /** Map type from route path pattern to generated route id. */
-      export type RouteIdByPath = typeof routeIdByPath;
       /** Union of every generated route definition. */
       export type FileRoute = RouteTree[number];
       /** Union of generated route ids such as \`route_projects_$id\`. */
       export type FileRouteId = keyof RouteById;
-      /** Union of generated route path patterns such as \`/projects/:id\`. */
-      export type FileRoutePath = keyof RouteByPath;
-      /** Route path lookup map preserved for path-keyed helper types. */
-      export type FileRouteByPath = RouteByPath;
       /** Params for each generated route id. */
       export type FileRouteParamsById = { readonly [Id in FileRouteId]: Route.Params<RouteById[Id]> };
       /** Search values for each generated route id. */
@@ -290,24 +246,6 @@ describe("file route definition module generation", () => {
       export type FileRouteHrefArgsById = { readonly [Id in FileRouteId]: Route.HrefArgs<RouteById[Id]> };
       /** Href arguments for one generated route id. */
       export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];
-      /** Params for each generated route path pattern. */
-      export type FileRouteParamsByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.Params<FileRouteByPath[Path]>;
-      };
-      /** Search values for each generated route path pattern. */
-      export type FileRouteSearchByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.Search<FileRouteByPath[Path]>;
-      };
-      /** Href options for each generated route path pattern. */
-      export type FileRouteHrefOptionsByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]>;
-      };
-      /** Href arguments for each generated route path pattern. */
-      export type FileRouteHrefArgsByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.HrefArgs<FileRouteByPath[Path]>;
-      };
-      /** Route match narrowed to one generated route path pattern. */
-      export type FileRouteMatch<Path extends FileRoutePath> = Route.Match<FileRouteByPath[Path]>;
       /** Layout modules keyed by generated route id. */
       export type FileRouteLayoutsById = typeof fileRouteLayoutsById;
       /** Error boundary modules keyed by generated route id when present. */
@@ -321,43 +259,10 @@ describe("file route definition module generation", () => {
         Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;
       /** Metadata modules for one generated route id. */
       export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
-      /** Friendly alias for the generated route id union. */
-      export type RouteId = FileRouteId;
-      /** Friendly alias for the generated route path union. */
-      export type RoutePath = FileRoutePath;
-      /** Friendly alias for params keyed by generated route id. */
-      export type ParamsById = FileRouteParamsById;
-      /** Friendly alias for search values keyed by generated route id. */
-      export type SearchById = FileRouteSearchById;
-      /** Friendly alias for href options keyed by generated route id. */
-      export type HrefById = FileRouteHrefOptionsById;
-      /** Friendly alias for href options for one generated route id. */
-      export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;
-      /** Friendly alias for href arguments keyed by generated route id. */
-      export type HrefArgsById = FileRouteHrefArgsById;
-      /** Friendly alias for href arguments for one generated route id. */
-      export type HrefArgs<Id extends RouteId> = FileRouteHrefArgs<Id>;
-      /** Friendly alias for params keyed by generated route path. */
-      export type ParamsByPath = FileRouteParamsByPath;
-      /** Friendly alias for search values keyed by generated route path. */
-      export type SearchByPath = FileRouteSearchByPath;
-      /** Friendly alias for href options keyed by generated route path. */
-      export type HrefByPath = FileRouteHrefOptionsByPath;
-      /** Friendly alias for href arguments keyed by generated route path. */
-      export type HrefArgsByPath = FileRouteHrefArgsByPath;
-      /** Friendly alias for route matches narrowed by generated route path. */
-      export type Match<Path extends RoutePath> = FileRouteMatch<Path>;
-      /** Narrows a broad route match to one generated route path pattern. */
-      export const isRoutePathMatch = <Path extends FileRoutePath>(
-        path: Path,
-        match: Route.Match<FileRoute> | undefined,
-      ): match is FileRouteMatch<Path> => match?.route.path === path;
       /** Static metadata for all file-route modules discovered by Start. */
       export type FileRouteModules = typeof fileRouteModules;
       /** Static parent/layout/error/metadata relationships for generated routes. */
-      export type FileRouteMetadata = typeof fileRouteMetadata;
-      /** Default generated route tree export for router-style imports. */
-      export default routes;"
+      export type FileRouteMetadata = typeof fileRouteMetadata;"
     `);
     expect(generated).toContain(
       [
@@ -375,36 +280,12 @@ describe("file route definition module generation", () => {
         "",
         "/** Ordered app-specific route definitions discovered from Start file routes. */",
         "export const routes = [route_root, route_projects_new, route_projects_$id] as const;",
-        "/** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */",
-        "export const routeTree = routes;",
         "/** Map from generated route id to the exact route definition for that file route. */",
         "export const routeById = {",
         "  route_root: route_root,",
         "  route_projects_new: route_projects_new,",
         "  route_projects_$id: route_projects_$id,",
         "} as const;",
-        "/** Map from route path pattern to the exact route definition for that file route. */",
-        "export const routeByPath = {",
-        '  "/": route_root,',
-        '  "/projects/new": route_projects_new,',
-        '  "/projects/:id": route_projects_$id,',
-        "} as const;",
-        "/** Map from route path pattern to generated route id. */",
-        "export const routeIdByPath = {",
-        '  "/": "route_root",',
-        '  "/projects/new": "route_projects_new",',
-        '  "/projects/:id": "route_projects_$id",',
-        "} as const;",
-        "/** Builds a typed href for a generated route id. */",
-        "export const hrefById = <Id extends RouteId>(",
-        "  id: Id,",
-        "  ...args: Route.HrefArgs<RouteById[Id]>",
-        "): string => Route.href(routeById[id], ...args);",
-        "/** Builds a typed href for a generated route path pattern. */",
-        "export const hrefByPath = <Path extends RoutePath>(",
-        "  path: Path,",
-        "  ...args: Route.HrefArgs<RouteByPath[Path]>",
-        "): string => Route.href(routeByPath[path], ...args);",
       ].join("\n"),
     );
     expect(generated).toContain("export const fileRouteModules = ");
@@ -412,16 +293,9 @@ describe("file route definition module generation", () => {
     expect(generated).toContain("export const fileRouteMetadata = ");
     expect(generated).toContain("export type FileRouteMetadata = typeof fileRouteMetadata;");
     expect(generated).toContain("export type FileRouteId = keyof RouteById;");
-    expect(generated).toContain("export type RouteByPath = typeof routeByPath;");
-    expect(generated).toContain("export type RouteIdByPath = typeof routeIdByPath;");
-    expect(generated).toContain("export type FileRoutePath = keyof RouteByPath;");
-    expect(generated).toContain("export type FileRouteByPath = RouteByPath;");
     expect(generated).toContain("export const fileRouteLayoutsById = ");
     expect(generated).toContain("export const fileRouteErrorBoundaryById = ");
     expect(generated).toContain("export const fileRouteMetadataById = ");
-    expect(generated).toContain("export const layoutsByPath = <Path extends RoutePath>(");
-    expect(generated).toContain("export const errorBoundaryByPath = <Path extends RoutePath>(");
-    expect(generated).toContain("export const metadataByPath = <Path extends RoutePath>(");
     expect(generated).toContain(
       "export type FileRouteParamsById = { readonly [Id in FileRouteId]: Route.Params<RouteById[Id]> };",
     );
@@ -430,13 +304,6 @@ describe("file route definition module generation", () => {
     );
     expect(generated).toContain(
       "export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];",
-    );
-    expect(generated).toContain(
-      [
-        "export type FileRouteHrefOptionsByPath = {",
-        "  readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]>;",
-        "};",
-      ].join("\n"),
     );
     expect(generated).toContain(
       "export type FileRouteLayouts<Id extends FileRouteId> = FileRouteLayoutsById[Id];",
@@ -450,14 +317,10 @@ describe("file route definition module generation", () => {
     expect(generated).toContain(
       "export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];",
     );
-    expect(generated).toContain("export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;");
-    expect(generated).toContain(
-      "export type HrefArgs<Id extends RouteId> = FileRouteHrefArgs<Id>;",
-    );
-    expect(generated).toContain(
-      "export type Match<Path extends RoutePath> = FileRouteMatch<Path>;",
-    );
-    expect(generated).toContain("export default routes;");
+    expect(generated).not.toContain("ByPath");
+    expect(generated).not.toContain("hrefById");
+    expect(generated).not.toContain("export type Href<");
+    expect(generated).not.toContain("export type Match<");
   });
 
   it("keeps long generated route definitions formatter-stable by construction", () => {
@@ -489,12 +352,6 @@ describe("file route definition module generation", () => {
     );
     expect(generated).toContain(
       [`  ${longRouteIdentifier}:`, `    ${longRouteIdentifier},`].join("\n"),
-    );
-    expect(generated).toContain(
-      [`  "${longRoutePath}":`, `    ${longRouteIdentifier},`].join("\n"),
-    );
-    expect(generated).toContain(
-      [`  "${longRoutePath}":`, `    "${longRouteIdentifier}",`].join("\n"),
     );
   });
 
@@ -533,33 +390,11 @@ describe("file route definition module generation", () => {
 
       /** Ordered app-specific route definitions discovered from Start file routes. */
       export const routes = [route_root, route_projects_$id] as const;
-      /** Alias for \`routes\`, kept for router-style naming and generated-file ergonomics. */
-      export const routeTree = routes;
       /** Map from generated route id to the exact route definition for that file route. */
       export const routeById = {
         route_root: route_root,
         route_projects_$id: route_projects_$id,
       } as const;
-      /** Map from route path pattern to the exact route definition for that file route. */
-      export const routeByPath = {
-        "/": route_root,
-        "/projects/:id": route_projects_$id,
-      } as const;
-      /** Map from route path pattern to generated route id. */
-      export const routeIdByPath = {
-        "/": "route_root",
-        "/projects/:id": "route_projects_$id",
-      } as const;
-      /** Builds a typed href for a generated route id. */
-      export const hrefById = <Id extends RouteId>(
-        id: Id,
-        ...args: Route.HrefArgs<RouteById[Id]>
-      ): string => Route.href(routeById[id], ...args);
-      /** Builds a typed href for a generated route path pattern. */
-      export const hrefByPath = <Path extends RoutePath>(
-        path: Path,
-        ...args: Route.HrefArgs<RouteByPath[Path]>
-      ): string => Route.href(routeByPath[path], ...args);
 
       /** Layout modules that wrap each generated route, ordered from source-scope root to leaf. */
       export const fileRouteLayoutsById = {
@@ -577,28 +412,16 @@ describe("file route definition module generation", () => {
         route_projects_$id: [metadata_route_root, metadata_route_projects],
       } as const;
       /** Returns layout modules for a generated route id. */
-      export const layoutsById = <Id extends RouteId>(id: Id): FileRouteLayouts<Id> =>
+      export const layoutsById = <Id extends FileRouteId>(id: Id): FileRouteLayouts<Id> =>
         fileRouteLayoutsById[id];
-      /** Returns layout modules for a generated route path pattern. */
-      export const layoutsByPath = <Path extends RoutePath>(
-        path: Path,
-      ): FileRouteLayouts<RouteIdByPath[Path]> => layoutsById(routeIdByPath[path]);
       /** Returns the nearest error boundary module for a generated route id, when one exists. */
-      export const errorBoundaryById = <Id extends RouteId>(id: Id): FileRouteErrorBoundary<Id> =>
-        (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
+      export const errorBoundaryById = <Id extends FileRouteId>(id: Id): FileRouteErrorBoundary<Id> =>
+        (fileRouteErrorBoundaryById as Partial<Record<FileRouteId, unknown>>)[
           id
         ] as FileRouteErrorBoundary<Id>;
-      /** Returns the nearest error boundary module for a generated route path, when one exists. */
-      export const errorBoundaryByPath = <Path extends RoutePath>(
-        path: Path,
-      ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);
       /** Returns metadata modules for a generated route id. */
-      export const metadataById = <Id extends RouteId>(id: Id): FileRouteMetadataModules<Id> =>
+      export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
         fileRouteMetadataById[id];
-      /** Returns metadata modules for a generated route path pattern. */
-      export const metadataByPath = <Path extends RoutePath>(
-        path: Path,
-      ): FileRouteMetadataModules<RouteIdByPath[Path]> => metadataById(routeIdByPath[path]);
 
       /** Route, layout, error boundary, and metadata modules discovered by Start. */
       export const fileRouteModules = [
@@ -884,21 +707,13 @@ describe("file route definition module generation", () => {
       ] as const;
 
       /** Tuple type for the generated app-specific route tree. */
-      export type RouteTree = typeof routeTree;
+      export type RouteTree = typeof routes;
       /** Map type keyed by generated route id. */
       export type RouteById = typeof routeById;
-      /** Map type keyed by route path pattern. */
-      export type RouteByPath = typeof routeByPath;
-      /** Map type from route path pattern to generated route id. */
-      export type RouteIdByPath = typeof routeIdByPath;
       /** Union of every generated route definition. */
       export type FileRoute = RouteTree[number];
       /** Union of generated route ids such as \`route_projects_$id\`. */
       export type FileRouteId = keyof RouteById;
-      /** Union of generated route path patterns such as \`/projects/:id\`. */
-      export type FileRoutePath = keyof RouteByPath;
-      /** Route path lookup map preserved for path-keyed helper types. */
-      export type FileRouteByPath = RouteByPath;
       /** Params for each generated route id. */
       export type FileRouteParamsById = { readonly [Id in FileRouteId]: Route.Params<RouteById[Id]> };
       /** Search values for each generated route id. */
@@ -913,24 +728,6 @@ describe("file route definition module generation", () => {
       export type FileRouteHrefArgsById = { readonly [Id in FileRouteId]: Route.HrefArgs<RouteById[Id]> };
       /** Href arguments for one generated route id. */
       export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];
-      /** Params for each generated route path pattern. */
-      export type FileRouteParamsByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.Params<FileRouteByPath[Path]>;
-      };
-      /** Search values for each generated route path pattern. */
-      export type FileRouteSearchByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.Search<FileRouteByPath[Path]>;
-      };
-      /** Href options for each generated route path pattern. */
-      export type FileRouteHrefOptionsByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]>;
-      };
-      /** Href arguments for each generated route path pattern. */
-      export type FileRouteHrefArgsByPath = {
-        readonly [Path in keyof FileRouteByPath]: Route.HrefArgs<FileRouteByPath[Path]>;
-      };
-      /** Route match narrowed to one generated route path pattern. */
-      export type FileRouteMatch<Path extends FileRoutePath> = Route.Match<FileRouteByPath[Path]>;
       /** Layout modules keyed by generated route id. */
       export type FileRouteLayoutsById = typeof fileRouteLayoutsById;
       /** Error boundary modules keyed by generated route id when present. */
@@ -944,43 +741,10 @@ describe("file route definition module generation", () => {
         Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;
       /** Metadata modules for one generated route id. */
       export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
-      /** Friendly alias for the generated route id union. */
-      export type RouteId = FileRouteId;
-      /** Friendly alias for the generated route path union. */
-      export type RoutePath = FileRoutePath;
-      /** Friendly alias for params keyed by generated route id. */
-      export type ParamsById = FileRouteParamsById;
-      /** Friendly alias for search values keyed by generated route id. */
-      export type SearchById = FileRouteSearchById;
-      /** Friendly alias for href options keyed by generated route id. */
-      export type HrefById = FileRouteHrefOptionsById;
-      /** Friendly alias for href options for one generated route id. */
-      export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;
-      /** Friendly alias for href arguments keyed by generated route id. */
-      export type HrefArgsById = FileRouteHrefArgsById;
-      /** Friendly alias for href arguments for one generated route id. */
-      export type HrefArgs<Id extends RouteId> = FileRouteHrefArgs<Id>;
-      /** Friendly alias for params keyed by generated route path. */
-      export type ParamsByPath = FileRouteParamsByPath;
-      /** Friendly alias for search values keyed by generated route path. */
-      export type SearchByPath = FileRouteSearchByPath;
-      /** Friendly alias for href options keyed by generated route path. */
-      export type HrefByPath = FileRouteHrefOptionsByPath;
-      /** Friendly alias for href arguments keyed by generated route path. */
-      export type HrefArgsByPath = FileRouteHrefArgsByPath;
-      /** Friendly alias for route matches narrowed by generated route path. */
-      export type Match<Path extends RoutePath> = FileRouteMatch<Path>;
-      /** Narrows a broad route match to one generated route path pattern. */
-      export const isRoutePathMatch = <Path extends FileRoutePath>(
-        path: Path,
-        match: Route.Match<FileRoute> | undefined,
-      ): match is FileRouteMatch<Path> => match?.route.path === path;
       /** Static metadata for all file-route modules discovered by Start. */
       export type FileRouteModules = typeof fileRouteModules;
       /** Static parent/layout/error/metadata relationships for generated routes. */
-      export type FileRouteMetadata = typeof fileRouteMetadata;
-      /** Default generated route tree export for router-style imports. */
-      export default routes;"
+      export type FileRouteMetadata = typeof fileRouteMetadata;"
     `);
     expect(generated).toContain('kind: "Layout"');
     expect(generated).toContain('kind: "ErrorBoundary"');

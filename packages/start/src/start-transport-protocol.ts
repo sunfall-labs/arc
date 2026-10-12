@@ -1,16 +1,13 @@
 import {
-  Action,
   ActionResult,
-  type CoreDefinitionRegistry,
   Server,
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
   type ActionDefinition,
-  type AnySunfallArcRuntime,
-  type SunfallArcRuntime,
   type ServerFunction,
 } from "@sunfall/arc-core";
+import { type CoreDefinitionRegistry, actionDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import type { StartCollectionHydrationOptions } from "./hydration.js";
 import {
@@ -41,20 +38,17 @@ export {
   actionResponseMode,
   actionRuntimeFailureResponse,
   actionTransportRequestFailureResponse,
-  decodeStartActionResponseEffect,
+  decodeStartActionOutcomeEffect,
   describeStartActionInvalidationPlan,
   parseStartActionResponse,
 } from "./start-action-response-codec.js";
 export type {
-  ActionDefinitionErrorValue,
-  ActionDefinitionOutputValue,
   StartActionInvalidationCause,
   StartActionInvalidationPlan,
   StartActionInvalidationTarget,
   StartActionResponseBody,
   StartActionResponseMeta,
-  StartActionResult,
-  StartActionResultFor,
+  StartActionOutcome,
 } from "./start-action-response-codec.js";
 export { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
@@ -80,37 +74,15 @@ export type {
 } from "./start-action-request-codec.js";
 
 /**
- * Options for clients that submit Start actions.
- *
- * Extends RPC options with optional collection hydration settings. Supplying a
- * runtime runs action response hydration in that runtime.
+ * Action transport settings for clients that submit Start actions: RPC-style
+ * fetch options, the action endpoint, and the collections responses may
+ * hydrate. Responses always apply to the submitting runtime.
  */
-export interface StartActionClientOptions<
-  FetchError = never,
-  FetchRequirements = never,
-  RuntimeError = never,
->
+export interface StartActionClientOptions<FetchError = never, FetchRequirements = never>
   extends
-    ServerRpcClientOptions<FetchError, FetchRequirements, RuntimeError>,
+    ServerRpcClientOptions<FetchError, FetchRequirements, never>,
     Pick<StartActionEndpointSource, "actionPath" | "actionManifest" | "appGraph" | "endpoints">,
-    StartCollectionHydrationOptions {
-  /**
-   * Runtime used for action response hydration and, when `transportRuntime` is
-   * omitted, for fetch Effects that require services.
-   */
-  readonly runtime?:
-    | SunfallArcRuntime<FetchRequirements, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>;
-  /**
-   * Runtime used only for action response hydration and invalidation metadata.
-   *
-   * Use this with `transportRuntime` when fetch transport services live in a
-   * different Runtime Spine than application Resource/Collection state.
-   */
-  readonly responseRuntime?:
-    | SunfallArcRuntime<any, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>;
-}
+    StartCollectionHydrationOptions {}
 
 /** Extracts the input value type from a core `ActionDefinition`. */
 export type ActionDefinitionInputValue<D> =
@@ -256,7 +228,7 @@ export const makeActionMap = <Actions extends StartActionDefinition = StartActio
   registry?: CoreDefinitionRegistry<Actions, ServerFunction<any, any, any, any>>,
 ): StartActionMap<Actions> => {
   if (actions === undefined) {
-    return (registry?.actions ?? Action.definitions()) as StartActionMap<Actions>;
+    return (registry?.actions ?? actionDefinitionRegistry()) as StartActionMap<Actions>;
   }
 
   return isStartActionMap(actions) ? actions : materializeStartActionMap(actions);

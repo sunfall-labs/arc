@@ -465,7 +465,7 @@ const promiseShapedQueryCallbackError = (
     operation,
     cause: new QueryCallbackPromiseRejected({
       guidance:
-        "Query callbacks are synchronous. Move async work into collection load/refetch/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation.",
+        "Query callbacks are synchronous. Move async work into collection load/refresh/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation.",
     }),
     message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values at ${path}.`,
   });
@@ -478,7 +478,7 @@ const effectShapedQueryCallbackError = (
     operation,
     cause: new QueryCallbackEffectRejected({
       guidance:
-        "Query callbacks are synchronous data projections. Return Effect work from collection load/refetch/sync adapters before it reaches Query evaluation.",
+        "Query callbacks are synchronous data projections. Return Effect work from collection load/refresh/sync adapters before it reaches Query evaluation.",
     }),
     message: `Query ${operation} callbacks must return plain data, not Effect-shaped values at ${path}.`,
   });

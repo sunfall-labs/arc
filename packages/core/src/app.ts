@@ -104,65 +104,71 @@ export interface AppDefinition<
   readonly fullStack: boolean;
 }
 
-/**
- * Defines an Sunfall Arc app from routes, a client entry, and an optional server runtime.
- *
- * Pass a Layer, ManagedRuntime, or SunfallArcRuntime as `server` when server functions,
- * route preloads, or resources need Effect services.
- *
- * @example
- * ```ts
- * const app = defineApp({
- *   routes: [homeRoute],
- *   client: App,
- *   server: AppLive
- * });
- * ```
- */
-export const defineApp = <
-  const Routes extends readonly RouteDefinition<string, unknown, unknown, any>[],
-  Client,
-  ServerServices = never,
-  ServerError = never,
-  const RegistryInput extends AppDefinitionRegistryInput = AppDefinitionRegistryInput<never, never>,
->(config: {
-  readonly routes: Routes;
-  readonly client: Client;
-  readonly server?: RuntimeSource<ServerServices, ServerError>;
+/** App definitions: routes, the client entry, and the server runtime. */
+export namespace App {
   /**
-   * Explicit action/server-function registry.
+   * Defines a Sunfall Arc app from routes, a client entry, and an optional server runtime.
    *
-   * Defaults to a snapshot of the process-wide registries populated by
-   * `Action.define(...)`, `Server.fn(...)`, `Server.stub(...)`, and
-   * `Server.client(...)`.
+   * Pass a Layer, ManagedRuntime, or SunfallArcRuntime as `server` when server functions,
+   * route preloads, or resources need Effect services.
+   *
+   * @example
+   * ```ts
+   * const app = App.define({
+   *   routes: [homeRoute],
+   *   client: Root,
+   *   server: AppLive
+   * });
+   * ```
    */
-  readonly registry?: RegistryInput;
-}): AppDefinition<
-  Routes,
-  Client,
-  ServerServices,
-  ServerError,
-  AppDefinitionRegistryFromInput<RegistryInput>
-> => {
-  const runtime = makeRuntime(config.server);
-  const registry =
-    config.registry === undefined
-      ? (snapshotCoreDefinitionRegistry() as unknown as AppDefinitionRegistryFromInput<RegistryInput>)
-      : (makeCoreDefinitionRegistry(
-          config.registry,
-        ) as AppDefinitionRegistryFromInput<RegistryInput>);
-  const base = {
-    routes: config.routes,
-    client: config.client,
-    runtime,
-    registry,
-    fullStack: config.server !== undefined,
-  };
+  export const define = <
+    const Routes extends readonly RouteDefinition<string, unknown, unknown, any>[],
+    Client,
+    ServerServices = never,
+    ServerError = never,
+    const RegistryInput extends AppDefinitionRegistryInput = AppDefinitionRegistryInput<
+      never,
+      never
+    >,
+  >(config: {
+    readonly routes: Routes;
+    readonly client: Client;
+    readonly server?: RuntimeSource<ServerServices, ServerError>;
+    /**
+     * Explicit action/server-function registry.
+     *
+     * Defaults to a snapshot of the process-wide registries populated by
+     * `Action.define(...)`, `Server.fn(...)`, `Server.stub(...)`, and
+     * `Server.client(...)`.
+     */
+    readonly registry?: RegistryInput;
+  }): AppDefinition<
+    Routes,
+    Client,
+    ServerServices,
+    ServerError,
+    AppDefinitionRegistryFromInput<RegistryInput>
+  > => {
+    const runtime = makeRuntime(config.server);
+    const registry =
+      config.registry === undefined
+        ? (snapshotCoreDefinitionRegistry() as unknown as AppDefinitionRegistryFromInput<RegistryInput>)
+        : (makeCoreDefinitionRegistry(
+            config.registry,
+          ) as AppDefinitionRegistryFromInput<RegistryInput>);
+    const base = {
+      routes: config.routes,
+      client: config.client,
+      runtime,
+      registry,
+      fullStack: config.server !== undefined,
+    };
 
-  return config.server === undefined
-    ? base
-    : {
-        ...base,
-        server: config.server,
-      };
-};
+    return config.server === undefined
+      ? base
+      : {
+          ...base,
+          server: config.server,
+        };
+  };
+}

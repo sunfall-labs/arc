@@ -1,5 +1,5 @@
 import {
-  applyResponseContextEffect,
+  applyResponseContext,
   type EffectInputCallbackError,
   type SunfallArcRuntime,
   type ResponseContext,
@@ -123,7 +123,7 @@ export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeE
     Effect.gen(function* () {
       const responseExit = yield* Effect.exit(
         Effect.flatMap(options.responseEffect, (response) =>
-          applyResponseContextEffect(options.responseContext, response),
+          applyResponseContext(options.responseContext, response),
         ),
       );
 

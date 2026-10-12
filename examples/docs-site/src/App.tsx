@@ -1,8 +1,6 @@
-import { Route, RouterLink, RouterProvider, useResource, useRouter } from "@sunfall/arc-solid";
-import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import { Cause, Option } from "effect";
-import { AsyncResult } from "effect/reactivity";
-import { Show, createMemo, createSignal, onSettled, untrack, type Accessor } from "solid-js";
+import { Component, RouterLink, RouterProvider, useRouter } from "@sunfall/arc-solid";
+import { Route } from "@sunfall/arc-core";
+import { Loading, Show, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
   BlogPostRoute,
@@ -11,12 +9,10 @@ import {
   DocsPageRoute,
   HomeRoute,
   RecipeRoute,
-  app,
 } from "./app-definition.js";
 import {
   RecipeBySlug,
-  RecipeIndexRef,
-  type DocsContentApi,
+  RecipeIndex,
   type Recipe,
   type RecipeBlock,
   type RecipeSummary,
@@ -34,20 +30,6 @@ import { codeLanguageLabel, highlightCode } from "./code-highlighting.js";
 import { docsSiteHref, makeDocsSiteHistoryAdapter } from "./site-base.js";
 import "./styles.css";
 
-const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
-const DocsOverviewUiRoute = Route.withComponent(DocsOverviewRoute, DocsOverviewView);
-const DocsPageUiRoute = Route.withComponent(DocsPageRoute, DocsPageView);
-const BlogPostUiRoute = Route.withComponent(BlogPostRoute, BlogPostView);
-const CookbookUiRoute = Route.withComponent(CookbookRoute, CookbookIndexView);
-const RecipeUiRoute = Route.withComponent(RecipeRoute, RecipeRouteView);
-const routes = [
-  HomeUiRoute,
-  DocsOverviewUiRoute,
-  DocsPageUiRoute,
-  BlogPostUiRoute,
-  CookbookUiRoute,
-  RecipeUiRoute,
-] as const;
 const articleBodyClass = "recipeBody prose prose-stone max-w-none";
 const packageListItemPattern = /^(@sunfall\/[a-z0-9-]+(?: and @sunfall\/[a-z0-9-]+)*):\s(.+)$/u;
 interface HeadingSource {
@@ -60,15 +42,7 @@ interface PageRailItem extends HeadingSource {
   readonly id: string;
 }
 
-type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extends [RuntimeServices]
-  ? SunfallArcRuntime<RuntimeServices, never>
-  : never;
-
-export interface AppProps<RuntimeServices = DocsContentApi> {
-  readonly initialHref?: string;
-  readonly hydratedHref?: string;
-  readonly runtime?: DocsSiteRuntime<RuntimeServices>;
-}
+type DocsRoutes = typeof routes;
 
 const categoryLabel = (category: RecipeCategory): string => {
   switch (category) {
@@ -115,7 +89,9 @@ const pageRailIdsByBlockIndex = (items: ReadonlyArray<PageRailItem>): ReadonlyMa
 const docsPageRailItems = (blocks: ReadonlyArray<DocsBlock>): readonly PageRailItem[] =>
   createPageRailItems(
     blocks.flatMap((block, blockIndex): readonly HeadingSource[] =>
-      block._tag === "Heading" ? [{ blockIndex, level: 2, text: block.text ?? "Section" }] : [],
+      block._tag === "Heading"
+        ? [{ blockIndex, level: block.level ?? 2, text: block.text ?? "Section" }]
+        : [],
     ),
   );
 
@@ -143,163 +119,6 @@ const blogRailItems = createPageRailItems([
 const blogHeadingId = (index: number): string =>
   blogRailItems[index]?.id ?? `blog-section-${index}`;
 
-export default function App<RuntimeServices = DocsContentApi>(
-  props: AppProps<RuntimeServices> = {},
-) {
-  const runtime = (props.runtime ?? app.runtime) as SunfallArcRuntime<
-    DocsContentApi | RuntimeServices,
-    never
-  >;
-  const history = makeDocsSiteHistoryAdapter({
-    runtime,
-    routes,
-    ...(props.hydratedHref === undefined ? {} : { hydratedHrefs: [props.hydratedHref] }),
-  });
-  const routerProps =
-    props.initialHref === undefined
-      ? { routes, runtime, history }
-      : {
-          routes,
-          runtime,
-          initialHref: props.initialHref,
-          history,
-        };
-
-  return (
-    <RouterProvider {...routerProps}>
-      <DocsShell />
-    </RouterProvider>
-  );
-}
-
-function DocsShell() {
-  const router = useRouter<typeof routes>();
-  const activeRoute = () => router.match()?.route;
-  const isReadmeActive = () => activeRoute() === HomeUiRoute;
-  const isDocsActive = () =>
-    activeRoute() === DocsOverviewUiRoute || activeRoute() === DocsPageUiRoute;
-  const isCookbookActive = () =>
-    activeRoute() === CookbookUiRoute || activeRoute() === RecipeUiRoute;
-  const isBlogActive = () => activeRoute() === BlogPostUiRoute;
-
-  return (
-    <main class="docsShell">
-      <header class="siteTopbar">
-        <RouterLink route={HomeUiRoute} class="topbarBrand" aria-label="Sunfall Arc home">
-          <span class="brandWordmark">Sunfall Arc</span>
-        </RouterLink>
-        <nav class="topbarTabs" aria-label="Primary navigation">
-          <RouterLink
-            route={HomeUiRoute}
-            class={isReadmeActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isReadmeActive() ? "page" : undefined}
-          >
-            Readme
-          </RouterLink>
-          <RouterLink
-            route={DocsOverviewUiRoute}
-            class={isDocsActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isDocsActive() ? "page" : undefined}
-          >
-            Docs
-          </RouterLink>
-          <RouterLink
-            route={CookbookUiRoute}
-            class={isCookbookActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isCookbookActive() ? "page" : undefined}
-          >
-            Cookbook
-          </RouterLink>
-          <RouterLink
-            route={BlogPostUiRoute}
-            class={isBlogActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isBlogActive() ? "page" : undefined}
-          >
-            Why Arc
-          </RouterLink>
-        </nav>
-        <a
-          href="https://github.com/sunfall-labs/arc"
-          class="topbarCta"
-          rel="noreferrer"
-          target="_blank"
-        >
-          GitHub
-        </a>
-      </header>
-
-      <aside class="docsSidebar">
-        <div class="sidebarMeta" aria-label="Docs metadata">
-          <span class="sidebarVersion">v0 alpha</span>
-          <RouterLink route={DocsOverviewUiRoute} class="sidebarMetaLink">
-            Documentation index
-          </RouterLink>
-        </div>
-        <DocsNav />
-        <RecipeNav />
-        <RouterLink route={BlogPostUiRoute} class="navSectionLink">
-          Why Sunfall Arc
-        </RouterLink>
-      </aside>
-
-      <section class="docsMain">
-        <DocsRouteOutlet />
-      </section>
-    </main>
-  );
-}
-
-function DocsRouteOutlet() {
-  const router = useRouter<typeof routes>();
-  const state = () => router.state();
-
-  const renderReady = (
-    readyState: Extract<ReturnType<typeof state>, { readonly _tag: "Ready" }>,
-  ) => {
-    const match = readyState.match;
-    switch (match.route) {
-      case HomeUiRoute:
-        return <HomeView />;
-      case DocsOverviewUiRoute:
-        return <DocsOverviewView />;
-      case DocsPageUiRoute:
-        return (
-          <DocsPageView
-            params={match.params as Route.Params<typeof DocsPageRoute>}
-            search={match.search as Route.Search<typeof DocsPageRoute>}
-            match={match as Route.Match<typeof DocsPageRoute>}
-          />
-        );
-      case BlogPostUiRoute:
-        return <BlogPostView />;
-      case CookbookUiRoute:
-        return <CookbookIndexView />;
-      case RecipeUiRoute:
-        return (
-          <RecipeRouteView
-            params={match.params as Route.Params<typeof RecipeRoute>}
-            search={match.search as Route.Search<typeof RecipeRoute>}
-            match={match as Route.Match<typeof RecipeRoute>}
-          />
-        );
-    }
-  };
-
-  return (() => {
-    const current = state();
-    switch (current._tag) {
-      case "Pending":
-        return <LoadingView />;
-      case "Failure":
-        return <FailureView error={current.error} />;
-      case "NotFound":
-        return <NotFoundView />;
-      case "Ready":
-        return renderReady(current);
-    }
-  }) as unknown as JSX.Element;
-}
-
 function DocsNav() {
   return (
     <nav class="sidebarSection" aria-label="Documentation">
@@ -323,24 +142,16 @@ function DocsNav() {
   );
 }
 
-function RecipeNav() {
-  const recipes = useResource(RecipeIndexRef);
+/** The recipe index in the sidebar: suspends until loaded and fails quietly. */
+const RecipeNavList = Component.define("RecipeNavList", function* () {
+  const recipes = yield* Component.resource(RecipeIndex);
+  return () => <RecipeNavLinks recipes={recipes("all")} />;
+}).pipe(
+  Component.catchAll(() => <p class="muted">Recipe index unavailable</p>),
+  Component.loading(() => <p class="muted">Loading recipes</p>),
+);
 
-  return (
-    <nav class="sidebarSection" aria-label="Cookbook recipes">
-      <p class="navHeading">Cookbook</p>
-      <ResultContent
-        result={recipes.result()}
-        loading={<p class="muted">Loading recipes</p>}
-        failure={() => <p class="muted">Recipe index unavailable</p>}
-      >
-        {(value) => <RecipeNavList recipes={value()} />}
-      </ResultContent>
-    </nav>
-  );
-}
-
-function RecipeNavList(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
+function RecipeNavLinks(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
   return (
     <>
       <RouterLink route={CookbookUiRoute} class="navSectionLink">
@@ -426,10 +237,21 @@ function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
   );
 }
 
-function HomeView() {
-  const recipes = useResource(RecipeIndexRef);
+/** A recipe grid over the shared recipe index Resource. */
+const RecipeIndexGrid = Component.define(
+  "RecipeIndexGrid",
+  function* (props: { readonly limit?: number }) {
+    const recipes = yield* Component.resource(RecipeIndex);
+    return () => <RecipeGrid recipes={recipes("all").slice(0, props.limit)} />;
+  },
+).pipe(
+  Component.catchAll((error) => <FailureView error={error} />),
+  Component.loading(() => <RecipeGridSkeleton />),
+);
 
-  return (
+const HomeView = Component.define("HomeView", function* () {
+  const Recipes = yield* RecipeIndexGrid;
+  return () => (
     <article class="pageStack">
       <header class="heroBand">
         <p class="eyebrow">Built with Arc</p>
@@ -438,11 +260,15 @@ function HomeView() {
           This site is a small Arc app: recipes load through server functions, pass through a
           Capability-backed Resource, preload from file routes, and hydrate before the UI mounts.
         </p>
-        <RouterLink route={CookbookUiRoute} class="primaryLink">
-          Browse cookbook
+        <RouterLink
+          route={DocsPageUiRoute}
+          options={{ params: { slug: "golden-path" } }}
+          class="primaryLink"
+        >
+          Start with the golden path
         </RouterLink>
-        <RouterLink route={DocsOverviewUiRoute} class="secondaryLink">
-          Read the docs
+        <RouterLink route={CookbookUiRoute} class="secondaryLink">
+          Browse cookbook
         </RouterLink>
       </header>
 
@@ -459,16 +285,10 @@ function HomeView() {
         </RouterLink>
       </section>
 
-      <ResultContent
-        result={recipes.result()}
-        loading={<RecipeGridSkeleton />}
-        failure={(cause) => <FailureView error={Cause.squash(cause)} />}
-      >
-        {(value) => <RecipeGrid recipes={value().slice(0, 3)} />}
-      </ResultContent>
+      <Recipes limit={3} />
     </article>
   );
-}
+});
 
 const docsSectionLabel = (section: DocsSection): string => section;
 
@@ -554,9 +374,17 @@ function DocsBlockView(props: {
 }) {
   switch (props.block._tag) {
     case "Heading":
-      return <h2 id={props.headingId}>{props.block.text ?? "Section"}</h2>;
+      return props.block.level === 3 ? (
+        <h3 id={props.headingId}>{props.block.text ?? "Section"}</h3>
+      ) : (
+        <h2 id={props.headingId}>{props.block.text ?? "Section"}</h2>
+      );
     case "Paragraph":
-      return <p>{props.block.text}</p>;
+      return (
+        <p>
+          <InlineText text={props.block.text ?? ""} />
+        </p>
+      );
     case "List":
       return (
         <ul>
@@ -567,13 +395,71 @@ function DocsBlockView(props: {
       );
     case "Code":
       return <CodeBlock code={props.block.code ?? ""} language={props.block.language} />;
+    case "Table": {
+      const [header = [], ...rows] = props.block.rows ?? [];
+      return (
+        <table>
+          <thead>
+            <tr>
+              {header.map((cell) => (
+                <th>
+                  <InlineText text={cell} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr>
+                {row.map((cell) => (
+                  <td>
+                    <InlineText text={cell} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
   }
+}
+
+const inlinePattern = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/gu;
+
+/** Renders the inline Markdown docs text uses: `code`, **strong**, and [links](href). */
+function InlineText(props: { readonly text: string }) {
+  return (
+    <>
+      {props.text.split(inlinePattern).map((part) => {
+        if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
+          return <code class="inlineCode">{part.slice(1, -1)}</code>;
+        }
+        if (part.startsWith("**") && part.endsWith("**") && part.length > 3) {
+          return <strong>{part.slice(2, -2)}</strong>;
+        }
+        const link = /^\[([^\]]+)\]\(([^)]+)\)$/u.exec(part);
+        if (link) {
+          return (
+            <a href={link[2]}>
+              <InlineText text={link[1] ?? ""} />
+            </a>
+          );
+        }
+        return part;
+      })}
+    </>
+  );
 }
 
 function DocsListItem(props: { readonly item: string }) {
   const match = packageListItemPattern.exec(props.item);
   if (!match) {
-    return <li>{props.item}</li>;
+    return (
+      <li>
+        <InlineText text={props.item} />
+      </li>
+    );
   }
 
   const packageNames = match[1]?.split(" and ") ?? [];
@@ -592,10 +478,9 @@ function DocsListItem(props: { readonly item: string }) {
   );
 }
 
-function CookbookIndexView() {
-  const recipes = useResource(RecipeIndexRef);
-
-  return (
+const CookbookIndexView = Component.define("CookbookIndexView", function* () {
+  const Recipes = yield* RecipeIndexGrid;
+  return () => (
     <article class="pageStack">
       <header class="pageHeader">
         <p class="eyebrow">Cookbook</p>
@@ -607,16 +492,10 @@ function CookbookIndexView() {
         </p>
       </header>
 
-      <ResultContent
-        result={recipes.result()}
-        loading={<RecipeGridSkeleton />}
-        failure={(cause) => <FailureView error={Cause.squash(cause)} />}
-      >
-        {(value) => <RecipeGrid recipes={value()} />}
-      </ResultContent>
+      <Recipes />
     </article>
   );
-}
+});
 
 const blogDomainExample = `export const IssueId = Schema.String.pipe(Schema.brand("IssueId"));
 export type IssueId = typeof IssueId.Type;
@@ -649,7 +528,7 @@ const blogContractExample = `export const GetIssue = Server.contract<
 
 const blogResourceExample = `export const IssueApi = Capability.define<IssueApi>("IssueApi");
 
-export const IssueById = Resource.family({
+export const IssueById = Resource.define({
   name: "Issue.byId",
   input: IssueId,
   output: IssueSchema,
@@ -678,36 +557,33 @@ const blogEffectTestExample = `const IssueApiTest = IssueApi.layer({
 
 const issue = yield* makeRuntime(IssueApiTest).provide(
   Effect.gen(function* () {
-    yield* Resource.prefetchEffect(IssueById(makeIssueId("ISSUE-42")));
-    return Resource.read(IssueById(makeIssueId("ISSUE-42")));
+    yield* Resource.preload(IssueById(makeIssueId("ISSUE-42")));
+    return yield* Resource.read(IssueById(makeIssueId("ISSUE-42")));
   }),
 );`;
 
-const blogRouteExample = `const RouteBuilder = defineFileRoute("/issues/:id");
-
-export const Route = RouteBuilder.preload({
+const blogRouteExample = `export const Route = FileRoute.define("/issues/:id")({
   params: IssueRouteParams,
-  resources: ({ resource }) => [
-    resource(IssueById, ({ params }) => params.id),
-  ],
-}).route();`;
+  preloadResources: [IssueById],
+  preload: ({ params }) => Resource.preload(IssueById(params.id)),
+});`;
 
-const blogUiExample = `function IssuePage(props: Route.Props<typeof IssueRoute>) {
-  const issue = useResource(() => IssueById(props.params.id));
-  // Current or stale value: the view mounts once and refreshes update it in place.
-  const current = () => Option.getOrUndefined(AsyncResult.value(issue.result()));
+const blogUiExample = `const IssuePage = Component.define("IssuePage", function* (
+  props: Route.Props<typeof IssueRoute>,
+) {
+  const issue = yield* Component.resource(IssueById);
+  const updateStatus = yield* Component.action(UpdateIssueStatus);
 
-  return (
-    <Show
-      when={current()}
-      fallback={AsyncResult.builder(issue.result())
-        .onFailure((cause) => <IssueError cause={cause} />)
-        .orElse(() => <Skeleton />)}
-    >
-      {(value) => <IssueView issue={value()} refreshing={issue.result().waiting} />}
-    </Show>
+  return () => (
+    <Loading fallback={<Skeleton />}>
+      <IssueView
+        issue={issue(props.params.id)}
+        refreshing={issue.waiting(props.params.id)}
+        onStatus={(status) => updateStatus.submit({ id: props.params.id, status })}
+      />
+    </Loading>
   );
-}`;
+}).pipe(Component.catchTags({ IssueNotFound: (error) => <IssueMissing id={error.id} /> }));`;
 
 const blogTanstackExample = `function IssuePage({ id }: { readonly id: IssueId }) {
   const queryClient = useQueryClient();
@@ -1048,21 +924,32 @@ function RecipeGrid(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
   );
 }
 
-function RecipeRouteView(props: Route.Props<typeof RecipeRoute>) {
-  const recipe = useResource(() => RecipeBySlug(props.params.slug));
+/**
+ * The recipe route. Content renders only from the reader: the first load
+ * suspends the `<Loading>` (route preload and hydration make it synchronous),
+ * and refreshes keep the article mounted while `waiting` drives the chrome.
+ */
+const RecipeRouteView = Component.define(
+  "RecipeRouteView",
+  function* (props: Route.Props<typeof RecipeRoute>) {
+    const recipe = yield* Component.resource(RecipeBySlug);
+    const Related = yield* RelatedRecipes;
+    const slug = () => props.params.slug;
+    return () => (
+      <Loading fallback={<LoadingView />}>
+        <RecipeDetail recipe={recipe(slug())} refreshing={recipe.waiting(slug())}>
+          <Related recipe={recipe(slug())} />
+        </RecipeDetail>
+      </Loading>
+    );
+  },
+).pipe(Component.catchAll((error) => <FailureView error={error} />));
 
-  return (
-    <ResultContent
-      result={recipe.result()}
-      loading={<LoadingView />}
-      failure={(cause) => <FailureView error={Cause.squash(cause)} />}
-    >
-      {(value) => <RecipeDetail recipe={value()} refreshing={recipe.result().waiting} />}
-    </ResultContent>
-  );
-}
-
-function RecipeDetail(props: { readonly recipe: Recipe; readonly refreshing: boolean }) {
+function RecipeDetail(props: {
+  readonly recipe: Recipe;
+  readonly refreshing: boolean;
+  readonly children?: JSX.Element;
+}) {
   const railItems = createMemo(() => recipePageRailItems(props.recipe.blocks));
   const headingIds = createMemo(() => pageRailIdsByBlockIndex(railItems()));
 
@@ -1082,7 +969,7 @@ function RecipeDetail(props: { readonly recipe: Recipe; readonly refreshing: boo
         ))}
       </section>
 
-      <RelatedRecipes recipe={props.recipe} />
+      {props.children}
     </article>
   );
 }
@@ -1169,17 +1056,21 @@ function CodeBlock(props: { readonly code: string; readonly language?: string | 
   );
 }
 
-function RelatedRecipes(props: { readonly recipe: Recipe }) {
-  const recipes = useResource(RecipeIndexRef);
-
-  return (
-    <Show when={props.recipe.related.length > 0}>
-      <ResultContent result={recipes.result()}>
-        {(value) => <RelatedRecipeList recipe={props.recipe} recipes={value()} />}
-      </ResultContent>
-    </Show>
-  );
-}
+/** Related recipes read the shared index; while it loads or if it fails, nothing shows. */
+const RelatedRecipes = Component.define(
+  "RelatedRecipes",
+  function* (props: { readonly recipe: Recipe }) {
+    const recipes = yield* Component.resource(RecipeIndex);
+    return () => (
+      <Show when={props.recipe.related.length > 0}>
+        <RelatedRecipeList recipe={props.recipe} recipes={recipes("all")} />
+      </Show>
+    );
+  },
+).pipe(
+  Component.catchAll(() => undefined),
+  Component.loading(() => undefined),
+);
 
 function RelatedRecipeList(props: {
   readonly recipe: Recipe;
@@ -1227,37 +1118,6 @@ function LoadingView() {
   );
 }
 
-/**
- * Renders a Resource's current (or stale) value through a non-keyed `<Show>`:
- * the content mounts once and refreshes update it in place, so a reload never
- * rebuilds the subtree. `loading` covers the first load (and a retry with
- * nothing to show); `failure` covers a settled failure with nothing to show.
- */
-function ResultContent<A extends object, E>(props: {
-  readonly result: AsyncResult.AsyncResult<A, E>;
-  readonly loading?: JSX.Element;
-  readonly failure?: (cause: Cause.Cause<E>) => JSX.Element;
-  readonly children: (value: Accessor<A>) => JSX.Element;
-}) {
-  const failure = () => {
-    const result = props.result;
-    return result._tag === "Failure" && !result.waiting ? result.cause : undefined;
-  };
-
-  return (
-    <Show
-      when={Option.getOrUndefined(AsyncResult.value(props.result))}
-      fallback={
-        <Show when={failure()} fallback={props.loading}>
-          {(cause) => props.failure?.(cause())}
-        </Show>
-      }
-    >
-      {(value) => props.children(value)}
-    </Show>
-  );
-}
-
 function FailureView(props: { readonly error: unknown }) {
   return (
     <section class="statusView failure">
@@ -1273,6 +1133,193 @@ function NotFoundView() {
       <h1>Page not found</h1>
       <p>Try the cookbook index or one of the recipe links.</p>
     </section>
+  );
+}
+
+const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
+const DocsOverviewUiRoute = Route.withComponent(DocsOverviewRoute, DocsOverviewView);
+const DocsPageUiRoute = Route.withComponent(DocsPageRoute, DocsPageView);
+const BlogPostUiRoute = Route.withComponent(BlogPostRoute, BlogPostView);
+const CookbookUiRoute = Route.withComponent(CookbookRoute, CookbookIndexView);
+const RecipeUiRoute = Route.withComponent(RecipeRoute, RecipeRouteView);
+const routes = [
+  HomeUiRoute,
+  DocsOverviewUiRoute,
+  DocsPageUiRoute,
+  BlogPostUiRoute,
+  CookbookUiRoute,
+  RecipeUiRoute,
+] as const;
+
+/** Renders the matched docs view in place, so static navigation swaps content without a blank frame. */
+const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
+  const Home = yield* HomeView;
+  const Cookbook = yield* CookbookIndexView;
+  const RecipePage = yield* RecipeRouteView;
+
+  return () => {
+    const router = useRouter<DocsRoutes>();
+    const state = () => router.state();
+
+    const renderReady = (
+      readyState: Extract<ReturnType<typeof state>, { readonly _tag: "Ready" }>,
+    ) => {
+      const match = readyState.match;
+      switch (match.route) {
+        case HomeUiRoute:
+          return <Home />;
+        case DocsOverviewUiRoute:
+          return <DocsOverviewView />;
+        case DocsPageUiRoute:
+          return (
+            <DocsPageView
+              params={match.params as Route.Params<typeof DocsPageRoute>}
+              search={match.search as Route.Search<typeof DocsPageRoute>}
+              match={match as Route.Match<typeof DocsPageRoute>}
+            />
+          );
+        case BlogPostUiRoute:
+          return <BlogPostView />;
+        case CookbookUiRoute:
+          return <Cookbook />;
+        case RecipeUiRoute:
+          return (
+            <RecipePage
+              params={match.params as Route.Params<typeof RecipeRoute>}
+              search={match.search as Route.Search<typeof RecipeRoute>}
+              match={match as Route.Match<typeof RecipeRoute>}
+            />
+          );
+      }
+    };
+
+    return (() => {
+      const current = state();
+      switch (current._tag) {
+        case "Pending":
+          return <LoadingView />;
+        case "Failure":
+          return <FailureView error={current.error} />;
+        case "NotFound":
+          return <NotFoundView />;
+        case "Ready":
+          return renderReady(current);
+      }
+    }) as unknown as JSX.Element;
+  };
+});
+
+/**
+ * The docs site: one Component tree from the client entry (`launch`) and the
+ * server render (`embed`).
+ */
+const DocsSite = Component.define(
+  "DocsSite",
+  function* (props: { readonly initialHref?: string; readonly hydratedHref?: string }) {
+    const { runtime } = yield* Component.instance;
+    const history = makeDocsSiteHistoryAdapter({
+      runtime,
+      routes,
+      ...(props.hydratedHref === undefined ? {} : { hydratedHrefs: [props.hydratedHref] }),
+    });
+    const router = yield* Component.router(routes, {
+      history,
+      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
+    });
+    const Outlet = yield* DocsRouteOutlet;
+    const RecipeIndexNav = yield* RecipeNavList;
+
+    return () => (
+      <RouterProvider router={router}>
+        <DocsShell Outlet={Outlet} RecipeIndex={RecipeIndexNav} />
+      </RouterProvider>
+    );
+  },
+);
+
+export default DocsSite;
+
+function DocsShell(props: {
+  readonly Outlet: Component.Solid<{}>;
+  readonly RecipeIndex: Component.Solid<{}>;
+}) {
+  const { Outlet, RecipeIndex } = props;
+  const router = useRouter<DocsRoutes>();
+  const activeRoute = () => router.match()?.route;
+  const isReadmeActive = () => activeRoute() === HomeUiRoute;
+  const isDocsActive = () =>
+    activeRoute() === DocsOverviewUiRoute || activeRoute() === DocsPageUiRoute;
+  const isCookbookActive = () =>
+    activeRoute() === CookbookUiRoute || activeRoute() === RecipeUiRoute;
+  const isBlogActive = () => activeRoute() === BlogPostUiRoute;
+
+  return (
+    <main class="docsShell">
+      <header class="siteTopbar">
+        <RouterLink route={HomeUiRoute} class="topbarBrand" aria-label="Sunfall Arc home">
+          <span class="brandWordmark">Sunfall Arc</span>
+        </RouterLink>
+        <nav class="topbarTabs" aria-label="Primary navigation">
+          <RouterLink
+            route={HomeUiRoute}
+            class={isReadmeActive() ? "topbarTab active" : "topbarTab"}
+            aria-current={isReadmeActive() ? "page" : undefined}
+          >
+            Readme
+          </RouterLink>
+          <RouterLink
+            route={DocsOverviewUiRoute}
+            class={isDocsActive() ? "topbarTab active" : "topbarTab"}
+            aria-current={isDocsActive() ? "page" : undefined}
+          >
+            Docs
+          </RouterLink>
+          <RouterLink
+            route={CookbookUiRoute}
+            class={isCookbookActive() ? "topbarTab active" : "topbarTab"}
+            aria-current={isCookbookActive() ? "page" : undefined}
+          >
+            Cookbook
+          </RouterLink>
+          <RouterLink
+            route={BlogPostUiRoute}
+            class={isBlogActive() ? "topbarTab active" : "topbarTab"}
+            aria-current={isBlogActive() ? "page" : undefined}
+          >
+            Why Arc
+          </RouterLink>
+        </nav>
+        <a
+          href="https://github.com/sunfall-labs/arc"
+          class="topbarCta"
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub
+        </a>
+      </header>
+
+      <aside class="docsSidebar">
+        <div class="sidebarMeta" aria-label="Docs metadata">
+          <span class="sidebarVersion">v0 alpha</span>
+          <RouterLink route={DocsOverviewUiRoute} class="sidebarMetaLink">
+            Documentation index
+          </RouterLink>
+        </div>
+        <DocsNav />
+        <nav class="sidebarSection" aria-label="Cookbook recipes">
+          <p class="navHeading">Cookbook</p>
+          <RecipeIndex />
+        </nav>
+        <RouterLink route={BlogPostUiRoute} class="navSectionLink">
+          Why Sunfall Arc
+        </RouterLink>
+      </aside>
+
+      <section class="docsMain">
+        <Outlet />
+      </section>
+    </main>
   );
 }
 

@@ -1,7 +1,7 @@
-import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-solid";
+import { makeRuntime } from "@sunfall/arc-core";
+import { Component } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
-import { Data, Layer } from "effect";
-import { hydrate, render } from "@solidjs/web";
+import { Data, Effect, Layer } from "effect";
 import App from "./App.js";
 
 class StarterRootMissing extends Data.TaggedError("StarterRootMissing")<{
@@ -18,17 +18,12 @@ if (!root) {
   });
 }
 
-const runtime = createEffectRuntime(Layer.empty);
-hydrateFromDocument(document, undefined, { runtime });
+const runtime = makeRuntime(Layer.empty);
 
-const Root = () => (
-  <RuntimeProvider runtime={runtime}>
-    <App />
-  </RuntimeProvider>
+// Restore the server's hydration payload into the runtime, then hydrate the
+// server-rendered markup with the same tree.
+Effect.runFork(
+  runtime
+    .provide(hydrateFromDocument(document))
+    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
 );
-
-if (root.hasChildNodes()) {
-  hydrate(Root, root);
-} else {
-  render(Root, root);
-}

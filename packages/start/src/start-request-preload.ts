@@ -1,6 +1,5 @@
 import {
   Route,
-  eraseRuntime,
   makeResponseContext,
   runWithRuntime,
   type AnySunfallArcRuntime,
@@ -10,7 +9,13 @@ import {
   type ResourceHydrationPayload,
   type ResponseContext,
 } from "@sunfall/arc-core";
-import { Collection, type AnyCollection, type CollectionHydrationPayload } from "@sunfall/arc-db";
+import { eraseRuntime, matchRoutesEffect } from "@sunfall/arc-core/internal";
+import type { Collection } from "@sunfall/arc-db";
+import {
+  collectCollectionsEffect,
+  dehydrateCollectionsEffect,
+  isCollection,
+} from "@sunfall/arc-db/internal";
 import { Data, Effect } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import {
@@ -43,7 +48,7 @@ export interface StartPreloadResult<
 > {
   readonly match: Route.Match<Routes[number]> | undefined;
   readonly resources: ResourceHydrationPayload;
-  readonly collections: CollectionHydrationPayload;
+  readonly collections: Collection.HydrationPayload;
   readonly collectionPreload: StartCollectionPreload;
   readonly hydration: StartHydrationPayload;
   readonly routePlan: Route.NavigationPlan<Routes[number]>;
@@ -62,11 +67,11 @@ export interface StartPreloadResult<
  * touched by route preload from collections explicitly registered for hydration.
  */
 export interface StartCollectionPreload {
-  readonly routeTouchedCollections: ReadonlyArray<AnyCollection>;
-  readonly routeDeclaredCollections: ReadonlyArray<AnyCollection>;
-  readonly registeredCollections: ReadonlyArray<AnyCollection>;
-  readonly dehydratedCollections: ReadonlyArray<AnyCollection>;
-  readonly hydration: CollectionHydrationPayload;
+  readonly routeTouchedCollections: ReadonlyArray<Collection.Any>;
+  readonly routeDeclaredCollections: ReadonlyArray<Collection.Any>;
+  readonly registeredCollections: ReadonlyArray<Collection.Any>;
+  readonly dehydratedCollections: ReadonlyArray<Collection.Any>;
+  readonly hydration: Collection.HydrationPayload;
 }
 
 /** Error raised while planning a Start request preload or hydration payload. */
@@ -115,7 +120,7 @@ const preloadError = (
         cause,
       });
 
-const emptyCollectionHydrationPayload: CollectionHydrationPayload = { collections: [] };
+const emptyCollectionHydrationPayload: Collection.HydrationPayload = { collections: [] };
 
 const unresolvedRouteDeclaredCollection = (name: string): StartPreloadError =>
   preloadError(
@@ -138,7 +143,7 @@ const duplicateRouteCollection = (cause: StartCollectionDuplicateName): StartPre
 const routeDeclaredCollectionsEffect = (
   routePlan: Route.NavigationPlan,
   options: PreloadRequestOptions = {},
-): Effect.Effect<ReadonlyArray<AnyCollection>, StartPreloadError> => {
+): Effect.Effect<ReadonlyArray<Collection.Any>, StartPreloadError> => {
   if (routePlan._tag !== "Matched") {
     return Effect.succeed([]);
   }
@@ -150,9 +155,9 @@ const routeDeclaredCollectionsEffect = (
     yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
       Effect.mapError(duplicateRouteCollection),
     );
-    const resolved: Array<AnyCollection> = [];
+    const resolved: Array<Collection.Any> = [];
     for (const input of declaredCollections) {
-      if (Collection.isCollection(input)) {
+      if (isCollection(input)) {
         resolved.push(input);
         continue;
       }
@@ -182,14 +187,14 @@ type StartPreloadRequirements<
 > = RequestRuntimeRemainingRequirements<Route.PreloadRequirements<Routes[number]>, ServerServices>;
 
 const preloadRouteDeclaredCollectionsEffect = (
-  routeDeclaredCollections: ReadonlyArray<AnyCollection>,
-  routeTouchedCollections: ReadonlyArray<AnyCollection>,
+  routeDeclaredCollections: ReadonlyArray<Collection.Any>,
+  routeTouchedCollections: ReadonlyArray<Collection.Any>,
 ): Effect.Effect<void, StartPreloadError> =>
   Effect.gen(function* () {
     const touchedNames = new Set(routeTouchedCollections.map((collection) => collection.name));
     for (const collection of routeDeclaredCollections) {
       if (!touchedNames.has(collection.name)) {
-        yield* collection.preloadEffect().pipe(
+        yield* collection.preload().pipe(
           Effect.mapError((cause) =>
             preloadError("declared-collection-preload", cause, {
               collectionName: collection.name,
@@ -209,21 +214,21 @@ const preloadRouteDeclaredCollectionsEffect = (
  */
 const startCollectionCanHydrate = (
   runtime: AnySunfallArcRuntime<unknown>,
-  collection: AnyCollection,
+  collection: Collection.Any,
 ): boolean =>
   collection.readOnly !== true &&
   runWithRuntime(
     runtime,
     () =>
-      AsyncResult.isSuccess(collection.state().get()) ||
+      AsyncResult.isSuccess(collection.result().get()) ||
       collection.rows().length > 0 ||
       collection.pendingMutations().length > 0,
   );
 
 const startCollectionPreloadEffect = (
   runtime: AnySunfallArcRuntime<unknown>,
-  routeTouchedCollections: ReadonlyArray<AnyCollection>,
-  routeDeclaredCollections: ReadonlyArray<AnyCollection>,
+  routeTouchedCollections: ReadonlyArray<Collection.Any>,
+  routeDeclaredCollections: ReadonlyArray<Collection.Any>,
   options: StartCollectionHydrationOptions = {},
 ): Effect.Effect<StartCollectionPreload, StartPreloadError> =>
   Effect.gen(function* () {
@@ -239,7 +244,7 @@ const startCollectionPreloadEffect = (
     ).pipe(Effect.mapError(duplicateRouteCollection));
     const hydration =
       dehydratedCollections.length > 0
-        ? yield* Collection.dehydrateEffect(dehydratedCollections).pipe(
+        ? yield* dehydrateCollectionsEffect(dehydratedCollections).pipe(
             Effect.mapError((cause) => preloadError("collection-hydration", cause)),
           )
         : emptyCollectionHydrationPayload;
@@ -283,7 +288,7 @@ const startRoutePlanEffect = <
   Route.NavigationError<Routes[number]>,
   Route.PreloadRequirements<Routes[number]>
 > => {
-  const planned = Route.planNavigationEffect(routes, url).pipe(
+  const planned = Route.planNavigation(routes, url).pipe(
     Effect.map((routePlan): StartRoutePlanOutcome<Routes> => ({ routePlan })),
   );
   return routePreloadFailure === "fail"
@@ -291,14 +296,14 @@ const startRoutePlanEffect = <
     : planned.pipe(
         Effect.catchTag("RoutePreloadError", (error) =>
           Effect.gen(function* () {
-            const match = yield* Route.matchEffect(routes, url);
+            const match = yield* matchRoutesEffect(routes, url);
             if (match === undefined) {
               return yield* Effect.fail(error);
             }
             // Encoded with the route's `error` schema (or tag-only without one);
             // the server render decodes this snapshot exactly like the client.
-            const routeFailure = yield* Route.preloadFailureSnapshotEffect(match.route, error);
-            yield* Route.hydratePreloadFailureEffect(routeFailure);
+            const routeFailure = yield* Route.preloadFailureSnapshot(match.route, error);
+            yield* Route.hydratePreloadFailure(routeFailure);
             return {
               routePlan: {
                 _tag: "Matched",
@@ -336,7 +341,7 @@ export const preloadRequestEffectWithRuntime = <
       runtime,
       request,
       Effect.gen(function* () {
-        const collectedRoutePlan = yield* Collection.collectEffect(
+        const collectedRoutePlan = yield* collectCollectionsEffect(
           startRoutePlanEffect(app.routes, new URL(request.url), routePreloadFailure),
         ).pipe(Effect.mapError((cause) => preloadError("route-navigation", cause, { request })));
         const { routePlan, routeFailure } = collectedRoutePlan.value;
@@ -378,7 +383,7 @@ export const preloadRequestEffectWithRuntime = <
  * Creates a request-scoped runtime, runs route preload, builds hydration
  * payloads, then disposes the runtime when the Effect completes.
  */
-export const preloadRequestEffect = <
+export const preloadRequest = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
@@ -395,22 +400,6 @@ export const preloadRequestEffect = <
   const runtime = makeRequestRuntime(app);
   return Effect.ensuring(
     preloadRequestEffectWithRuntime(app, request, runtime, options),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+    runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
   );
 };
-
-/** Alias for `preloadRequestEffect` on the current Effect-first surface. */
-export const preloadRequest = <
-  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
-  ServerServices,
-  ServerError,
->(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
-  request: Request,
-  options: PreloadRequestOptions = {},
-): Effect.Effect<
-  StartPreloadResult<Routes>,
-  StartPreloadError,
-  StartPreloadRequirements<Routes, ServerServices>
-> => preloadRequestEffect(app, request, options);

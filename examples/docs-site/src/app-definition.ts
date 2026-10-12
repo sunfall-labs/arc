@@ -1,6 +1,6 @@
-import { defineApp, type AppDefinitionRegistryInput } from "@sunfall/arc-core";
+import { type AppDefinitionRegistryInput, App } from "@sunfall/arc-core";
 import { DocsContentApiStaticClient } from "./content.js";
-import { routeById, routeTree } from "./routeTree.gen.js";
+import { routeById, routes } from "./routeTree.gen.js";
 
 export const HomeRoute = routeById.route_root;
 export const DocsOverviewRoute = routeById.route_docs;
@@ -10,7 +10,7 @@ export const CookbookRoute = routeById.route_cookbook;
 export const RecipeRoute = routeById.route_cookbook_$slug;
 
 export const docsSiteAppBaseOptions = {
-  routes: routeTree,
+  routes,
   client: { name: "BrowserLive" },
   server: DocsContentApiStaticClient,
 } as const;
@@ -23,7 +23,7 @@ export const docsSiteEmptyRegistry = {
 export const createDocsSiteApp = <const RegistryInput extends AppDefinitionRegistryInput>(
   registry: RegistryInput,
 ) =>
-  defineApp({
+  App.define({
     ...docsSiteAppBaseOptions,
     registry,
   });

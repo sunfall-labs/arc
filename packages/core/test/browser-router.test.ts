@@ -1,5 +1,17 @@
-import { Cause, Context, Deferred, Effect, Fiber, Layer, Schema } from "effect";
+import { Cause, Context, Deferred, Effect, Fiber, Schema } from "effect";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import {
+  createBrowserRouterHostController,
+  EffectInputPromiseRejected,
+  makeMemoryBrowserHistoryAdapter,
+  makeRuntime,
+  Route,
+  type BrowserHistoryWindow,
+  type BrowserHistoryAdapter,
+  RouteNavigationError,
+  RouterRouteNotRegistered,
+  RoutePreloadError,
+} from "../src/index.js";
 import {
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
@@ -8,24 +20,13 @@ import {
   browserRouteRenderIdentity,
   browserRouteRenderKey,
   browserRouterInitialMatchedState,
-  createBrowserRouterHostController,
   createBrowserRouterKernel,
   eraseRuntime,
-  EffectInputPromiseRejected,
   isPlainLeftClick,
   makeBrowserRouterLinkPreloader,
-  makeMemoryBrowserHistoryAdapter,
-  makeRuntime,
   makeWindowBrowserHistoryAdapter,
   opensOutsideRouter,
-  route,
-  Route,
-  type BrowserHistoryWindow,
-  type BrowserHistoryAdapter,
-  RouteNavigationError,
-  RouterRouteNotRegistered,
-  RoutePreloadError,
-} from "../src/index.js";
+} from "../src/internal.js";
 
 describe("browser router kernel", () => {
   interface ProjectApi {
@@ -199,8 +200,8 @@ describe("browser router kernel", () => {
 
   it("shares route render decisions across framework adapters", () => {
     const component = () => undefined;
-    const Project = route("/render-projects/:id", { component });
-    const Empty = route("/empty-render-route");
+    const Project = Route.define("/render-projects/:id", { component });
+    const Empty = Route.define("/empty-render-route");
     const projectMatch = Project.match("/render-projects/atlas");
     const emptyMatch = Empty.match("/empty-render-route");
 
@@ -294,7 +295,7 @@ describe("browser router kernel", () => {
             return { default: component };
           }),
         );
-        const Project = route("/lazy-components/:id", {
+        const Project = Route.define("/lazy-components/:id", {
           component: lazyComponent,
         });
         const router = createBrowserRouterKernel([Project] as const, {
@@ -302,8 +303,8 @@ describe("browser router kernel", () => {
           initialHref: "/lazy-components/atlas",
         });
 
-        yield* router.preloadEffect(Project, { params: { id: "atlas" } });
-        yield* router.preloadEffect(Project, { params: { id: "atlas" } });
+        yield* router.preload(Project, { params: { id: "atlas" } });
+        yield* router.preload(Project, { params: { id: "atlas" } });
 
         expect(imports).toBe(1);
         expect(Route.readComponent(lazyComponent)).toBe(component);
@@ -315,7 +316,7 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const release = yield* Deferred.make<void>();
           const component = () => undefined;
           let imports = 0;
@@ -356,7 +357,7 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const lazyComponent = Route.lazyComponent(
             Effect.fail(new Error("chunk failed")) as Effect.Effect<
               Route.LazyComponentModule<() => undefined>,
@@ -387,7 +388,7 @@ describe("browser router kernel", () => {
     ));
 
   it("shares initial matched state policy across framework adapters", () => {
-    const Project = route("/initial-projects/:id");
+    const Project = Route.define("/initial-projects/:id");
     const routes = [Project] as const;
     const match = Project.match("/initial-projects/atlas");
     expect(match).toBeDefined();
@@ -417,7 +418,7 @@ describe("browser router kernel", () => {
   });
 
   it("maps router hrefs through the history adapter for browser-visible anchors", () => {
-    const Project = route("/browser-href-projects/:id");
+    const Project = Route.define("/browser-href-projects/:id");
     const memory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
     const history: BrowserHistoryAdapter = {
       ...memory,
@@ -433,7 +434,7 @@ describe("browser router kernel", () => {
     expect(router.createHref(href)).toBe("/project-docs/browser-href-projects/atlas");
     router.navigate(Project, { params: { id: "atlas" } });
     expect(memory.entries()).toEqual(["/", "/browser-href-projects/atlas"]);
-    router.dispose();
+    Effect.runSync(router.dispose());
   });
 
   it("prepares router hrefs before route preload and navigation", () =>
@@ -441,10 +442,10 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: string[] = [];
-          const Project = route("/prepared-projects/:id", {
+          const Project = Route.define("/prepared-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 events.push(`preload:${params.id}`);
@@ -453,7 +454,7 @@ describe("browser router kernel", () => {
           const memory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
           const history: BrowserHistoryAdapter = {
             ...memory,
-            prepareHrefEffect: (href) =>
+            prepareHref: (href) =>
               Effect.sync(() => {
                 events.push(`prepare:${href}`);
               }),
@@ -462,9 +463,9 @@ describe("browser router kernel", () => {
             history,
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
-          yield* router.preloadEffect(Project, { params: { id: "atlas" } });
+          yield* router.preload(Project, { params: { id: "atlas" } });
           expect(events).toEqual(["prepare:/prepared-projects/atlas", "preload:atlas"]);
 
           router.navigate(Project, { params: { id: "curie" } });
@@ -493,11 +494,11 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const preparationFailure = new Error("static hydration missing");
           let preloads = 0;
-          const Project = route("/prepare-failure-projects/:id", {
+          const Project = Route.define("/prepare-failure-projects/:id", {
             preload: () =>
               Effect.sync(() => {
                 preloads++;
@@ -505,16 +506,16 @@ describe("browser router kernel", () => {
           });
           const history: BrowserHistoryAdapter = {
             ...makeMemoryBrowserHistoryAdapter({ initialHref: "/" }),
-            prepareHrefEffect: () => Effect.fail(preparationFailure),
+            prepareHref: () => Effect.fail(preparationFailure),
           };
           const router = createBrowserRouterHostController([Project] as const, {
             history,
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           const preloadExit = yield* Effect.exit(
-            router.preloadEffect(Project, { params: { id: "atlas" } }),
+            router.preload(Project, { params: { id: "atlas" } }),
           );
           expect(preloads).toBe(0);
           expect(preloadExit._tag).toBe("Failure");
@@ -545,10 +546,10 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let preloads = 0;
-          const Project = route("/hydrated-router", {
+          const Project = Route.define("/hydrated-router", {
             preload: () =>
               Effect.sync(() => {
                 preloads++;
@@ -560,7 +561,7 @@ describe("browser router kernel", () => {
             runtime: eraseRuntime(runtime),
             initialMatchedState: (href, match) => ({ _tag: "Ready", href, match }),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.start();
           yield* Effect.sleep("10 millis");
@@ -579,7 +580,7 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const starts: Array<number> = [];
           const finalizers: Array<number> = [];
           let enabled = true;
@@ -587,7 +588,7 @@ describe("browser router kernel", () => {
           const preloader = makeBrowserRouterLinkPreloader({
             runtime: eraseRuntime(runtime),
             enabled: () => enabled,
-            preloadEffect: () => {
+            preload: () => {
               const current = ++revision;
               return Effect.sync(() => {
                 starts.push(current);
@@ -617,7 +618,7 @@ describe("browser router kernel", () => {
           preloader.preload();
           expect(starts).toEqual([1, 2]);
 
-          yield* preloader.interruptEffect();
+          yield* preloader.interrupt();
           expect(finalizers).toEqual([1, 2]);
         }),
       ),
@@ -628,7 +629,7 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const baseRuntime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.dispose));
           const queuedInterrupts: Array<Effect.Effect<void, unknown>> = [];
           let queueNextInterrupt = false;
           const runtime: typeof baseRuntime = {
@@ -651,7 +652,7 @@ describe("browser router kernel", () => {
           const preloader = makeBrowserRouterLinkPreloader({
             runtime: eraseRuntime(runtime),
             enabled: () => true,
-            preloadEffect: () => {
+            preload: () => {
               const current = ++revision;
               return Effect.sync(() => {
                 starts.push(current);
@@ -677,7 +678,7 @@ describe("browser router kernel", () => {
           yield* queuedInterrupts[0]!;
           expect(finalizers).toEqual([1]);
 
-          yield* preloader.interruptEffect();
+          yield* preloader.interrupt();
           expect(finalizers).toEqual([1, 2]);
         }),
       ),
@@ -688,7 +689,7 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const baseRuntime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.dispose));
           let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
           const runtime: typeof baseRuntime = {
             ...baseRuntime,
@@ -701,7 +702,7 @@ describe("browser router kernel", () => {
           const preloader = makeBrowserRouterLinkPreloader({
             runtime: eraseRuntime(runtime),
             enabled: () => true,
-            preloadEffect: () => Effect.die("link preload defect"),
+            preload: () => Effect.die("link preload defect"),
           });
 
           preloader.preload();
@@ -720,14 +721,14 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const starts: Array<number> = [];
           const finalizers: Array<number> = [];
           let revision = 0;
           const preloader = makeBrowserRouterLinkPreloader({
             runtime: eraseRuntime(runtime),
             enabled: () => true,
-            preloadEffect: () => {
+            preload: () => {
               const current = ++revision;
               return Effect.sync(() => {
                 starts.push(current);
@@ -768,14 +769,14 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const starts: Array<number> = [];
           const finalizers: Array<number> = [];
           let revision = 0;
           const preloader = makeBrowserRouterLinkPreloader({
             runtime: eraseRuntime(runtime),
             enabled: () => true,
-            preloadEffect: () => {
+            preload: () => {
               const current = ++revision;
               return Effect.sync(() => {
                 starts.push(current);
@@ -886,10 +887,10 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let attempts = 0;
-          const Project = route("/memory-retry", {
+          const Project = Route.define("/memory-retry", {
             preload: () =>
               Effect.gen(function* () {
                 attempts++;
@@ -903,7 +904,7 @@ describe("browser router kernel", () => {
             history,
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.start();
           yield* Effect.promise(() =>
@@ -936,9 +937,9 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const Project = route("/host-projects/:id");
+          const Project = Route.define("/host-projects/:id");
           let href = "/host-projects/atlas";
           let listens = 0;
           let stops = 0;
@@ -987,11 +988,7 @@ describe("browser router kernel", () => {
             href: "/host-projects/lumen",
           });
 
-          router.navigateByPath(
-            "/host-projects/:id",
-            { params: { id: "orion" } },
-            { replace: true },
-          );
+          router.navigate(Project, { params: { id: "orion" } }, { replace: true });
           expect(entries).toEqual(["/host-projects/atlas", "/host-projects/orion"]);
 
           externalNavigate("/host-projects/vega");
@@ -1015,15 +1012,15 @@ describe("browser router kernel", () => {
         Effect.gen(function* () {
           const preloaded: string[] = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const Project = route("/projects/:id", {
+          const Project = Route.define("/projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(`project:${params.id}`);
               }),
           });
-          const ProjectSettings = route("/projects/settings", {
+          const ProjectSettings = Route.define("/projects/settings", {
             preload: () =>
               Effect.sync(() => {
                 preloaded.push("settings");
@@ -1034,9 +1031,9 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
-          yield* router.preloadEffect(Project, { params: { id: "settings" } });
+          yield* router.preload(Project, { params: { id: "settings" } });
           expect(preloaded).toEqual(["settings"]);
 
           router.navigateHref("/projects/settings");
@@ -1048,7 +1045,7 @@ describe("browser router kernel", () => {
               });
             }),
           );
-          expect(router.matchByPath("/projects/settings")?.route).toBe(ProjectSettings);
+          expect(router.match.get()?.route).toBe(ProjectSettings);
           expect(preloaded).toEqual(["settings", "settings"]);
         }),
       ),
@@ -1059,10 +1056,10 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let attempts = 0;
-          const Project = route("/retry-projects/:id", {
+          const Project = Route.define("/retry-projects/:id", {
             preload: () =>
               Effect.gen(function* () {
                 attempts++;
@@ -1075,7 +1072,7 @@ describe("browser router kernel", () => {
             initialHref: "/retry-projects/atlas",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/retry-projects/atlas");
           yield* Effect.promise(() =>
@@ -1107,11 +1104,11 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let starts = 0;
           let finalizers = 0;
-          const Slow = route("/slow", {
+          const Slow = Route.define("/slow", {
             preload: () =>
               Effect.sync(() => {
                 starts++;
@@ -1125,12 +1122,12 @@ describe("browser router kernel", () => {
                 ),
               ),
           });
-          const Fast = route("/fast");
+          const Fast = Route.define("/fast");
           const router = createBrowserRouterKernel([Slow, Fast] as const, {
             initialHref: "/missing",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/slow");
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
@@ -1153,7 +1150,7 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const baseRuntime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.dispose));
           const queuedDisposals: Array<Effect.Effect<void, unknown>> = [];
           let queueNextDisposal = false;
           const runtime: typeof baseRuntime = {
@@ -1172,7 +1169,7 @@ describe("browser router kernel", () => {
           };
           const starts: Array<string> = [];
           const finalizers: Array<string> = [];
-          const Slow = route("/queued-owner-slow", {
+          const Slow = Route.define("/queued-owner-slow", {
             preload: () =>
               Effect.sync(() => {
                 starts.push("slow");
@@ -1186,7 +1183,7 @@ describe("browser router kernel", () => {
                 ),
               ),
           });
-          const Next = route("/queued-owner-next", {
+          const Next = Route.define("/queued-owner-next", {
             preload: () =>
               Effect.sync(() => {
                 starts.push("next");
@@ -1204,7 +1201,7 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/queued-owner-slow");
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual(["slow"])));
@@ -1217,7 +1214,7 @@ describe("browser router kernel", () => {
           yield* queuedDisposals[0]!;
           expect(finalizers).toEqual(["slow"]);
 
-          yield* router.disposeEffect();
+          yield* router.dispose();
           expect(finalizers).toEqual(["slow", "next"]);
         }),
       ),
@@ -1228,12 +1225,12 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const release = yield* Deferred.make<void>();
           let starts = 0;
           let finalizers = 0;
-          const Slow = route("/outside-route-slow", {
+          const Slow = Route.define("/outside-route-slow", {
             preload: () =>
               Effect.sync(() => {
                 starts++;
@@ -1246,12 +1243,12 @@ describe("browser router kernel", () => {
                 ),
               ),
           });
-          const Outside = route("/outside-route-target");
+          const Outside = Route.define("/outside-route-target");
           const router = createBrowserRouterKernel([Slow] as const, {
             initialHref: "/missing",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/outside-route-slow");
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
@@ -1279,71 +1276,16 @@ describe("browser router kernel", () => {
       ),
     ));
 
-  it("outside-path navigate interrupts active navigation preload", () =>
+  it("dispose interrupts current navigation preload before completing", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-
-          const release = yield* Deferred.make<void>();
-          let starts = 0;
-          let finalizers = 0;
-          const Slow = route("/outside-path-slow", {
-            preload: () =>
-              Effect.sync(() => {
-                starts++;
-              }).pipe(
-                Effect.andThen(Deferred.await(release)),
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    finalizers++;
-                  }),
-                ),
-              ),
-          });
-          const router = createBrowserRouterKernel([Slow] as const, {
-            initialHref: "/missing",
-            runtime: eraseRuntime(runtime),
-          });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
-
-          router.navigateHref("/outside-path-slow");
-          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
-
-          // @ts-expect-error outside path intentionally violates the configured router tuple
-          router.navigateByPath("/outside-path-target", router.navigateHref);
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(finalizers).toBe(1);
-              const state = router.state.get();
-              expect(state._tag).toBe("Failure");
-              if (state._tag === "Failure") {
-                expect(state.error).toBeInstanceOf(RouteNavigationError);
-                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(
-                  RouterRouteNotRegistered,
-                );
-              }
-            }),
-          );
-
-          yield* Deferred.succeed(release, undefined);
-          yield* Effect.sleep("20 millis");
-          expect(router.state.get()._tag).toBe("Failure");
-        }),
-      ),
-    ));
-
-  it("disposeEffect interrupts current navigation preload before completing", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let starts = 0;
           let finalizers = 0;
-          const Slow = route("/dispose-slow", {
+          const Slow = Route.define("/dispose-slow", {
             preload: () =>
               Effect.sync(() => {
                 starts++;
@@ -1361,12 +1303,12 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/dispose-slow");
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
 
-          yield* router.disposeEffect();
+          yield* router.dispose();
           expect(finalizers).toBe(1);
         }),
       ),
@@ -1378,10 +1320,10 @@ describe("browser router kernel", () => {
         Effect.gen(function* () {
           const preloaded: string[] = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const Project = route("/router-projects/:id");
-          const Outside = route("/outside-projects/:id", {
+          const Project = Route.define("/router-projects/:id");
+          const Outside = Route.define("/outside-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
@@ -1391,11 +1333,11 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           const preloadExit = yield* Effect.exit(
             // @ts-expect-error outside route intentionally violates the configured router tuple
-            router.preloadEffect(Outside, { params: { id: "atlas" } }),
+            router.preload(Outside, { params: { id: "atlas" } }),
           );
           expect(preloaded).toEqual([]);
           expect(preloadExit._tag).toBe("Failure");
@@ -1425,16 +1367,16 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const Project = route("/failure-projects/:id", {
+          const Project = Route.define("/failure-projects/:id", {
             preload: () => Effect.fail("missing-project").pipe(Effect.asVoid),
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/failure-projects/atlas",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/failure-projects/atlas");
           yield* Effect.promise(() =>
@@ -1464,9 +1406,9 @@ describe("browser router kernel", () => {
             id: Schema.String,
           }) {}
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const Project = route("/typed-failure-projects/:id", {
+          const Project = Route.define("/typed-failure-projects/:id", {
             error: ProjectNotFound,
             preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
           });
@@ -1474,7 +1416,7 @@ describe("browser router kernel", () => {
             initialHref: "/typed-failure-projects/atlas",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/typed-failure-projects/atlas");
           yield* Effect.promise(() =>
@@ -1499,16 +1441,16 @@ describe("browser router kernel", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const Project = route("/promise-failure-projects/:id", {
+          const Project = Route.define("/promise-failure-projects/:id", {
             preload: () => Promise.resolve(undefined) as never,
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/promise-failure-projects/atlas",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigateHref("/promise-failure-projects/atlas");
           yield* Effect.promise(() =>
@@ -1521,44 +1463,6 @@ describe("browser router kernel", () => {
               }
             }),
           );
-        }),
-      ),
-    ));
-
-  it("binds public preloadByPathEffect to the router runtime", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const preloaded: string[] = [];
-          const runtime = makeRuntime(
-            Layer.succeed(ProjectApi)({
-              preload: (id) =>
-                Effect.sync(() => {
-                  preloaded.push(id);
-                }),
-            }),
-          );
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-
-          const Project = route("/path-projects/:id", {
-            preload: ({ params }) => ProjectApi.use((api) => api.preload(params.id)),
-          });
-          const router = createBrowserRouterKernel([Project] as const, {
-            initialHref: "/missing",
-            runtime: eraseRuntime(runtime),
-          });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
-
-          expect(
-            router.hrefByPath("/path-projects/:id", {
-              params: { id: "atlas" },
-            }),
-          ).toBe("/path-projects/atlas");
-          yield* router.preloadByPathEffect("/path-projects/:id", {
-            params: { id: "atlas" },
-          });
-
-          expect(preloaded).toEqual(["atlas"]);
         }),
       ),
     ));

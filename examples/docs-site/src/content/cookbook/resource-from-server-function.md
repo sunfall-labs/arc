@@ -51,7 +51,7 @@ export const ProjectApiLive = ProjectApi.layer({
 The Resource owns schema output, cache state, semantic tags, and retry policy.
 
 ```ts
-export const ProjectById = Resource.family({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,

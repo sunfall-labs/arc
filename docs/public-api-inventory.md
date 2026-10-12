@@ -12,32 +12,33 @@ unless this document explicitly promotes them.
 - Public: intended for external app code or build configuration.
 - Expert public: intended for advanced integrations, diagnostics, tests, or
   adapters; stable enough to document, but not a golden-path API.
-- Internal: not reachable from package exports and not supported as an import
-  path.
+- Internal: not reachable from package exports, or exported only through a
+  `./internal` subpath for sibling Sunfall Arc adapter packages; not supported
+  as an application import path.
 - Needs decision: exported today, but should be renamed, hidden, or explicitly
   documented before a public release.
 
 ## Package Export Map
 
-| Package                    | Export                  | Source                                     | Classification | Release decision                                                                  |
-| -------------------------- | ----------------------- | ------------------------------------------ | -------------- | --------------------------------------------------------------------------------- |
-| `@sunfall/arc-core`        | `.`                     | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                                     |
-| `@sunfall/arc-start`       | `.`                     | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                                           |
-| `@sunfall/arc-start`       | `./vite`                | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.                          |
-| `@sunfall/arc-start`       | `./diagnostics-report`  | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                                           |
-| `@sunfall/arc-start`       | `./cli`                 | `packages/start/src/cli.ts`                | Expert public  | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
-| `@sunfall/arc-start`       | `./adapters`            | `packages/start/src/adapters.ts`           | Public         | Keep as the compatibility facade for Node/fetch host integration.                 |
-| `@sunfall/arc-start`       | `./fetch-adapter`       | `packages/start/src/fetch-adapter.ts`      | Expert public  | Keep as the fetch-only host adapter surface for bundle-sensitive hosts.           |
-| `@sunfall/arc-start`       | `./node-adapter`        | `packages/start/src/node-adapter.ts`       | Expert public  | Keep as the Node HTTP host adapter surface for server integrations.               |
-| `@sunfall/arc-start`       | `./virtual`             | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                                    |
-| `@sunfall/arc-start`       | `sunfall-arc-start` bin | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                                        |
-| `@sunfall/arc-start-node`  | `.`                     | `packages/start-node/src/index.ts`         | Public         | Keep as the Node HTTP adapter facade.                                             |
-| `@sunfall/arc-start-fetch` | `.`                     | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
-| `@sunfall/arc-db`          | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
-| `@sunfall/arc-devtools`    | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
-| `@sunfall/arc-solid`       | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
-| `@sunfall/arc-solid-db`    | `.`                     | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
-| `@sunfall/arc-tsrx`        | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
+| Package                 | Export                  | Source                                     | Classification | Release decision                                                     |
+| ----------------------- | ----------------------- | ------------------------------------------ | -------------- | -------------------------------------------------------------------- |
+| `@sunfall/arc-core`     | `.`                     | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                        |
+| `@sunfall/arc-core`     | `./internal`            | `packages/core/src/internal.ts`            | Internal       | Adapter plumbing for Solid/Start/DB; not application API.            |
+| `@sunfall/arc-start`    | `.`                     | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                              |
+| `@sunfall/arc-start`    | `./vite`                | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.             |
+| `@sunfall/arc-start`    | `./diagnostics-report`  | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                              |
+| `@sunfall/arc-start`    | `./fetch`               | `packages/start/src/fetch.ts`              | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).              |
+| `@sunfall/arc-start`    | `./node`                | `packages/start/src/node.ts`               | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).              |
+| `@sunfall/arc-start`    | `./testing`             | `packages/start/src/testing.ts`            | Expert public  | Test-only wire markers and static-output helpers for app tests.      |
+| `@sunfall/arc-start`    | `./internal`            | `packages/start/src/internal.ts`           | Internal       | Imported by Vite-generated diagnostics modules; not application API. |
+| `@sunfall/arc-start`    | `./virtual`             | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                       |
+| `@sunfall/arc-start`    | `sunfall-arc-start` bin | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                           |
+| `@sunfall/arc-db`       | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                           |
+| `@sunfall/arc-db`       | `./internal`            | `packages/db/src/internal.ts`              | Internal       | Adapter plumbing for Solid DB/Start/devtools; not application API.   |
+| `@sunfall/arc-devtools` | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                           |
+| `@sunfall/arc-solid`    | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                   |
+| `@sunfall/arc-solid-db` | `.`                     | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                        |
+| `@sunfall/arc-tsrx`     | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                        |
 
 ## Type-Test Coverage
 
@@ -73,8 +74,8 @@ package Interfaces rather than merely reachable implementation files.
 The curated hover declarations currently cover the Core Action, ActionResult,
 Capability, Form, Program, and Resource Interfaces,
 browser-router/router Adapter, Solid runtime and hook Adapter seams,
-Start diagnostics, generated file-route module, fetch, and Node Adapter seams,
-Devtools DTO/normalizer/panel contract seams, and the DB Collection contract,
+Start request/hydration/action seams, fetch, and Node Adapter seams,
+Devtools DTO/panel contract seams, and the DB Collection contract,
 Collection/Query namespace aliases, Query plan, flush/background-sync,
 reactive binding, server collection, and SQLite persistence seams. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration
@@ -86,13 +87,23 @@ coverage.
 
 The root export re-exports these local modules:
 
-- `action`, `action-result`, `action-submission`, `app`, `capability`
-- `browser-router`, `definition-registry`, `effect-like`, `form`, `program`, `read`,
-  `request-context`
-- `resource`, `resource-registry`, `resource-snapshot-codec`,
-  `resource-store`, `resource-ui-binding`, `route`, `route-grammar`
-- `runtime`, `runtime-provider-lifecycle`, `scope`, `server`, `signal`,
-  `stable-stringify`
+- `action`, `action-result`, `action-submission`, `action-transport`, `app`,
+  `capability`
+- `browser-router-history-adapter`, `browser-router-host-controller`,
+  `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
+  `program`, `request-context`
+- `resource`, `resource-snapshot-codec`, `resource-store`, `route`,
+  `route-grammar`
+- `runtime`, `server`, `signal`, `stable-stringify`, `timeline`
+
+Mixed modules (`action-submission`, the `browser-router-*` modules,
+`effect-like`, `resource-snapshot-codec`, `route-grammar`, `runtime`) are
+selected by name. Their adapter plumbing, plus `definition-registry`,
+`resource-registry`, `resource-ui-binding`, `action-instance` and
+`program-start` (runtime-erased instance constructors for renderer bindings),
+`scope` (the ambient `UiScope`), and `signal-watch`, is exported only from
+`@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
+exactly one import path; nothing is exported from both entrypoints.
 
 `resource-store` is intentionally selected rather than star-exported so the
 public root exposes `ResourceStore`, `makeResourceStore(...)`, diagnostics, and
@@ -100,23 +111,32 @@ event/fiber/module seams without exposing mutable cache internals.
 
 Golden-path public groups:
 
-- `defineApp`, `route`, `Route`, `Resource`, `Action`, `ActionResult`,
+- `App`, `Route`, `Resource`, `Action`, `ActionResult`,
   `Program`
 - `Server`, `ServerClient`, request/response context services
-- `Signal`, `Form`, `Capability`, `UiScope`
-- `makeRuntime`, `runWithRuntime`, `runFork`, `SunfallArcRuntime.provide(...)`,
+- `Signal`, `Form`, `Capability`
+- `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
+  `TimelineRecording` (`entries`, `position`, `travel(sequence)`, `resume()`)
+  over every committed change set; `Timeline.describe(cause)` renders a
+  `TimelineCause`. `Signal.make(initial, { name })` labels a signal, and
+  `Signal.transaction(effect, { cause })` / `Signal.batch(f, { cause })` label
+  a commit. `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the
+  typed failures.
+- `makeRuntime`, `runWithRuntime`, `SunfallArcRuntime.provide(...)`,
   `AnySunfallArcRuntime`
-- Runtime Provider lifecycle vocabulary:
-  `RuntimeProviderDisposeObserver`, `RuntimeProviderLifecycleOptions`,
-  `DisposeRuntimeProviderLifecycleOptions`,
-  `RuntimeProviderLifecycleEntry`, `makeRuntimeProviderLifecycleEntry(...)`,
-  `disposeRuntimeProviderLifecycleEntryEffect(...)`, and
-  `disposeRuntimeProviderLifecycleEffect(...)`. Core callers can compose the
-  typed `RuntimeDisposeError` disposal path directly; framework adapters use
-  the observer/swallow helper for host cleanup hooks.
-- `Resource.requestFamily` for Resource state backed by Effect
-  `RequestResolver` batching/deduping.
-- `Resource.deleteEffect(ref)` for explicit Effect-first removal from the
+- `ActionTransport` (with `ActionTransportResponse`): the Action counterpart of
+  `ServerClient`. Every Action instance looks it up on submit; Actions it
+  serves run remotely and the response applies to the submitting runtime,
+  every other Action runs locally. Start's `makeActionTransportLayer(...)` is
+  the provider.
+- `RouteView`, `RouteViewTypeId`, and `RouteWithComponent`: route components
+  may be renderer component values (Solid's typed `Component`), and
+  `Route.withComponent(...)` keeps the attached component's type
+  (`Route.ComponentOf<R>`) so adapters can check its requirements.
+- `Resource.define(...)` is the one Resource constructor: it loads through
+  `load`, or, given `request` and `resolver`, through an Effect
+  `RequestResolver` that batches and dedupes sibling loads.
+- `Resource.evict(ref)` for explicit Effect-first removal from the
   active Resource Store when tests, adapters, or cache policies need to drop a
   ref before GC.
 - Resource namespace aliases such as `Resource.Tag`,
@@ -127,14 +147,12 @@ Golden-path public groups:
   `ResourceInvalidationPlan`, `ResourceStatus`, and
   `ResourceHydrationSuccessState` are also Core-owned public vocabulary. Type-test and hover-policy pins keep adapters from depending on
   namespace-only imports when a top-level type is the clearer LSP target.
-- Top-level Resource hydration symbols `ResourceHydrationPayload` and
-  `ResourceHydrationInput` describe the shared Core/Start payload-only
-  contract. `Resource.hydrateEffect(...)` and `Resource.hydrate(...)` accept the
-  payload object shape; existing raw snapshot arrays must be wrapped as
-  `{ resources: snapshots }`. `Resource.hydrationPayload(...)` and
-  `Resource.hydrationPayloadEffect(...)` create validated payloads from loaded
-  Resource refs.
-- `Action.planInvalidationEffect(...)` for adapters/tests that need action
+- `ResourceHydrationPayload` (`Resource.HydrationPayload`) is the one name for
+  the shared Core/Start payload-only contract. `Resource.hydrate(...)`
+  accepts the payload object shape; raw snapshot arrays must be wrapped as
+  `{ resources: snapshots }`. `Resource.hydrationPayload(...)` creates
+  validated payloads from loaded Resource refs.
+- `Action.planInvalidation(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
 - `PlainValue` is the expert-public type vocabulary for non-executable data
@@ -145,10 +163,9 @@ Golden-path public groups:
   values at Core and Start host seams. It treats throwing `then` getters as
   Promise-shaped so each caller can report its typed boundary error instead of
   surfacing the getter throw as a defect.
-- Browser router helper types such as `BrowserNavigateArgs`,
-  `BrowserRouterPath`, and `BrowserRouterRouteForPath` are Core-owned route
-  helper vocabulary. The Solid adapter re-exports them for ergonomics, but
-  Core owns the public hover and type-test contract.
+- Browser router helper types such as `BrowserNavigateArgs` and
+  `BrowserRouterError` are Core-owned route helper vocabulary. Adapters do not re-export them; Core is their only import
+  path.
 - `stableStringify(...)` and the `StableStringify*` errors are expert-public
   Stable Identity Codec vocabulary for cache keys, route/resource identity, and
   diagnostics. The codec supports JSON-compatible data plus Date, URL, Map,
@@ -174,15 +191,17 @@ Release decisions:
   APIs, `Signal.isSignal`, and `Form` helpers.
 - Type IDs are backed by `Symbol.for(...)` runtime values while preserving
   `unique symbol` declarations through self-type assertions.
-- Low-level runtime accessors such as `getCurrentRuntime` are expert public for
-  adapter and hook authors that must bridge into the active Runtime Spine. App
-  code should use explicit runtime providers, `makeRuntime`, `runWithRuntime`,
-  or adapter hooks such as Solid's `useRuntime`.
-- `makeRuntimeUiScope(...)` and `makeRuntimeUiScopeFrame(...)` are the
-  expert-public UI lifetime factories for framework adapters. They create
-  `UiScope` lifetimes whose late finalizers and disposal run through the owning
-  Runtime Spine, keeping component, route, and preload cleanup on the same
-  Effect runner as the work they own.
+- Ambient runtime accessors (`getCurrentRuntime`, `currentOrDefaultRuntime`,
+  `defaultRuntime`, `eraseRuntime`, `withResourceStore`, `runFork`) are
+  internal adapter plumbing in `@sunfall/arc-core/internal`. App code uses
+  `makeRuntime`, `runWithRuntime`, explicit `{ runtime }` options, or renderer
+  entry points such as Solid's `Component.launch` / `embed`, which take the
+  runtime explicitly.
+- The ambient UI scope (`UiScope`, `makeRuntimeUiScope(...)`,
+  `makeRuntimeUiScopeFrame(...)`, `scoped`, `runWithScope`, `getCurrentScope`,
+  `onDispose`, `forkScoped`, `watch`) is internal adapter plumbing in
+  `@sunfall/arc-core/internal`. Frames expose one disposal path,
+  `dispose()`, which host cleanup hooks fork on the owning runtime.
 - `SunfallArcRuntime<R, ER>` is the typed Runtime Spine: `provide(...)` removes
   only services actually present in `R` plus the Resource Store, and
   `runFork(...)`/`runSync(...)` only accept Effects whose requirements are
@@ -200,25 +219,25 @@ Release decisions:
   queue, and fiber collections are intentionally internal implementation state;
   the Core root barrel intentionally does not export `MutableResourceStore`,
   `makeMutableResourceStore(...)`, or `unsafeMutableResourceStore(...)`.
-- `Route.preloadEffect(...)`, `Route.planPreloadEffect(...)`, and
-  `Route.planNavigationEffect(...)` preserve the service requirements and the
+- `Route.preload(...)`, `Route.planPreload(...)`, and
+  `Route.planNavigation(...)` preserve the service requirements and the
   typed preload failure (`Route.PreloadFailure<R>`) declared by routes. A
   route's `error` option (`RouteErrorSchema<E>`, a service-free Schema codec)
   types its preload failure as `RoutePreloadError<E>`; preloads that fail with
   anything else are compile errors. `BrowserRouterError<Routes>` is the typed
-  failure union in router `Failure` state. `Route.preloadFailureSnapshotEffect`
+  failure union in router `Failure` state. `Route.preloadFailureSnapshot`
   and `Route.preloadFailureCauseFromSnapshot` own the
   `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
   schema-encoded JSON with an `error` schema, the failure `_tag` only without
   one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
   cross with the schema. `CheckedRouteOptions<Options>` and
   `RouteDefinitionFromOptions<Path, Options>` let builders such as Start file
-  routes reuse `route(...)` option checking and inference. Planning Effects also expose
+  routes reuse `Route.define(...)` option checking and inference. Planning Effects also expose
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
 - `Route.lazyComponent(...)` is Effect-first: the chunk loader is an
-  `Effect`, the descriptor exposes `preloadEffect()`, and
+  `Effect`, the descriptor exposes `preload()`, and
   `Route.readComponent(...)` reports lazy pending/failure through tagged values.
   The Solid adapter is the only layer that converts pending lazy route loads
   into host Suspense Promise tokens. Lazy component load state is cached on the
@@ -238,39 +257,31 @@ Release decisions:
   `BrowserRouterHostController` facade binds the Kernel to a History Adapter
   and owns idempotent start/dispose plus commit forwarding; framework adapters
   keep only reactivity projection and host owner cleanup. App code should
-  usually use framework router exports, while tests and future adapters can use
+  usually use framework router exports, while tests and headless hosts can use
   `createBrowserRouterHostController(...)`,
-  `makeMemoryBrowserHistoryAdapter(...)`,
-  `makeWindowBrowserHistoryAdapter(...)`, and the browser-router types directly.
-- Browser router link decisions and preload identity live in Core so framework
-  adapters share the same hover/click meaning.
-  `browserRouterLinkPreloadDecision(...)`,
-  `browserRouterLinkPreloadIdentity(...)`,
-  `browserRouterLinkClickDecision(...)`,
-  `BrowserRouterLinkPreloadDecision`, `BrowserRouterLinkPreloadIdentity`,
-  `BrowserRouterLinkClickDecision`, and `BrowserRouterLinkIgnoreReason` are
-  expert-public for Solid, tests, and future adapters; app code should
-  normally keep using framework `RouterLink` components. The
+  `makeMemoryBrowserHistoryAdapter(...)`, and the browser-router types
+  directly. The router kernel, window history adapter, initial matched-state
+  policy, link decisions, and render decisions are internal adapter plumbing in
+  `@sunfall/arc-core/internal`.
+- Browser router link decisions and preload identity live in Core internals so
+  framework adapters share the same hover/click meaning. App code uses
+  framework `RouterLink` components. The
   `makeBrowserRouterLinkPreloader(...)` seam accepts only full preload identity
   facts and requirement-free preload Effects, so framework adapters must
   provide route services before handing hover work to Core.
-- `BrowserRouterKernel.disposeEffect()` and
-  `BrowserRouterHostController.disposeEffect()` are the Effect-first disposal
-  Interfaces for route preload lifetime teardown. Sync `dispose()` remains a
-  runtime-owned host cleanup convenience for framework owner hooks.
-- Browser route render decisions live in Core so framework adapters share the
-  same outlet state meaning. `browserRouteRenderDecision(...)`,
-  `browserRouteRenderKey(...)`, `browserRouteActiveRenderer(...)`,
-  `browserRouteRenderIdentity(...)`, `BrowserRouteOutletRenderers`,
-  `BrowserRouteOutletDefaultRenderers`, `BrowserRouteRenderIdentityInput`,
-  `BrowserRouteReadyRenderProps`, and `BrowserRouteRenderDecision` are
-  expert-public for Solid, tests, and future adapters; app code should
-  normally keep using framework router outlets.
+- `BrowserRouterKernel.dispose()` and
+  `BrowserRouterHostController.dispose()` return the Effect that tears down
+  route preload lifetimes; there is no synchronous twin. Framework owner hooks
+  fork it (`Effect.runFork(controller.dispose())`), which starts synchronously,
+  and `start()` returns that same cleanup for headless hosts.
+- Browser route render decisions live in Core internals so framework adapters
+  share the same outlet state meaning; app code uses framework router outlets.
 - `Action.use(definition, { runtime })` is a runtime-bound action instance:
-  services provided by the explicit runtime are removed from `submitEffect(...)`
+  services provided by the explicit runtime are removed from `submit(...)`
   requirements, and the runtime error channel is added to the action error
-  surface. Calling `Action.use(definition)` without an explicit runtime
-  preserves the action's original requirements.
+  surface. The runtime is required: there is no default-runtime fallback.
+  Submissions report `Server.ClientError` beside the Action's own failures,
+  because a runtime-provided `ActionTransport` may serve the Action remotely.
 - The internal Action Execution Workflow Module owns callback normalization,
   retry wrapping, optimistic transaction commit/rollback, stale-submission
   interruption, invalidation planning/execution, and visible submission state
@@ -278,46 +289,47 @@ Release decisions:
   facade keeps runtime binding and requirement subtraction local, so LSP hovers
   still show the action requirements after any explicit Runtime Spine is
   applied.
-- `Capability.useEffect(...)` is public with explicit pure-value and
-  Effect-returning overloads; Promise-returning callbacks remain rejected so
-  host async work is routed through Effect primitives.
+- `Capability.use(...)` is the one service accessor, with explicit
+  Effect-returning and plain-value overloads; Promise-returning callbacks are
+  rejected so host async work is routed through Effect primitives, and a
+  throwing callback is a defect (as with `Effect.sync`).
 - `Program` is the public facade for the headless frontend loop around
   centralized model/message state. `Program.define(...)` accepts either a plain
   initial model with a pure-or-Effect `update(model, message)` callback or, for
   tagged messages, an exhaustive `on` handler map keyed by every message `_tag`.
   `Program.update(...)` builds the same callback from a handler map when callers
   want the compact handlers inside a conventional definition. `Program.emit(...)`
-  creates a command that emits one immediate or Effect-produced follow-up
-  message on success; `Program.command(...)` is the lower-level command for
-  Effects that may emit a message or intentionally complete empty, and
-  `Program.effect(...)` is the no-message background-work helper.
+  is the one command constructor: it emits an immediate message, or runs an
+  Effect after the model commits and emits the message it produces; an Effect
+  that completes with `void` emits nothing, so background work is
+  `Program.emit(effect)` too. `Program.commands(...)` batches commands for
+  `Program.next(model, ...)`.
   `Program.next(...)` widens variant commands through the Program's message
   union so handlers do not need command-level union generics. Both definition
   surfaces use the same Effect commands and Stream subscriptions.
-  `Program.start(...)` runs service-free Programs against the active Runtime
-  Spine and UI scope. Serviceful Programs must use
-  `Program.start(definition, { runtime })`, which adds runtime
-  startup/provision errors to the failure channel and rejects runtimes that do
-  not provide the Program's update, command, and subscription requirements.
+  `Program.start(definition, { runtime })` always takes an explicit runtime
+  (there is no default-runtime fallback); it adds runtime startup/provision
+  errors to the failure channel and rejects runtimes that do not provide the
+  Program's update, command, and subscription requirements. UI code starts
+  Programs with Solid's `Component.program(...)`.
   Program models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
   that intentionally emit nothing reserve `undefined`/`void` as the no-message
-  sentinel; host Promise work that emits a message belongs inside
-  `Program.emit(...)`, while no-message background work belongs in
-  `Program.effect(...)` or lower-level `Program.command(...)`.
+  sentinel; host Promise work belongs inside `Program.emit(...)`, mapped to a
+  message or completing with `void`.
   Started Programs report typed update/command/subscription failures through a
-  signal, expose a bounded `timeline` signal for message, command,
-  subscription, failure, and disposal events, and keep `dispatchEffect(...)`
-  composable for tests and workflows. When disposal drops a queued update
-  before it commits, `dispatchEffect(...)` fails with a `ProgramFailure` whose
+  signal. `dispatch(message)` is the one dispatch: an Effect that queues the
+  message and completes once its update commits; UI event handlers bridge it
+  with Solid's `Component.callback`.
+  Programs keep no history of their own: message and failure commits are
+  labelled entries on the app `Timeline`. When disposal drops a queued update
+  before it commits, `dispatch(...)` fails with a `ProgramFailure` whose
   error is `ProgramDisposed`; updates that already committed still acknowledge
-  successfully. Definitions may set `name` and `timeline.limit` for
-  devtools-friendly retention, and handles expose `clearTimeline()` for UI and
-  test reset flows. Runtime timeline retention and disabled timeline behavior
-  are implemented by the internal Program Runtime Timeline Module, while the
-  public Program facade keeps queue, command, subscription, failure, and
-  disposal orchestration. Runtime lifecycle policy also stays internal:
-  disposal fails pending or queued `dispatchEffect(...)` acknowledgements with
+  successfully. Definitions may set `name`, which labels the Program's signals
+  (`<name>.model`, `<name>.failures`) and its `Timeline` causes. The public
+  Program facade keeps queue, command, subscription, failure, and disposal
+  orchestration. Runtime lifecycle policy also stays internal:
+  disposal fails pending or queued `dispatch(...)` acknowledgements with
   `ProgramFailure<..., ProgramDisposed>` when the update has not committed;
   already committed updates acknowledge successfully. Committed model changes
   own subscription restarts, and stale subscription generations cannot emit
@@ -329,12 +341,13 @@ Release decisions:
   `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
-  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops; the
-  Solid adapter exposes the same `ER` parameter on `useProgram(...)`.
+  `ProgramDisposed` for live `dispatch(...)` acknowledgement drops. The
+  Solid `Component.program(...)` binding runs on its instance's already-started
+  runtime, so its handle carries no `ER`.
   `Program.step(...)` and `Program.story(...)` are the deterministic test
   surface: they run updates as Effects, expose returned commands without running
   them implicitly, and let tests resolve commands back into typed messages.
-- `Form.decodeFormDataEffect(...)` decodes browser `FormData` through Effect
+- `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
   `Form.data(...)` is the explicit intermediate object conversion, preserving
   repeated field names as arrays and allowing framework hidden fields to be
@@ -350,24 +363,26 @@ Release decisions:
   `EffectInputCallbackError`, schema errors, and transport errors stay in the
   client error channel.
 - `Resource.LoadError<E>` is public hover vocabulary for Resource state,
-  status, `prefetchEffect(...)`, `refreshEffect(...)`, and Solid
+  status, `preload(...)`, `refresh(...)`, and Solid
   resource handles. It means the declared load error `E` plus
   `EffectInputCallbackError` from synchronous `load`/`provides` callback
   throws.
 - `ResourceKeyError` is public hover vocabulary for the default Resource key
   codec. It tells callers when JSON-compatible values plus Date, URL, Map, and
   Set are not enough and an explicit `key` callback is required.
-- Synchronous Resource `status(...)` and `read(...)` helpers are public
-  render-seam APIs, but stale/GC decisions use the active Runtime Spine clock
-  so they agree with Effect reads under custom `Clock` services.
-- Resource diagnostics helpers such as `definitions(...)`, `tagDefinitions(...)`,
-  `diagnostics(...)`, `refsForTag(...)`, `result(...)`, `value(...)`, and
-  `error(...)` are public LSP vocabulary for devtools, adapters, and render
-  seams that need to inspect Resource state without owning the store internals.
-- `Resource.readEffect(...)` is the public Effect-first read Interface for
+- Resource operations have one Effect form each (`status`, `read`,
+  `dehydrate`, `hydrationPayload`, `hydrate`,
+  `planInvalidation`, `invalidate`, `runInvalidationPlan`);
+  the synchronous twins that ran on an ambient/default runtime are removed.
+  Host seams run them on an explicit runtime (`runtime.runSync(...)`).
+- `Resource.diagnostics()` and `Resource.result(...)` are public LSP
+  vocabulary for devtools and render seams. Registry lookups (family/tag
+  definitions, registry diagnostics, refs for a tag, Action definitions) are
+  internal plumbing in `@sunfall/arc-core/internal`.
+- `Resource.read(...)` is the public Effect-first read Interface for
   already-loaded refs. Missing, pending, collected, and failed states stay in
   typed Effect failure channels instead of escaping as render-control throws.
-- `Resource.collectEffect(...)` is the public preload/read collection seam for
+- `Resource.collect(...)` is the public preload/read collection seam for
   route planners and adapters that need the value plus touched Resource refs.
   The result type is exposed as `Resource.Collected<A>`; the internal
   `ResourceCollector` service and flat `ResourceCollected` alias are not root
@@ -375,11 +390,11 @@ Release decisions:
 - Resource dehydrate and hydration payload Effects now schema-encode inputs and
   success values before they cross snapshot seams, so Start, Solid, and tests
   observe the same wire policy as hydrate.
-- `resource-ui-binding` is an expert-public Resource UI Binding Controller
+- `resource-ui-binding` is the internal Resource UI Binding Controller
   Module for framework adapters. It owns Resource ref identity, runtime-bound
-  refresh/prefetch Effects, automatic preload fibers, keyed preload failures,
+  refresh/preload Effects, automatic preload fibers, keyed preload failures,
   observer and host setter failure swallowing, stale preload interruption,
-  retained-ref cleanup through `disposeEffect()`, and Suspense preload-token
+  retained-ref cleanup through `dispose()`, and Suspense preload-token
   dedupe. The Solid adapter still owns host reactivity and host Suspense throwing.
 - Async state is Effect's `AsyncResult` (`effect/reactivity`) everywhere:
   `Resource.result(ref)`, `ResourceStatus.result`, `ActionState.result`,
@@ -392,453 +407,163 @@ Release decisions:
   `collectionStateError`, and `liveQueryStateError` have no aliases.
   `ResourceFailure` carries `result: AsyncResult.Failure` and `ResourcePending`
   carries `reason` plus the current `result`.
-- `action-submission`, `definition-registry`, `resource-registry`,
-  `resource-snapshot-codec`, `resource-ui-binding`, and `route-grammar` are
-  expert-public Modules.
-  They are stable enough for adapters, diagnostics, generated manifests, and
-  tests to import from `@sunfall/arc-core`, while app code should generally use
-  the higher-level `Action`, `Resource`, `Route`, `Server`, and `defineApp`
+- `definition-registry`, `resource-registry`, `resource-ui-binding`, and the
+  plumbing halves of `action-submission`, `resource-snapshot-codec`, and
+  `route-grammar` are internal Modules exported from
+  `@sunfall/arc-core/internal` for sibling adapter packages. App code uses the
+  higher-level `Action`, `Resource`, `Route`, `Server`, and `App.define`
   facades.
 
 ### `@sunfall/arc-start`
 
-The root export includes:
+The root export is the application surface only (about forty names). It
+includes:
 
-- Local source modules: `action-manifest`, `agent-graph`, `app-graph`,
-  `diagnostics-report`, `effect-rpc-compat`, `file-route`,
-  `file-route-modules`, `file-routes`, `hydration`, `render-hydration-plan`,
-  `request-trace`, `rpc`, `server-function-manifest`,
-  `start-action-client`, `start-action-request-codec`,
-  `start-collection-resolution`, `start-fetch`, `start-request-handler`,
-  `start-rpc-client`, `start-transport-endpoints`,
-  `start-transport-protocol`, `static-client-navigation`, `static-export`, and
-  `streaming`.
-- hydration, streaming, server-function manifest, action manifest, app graph,
-  agent graph, diagnostics report, file-route module helpers, and file-route
-  definitions;
-- hydration error contracts: `StartHydrationError`,
-  `StartHydrationChunkParseError`, `StartHydrationPayloadParseError`, and
-  `StartHydrationPayloadSerializeError`;
-- hydration DOM Adapter contracts: script ids, streamed chunk marker
-  attributes, minimal document/element shapes, raw script readers, and consumed
-  chunk marking helpers used by the Effect-first hydration workflow;
-- hydration serialization and read helpers keep their synchronous exports for
-  browser boot scripts, but those exports are facades over the Effect-first
-  parse/decode/encode/read transport helpers so sync and Effect APIs share the
-  same typed error policy.
-- streaming helpers include `responseWithStreamFinalizer(...)` plus
-  `StartResponseStreamFinalizeEvent` for adapters that need to observe Web
-  response body close/error/cancel without mixing `ReadableStream` mechanics
-  into request-runtime lifecycle code.
-  `StartResponseStreamFinalizeFailureEvent` may derive the replacement
-  finalizer event from the failed/interrupted `Exit`, allowing adapters to
-  report request aborts as `cancelled` instead of generic host transform
-  failures.
-- streamed render helpers include `StartRenderHydrationPlan`,
-  `CreateStartRenderHydrationPlanOptions`, and
-  `createStartRenderHydrationPlanEffect(...)`, the supported Interface for
-  root hydration payload/script plus streamed resource chunks.
-  `createStartStreamedHtmlResponseEffect(...)` is the starter/doc helper that
-  appends those streamed hydration chunks before the response tail.
-- Start hydration option hovers pin the sync host-seam streamed hydration
-  options, including `HydrateStartHydrationChunksFromDocumentOptions`, so LSP
-  docs distinguish Effect-first helpers from browser boot facades.
-- `StartRenderContext.hydrationRootScript` is the streamed renderer's root-only
-  script from `StartRenderHydrationPlan.root.script`; `legacyHydrationScript`
-  is the explicit full non-streaming payload for renderers that are not
-  emitting streamed hydration chunks. `hydrationScript` remains as a deprecated
-  compatibility alias.
-- request handler APIs: `createRequestHandler`, `createRequestHandlerEffect`,
-  `createServerHandler`, `preloadRequest`, `preloadRequestEffect`, and the
-  `onRequestTrace` hook;
-- request preload and handler Effects preserve route preload service
-  requirements that are not supplied by the app server Runtime Spine. The
-  Effect-first fetch and Node adapters infer and keep those requirements visible
-  until a host runtime or callback/Promise facade explicitly owns the seam;
-  partial adapter generics are rejected rather than defaulting missing
-  requirements to `unknown`.
-- The internal Request Runtime Lifecycle Module owns the completion policy after
-  a Start response Effect is selected: failure/interruption teardown,
-  ResponseContext application, request trace emission, Request Runtime disposal,
-  and streamed response finalization. It is not exported; public access remains
-  `createRequestHandler`, `createRequestHandlerEffect`, and the host adapters.
-- The internal Start Host Runtime Runner owns the final Effect-to-host runtime
-  seams for Promise-shaped Fetch/Vite facades and callback-shaped Node/Vite
-  facades. It is not exported; public host adapter APIs remain unchanged, and
-  `StartForkRuntime` stays re-exported from the Node adapter for callback
-  hosts.
-- The internal Start Host Adapter Core normalizes synchronous handler throws,
-  non-Effect handler return shapes, and handler Effect failures into
-  `StartRequestHandlerError`. Plain `Response` and Promise-shaped handler
-  returns are invalid; host Promise work belongs behind `Effect.tryPromise(...)`
-  at the adapter seam.
-- transport APIs: RPC/action paths, request-id and trace headers, media-type
-  helpers, and browser RPC/action clients;
-- static export helpers:
-  `normalizeStartStaticPath(...)`, `startStaticPageOutputPath(...)`,
-  `extractStartStaticHtmlLinks(...)`, and `StartStaticPathError`. These are
-  small build-time primitives for SSG recipes and adapters: they normalize
-  root-relative page paths, map pages to portable HTML output files, and crawl
-  internal anchor links without taking a dependency on a specific Vite or host
-  deployment package.
-- expert-public transport validators and endpoint builders:
-  `validateStartRpcRequestEffect`, `validateStartRpcResponseEffect`,
-  `validateStartActionRequestEffect`, `validateStartTransport*Effect`,
-  `startTransportDiagnosticsEffect`, `startTransportEndpointEnvelopeEffect`,
-  `withStartTransportDiagnostics`, `validateStartEndpointPathEffect`,
-  `resolveStartTransportEndpoints`, `resolveStartTransportEndpointsEffect`,
-  `resolveStartRpcEndpoint`, `StartTransportEndpointPathError`,
-  `StartTransportEndpointConflictError`,
-  `resolveStartActionEndpoint`, `isStartRpcEndpointRequest`, and
-  `isStartActionEndpointRequest`,
-  `createServerRpcResponseEffect`, and `createServerActionResponseEffect`.
-  These are for adapters, tests, and diagnostics that need the same transport
-  policy as Start internals; normal apps should use `Server.fn(...)`,
-  `StartAction`, `makeRpcClient(...)`, and `createRequestHandler(...)`.
-- `startTransportEndpointEnvelopeEffect(...)` is expert public for adapters and
-  tests that need the same request-id, transport-kind, trace-header, and
-  diagnostics-header policy as the built-in RPC/action endpoints. Request traces
-  and response diagnostics consume this one envelope so generated request ids
-  stay aligned.
-- `StartFetch<E, R>` preserves both the fetch error and fetch Effect
-  requirements. Browser/action clients can receive `runtime` or
-  `transportRuntime` when auth, tracing, or tests provide transport services.
-- RPC clients/layers cannot expose fetch requirements through the core
-  `ServerClient` Interface, so a service-backed `StartFetch<E, R>` requires an
-  explicit `transportRuntime`. Start action submission remains effect-first:
-  without an application `runtime`, transport requirements stay in the returned
-  Effect even when `transportRuntime` provides the fetch Adapter. Supplying
-  `runtime`, or `responseRuntime` together with `transportRuntime`, makes the
-  returned Effect requirement-free and selects the Runtime Spine that applies
-  action hydration and invalidation metadata.
-- RPC/action client status validation delegates to the shared Start Transport
-  Status Policy so semantic transport bodies and HTTP statuses cannot drift
-  between server functions and actions.
-- form bridge APIs: `startActionForm`, `StartAction`, Start action request
-  encode/decode helpers such as `encodeStartAction*Effect(...)`,
-  `decodeStartActionFormDataEffect(...)`,
-  `startActionFormDataDecodeOptions(...)`, and
-  `readStartActionRequestEffect(...)`, hidden-field constants, and transport
-  result types.
-- `StartActionFormEncodeError` is public hover vocabulary for the synchronous
-  progressive form facade when schema-backed defaults cannot be encoded.
-  `submitStartActionEffect(...)` is the Effect-first client submission seam,
-  while `StartAction.use(...)` is the runtime-owned stateful UI facade.
-- request trace types: `StartRequestTrace`, request/response/resource/
-  collection/action/server-function/fiber/stream/teardown trace records,
-  cleanup failure summaries, and `StartRequestTraceHandler`.
-- Effect-native observability metrics:
-  `startRequestCountMetric`, `startRequestDurationMetric`, and
-  `startRequestStatusMetric`. SSR metric labels use the matched route path
-  template when available, falling back to `<unmatched>` instead of raw
-  high-cardinality URL paths.
-- The `@sunfall/arc-start/cli` subpath exposes the Effect-native diagnostics CLI
-  parser and runner for tests, agents, and embedding: `parseStartDiagnosticsCliArgsEffect(...)`,
-  `parseStartDiagnosticsCliArgs(...)`, `runStartDiagnosticsCliEffect(...)`,
-  `runStartDiagnosticsCli(...)`, `runStartDiagnosticsCliMainEffect(...)`, and
-  `runStartDiagnosticsCliMain(...)`. Injected output writers are `EffectInput`
-  callbacks; the embeddable runner surfaces writer failures as
-  `StartDiagnosticsCliWriteError` values, while the main/bin runner catches those
-  typed failures, assigns exit code `1`, and best-effort reports one compact
-  stderr line instead of leaking an unhandled Promise rejection. Process
-  stdout/stderr defaults are resolved in this CLI Adapter, not in the lower
-  diagnostics command runner. Injected diagnostics loaders must return Effects;
-  synchronous throws, Promise-shaped returns, and plain non-Effect returns are
-  reported through the typed diagnostics load failure path. The package bin
-  remains the normal app entrypoint;
-  embedders should use this subpath instead of private source imports or process
-  spawning.
-- Effect RPC compatibility descriptors:
-  `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`,
-  `startEffectRpcEndpointDescriptor`, and
-  `makeStartEffectRpcCompatibilityArtifact`. The endpoint descriptor is the
-  LSP-facing contract for the current JSON POST RPC boundary: path, media
-  types, transport protocol version, and request/diagnostic header names. The
-  compatibility artifact adds one procedure descriptor per manifest entry plus
-  adoption blockers for replacing Start transport with `effect/rpc`.
-- Generated route artifact helpers:
-  `createFileRouteDefinitionsModule`, `createFileRouteModuleReferences`,
-  `createFileRouteCompanionModuleReferences`,
-  `defaultGeneratedFileRouteDefinitionsHeader`, and related file-route manifest
-  types. The written `routeTree.gen.ts` file is the app-specific LSP surface
-  for literal route ids, route paths, route-specific match types, direct
-  `hrefById(...)` / `hrefByPath(...)` helpers, the `isRoutePathMatch(...)`
-  guard, layout/error/metadata companion maps, and href option maps.
-- File-route authoring helpers: `defineFileRoute`,
-  `DefineFileRouteBuilder`, `FileRoutePreloadResource`, and
-  `FileRoutePreloadOptions`. `FileRoutePreloadRouteOptions` is the route-option
-  shape accepted after preload-owned params/search/preload metadata are fixed by
-  the builder. The builder keeps schema params/search, resource preload
-  selectors, collection preload metadata, and custom preload Effects in one
-  route-local API. `defineFileRoute(path).preload(...).route(...)` is the
-  spread-free authoring path; the preload object remains spreadable for existing
-  modules. Public `FileRoutePreloadResource.refs` adapters must return an array
-  of Resource refs synchronously; Promise-shaped or malformed erased values fail
-  as typed `FileRoutePreloadError` values with resource-selector guidance.
-  Collection preload metadata accepts concrete definitions or stable collection
-  names; request preload and hydration resolve those names through
-  `StartCollectionResolutionOptions` (`collections`, `resolveCollection`, or
-  `collectionRegistry`) without falling back to process globals implicitly.
-  Duplicate direct definitions with the same collection name fail as
-  `StartCollectionDuplicateName` during preload, and hydration maps that policy
-  into `CollectionSnapshotCodecError` before any collection payload is applied.
+- Local source modules: `action-manifest`, `file-route`, `hydration`,
+  `request-trace`, `server-function-manifest`, `start-action-client`,
+  `start-action-transport`, `start-action-request-codec`, `start-collection-resolution`, `start-fetch`,
+  `start-request-handler`, `start-rpc-client`, `start-transport-endpoints`,
+  `start-transport-protocol`, `static-client-navigation`, and `streaming`.
+- request handling: `createRequestHandler(app, options)` returns the
+  Effect-returning `StartRequestHandler` (one name; there are no
+  `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`,
+  `StartRenderContext`, `StartRequestTrace`, and `StartRequestTraceHandler`
+  describe its options, render context, and the `onRequestTrace` hook.
+  `StartRenderContext.hydrationRootScript` is the streamed renderer's root-only
+  script; `legacyHydrationScript` is the full non-streaming payload.
+- HTML responses: `createStartStreamedHtmlResponse`,
+  `createHtmlResponse`, `htmlChunk`, and `StartStreamError`.
+- hydration: `hydrateFromDocument(document, id?, options?)` is the one
+  document hydration entry: an Effect the client entry runs on its runtime
+  (`runtime.provide(...)`) before `Component.launch(..., { hydrate: true })`.
+  There is no synchronous facade.
+  `StartHydrationPayload`, `StartHydrationDocument`, `StartHydrationError`, and
+  the `StartHydration*ParseError` / `StartHydrationPayloadSerializeError`
+  classes are public error vocabulary.
+- RPC: `makeRpcClientLayer(options?)` is the single browser `ServerClient`
+  layer constructor (`makeRpcClientLayer()` uses the default transport).
+  Service-backed `StartFetch<E, R>` requires an explicit `transportRuntime`.
+- file routes: `FileRoute.define(path)(options)` takes the same options as core
+  `Route.define(path, options)`; Start checks `path` against the discovered file.
+  Static preload hints use core `preloadResources` / `preloadCollections`, and
+  runtime work lives in `preload`.
+- actions: `makeActionTransportLayer(options)` (with
+  `ActionTransportLayerOptions`) provides the Core `ActionTransport` for the
+  Actions the server serves, so the single UI binding (Solid's
+  `Component.action(...)`) submits them over the network with the same result
+  and error types; responses hydrate and invalidate the submitting runtime. A
+  serviceful `StartFetch<E, R>` requires a `transportRuntime`. The
+  `StartAction` namespace keeps only progressive (no-JS) form support:
+  `StartAction.form`, `StartAction.decodeFormData`, and
+  `StartAction.Form`; plus `StartActionFormOptions`,
+  `StartActionInvalidationPlan`, `StartActionFormEncodeError`, and
+  `StartActionDuplicateName`.
+- static sites: `makeStartStaticHistoryAdapter`, `currentStartStaticHref`,
+  `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
+  `stripStartStaticBasePath`, `StartStaticBasePathError`, and
+  `StartStaticNavigationHydrationError`.
+- transport configuration: `StartTransportEndpointOverrides`,
+  `StartTransportEndpointPathError`, and `StartTransportEndpointConflictError`.
+- manifest source types for the Vite plugin: `ServerFunctionManifestSource` and
+  `ActionManifestSource`.
+
+Manifest make/serialize/deserialize, stable ids, client-reference
+classification, generated route module codegen, transport header constants and
+media types, `validateStart*Effect` validators, endpoint guidance, app-graph and
+agent-graph diagnostics, request metrics, and hydration chunk primitives are
+package-internal. `vite.ts`, `cli.ts`, and tests import them from source.
 
 Subpath exports:
 
-- `./vite` owns `sunfallArcStart`, file route discovery, virtual module creation,
-  build-policy validation, app graph diagnostics loading, prerendering, and SSR
-  dev handling.
-  Manifest-pinned Source Surface Modules: `app-graph`,
-  `route-code-splitting`,
+- `./fetch` owns the Fetch-host adapter and carries no Node imports.
+  `toFetchHandler(handler)` is the Effect-first adapter and preserves handler
+  service requirements; `createFetchHandler(handler, options?)` is the
+  Promise-shaped host facade for platforms whose contract is
+  `(request) => Promise<Response>`. It merges `request.signal` with
+  `options.runOptions.signal`, provides the request `Scope.Scope`, requires a
+  typed runtime for remaining services, and holds the Scope until the response
+  body closes, errors, or is cancelled.
+- `./node` owns the Node HTTP adapter. `createNodeHandler(handler, options?)` is
+  the Effect-first adapter; `createNodeServerHandler(handler, options?)` is the
+  `node:http.createServer(...)` callback facade. It also exports
+  `nodeRequestOrigin`, `nodeRequestToWebRequest`, `writeNodeResponse`, and
+  `StartNodeAdapterError`. Manifest-pinned Source Surface Modules:
+  `node-web-exchange` and `start-host-runtime-runner`. `trustForwardedHeaders`
+  defaults to `false`; enable it only behind a proxy that overwrites
+  `x-forwarded-proto` / `x-forwarded-host`.
+- `./vite` exports only `sunfallArcStart`, its option types, and its errors.
+  Manifest-pinned Source Surface Modules: `app-graph`, `file-routes`,
   `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
-  `start-manifest-wall`, `start-prerender`, `start-virtual-modules`,
-  `start-vite-dev-ssr`, and `start-vite-diagnostics-loader`.
-  `sunfallArcStart` returns the concrete `SunfallArcStartPlugin` interface rather
-  than a broad Vite `PluginOption`, and its SSR module handler type is named
-  `StartSsrRequestHandler` so it cannot be confused with the root Effect
-  request handler. `StartSsrHandlerModule` and `StartDevServer<R>` preserve
-  serviceful dev SSR handler Effects for expert tests/adapters, while
-  `SunfallArcStartOptions.devSsr` / `StartViteDevSsrOptions` provide the runtime
-  and run options used by the Vite middleware fork seam. The middleware contains
-  synchronous fork/listener setup failures through Vite's `next(error)` path and
-  reports erased non-`Response` handler results as typed `StartDevServerError`
-  failures. It also exports the
-  generated route definitions file writer:
-  `writeFileRouteDefinitionsFile(...)` for Vite sync hooks and
-  `writeFileRouteDefinitionsFileEffect(...)` plus
-  `FileRouteDefinitionsFileWriteFailure` for typed route-generation and
-  filesystem diagnostics. `FileRouteDefinitionsOutputPathError` rejects
-  `fileRouteGeneration.outputFile` values that would write outside the Vite
-  root. File-route discovery uses one shared eligibility policy for generated
-  route-tree exclusion, extension/declaration filtering, route-directory
-  existence checks, and Vite hot-update matching. Its diagnostics loading
-  exports are implemented by
-  the internal Start Vite Diagnostics Loader Module, so CLI/CI/build-gate
-  temporary Vite server lifetime and diagnostics DTO decoding share one
-  Effect-first policy while the public `./vite` Interface stays stable.
+  `start-manifest-wall`, `start-prerender`, `start-vite-dev-ssr`, and
+  `start-vite-diagnostics-loader`.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
   Manifest-pinned Source Surface Module: `start-diagnostics-contract`.
-- `createStartAgentGraph(...)`, `queryStartAgentGraph(...)`,
-  `createStartAgentGraphImpact(...)`, `formatStartAgentGraphImpact(...)`, and
-  `formatStartAgentGraph(...)` project resolved Start diagnostics into typed
-  agent-readable route/action/resource/collection/module/finding facts and
-  high-signal edit impact briefs. The package binary exposes the same
-  projection through `sunfall-arc-start graph` and `sunfall-arc-start impact`, with
-  concise text by default, raw graph detail behind `--verbose`, and complete
-  machine payloads behind `--json`.
-- `SunfallArcStartOptions.prerender` enables production static prerendering from
-  the Vite plugin. The Vite subpath exports `StartPrerenderOptions`,
-  `ResolvedStartPrerenderOptions`, `planStartPrerenderPages(...)`,
-  `resolveStartPrerenderOptions(...)`, `runStartPrerenderEffect(...)`, and
-  `StartPrerenderError` for adapter tests and custom build hosts. Both public
-  and resolved prerender callback options return
-  `EffectInput<void, unknown, never>`, so post-render callback work stays in the
-  Effect Interface instead of becoming Promise-shaped host work. The planner
-  discovers static file routes by default, keeps dynamic route params explicit
-  through `pages`, crawls internal links after render, and writes portable HTML
-  paths with the root static-export helpers.
-- `./adapters` is a compatibility facade that re-exports the host-specific
-  fetch and Node adapter Modules, including `StartRequestHandlerError` and
-  `StartNodeAdapterError` for host-facing failure handling. Manifest-pinned
-  Source Surface Modules: `fetch-adapter` and `node-adapter`.
-- `./fetch-adapter` owns fetch-only request handler conversion and carries no
-  Node imports. Manifest-pinned Source Surface Module:
-  `start-request-handler-error`. `toFetchHandlerEffect(...)` is the canonical
-  Effect v4 adapter and preserves handler service requirements.
-  `createFetchHandler(...)` remains a compatibility host facade for Fetch-style
-  platforms that require `(request) => Promise<Response>`; it wires the incoming
-  `Request.signal` into Effect run options so host aborts interrupt request
-  Effects instead of leaving detached work behind. `StartRequestHandlerError`
-  is re-exported from this subpath and from `@sunfall/arc-start-fetch`.
-- `./node-adapter` owns Start Node handler invocation and Node HTTP server
-  callback wiring. It re-exports expert-public Node Web Exchange helpers for
-  compatibility: Node request origin reconstruction, Web Request conversion,
-  Web Response writing, and `StartNodeAdapterError` values. Manifest-pinned
-  Source Surface Modules: `node-web-exchange`, `start-host-runtime-runner`, and
-  `start-request-handler-error`. Effect-first Node handlers preserve Start
-  handler service requirements, and Node server error hooks accept pure values
-  or Effects, not Promise-shaped callbacks.
-  `StartRequestHandlerError` and `StartNodeAdapterError` are also re-exported
-  from `@sunfall/arc-start-node`.
+- `./testing` exposes wire markers and static-output helpers that app tests
+  assert against: `hydrationScriptId`, `streamHydrationAttribute`,
+  `StartHydrationChunk`, `serverActionPath`, `serverRpcPath`,
+  `extractStartStaticHtmlLinks`, and `startStaticPageOutputPath`.
+  Manifest-pinned Source Surface Modules: `hydration`, `rpc`, and
+  `static-export`.
+- `./internal` is imported only by the Vite-generated
+  `virtual:sunfall-arc/app-graph/runtime-diagnostics` module. Manifest-pinned
+  Source Surface Modules: `app-graph` and `start-app-graph-diagnostics-policy`.
 - `./virtual` owns virtual module typings only.
-- `sunfall-arc-start` owns diagnostics and agent graph CLI execution. Its
-  bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
-  and `Argument` primitives, including variadic graph/impact `[kind] [query]`
-  arguments and inherited graph `--verbose` shared-flag context. The
-  `@sunfall/arc-start/cli`
-  subpath's manifest-pinned Source Surface Module is
-  `start-diagnostics-cli-runner`. The internal Start Agent Graph Vocabulary
-  Module owns query kinds, query-to-node mapping, and node-to-impact-relation
-  mapping; the Start Diagnostics CLI Contract Module owns validation text and
-  shell-safe impact verify commands, while the Start Diagnostics CLI Runner
-  Module owns parsed command execution, app graph diagnostics loading, agent
-  graph/impact projection, output formatting, and failure reporting.
-  Internally, Start Agent Graph Contract, Query, Formatter, Display, and Impact
-  Planner Modules keep DTO vocabulary, query matching, text presentation, and
-  impact semantics separate while `agent-graph.ts` remains the public facade.
-  The
-  diagnostics loader runs the temporary Vite server with
-  `Effect.acquireUseRelease(...)`, so CLI and CI diagnostics close the Vite
-  resource on success, typed failure, or interruption, and close failures remain
-  `StartAppGraphDiagnosticsRunnerError` values in the typed diagnostics load
-  channel.
-- Start action clients parse and decode action responses through the internal
-  Start Action Response Codec Module. It owns wire DTOs, response metadata,
-  invalidation metadata serialization, response-mode selection, Exit-to-Response
-  encoding, client parsing, and typed result decoding; the internal Start Action
-  Response Application Module owns invalidation target validation, Resource
-  Tag/Ref resolution, hydration, hydrated-ref filtering, and malformed metadata
-  transport errors.
-- Start Transport Body Readers own the internal Effect v4 boundary around
-  one-shot JSON, form-data, and response-text reads for RPC/action transports.
-  Transport Protocol consumes those helpers so body stream failures are typed
-  before JSON decoding or action form parsing begins.
+- `sunfall-arc-start` owns diagnostics and agent graph CLI execution
+  (`diagnostics`, `graph`, `impact`). There is no programmatic CLI subpath.
 
 Release decisions:
 
-- `./vite` exports low-level manifest and virtual-module helpers as expert
-  public because CI scripts, starter generators, and agent tooling need to run
-  the same graph and diagnostics code as the plugin.
-- `SunfallArcStartPlugin` is public because tests, CI helpers, and starter tools
-  should be able to call the Start Vite plugin hooks without re-narrowing Vite's
-  broad `PluginOption` union.
-- The root `StartRequestHandler` is the Effect-returning request handler
-  returned by `createRequestHandler`; the Vite-only plain-or-Effect SSR module
-  handler is `StartSsrRequestHandler`.
-- `./vite` keeps dev SSR helpers public from the same import path, but their
-  implementation lives behind the Start Vite Dev SSR Adapter Module rather than
-  the plugin assembly code. `handleSsrDevMiddlewareEffect(...)`,
-  `handleSsrDevRequest(...)`, `startDevServerFromVite(...)`,
-  `StartDevServerError`, and `StartHandlerNotFound` have direct type-test and
-  hover-policy pins because custom Vite hosts can consume that Adapter without
-  going through `sunfallArcStart(...)`.
-- Vite dev SSR request conversion accepts the same Node origin and forwarded
-  header policy as the Node adapter through `HandleSsrDevRequestOptions`,
-  `HandleSsrDevMiddlewareOptions`, and `SunfallArcStartOptions.nodeRequest`, so
-  development and production host adapters do not disagree about public request
-  URLs. The middleware Adapter owns the Node request lifecycle, merged abort
-  signal injection, host-fiber interruption, response writing, `next(error)`
-  containment, and listener disposal for both the plugin path and direct
-  custom callers.
-- Serviceful Vite dev SSR handlers should provide app services through
-  `SunfallArcStartOptions.devSsr.runtime`. The server-entry handler still owns
-  request/runtime construction; the Vite Adapter only owns the host callback
-  fork seam and abort/run options.
-- `StartRequestTrace` is intentionally structural with
-  `DevtoolsRequestTrace`. Keep type-test coverage so Start can emit devtools
-  facts without depending on `@sunfall/arc-devtools`.
-- `StartActionInvalidationPlan` is intentionally structural with
-  `DevtoolsInvalidationPlan`. Start owns the action transport metadata and
-  devtools consumes the serialized plan through `serializedInvalidationPlan`
-  without either package importing the other.
-- The root re-exports `Action`, `Resource`, `Route`, `Server`, `Signal`,
-  `defineApp`, and related Core helpers as starter convenience aliases. Treat
-  them as expert-public compatibility exports in inventory and type tests; docs
-  for domain Modules should still import Core concepts from `@sunfall/arc-core`
-  so ownership stays clear.
-- `virtual:sunfall-arc/routes` intentionally exposes broad route maps because it
-  must type-check before app-specific route generation. Apps and agents that
-  need exact literal route ids, paths, params, search, or href options should
-  import the written generated route definitions artifact.
-- `virtual:sunfall-arc/app-graph` is a static DTO module for generated route,
-  server-function, and action topology. It intentionally does not import route
-  implementations. Tooling that needs runtime route-module/resource/collection
-  diagnostics should import
-  `virtual:sunfall-arc/app-graph/runtime-diagnostics` explicitly, making that
-  heavier Adapter seam visible in the import graph.
-
-### `@sunfall/arc-start-node`
-
-The root export includes the Node HTTP adapter facade:
-
-- `createNodeHandlerEffect`, `createNodeHandler`,
-  `nodeRequestToWebRequestEffect`, `nodeRequestToWebRequest`,
-  `writeNodeResponseEffect`, `writeNodeResponse`, `nodeRequestOrigin`, and the
-  related Node adapter types. `StartNodeServerErrorHandler` is an EffectInput
-  seam for host error rendering.
-- `createNodeServerHandler` is the callback-shaped host Adapter for
-  `node:http.createServer(...)`. It owns the void/callback host seam and runs
-  the Effect-first handler on the configured runtime with `runFork`. The facade
-  provides request `Scope.Scope` itself, but requires a typed runtime when the
-  handler still needs non-Scope services.
-
-Release decisions:
-
-- Keep the package as a thin facade over `@sunfall/arc-start/node-adapter` so
-  Node users have an obvious install/import path without duplicating adapter
-  logic or pulling Node imports into fetch-only bundles.
-
-### `@sunfall/arc-start-fetch`
-
-The root export includes the generic Fetch-host adapter facade:
-
-- `toFetchHandlerEffect`, `toFetchHandler`, and the related Effect-shaped Fetch
-  handler types.
-- `toFetchHandlerEffect` and `toFetchHandler` are the canonical Effect v4
-  adapter APIs for Fetch-style hosts.
-- `createFetchHandler` is kept as a compatibility host Adapter for
-  Fetch-native platforms whose exported handler contract is fixed to
-  `(request) => Promise<Response>`. It owns the final runtime seam by running
-  the Effect-first handler on the configured runtime; library internals should
-  continue to use `toFetchHandlerEffect` when they can stay inside Effect. The
-  facade provides request `Scope.Scope` itself, but requires a typed runtime
-  when the handler still needs non-Scope services. It merges `request.signal`
-  with `options.runOptions.signal`, cleans fallback abort listeners, and holds
-  the request Scope until the returned response body closes, errors, or is
-  cancelled.
-
-Release decisions:
-
-- Keep the package as a thin facade over `@sunfall/arc-start/fetch-adapter` so
-  Fetch, edge-style, and test hosts can use a host-shaped import while sharing
-  the same tested, Node-free adapter implementation.
+- `StartRequestTrace` is intentionally structural with `DevtoolsRequestTrace`,
+  and `StartActionInvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
+  and Devtools never import each other.
+- The root does not re-export Core symbols; import `Action`, `Resource`,
+  `Route`, `Server`, `Signal`, and `App.define` from `@sunfall/arc-core`.
+- `virtual:sunfall-arc/routes` intentionally exposes broad route maps; apps that
+  need exact literal route ids, paths, params, search, or href options import
+  the written generated route definitions artifact.
+- `virtual:sunfall-arc/app-graph` is a static DTO module; tooling that needs
+  runtime route-module/resource/collection diagnostics imports
+  `virtual:sunfall-arc/app-graph/runtime-diagnostics` explicitly.
 
 ### `@sunfall/arc-db`
 
 The root export includes:
 
-- Local source modules: `change-feed-dispatcher`, `collection-contract`,
-  `collection-errors`, `collection-ids`, `collection-index-materialization`,
-  `collection-persistence`, `collection-preload`, `collection-reactive-binding`,
-  `collection-registry`, `collection-snapshot-codec`, `flush-policy`,
-  `live-query-collection`, `query-builder`, `query-plan`, `server-collection`,
-  and `sqlite-persistence`.
-- Namespace-backed source modules: `sync-adapter` owns the generic sync adapter
-  contracts and helpers exposed through the Collection namespace.
-- `Collection`, `Query`, live query types, collection snapshots, hydration, and
-  persistence configuration;
-- sync adapters, server collection helpers, SQLite persistence helpers, and
-  background flush policies;
-- collection store diagnostics and events for devtools.
-- Solid DB uses `collection-reactive-binding` for source
-  subscriptions, live-query selection, and mount-time preload cleanup. Its
-  `CollectionReactivePreloadController` exposes awaitable `interruptEffect()`
-  cleanup while retaining sync host cleanup convenience for adapter unmounts.
+- Local source modules: `collection-errors`, `collection-index-materialization`,
+  `collection-persistence`, `collection-snapshot-codec`, `query-builder`,
+  `query-plan`, and `sqlite-persistence`.
+- Namespace-backed source modules: `collection-contract`, `collection-runtime`,
+  `flush-policy`, and `live-query-collection` back the Collection namespace
+  types and functions; the root re-exports no flat aliases from them.
+- One path per concern: the root exports only the `Collection`, `Query`, and
+  `SQLitePersistence` namespaces plus tagged error classes
+  (`CollectionRowNotFound`, `CollectionRowKeyChanged`,
+  `ReadonlyCollectionMutation`,
+  `UnknownCollectionIndex`, `CollectionSnapshotCodecError`,
+  `CollectionStorageError`, `QueryEvaluationError`, `UnsupportedLiveQuery`,
+  `SQLitePersistence*` errors).
+- `Collection.define({ ..., sync })` is the single way to back a collection;
+  `sync` is an inline `Collection.SyncAdapter` or a `Resource.Ref`. Remote rows
+  arrive through `sync.changes` or the definition's `applyChanges(...)`.
+- `@sunfall/arc-db/internal` (Internal) carries adapter plumbing for Solid DB,
+  Start, and devtools: `bindCollectionRuntimeEffect`,
+  `makeCollectionReactivePreloadController`, `collectCollectionsEffect`,
+  `CollectionPreloadCollector`, `dehydrateCollections(Effect)`,
+  `hydrateCollectionsEffect`, `validateCollectionsHydrationEffect`,
+  `isCollection`, the definition registry, store access/events,
+  `CollectionTypeId`/`CollectionStoreTypeId`, `defineCollection`, and
+  `buildQuery`.
 
 Release decisions:
 
-- SQLite helper names are expert public storage-adapter APIs. Keep them because
-  local-first recipes need a SQLite-shaped seam without a runtime dependency on
-  a specific SQLite package. `sqlite-persistence.ts` owns the statement value,
-  params, row, database, prepared-statement, memory contracts, and default
-  table/namespace/schema-version constants; the DB root exports them directly
-  and aliases the helper family under `Collection.*` for namespace ergonomics.
+- SQLite helpers are expert public storage-adapter APIs under the
+  `SQLitePersistence` namespace (`storage`, `statementDriver`,
+  `preparedStatementDatabase`, `memoryStatementDatabase`, default constants).
   Statement rows fail as `SQLitePersistenceInvalidRow` when SQLite clients
   return malformed field types instead of being coerced at the Adapter
   boundary.
-- Mutation, transaction, event, and store diagnostic types are expert public for
-  tests, devtools, persistence, and sync adapters. App code should use
-  `Collection` namespace operations instead of constructing those records
-  manually.
-- `persistedCollectionOptions(...)` remains a top-level and
-  `Collection.persistedOptions(...)` public helper, but the implementation and
-  LSP docs live with `collection-persistence.ts` so persistence storage error
-  and requirement channel unioning has one owner.
-- `Collection.StoreDiagnostics` and
-  `Collection.StoreDiagnosticsSnapshot` are the public runtime-local diagnostic
-  view over a Collection Store. They expose counts for registered collections,
-  rows, pending/active optimistic mutations, optimistic rows, loading states,
-  and failures without exposing mutable row/index maps or runtime disposal.
+- Mutation, transaction, and snapshot types are expert public for tests,
+  persistence, and sync adapters.
 - `Collection.FlushAllPendingMutationsError`,
   `Collection.FlushAllPendingMutationsRequirements`,
   `Collection.BackgroundSyncError`, and
@@ -849,25 +574,23 @@ Release decisions:
 - The Runtime Collection Store Module owns runtime/request-local store creation,
   Resource Store module-registry lookup, initial data materialization,
   diagnostics snapshots, event subscriptions, and synchronous store override
-  locality. It remains internal; public access stays through
-  `Collection.storeEffect()`, `Collection.currentStore()`, and
-  `Collection.subscribeEventsEffect()`.
+  locality. It is reachable only through `@sunfall/arc-db/internal`.
 - Collection Runtime intentionally owns the public Collection facade, direct
   writes, change-feed batch application, row metadata, hydration/persistence
   facades, event publication, and live-query-visible versioning together while
   delegating store lookup/lifecycle to the Runtime Collection Store Module,
-  load/refetch ordering to the Collection Sync Load Policy Module, and queued
+  load/refresh ordering to the Collection Sync Load Policy Module, and queued
   optimistic mutation execution to the Collection Mutation Workflow Module. Sync
   adapters emit batches and loader/mutation Effects; they do not own store
   mutation or in-flight load policy.
-- The internal Collection Sync Load Policy Module owns `preloadEffect(...)` and
-  `refetchEffect(...)` orchestration: in-flight `Deferred` ownership/joining,
-  stale generation checks, restore-before-load, load/refetch selection, retry
+- The internal Collection Sync Load Policy Module owns `preload(...)` and
+  `refresh(...)` orchestration: in-flight `Deferred` ownership/joining,
+  stale generation checks, restore-before-load, load/refresh selection, retry
   scheduling, row replacement, load lifecycle events, and load persistence. It
-  is not exported; public access remains the same Collection load/refetch
+  is not exported; public access remains the same Collection load/refresh
   Effects.
-- The internal Collection Mutation Workflow Module owns `insertEffect(...)`,
-  `updateEffect(...)`, `deleteEffect(...)`, and `flushPendingMutationsEffect()`
+- The internal Collection Mutation Workflow Module owns `insert(...)`,
+  `update(...)`, `delete(...)`, and `flushPendingMutations()`
   orchestration: mutation row ingress, transaction construction, handler DTO
   detachment, active `Deferred` attempt joining, retry scheduling, optimistic
   commit/rollback, mutation lifecycle events, mutation persistence, and restored
@@ -883,7 +606,7 @@ Release decisions:
 - The internal Collection Write Commit Module owns direct-write atomicity:
   snapshot state, apply row changes, persist, restore on persistence failure,
   and publish `CollectionWritten` only after persistence succeeds. The public
-  write APIs and `Collection.applyChangesEffect(...)` keep the same facade.
+  write APIs and `Collection.applyChanges(...)` keep the same facade.
 - The internal Live Query Collection Materialization Module owns per-store
   derived projection state for `Collection.liveQuery(...)`: keyed rows, lookup
   maps, secondary-index buckets, state/version signals, `Ready.updatedAt`, and
@@ -892,17 +615,17 @@ Release decisions:
 - The internal Collection Query Source Adapter owns how Query Builder, Query
   Plan, Live Query State, and Live Query Runtime read from Collection
   Definitions and Live Query Collections: rows, row counts, indexes, version
-  and state signals, and preload/refetch Effects. It is not exported; public
+  and state signals, and preload/refresh Effects. It is not exported; public
   query access remains `Query.*`, `Collection.liveQuery(...)`, and regular
   Collection read interfaces.
 - The internal Query Execution Plan Module owns query validation entrypoints,
   compiled Query Stage Plan consumption, source adapter selection, source
-  preload/refetch, snapshot execution, diagnostics, and projection stages shared
-  by `Query.build(...).execute()`, `Query.onceEffect(...)`,
+  preload/refresh, snapshot execution, diagnostics, and projection stages shared
+  by `Query.build(...).execute()`, `Query.once(...)`,
   `Query.diagnostics(...)`, and live-query state. The internal Query Stage Plan
   compiles source roles, unique source adapters, base-source ordering, identity
   alias ordering, join sources, grouping, filters, ordering, and window facts
-  once so snapshot execution, projection, preload/refetch, Live Query State,
+  once so snapshot execution, projection, preload/refresh, Live Query State,
   and Live Query Runtime share stage policy. The internal Query Stage Plan is
   exported only for sibling DB modules and is not re-exported from
   `@sunfall/arc-db`; public Query APIs stay unchanged.
@@ -939,14 +662,14 @@ Release decisions:
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the
   coordination APIs.
-- `CollectionOptions.refetch` is public as the forced-refresh companion to
-  `load`. The Collection Runtime owns the first preload versus forced refetch
+- `CollectionOptions.refresh` is public as the forced-refresh companion to
+  `load`. The Collection Runtime owns the first preload versus forced refresh
   selection so shared Collection Definitions remain runtime/request-local.
 - Collection and Live Query Collection persistence share the same snapshot
   storage callback policy: synchronous storage throws become
   `EffectInputCallbackError`, while codec failures remain
   `CollectionSnapshotCodecError`.
-- Collection hydration helpers share one validation wall: `dehydrateEffect(...)`
+- Collection hydration helpers share one validation wall: `dehydrate(...)`
   validates the produced payload through the snapshot codec, and
   `validateHydrationPayloadEffect(...)` runs the same definition-owned and
   target-store preflight as `hydratePayloadEffect(...)` without applying rows.
@@ -959,7 +682,7 @@ Release decisions:
   with the same output key follow the public collection last-write semantics,
   and hidden duplicate changes do not bump `version()`/`Ready.updatedAt`.
 - Live Query Collections are read-only at the Collection Contract seam.
-  `Collection.applyChangesEffect(...)` fails with `ReadonlyCollectionMutation`
+  `Collection.applyChanges(...)` fails with `ReadonlyCollectionMutation`
   before mutating rows, writing persistence, or publishing write events. Their
   persistence path still shares the normal snapshot helper and emits
   `CollectionPersisted` for devtools and sync observers. Collection definition
@@ -979,7 +702,7 @@ Release decisions:
   package seam because public access remains through the DB root and
   `Collection.sqlite*` helpers.
 - `Collection.resourceSyncAdapter(...)` returns a sync adapter whose load and
-  refetch errors use `Resource.LoadError<E>`, because Resource callbacks can
+  refresh errors use `Resource.LoadError<E>`, because Resource callbacks can
   fail before the underlying user error channel `E` is reached.
   Its `follow` stream is `Resource.changes(ref)`, so a loaded collection
   reconciles its synced rows on every later success of the Resource.
@@ -995,10 +718,10 @@ Release decisions:
   should only use pure, total projection callbacks.
 - Public `Query.Factory<TResult>` annotations default error and requirement
   channels to `never`, not `any`. Serviceful query factories must spell their
-  `E`/`R` parameters so `Query.onceEffect(...)`, `Query.live(...)`, and live
+  `E`/`R` parameters so `Query.once(...)`, `Query.live(...)`, and live
   query collections cannot hide collection failures or service requirements.
   `Query.build(...).execute()`, `Query.diagnostics(...)`,
-  `Query.onceEffect(...)`, and `Query.live(...)` normalize synchronous factory
+  `Query.once(...)`, and `Query.live(...)` normalize synchronous factory
   failures, Promise-shaped, Effect-shaped, or non-builder factory results, and
   plan-validation throws as `QueryEvaluationError` values. Invalid
   `orderBy(...)` comparables such as `NaN` or invalid Dates fail with operation
@@ -1035,7 +758,7 @@ Release decisions:
   `Collection.ChangeFeedSubscription<E, R>` preserve serviceful cleanup
   Effects for adapter authors. Scoped release publishes unsubscribe failures as
   `CollectionChangeFeedFailure` events and swallows them after publication so
-  awaiting `Collection.subscribeChangesEffect(...)` observes subscription setup
+  awaiting `Collection.subscribeChanges(...)` observes subscription setup
   failures, not cleanup failure rethrows. `CollectionPersistenceConfig.hydrate`
   explicitly accepts `false` for definitions that enable persistence but
   disable config-driven restore hydration before preload.
@@ -1059,34 +782,25 @@ Release decisions:
 
 The root export includes:
 
-- Local source modules: `app-graph-normalizer`, `bridge`,
-  `devtools-contract`, `panel-contract`, `panel-renderer`, `serialization`,
-  and `summary`.
-- `makeDevtoolsStore`, snapshot APIs, summary APIs, causal graph APIs, and
-  panel APIs with Effect wrappers;
-- panel contract ids, severities, guards, and bridge payload normalization:
-  `devtoolsPanelIds`, `devtoolsPanelSeverities`, `isDevtoolsPanelId(...)`,
-  `isDevtoolsPanelSeverity(...)`, `isDevtoolsSerializableValue(...)`,
-  `isDevtoolsPanelMetric(...)`, `isDevtoolsPanelItem(...)`,
-  `isDevtoolsPanelOverflowItem(...)`, `isDevtoolsPanel(...)`,
-  `isDevtoolsPanels(...)`, and `normalizeDevtoolsPanels(...)` plus
-  `normalizeSunfallArcDevtoolsBridgePayload(...)`;
-- panel contract resolvers and typed diagnostics:
-  `resolveDevtoolsPanelContract(...)`, `resolveDevtoolsPanelsInput(...)`,
-  `resolveSunfallArcDevtoolsBridgePayload(...)`,
-  `DevtoolsPanelContractError`, `DevtoolsPanelContractErrorReason`,
-  `DevtoolsPanelContractResolution`, and
-  `DevtoolsBridgePayloadContractResolution`;
-- `renderDevtoolsPanelsHtml`, `renderDevtoolsPanelsHtmlEffect`,
-  `mountDevtoolsPanels`, `mountDevtoolsPanelsEffect`, and
-  `devtoolsPanelStyles` for dependency-light browser panel rendering;
-- `bootDevtoolsPanels(...)`, `interruptDevtoolsPanelBoot(...)`,
-  `DevtoolsPanelBoot`, and `DevtoolsPanelBootOptions` for app and extension
-  shells that want panel mount, bridge polling, and cleanup managed as
-  Effect/Fiber-owned lifecycle work;
-- `sunfallArcDevtoolsBridgeGlobal`, `installDevtoolsBridge`, and
-  `installDevtoolsBridgeEffect` for exposing a scoped inspected-window bridge
-  to browser extension panels;
+- Local source modules: `bridge`, `devtools-contract`, `panel-contract`,
+  `serialization`, and `summary`.
+- `makeDevtoolsStore`, snapshot APIs, `describeDevtoolsSummary`,
+  `describeDevtoolsCausalGraph`, and `describeDevtoolsPanels` (pure
+  projections; there are no trivial `*Effect` wrappers);
+- panel contract vocabulary: `devtoolsPanelIds`, `devtoolsPanelSeverities`,
+  `isDevtoolsSerializableValue(...)`, `DevtoolsPanelContractError`,
+  `DevtoolsPanelContractErrorReason`, and
+  `resolveSunfallArcDevtoolsBridgePayload(...)` with
+  `DevtoolsBridgePayloadContractResolution` for validating untrusted
+  inspected-window payloads;
+- `renderDevtoolsPanelsHtml` for deterministic embeddable HTML;
+- panel mounting has one scoped Effect and one host facade:
+  `mountDevtoolsPanels(...)` mounts inside a Scope and unmounts when it
+  closes; `bootDevtoolsPanels(...)` (with `DevtoolsPanelBoot` /
+  `DevtoolsPanelBootOptions`) runs that Effect in its own fiber for non-Effect
+  shells and is stopped with its host `boot.interrupt()`;
+- `sunfallArcDevtoolsBridgeGlobal` and the scoped `installDevtoolsBridge`
+  for exposing an inspected-window bridge to browser extension panels;
 - JSON-safe serialization helpers, including the public
   `DevtoolsSerializationPolicy` used to bound arbitrary runtime values and
   redact secret-shaped keys;
@@ -1103,8 +817,7 @@ Release decisions:
   that renderers, stores, summaries, bridges, and agents share. The root
   import path re-exports it, while internal Devtools modules import the
   contract directly instead of depending on the root facade. Serialization
-  policy belongs to this contract too; `serialization.ts` re-exports
-  `DevtoolsSerializationPolicy` only as a compatibility alias.
+  policy belongs to this contract too.
 - `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
   emits a compatible `StartActionInvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata
@@ -1114,12 +827,12 @@ Release decisions:
 - `DevtoolsStore` is an explicit public Interface, not an inferred factory
   return. Route-plan and invalidation record methods return retained fact
   indexes for adapters that emit runtime events against duplicate recorded facts.
-- Program timeline observation is a first-class store capability:
-  `recordProgramEvent(...)`, `recordProgramEventEffect(...)`, and
-  `trackProgramEffect(...)` copy public `Program.Event` values into the shared
-  runtime event, summary, panel, and causal graph contracts. Store
-  `serializationPolicy` options apply before those Program events enter
-  snapshots; unnamed tracked Programs receive stable per-store fallback names.
+- Timeline observation is a first-class store capability:
+  `recordTimelineEntry(...)`, `recordTimelineEntry(...)`, and
+  `trackTimeline(recording)` copy Core `TimelineEntry` values into
+  `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
+  Program, Action, Resource, or Collection their cause names. Store
+  `serializationPolicy` options apply before those commits enter snapshots.
 - The browser panel renderer is public as an embedded UI surface, while
   the bridge helpers are public as the supported app-side handshake for checked
   app or extension shells.
@@ -1134,14 +847,10 @@ Release decisions:
   extensions, tests, and agents do not duplicate runtime validation. The
   contract windows oversized item lists with a deterministic overflow row, so
   valid large app graph panels remain bridgeable.
-- `isDevtoolsPanelOverflowItem(...)` is public Panel Contract vocabulary for
-  renderers that need to preserve the deterministic overflow row under their
-  own display limits without depending on the private id prefix.
-- Devtools Panel Contract resolver exports are pinned as public diagnostics
-  APIs: `resolveDevtoolsPanelContract(...)`, `resolveDevtoolsPanelsInput(...)`,
-  and `resolveSunfallArcDevtoolsBridgePayload(...)` return valid DTOs or typed
-  diagnostics backed by `DevtoolsPanelContractError` reason/result types instead
-  of forcing hosts to collapse malformed panel payloads to `undefined`.
+- Panel guards (`isDevtoolsPanel*`), normalizers, panel-input resolvers, the
+  app-graph DTO normalizers, and `devtoolsPanelStyles` are package-internal.
+  `resolveSunfallArcDevtoolsBridgePayload(...)` is the single public validator
+  and returns a valid detached DTO or typed diagnostics.
 - Raw Devtools snapshots may contain detached `unknown` inspection facts owned
   by Core, Start, DB, or app code. Summaries, causal graphs, panels, and bridge
   payloads are the JSON-safe projections.
@@ -1150,21 +859,6 @@ Release decisions:
   optional arrays default to empty arrays, and resource indexes are derived from
   the same summarized invalidation, route, runtime-event, and request facts used
   by panels and causal graphs.
-- App graph normalizer root exports are expert-public compatibility helpers:
-  `normalizeDevtoolsAppGraphDiagnostics(...)`,
-  `normalizeRouteModulePreloadCollections(...)`,
-  `normalizeAppGraphCollectionDefinitions(...)`, and
-  `normalizeAppGraphUnknownRoutePreloadCollections(...)`. Keep them on the
-  root import path so extension bridges, generated diagnostics, and tests can
-  accept older Start app-graph DTOs while receiving detached current-shape
-  copies.
-- `NormalizeDevtoolsAppGraphDiagnosticsOptions` is root-exported with the
-  normalizer so snapshot-copy and summary code can preserve already-derived
-  preload facts without relying on an unimportable options type.
-- `normalizeSunfallArcDevtoolsBridgePayload(...)` returns detached panel DTOs, not
-  inspected-window object references. Hostile getters/proxies can invalidate a
-  payload, but a valid normalized payload is bounded and safe for renderers to
-  inspect later.
 - The checked browser extension example treats inspected-window bridge
   exceptions, invalid bridge payloads, and hung eval callbacks as typed
   transport failures and renders them through the diagnostics panel. Sample
@@ -1195,41 +889,68 @@ Release decisions:
 
 The root export includes:
 
-- Local source modules: `component`, `hooks`, `link`, `router`, and `runtime`.
-- `Component`: typed component definitions (`Component.make`, `resource`,
-  `catchTags`, `loading`, `provide`, `mount`, `launch`, `embed`) whose services
-  and render failures flow through `yield*` in setup instead of JSX; `launch`
-  is the app entry point, `mount` its composable scoped primitive;
-- `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
-  core re-exports used by Solid apps;
-- router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
-  `RouterLink`, `useRouter`, `isPlainLeftClick`, `BrowserRouterState`,
-  `BrowserNavigateOptions`, `RouterContextMissing`,
-  `RouterRouteNotRegistered`, route/path helper types, and typed route failure
-  renderers;
-- hooks for signals, streams, programs, resources, suspense, and actions.
+- Local source modules: `component`, `link`, and `router`.
+- `Component`: the single Solid app model. Typed component definitions whose
+  services and render failures flow through `yield*` in setup instead of JSX:
+  `Component.define` (per-instance setup receiving props, returning the render
+  function), setup-time bindings (`resource`, `action`, `program`, `stream`,
+  `callback`, `router`, and the expert `instance` seam for binding authors),
+  boundaries (`catchTags`, `catchAll`, `loading`), `provide`, and the entry
+  points `launch` (the app entry), `mount` (its composable scoped primitive),
+  and `embed` (the server render path, on an explicit runtime);
+- router APIs: `RouterProvider` (renders a router from `Component.router`),
+  `RouterOutlet`, `RouterLink`, `useRouter`, `isPlainLeftClick`,
+  `RouterContextMissing`, `RouterOptions`, and typed route failure renderers.
 
 Release decisions:
 
-- Keep core re-exports for Solid ergonomics. Documentation should still name
-  `@sunfall/arc-core` as the owner of Resource, Action, Route, Signal, Form,
-  Capability, and runtime semantics so app code can move across adapters.
-- Solid `RuntimeProvider` accepts `onDisposeFailure(...)` only when it owns the
-  runtime through `source` or the default runtime path. The observer is
-  `EffectInput<void, unknown>`: observers may return pure values or Effects,
-  Promise-shaped observers are rejected, observer failures are swallowed after
-  the disposal failure is observed, and the prop is intentionally unavailable
-  for host-owned `runtime` props.
-- `createBrowserRouter(...)` and `RouterProvider` intentionally own browser
-  `location`, `history`, `popstate`, route preload, and route scope lifecycle as
-  one Solid browser Adapter. Core remains responsible for route definitions,
+- No Core re-exports: `Resource`, `Action`, `Route`, `Signal`, `Program`,
+  router state/path types, `RouterRouteNotRegistered`, and `makeRuntime`
+  are imported from `@sunfall/arc-core` only.
+- There is no hook model and no runtime context: every runtime-backed read or
+  write is a setup-time binding whose services join the component's `R`, and
+  `launch`/`mount`/`embed` check `R` against the runtime they are given.
+  `embed(component, runtime)` takes the runtime explicitly; there is no
+  implicit default runtime and no `RuntimeProvider`.
+- Setup runs once per instance under the instance's Solid owner (every
+  generator step, even after an asynchronous one), with an instance Scope that
+  closes when Solid disposes the instance. Per-runtime sharing is by
+  construction: Resources and Collections live in the runtime's stores, and
+  `Component.provide` builds its Layer once per runtime.
+- `Component.resource(family)` returns a `ResourceReader`: `reader(input)` is
+  the only way to render the value (it suspends the nearest `<Loading>` until
+  the first value and keeps the current or stale value across refreshes, so
+  content stays mounted), and `waiting(input)` / `failure(input)` are the
+  value-free status accessors.
+- `Component.action(definition)` returns an `ActionHandle` (`result`, `input`,
+  `submit`, `reset`); `submit(input)` and `reset()` return Effects, which event
+  handlers run through `Component.callback` (handling failures there). A
+  runtime-provided `ActionTransport` (Start's `makeActionTransportLayer`) makes
+  the same handle submit remotely.
+- `Component.program(definition, options?)` returns a `ProgramHandle` whose
+  `model()` is a fine-grained, deeply read-only Solid projection
+  (`Component.ProgramModelView<Model>`) reconciled from the committed model
+  (`committed`); `ProgramOptions.key` (default `"id"`, `null` for positional)
+  sets the array reconcile identity. `dispatch(message)` returns the Effect that
+  completes once the update commits; handlers bridge it with
+  `Component.callback`.
+- Handle vocabulary is uniform: members that run work (`submit`, `dispatch`,
+  `reset`, `preload`, `refresh`) return Effects; `result()` is the
+  `AsyncResult` status accessor (actions, collections, live queries);
+  row-valued accessors are `rows()`; a Resource renders through its reader
+  (`reader(input)`, with `waiting` / `failure`); pure synchronous state writes
+  (`clearFailures()`, `Form.setField`) stay synchronous.
+- `Component.router(routes, options?)` creates the instance's router with the
+  setup's runtime and context. The routes' preload services and route
+  Components' services and failures (`RouterServices`, `RouterError`) join the
+  component's type, so `launch` checks them. Route components may be plain
+  Solid functions or typed `Component`s.
+- `RouterProvider` intentionally owns browser `location`, `history`,
+  `popstate`, route preload, and route scope lifecycle as one Solid browser
+  Adapter (the internal `createBrowserRouter(...)` is not exported). Core remains responsible for route definitions,
   href building, matching, and initial matched-state policy. Solid detects
   existing-DOM hydration by default and also accepts an explicit `hydrating`
   option for tests or custom hosts.
-- `createBrowserRouter(...)` and `RouterProvider` require an explicit
-  preload-capable runtime when the route list contains serviceful preloads.
-  Service-free route arrays may still use the ambient/default runtime path, but
-  the public adapter seam no longer erases route preload requirements.
 - `RouterOutletProps<Routes, ER>` preserves route-specific `match` typing for
   pending and failure renderers. The older `RouterOutletProps<ER>` form remains
   usable for broad route-agnostic renderers.
@@ -1238,97 +959,50 @@ Release decisions:
   behavior, and navigates only plain left clicks. The Solid adapter delegates
   hover/click intent to the Core Browser Router Link Decision policy while
   keeping DOM event wiring local.
-- `BrowserRouter` mirrors generated route path ergonomics with
-  `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
-  `preloadByPathEffect(...)`; route-object helpers remain available for callers
-  already holding concrete route definitions. Solid type tests pin
-  each path helper so adapter LSP coverage does not rely only on route-object
-  examples.
-- `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,
+- `BrowserRouter` addresses routes by definition only: `href(route, ...)`,
+  `navigate(route, ...)`, and `preload(route, ...)` (an Effect), plus
+  `navigateHref(href)` for raw hrefs such as Action redirects. `match()` is the
+  current match; `Route.isMatch(route, match)` narrows it.
+- `RouterOutlet` delegates branch rendering, route-owned UI scope lifetime,
   Solid root cleanup, runtime-bound route finalizers, transition, same-state
   renderer-swap, initial failed-render, and update failed-render disposal
   ordering, stale queued-render suppression, and awaitable internal
-  `disposeEffect()` cleanup to the internal Solid Route Render Scope
+  `dispose()` cleanup to the internal Solid Route Render Scope
   Controller. This keeps the public Solid router surface stable while making
   route render lifetime policy local.
-- `useAction(...)` returns a Solid `ActionHandle`: `result()` (the submission
-  `AsyncResult`), `input()` (`Option` of the latest input), and
-  `invalidationPlan()` are Solid accessors, while `submitEffect(...)` and
-  `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
-  `ActionInstance` remains available at `handle.instance` for advanced
-  integration work. Apps with a fallible Solid Runtime Provider can pass the
-  hook's `ER` generic to expose the runtime error channel on
-  `submitEffect(...)`.
-- `useProgram(...)` starts a Core `Program` under the nearest Solid runtime and
-  owner scope, exposing `model()`, `state()`, `failures()`, `dispatch(...)`, and
-  `dispatchEffect(...)`. `model()` (and its `state()` alias) returns the
-  model as a fine-grained, deeply read-only Solid projection
-  (`ProgramModelView<Model>`) reconciled from `instance.model`, so readers
-  re-run only for the parts they read; `UseProgramOptions.key` (default
-  `"id"`, `null` for positional) sets the array reconcile identity. It also
-  exposes `timeline()` and `clearTimeline()`;
-  `dispatchEffect(...)` uses `Program.DispatchError` so `ProgramDisposed`
-  appears only when disposal drops a queued update. This is the simple
-  model/message/update surface for views that want Elm/Foldkit-style clarity
-  without giving up Effect services, commands, streams, fibers, or scoped
-  cleanup. Both dispatch methods accept only concrete Program messages;
-  Promise-shaped messages, Effect-shaped messages, and `undefined` are
-  rejected.
-- `useResource<..., ER>(...)` exposes one `result()` accessor (the Resource
-  `AsyncResult`) and follows the same runtime-bound pattern for
-  `prefetchEffect(...)` and `refreshEffect(...)`. `useResourceResult(...)` is the
-  single-accessor form; `useResourceValue`/`useResourceError`,
-  `ResourceMatch`, and `ResourceSuccessMeta` were removed in favor of
-  `AsyncResult` accessors and `AsyncResult.builder(...)`. Automatic prefetches are
-  Resource Store-owned; Solid owner cleanup and reactive ref changes detach the
-  UI joiner, while Resource deletion/invalidation/runtime disposal cancel the
-  underlying load. The handle also exposes `preloadFailure()` and accepts
-  `onPreloadFailure(...)`; the observer may return a plain value or an
-  EffectInput, while Promise-shaped observers are rejected. Automatic preload
-  failures and Runtime Spine startup/provision failures are visible without
-  changing the Effect-returning public methods.
-- Solid resource hooks consume Core's Resource UI Binding Controller for shared
-  Resource ref identity, automatic preload, preload failure keying, and
-  Suspense preload-token dedupe. Solid remains responsible for Accessor-shaped
-  reactivity, owner cleanup hooks, and the Solid Suspense thenable throw seam.
+- Resource readers consume Core's Resource UI Binding Controller for shared
+  Resource ref identity, automatic preload, and Suspense preload-token dedupe.
+  Solid remains responsible for Accessor-shaped reactivity, owner cleanup, and
+  the async-memo suspension seam.
 
 ### `@sunfall/arc-solid-db`
 
 The root export includes:
 
-- Local source modules: `collection` and `live-query`.
-- `useCollection`, `useLiveQuery`, collection/live-query handles (each with a
-  single `result()` `AsyncResult` accessor beside rows/data), and preload
-  options;
-- `Collection` and `Query` re-exports for adapter-local ergonomics.
+- Local source modules: `collection` and `live-query`, whose bindings index.ts groups under the SolidDb namespace.
+- `SolidDb.collection(definition, options?)` and
+  `SolidDb.liveQuery(query, options?)`: setup-time Component bindings (built on
+  `Component.instance`) returning `CollectionHandle` / `LiveQueryHandle`, each
+  with a single `result()` `AsyncResult` accessor beside rows/data, plus
+  `CollectionBindingOptions` and `LiveQueryBindingOptions`. The collection's or
+  query's services join the component's `R`. `Collection` and `Query` are
+  imported from `@sunfall/arc-db` only.
+- Collection handles are reactive reads only (`rows`, `result`, `get`,
+  `index`, `pendingMutations`, `preloadFailure`); writes run the definition's
+  Effects through `Component.callback(...)`. A live query's factory runs
+  tracked, so signal/prop reads rebuild the query (no `deps` option).
 
 Release decisions:
 
-- Keep `Collection` and `Query` re-exports because `@sunfall/arc-solid-db` is the
-  Solid DB entrypoint. Docs should present direct `@sunfall/arc-db` imports for
-  adapter-independent domain modules.
-- The focused Solid DB type test and public API manifest pin `Collection`,
-  `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
-  `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
-  direct imports so this Adapter re-export Interface cannot drift silently. The
-  manifest also requires the root Source Surface Modules `collection` and
-  `live-query`.
-- `useCollection(...)` and `useLiveQuery(...)` share one internal Solid DB
-  Reactive Binding Module for runtime capture, source subscriptions, cleanup,
+- The focused Solid DB type test and public API manifest pin `SolidDb`,
+  `CollectionHandle`, `LiveQueryHandle`, `CollectionBindingOptions`, and
+  `LiveQueryBindingOptions` as direct imports so this Adapter Interface cannot
+  drift silently.
+- Both bindings share one internal Solid DB Reactive Binding Module for the
+  instance runtime, source subscriptions, cleanup with the instance owner,
   automatic preload through the DB-owned Collection Reactive Preload
-  Controller, and runtime-bound returned Effects. The public handles remain the
-  supported app surface. Returned `preloadEffect(...)` and
-  `refetchEffect(...)` are already bound to the Solid runtime, so they no longer
-  expose the collection/query service requirement `R`; pass the optional `ER`
-  generic when a fallible Runtime Provider should be reflected in the error
-  channel. `useCollection(...)` also exposes reactive `pendingMutations` and
-  runtime-bound insert, update, delete, write, and flush Effects, so Solid
-  callers do not need to rebind the raw Collection Definition for mutation work.
-- Automatic Solid DB preloads are owner-scoped fibers. Disposing the Solid owner
-  interrupts any in-flight mount preload before it can report a late failure.
-  Automatic preload failure observers may return a plain value or an
-  EffectInput, while Promise-shaped observers are rejected at the EffectInput
-  seam.
+  Controller, and runtime-bound returned Effects (`preload`,
+  `refresh`), which no longer expose the query's service requirement.
 
 ### `@sunfall/arc-tsrx`
 

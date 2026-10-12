@@ -82,7 +82,7 @@ export interface FormDataDecodeOptions {
  * Stateful form controller with schema validation and Effect-first validation hooks.
  *
  * Read `state` in UI code, mutate fields synchronously, and submit through
- * validateEffect when you want typed Effect errors and service requirements.
+ * validate when you want typed Effect errors and service requirements.
  */
 export interface FormInstance<Values extends object, E = never, R = never> {
   readonly [FormTypeId]: typeof FormTypeId;
@@ -93,7 +93,7 @@ export interface FormInstance<Values extends object, E = never, R = never> {
   touchField<K extends FormFieldKey<Values>>(field: K): void;
   reset(values?: Values): void;
   /** Validates current values and updates state before succeeding or failing. */
-  validateEffect(): Effect.Effect<
+  validate(): Effect.Effect<
     Values,
     FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>,
     R
@@ -486,7 +486,7 @@ const formDataEntryValue = (value: FormDataEntryValue, options: FormDataDecodeOp
  * Repeated field names become arrays, matching browser form semantics while
  * staying explicit before decoding.
  */
-export const formDataToObject = (
+const formDataToObject = (
   formData: FormData,
   options: FormDataDecodeOptions = {},
 ): Record<string, unknown> => {
@@ -526,9 +526,6 @@ const decodeFormDataEffectImpl = <
       errors: "all",
     },
   ).pipe(Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError)));
-
-/** Decodes FormData through an Effect Schema and maps failures to form errors. */
-export const decodeFormDataEffect = decodeFormDataEffectImpl;
 
 /** Runtime guard for values created by `Form.make(...)`. */
 export const isForm = (value: unknown): value is FormInstance<object, unknown, unknown> =>
@@ -717,22 +714,22 @@ export namespace Form {
       setField,
       touchField,
       reset,
-      validateEffect,
+      validate: validateEffect,
     };
   };
 
   /** Runs validation for a form as an Effect and leaves state updated with the result. */
-  export const validateEffect = <Values extends object, E, R>(
+  export const validate = <Values extends object, E, R>(
     form: FormInstance<Values, E, R>,
   ): Effect.Effect<
     Values,
     FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>,
     R
-  > => form.validateEffect();
+  > => form.validate();
 
   /** Converts FormData to a schema-friendly object, preserving repeated fields as arrays. */
   export const data = formDataToObject;
 
   /** Decodes FormData through Effect Schema and returns typed values in the Effect channel. */
-  export const decodeFormDataEffect = decodeFormDataEffectImpl;
+  export const decodeFormData = decodeFormDataEffectImpl;
 }

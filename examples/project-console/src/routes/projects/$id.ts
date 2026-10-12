@@ -1,10 +1,10 @@
-import { defineFileRoute } from "@sunfall/arc-start";
+import { FileRoute } from "@sunfall/arc-start";
 import { Effect } from "effect";
 import { ProjectById, ProjectList, preloadProjectRouteEffect } from "../../domain.js";
 import { ProjectNotFound, ProjectRouteParams, ProjectRouteSearch } from "../../domain.contract.js";
 import { ProjectSummaries, ProjectWorkItems } from "../../project-collections.js";
 
-export const Route = defineFileRoute("/projects/:id")({
+export const Route = FileRoute.define("/projects/:id")({
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
   // A missing project is this route's typed preload failure: Start encodes it
@@ -14,11 +14,7 @@ export const Route = defineFileRoute("/projects/:id")({
   preloadCollections: [ProjectSummaries, ProjectWorkItems],
   preload: ({ params }) =>
     Effect.all(
-      [
-        preloadProjectRouteEffect(params),
-        ProjectSummaries.preloadEffect(),
-        ProjectWorkItems.preloadEffect(),
-      ],
+      [preloadProjectRouteEffect(params), ProjectSummaries.preload(), ProjectWorkItems.preload()],
       { discard: true },
     ).pipe(
       Effect.catch((error) =>

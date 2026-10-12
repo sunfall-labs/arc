@@ -26,7 +26,7 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
 Resources publish the tags they provide after a successful load.
 
 ```ts
-export const ProjectById = Resource.family({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,

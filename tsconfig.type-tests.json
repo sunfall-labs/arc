@@ -5,7 +5,9 @@
     "declaration": false,
     "declarationMap": false,
     "noEmit": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
     "types": ["node"]
   },
-  "include": ["type-tests/**/*.ts", "benchmarks/solid-client*.ts"]
+  "include": ["type-tests/**/*.ts", "type-tests/**/*.tsx", "benchmarks/solid-client*.ts"]
 }

@@ -26,8 +26,6 @@ export const workspaceDistPackagePayloadPolicies = new Map([
       ],
     },
   ],
-  ["@sunfall/arc-start-fetch", distPackagePolicy],
-  ["@sunfall/arc-start-node", distPackagePolicy],
   ["@sunfall/arc-tsrx", distPackagePolicy],
 ]);
 

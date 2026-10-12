@@ -1,11 +1,4 @@
-import {
-  Action,
-  ActionResult,
-  makeRuntime,
-  read,
-  Resource,
-  runWithRuntime,
-} from "@sunfall/arc-core";
+import { Action, ActionResult, makeRuntime, Resource, runWithRuntime } from "@sunfall/arc-core";
 import { Query } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
@@ -27,6 +20,7 @@ import {
   ProjectWorkItems,
   projectWorkQueueQuery,
 } from "./project-collections.js";
+import { defaultRuntime } from "@sunfall/arc-core/internal";
 
 const mockProject = (overrides: Partial<Project> = {}): Project => ({
   id: makeProjectId("mocked"),
@@ -79,7 +73,7 @@ describe("project console contract mocks", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const value = yield* Effect.provide(
-          Resource.refreshEffect(ProjectById(makeProjectId("mocked"))),
+          Resource.refresh(ProjectById(makeProjectId("mocked"))),
           ProjectApiTest,
         );
 
@@ -93,7 +87,7 @@ describe("project console contract mocks", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const collected = yield* Effect.provide(
-          Resource.collectEffect(preloadProjectRouteEffect({ id })),
+          Resource.collect(preloadProjectRouteEffect({ id })),
           ProjectApiTest,
         );
 
@@ -101,7 +95,9 @@ describe("project console contract mocks", () => {
           ProjectsRef.key,
           ProjectById(id).key,
         ]);
-        expect(Resource.read(ProjectById(id)).name).toBe("Mocked Resource");
+        expect((yield* Effect.provide(Resource.read(ProjectById(id)), ProjectApiTest)).name).toBe(
+          "Mocked Resource",
+        );
       }),
     );
   });
@@ -139,7 +135,7 @@ describe("project console contract mocks", () => {
     const runtime = makeRuntime(ProjectApiWorkQueue);
 
     return Effect.runPromise(
-      runtime.provide(Query.onceEffect(projectWorkQueueQuery(id))).pipe(
+      runtime.provide(Query.once(projectWorkQueueQuery(id))).pipe(
         Effect.tap((rows) =>
           Effect.sync(() => {
             expect(rows).toEqual([
@@ -152,7 +148,7 @@ describe("project console contract mocks", () => {
             ]);
           }),
         ),
-        Effect.ensuring(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))),
+        Effect.ensuring(runtime.dispose.pipe(Effect.catchCause(() => Effect.void))),
       ),
     );
   });
@@ -174,17 +170,17 @@ describe("project console contract mocks", () => {
       advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
       updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
     });
-    const action = Action.use(SubmitProjectName);
+    const action = Action.use(SubmitProjectName, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.provide(
-          action.submitEffect({ id: makeProjectId("mocked"), name: "At" }),
+          action.submit({ id: makeProjectId("mocked"), name: "At" }),
           ProjectApiValidation,
         );
 
         expect(result._tag).toBe("ValidationFailure");
-        expect(read(action.state).result).toMatchObject({
+        expect(action.state.get().result).toMatchObject({
           _tag: "Success",
           waiting: false,
           value: {
@@ -210,14 +206,14 @@ describe("project console contract mocks", () => {
       updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
     });
     const ref = ProjectById(makeProjectId("mocked"));
-    const action = Action.use(SubmitProjectName);
+    const action = Action.use(SubmitProjectName, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.provide(
           Effect.gen(function* () {
-            yield* Resource.refreshEffect(ref);
-            return yield* action.submitEffect({
+            yield* Resource.refresh(ref);
+            return yield* action.submit({
               id: makeProjectId("mocked"),
               name: "Mocked Progressive",
             });
@@ -226,8 +222,10 @@ describe("project console contract mocks", () => {
         );
 
         expect(result._tag).toBe("Success");
-        expect(Resource.read(ref).name).toBe("Mocked Progressive");
-        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(
+        expect((yield* Effect.provide(Resource.read(ref), ProjectApiStateful)).name).toBe(
+          "Mocked Progressive",
+        );
+        expect(action.invalidationPlan.get()?.entries.map((entry) => entry.ref.key)).toContain(
           ref.key,
         );
       }),
@@ -267,9 +265,9 @@ describe("project console contract mocks", () => {
       Effect.gen(function* () {
         yield* runtime.provide(
           Effect.all([
-            Resource.prefetchEffect(ProjectsRef),
-            Resource.prefetchEffect(ref),
-            ProjectSummaries.preloadEffect(),
+            Resource.preload(ProjectsRef),
+            Resource.preload(ref),
+            ProjectSummaries.preload(),
           ]),
         );
         // The collection loads through the ProjectList Resource: one list fetch.
@@ -277,7 +275,7 @@ describe("project console contract mocks", () => {
         expect(rowName()).toBe("Mocked Resource");
 
         const result = yield* runtime.provide(
-          action.submitEffect({
+          action.submit({
             id,
             name: "Renamed Once",
             redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity"),
@@ -288,13 +286,13 @@ describe("project console contract mocks", () => {
           _tag: "Redirect",
           location: "/projects/mocked?tab=activity",
         });
-        expect(runWithRuntime(runtime, () => Resource.read(ref)).name).toBe("Renamed Once");
+        expect(runtime.runSync(Resource.read(ref)).name).toBe("Renamed Once");
         for (let attempt = 0; attempt < 50 && rowName() !== "Renamed Once"; attempt++) {
           yield* Effect.sleep("1 millis");
         }
         expect(rowName()).toBe("Renamed Once");
         expect(lists).toBe(2);
-      }).pipe(Effect.ensuring(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)))),
+      }).pipe(Effect.ensuring(runtime.dispose.pipe(Effect.catchCause(() => Effect.void)))),
     );
   });
 
@@ -325,12 +323,10 @@ describe("project console contract mocks", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* runtime.provide(
-          Effect.all([ProjectSummaries.preloadEffect(), ProjectWorkItems.preloadEffect()]),
+          Effect.all([ProjectSummaries.preload(), ProjectWorkItems.preload()]),
         );
 
-        const running = runtime.runFork(
-          ProjectWorkItems.updateEffect(workItemId, { status: "running" }),
-        );
+        const running = runtime.runFork(ProjectWorkItems.update(workItemId, { status: "running" }));
         submission = running;
         yield* Effect.sleep("10 millis");
 
@@ -339,9 +335,7 @@ describe("project console contract mocks", () => {
           status: "running",
           $synced: false,
         });
-        expect(
-          runWithRuntime(runtime, () => Query.build(projectWorkQueueQuery(id)).execute()),
-        ).toEqual([
+        expect(yield* runtime.provide(Query.once(projectWorkQueueQuery(id)))).toEqual([
           expect.objectContaining({
             id: workItemId,
             status: "running",
@@ -363,7 +357,7 @@ describe("project console contract mocks", () => {
             if (submission !== undefined) {
               yield* Fiber.await(submission);
             }
-            yield* runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void));
+            yield* runtime.dispose.pipe(Effect.catchCause(() => Effect.void));
           }),
         ),
       ),

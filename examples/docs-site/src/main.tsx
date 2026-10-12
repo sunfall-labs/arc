@@ -1,8 +1,8 @@
-import { createEffectRuntime } from "@sunfall/arc-solid";
+import { makeRuntime } from "@sunfall/arc-core";
+import { Component } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
-import { Data, Layer } from "effect";
-import { hydrate, render } from "@solidjs/web";
-import App from "./App.js";
+import { Data, Effect, Layer } from "effect";
+import DocsSite from "./App.js";
 import { DocsContentApiStaticClient } from "./content.js";
 import { currentDocsSiteHref } from "./site-base.js";
 
@@ -22,21 +22,30 @@ if (!root) {
 
 const runtimeLayer = import.meta.env.DEV
   ? Layer.mergeAll(
-      (await import("@sunfall/arc-start")).BrowserRpcLive,
+      (await import("@sunfall/arc-start")).makeRpcClientLayer(),
       (await import("./content-live.js")).DocsContentApiLive,
     )
   : DocsContentApiStaticClient;
-const runtime = createEffectRuntime(runtimeLayer);
-hydrateFromDocument(document, undefined, {
-  runtime,
-  ...(import.meta.env.DEV ? {} : { timestamp: "now" as const }),
-});
+const runtime = makeRuntime(runtimeLayer);
 
-const hydratedHref = currentDocsSiteHref();
-const Root = () => <App runtime={runtime} hydratedHref={hydratedHref} />;
-
-if (root.hasChildNodes()) {
-  hydrate(Root, root);
-} else {
-  render(Root, root);
-}
+// Restore the server's hydration payload into the runtime, then hydrate the
+// server-rendered markup with the same tree.
+Effect.runFork(
+  runtime
+    .provide(
+      hydrateFromDocument(
+        document,
+        undefined,
+        import.meta.env.DEV ? {} : { timestamp: "now" as const },
+      ),
+    )
+    .pipe(
+      Effect.andThen(
+        Component.launch(DocsSite, root, {
+          runtime,
+          props: { hydratedHref: currentDocsSiteHref() },
+          hydrate: root.hasChildNodes(),
+        }),
+      ),
+    ),
+);

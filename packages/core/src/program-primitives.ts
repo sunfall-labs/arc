@@ -255,18 +255,10 @@ export const programNext = <
   >,
 });
 
-/** Effect command that emits its successful value as the next message. */
-export const programCommand = <Message, E = never, R = never>(
-  effect: Effect.Effect<ProgramMessageValue<Message> | void, E, R>,
-  ..._invalidMessageType: [ProgramMessageValue<Message>] extends [never]
-    ? ["Program message types cannot be undefined or void."]
-    : []
-): ProgramCommand<Message, E, R> => ({
-  [ProgramCommandTypeId]: ProgramCommandTypeId,
-  effect,
-});
-
-/** Command that emits an immediate or Effect-produced follow-up message. */
+/**
+ * Command that emits an immediate message, or the message an Effect produces.
+ * An Effect that completes with `void` emits nothing.
+ */
 export function programEmit<Message>(
   message: ProgramMessageValue<Message>,
   ..._invalidMessageType: [ProgramMessageValue<Message>] extends [never]
@@ -279,30 +271,21 @@ export function programEmit<Message, E = never, R = never>(
     ? ["Program message types cannot be undefined or void."]
     : []
 ): ProgramCommand<Message, E, R>;
+export function programEmit<A extends void, E = never, R = never, Message = never>(
+  effect: Effect.Effect<A, E, R>,
+): ProgramCommand<Message, E, R>;
 export function programEmit<Message, E = never, R = never>(
-  input: ProgramMessageValue<Message> | Effect.Effect<ProgramMessageValue<Message>, E, R>,
-): ProgramCommand<Message, E, R> {
+  effect: Effect.Effect<ProgramMessageValue<Message> | void, E, R>,
+  ..._invalidMessageType: [ProgramMessageValue<Message>] extends [never]
+    ? ["Program message types cannot be undefined or void."]
+    : []
+): ProgramCommand<Message, E, R>;
+export function programEmit(input: unknown): unknown {
   return {
     [ProgramCommandTypeId]: ProgramCommandTypeId,
     effect: Effect.isEffect(input) ? input : Effect.succeed(input),
   };
 }
-
-/** Command that immediately dispatches a message. */
-export const programDispatch = <Message>(
-  message: ProgramMessageValue<Message>,
-): ProgramCommand<Message> => ({
-  [ProgramCommandTypeId]: ProgramCommandTypeId,
-  effect: Effect.succeed(message),
-});
-
-/** Command for background Effects that do not emit follow-up messages. */
-export const programEffect = <Message = never, E = never, R = never>(
-  effect: Effect.Effect<void, E, R>,
-): ProgramCommand<Message, E, R> => ({
-  [ProgramCommandTypeId]: ProgramCommandTypeId,
-  effect,
-});
 
 /** Groups commands for use with `Program.next(model, Program.commands(...))`. */
 export const programCommands = <Message, E = never, R = never>(

@@ -1,13 +1,11 @@
-import {
-  currentOrDefaultRuntime,
-  ResourceStore,
-  type ResourceStore as ResourceStoreState,
-} from "@sunfall/arc-core";
+import { ResourceStore, type ResourceStore as ResourceStoreState } from "@sunfall/arc-core";
+import { currentOrDefaultRuntime } from "@sunfall/arc-core/internal";
 import { Effect, Exit, Option, PubSub, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId } from "./collection-ids.js";
 import {
   bumpCollectionState,
+  commitCollectionLoadState,
   makeCollectionState,
   type CollectionState,
 } from "./collection-state.js";
@@ -57,12 +55,12 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
     }
     state.initialDataError = undefined;
     // Initial data materializes synchronously outside any Effect, so there is no Clock here.
-    state.loadState.set(AsyncResult.success(undefined, { timestamp: Date.now() }));
+    commitCollectionLoadState(state, AsyncResult.success(undefined, { timestamp: Date.now() }));
     bumpCollectionState(state);
   } catch (error) {
     state.rows.clear();
     state.initialDataError = error as CollectionRuntimeError<E>;
-    state.loadState.set(AsyncResult.fail(state.initialDataError));
+    commitCollectionLoadState(state, AsyncResult.fail(state.initialDataError));
   }
 };
 
@@ -81,12 +79,11 @@ export class RuntimeCollectionStore implements CollectionStore {
   readonly #events = Effect.runSync(PubSub.sliding<CollectionStoreEvent>(1024));
   /** Lifetime of store-owned background work such as `follow` streams. */
   readonly scope: Scope.Closeable = Effect.runSync(Scope.make());
-  readonly disposeEffect = Scope.close(this.scope, Exit.void).pipe(
+  readonly dispose = Scope.close(this.scope, Exit.void).pipe(
     Effect.ensuring(PubSub.shutdown(this.#events)),
   );
   readonly diagnostics = {
-    snapshot: (): CollectionStoreDiagnosticsSnapshot => this.diagnosticsSnapshot(),
-    snapshotEffect: Effect.sync(() => this.diagnosticsSnapshot()),
+    snapshot: Effect.sync(() => this.diagnosticsSnapshot()),
   };
 
   state(definition: AnyCollection): CollectionState<any, any, any>;
@@ -101,7 +98,7 @@ export class RuntimeCollectionStore implements CollectionStore {
       return stateForDefinition<A, K, E>(existing);
     }
 
-    const state = makeCollectionState<A, K, E>();
+    const state = makeCollectionState<A, K, E>(definition.name);
     this.#definitions.add(definition);
     this.#states.set(definition, state);
     initializeCollectionState(definition, state);
@@ -153,11 +150,7 @@ export class RuntimeCollectionStore implements CollectionStore {
     return PubSub.publish(this.#events, event).pipe(Effect.asVoid);
   }
 
-  subscribeEventsEffect(): Effect.Effect<
-    PubSub.Subscription<CollectionStoreEvent>,
-    never,
-    Scope.Scope
-  > {
+  subscribeEvents(): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope> {
     return PubSub.subscribe(this.#events);
   }
 }
@@ -214,4 +207,4 @@ export const subscribeCollectionEventsEffect = (): Effect.Effect<
   PubSub.Subscription<CollectionStoreEvent>,
   never,
   Scope.Scope
-> => Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEventsEffect());
+> => Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEvents());

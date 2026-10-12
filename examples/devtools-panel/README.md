@@ -16,6 +16,6 @@ pnpm --filter @sunfall/arc-example-devtools-panel verify
 ```
 
 The example mounts `DevtoolsPanels` into the DOM through
-`mountDevtoolsPanelsEffect(...)` inside an Effect scope. Use
+`mountDevtoolsPanels(...)` inside an Effect scope. Use
 [`../devtools-extension`](../devtools-extension) for the checked browser
 extension shell.

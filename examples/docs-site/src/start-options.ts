@@ -3,7 +3,7 @@ import type { ServerFunctionManifestSource } from "@sunfall/arc-start";
 import { normalizeDocsSiteBasePath } from "./base-path.js";
 import { getRecipe, listRecipeSummaries } from "./content.contract.js";
 import { getRecipeServer, listRecipeSummariesServer } from "./content.server.js";
-import { docsPages } from "./docs-content.js";
+import { DocsPageSlug } from "./docs-slugs.js";
 
 const docsSiteBasePath = normalizeDocsSiteBasePath(
   process.env.DOCS_SITE_BASE_PATH ?? process.env.VITE_DOCS_SITE_BASE_PATH ?? "/",
@@ -15,7 +15,7 @@ const docsSiteRecipePrerenderPages = readdirSync(recipeContentDirectory)
   .map((fileName) => `/cookbook/${fileName.replace(/\.md$/u, "")}`);
 
 export const docsSitePrerenderPages = [
-  ...docsPages.map((page) => `/docs/${page.slug}`),
+  ...DocsPageSlug.literals.map((slug) => `/docs/${slug}`),
   ...docsSiteRecipePrerenderPages,
 ];
 

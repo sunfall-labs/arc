@@ -2,6 +2,7 @@ import {
   type EffectInputCallbackError,
   type EffectInput,
   type ReadableSignal,
+  type ResourceRef,
   type RetrySchedule,
 } from "@sunfall/arc-core";
 import { Effect, type PubSub, type Scope, type Stream } from "effect";
@@ -120,14 +121,85 @@ export type CollectionIndexInput<A extends object> =
 /** Named secondary index map attached to a Collection definition. */
 export type CollectionIndexRecord<A extends object> = Record<string, CollectionIndexInput<A>>;
 
+/** Insert payload delivered to a collection sync adapter. */
+export interface CollectionSyncInsertPayload<A extends object, K extends CollectionKey> {
+  readonly values: ReadonlyArray<A>;
+  readonly transaction: CollectionTransaction<A, K>;
+}
+
+/** Update payload delivered to a collection sync adapter. */
+export interface CollectionSyncUpdatePayload<A extends object, K extends CollectionKey> {
+  readonly updates: ReadonlyArray<{
+    readonly key: K;
+    readonly value: A;
+    readonly previous: A;
+    readonly changes: Partial<A>;
+  }>;
+  readonly transaction: CollectionTransaction<A, K>;
+}
+
+/** Delete payload delivered to a collection sync adapter. */
+export interface CollectionSyncDeletePayload<A extends object, K extends CollectionKey> {
+  readonly deletes: ReadonlyArray<{
+    readonly key: K;
+    readonly previous: A;
+  }>;
+  readonly transaction: CollectionTransaction<A, K>;
+}
+
+/**
+ * Transport adapter that backs a collection.
+ *
+ * Every operation may return a plain value or an Effect, and may be a Server
+ * function directly (`load: listTodos`, `update: updateTodos`). Failures become
+ * the collection error channel `E`; required services become `R`.
+ *
+ * - `load` fills rows on the first preload; `refresh` forces a fresh read and
+ *   falls back to `load` (and `load` falls back to `refresh`).
+ * - `follow` streams later authoritative row snapshots. The first successful
+ *   preload/refresh in a Collection Store starts it on that store's lifetime;
+ *   each emission reconciles synced rows like a refresh (pending optimistic
+ *   mutations stay applied on top), and store disposal interrupts it.
+ * - `changes` streams incremental remote changes (`Upsert`/`Update`/`Delete`).
+ *   It starts and stops exactly like `follow`; each batch is applied like
+ *   `applyChanges` without queuing mutation handlers.
+ * - `insert`, `update`, and `delete` commit optimistic local writes. A failure
+ *   rolls back the affected rows.
+ */
+export interface CollectionSyncAdapter<
+  A extends object,
+  K extends CollectionKey = string,
+  E = never,
+  R = never,
+> {
+  /** Diagnostic label reported as `sync.adapter` by collection diagnostics. */
+  readonly name?: string;
+  readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
+  readonly refresh?: () => EffectInput<ReadonlyArray<A>, E, R>;
+  readonly follow?: () => Stream.Stream<ReadonlyArray<A>, E, R>;
+  readonly changes?: () => Stream.Stream<ReadonlyArray<CollectionChange<A, K>>, E, R>;
+  readonly insert?: (payload: CollectionSyncInsertPayload<A, K>) => EffectInput<void, E, R>;
+  readonly update?: (payload: CollectionSyncUpdatePayload<A, K>) => EffectInput<void, E, R>;
+  readonly delete?: (payload: CollectionSyncDeletePayload<A, K>) => EffectInput<void, E, R>;
+}
+
+/**
+ * Backing source for a collection: an inline sync adapter, or a Core
+ * `Resource.Ref` whose rows the collection loads, refreshes, and follows
+ * through `Resource.changes`.
+ */
+export type CollectionSync<
+  A extends object,
+  K extends CollectionKey = string,
+  E = never,
+  R = never,
+> = CollectionSyncAdapter<A, K, E, R> | ResourceRef<any, ReadonlyArray<A>, any, any>;
+
 /**
  * Defines a local-first collection.
  *
- * `load` fills rows on first preload. `refetch` forces a fresh remote read
- * when available; otherwise refetch falls back to `load`. `follow` streams
- * later authoritative snapshots that the collection reconciles while it is
- * loaded. `onInsert`,
- * `onUpdate`, and `onDelete` run after optimistic local changes. Handler
+ * `sync` backs the collection: an inline `CollectionSyncAdapter` or a
+ * `Resource.Ref`. Without `sync` the collection is local-only. Adapter
  * failures use the Effect error channel `E` and roll back affected rows;
  * required services are carried in `R`.
  *
@@ -135,9 +207,12 @@ export type CollectionIndexRecord<A extends object> = Record<string, CollectionI
  * ```ts
  * const todos = Collection.define({
  *   name: "todos",
+ *   output: Todo,
  *   getKey: (todo) => todo.id,
- *   load: () => Effect.tryPromise(() => TodoApi.list()),
- *   onUpdate: (updates) => Effect.tryPromise(() => TodoApi.patchMany(updates))
+ *   sync: {
+ *     load: listTodos,
+ *     update: updateTodos,
+ *   },
  * });
  * ```
  */
@@ -157,48 +232,14 @@ export interface CollectionOptions<
   readonly policy?: CollectionPolicy<E>;
   /** Persistence storage and restore settings for this collection. */
   readonly persistence?: CollectionPersistenceConfig<E, R>;
-  /** Background sync diagnostics metadata exposed to tooling. */
-  readonly sync?: CollectionSyncDiagnostics;
+  /** Backing source: an inline sync adapter or a `Resource.Ref`. */
+  readonly sync?: CollectionSync<A, K, E, R>;
   /** Secondary index definitions used by `index`, `firstByIndex`, and indexed joins. */
   readonly indexes?: CollectionIndexRecord<A>;
   /** Stable key extractor for one row. Keys must be deterministic across loads and snapshots. */
   readonly getKey: (value: A) => K;
   /** Rows available before the first load runs. */
   readonly initialData?: ReadonlyArray<A>;
-  /** Initial loader. Runs once for `preloadEffect` unless a refetch is forced. */
-  readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
-  /** Fresh loader used by `refetchEffect`; falls back to `load` when omitted. */
-  readonly refetch?: () => EffectInput<ReadonlyArray<A>, E, R>;
-  /**
-   * Authoritative row snapshots to follow after the collection loads.
-   *
-   * The first successful `preloadEffect`/`refetchEffect` in a Collection Store
-   * starts the stream on that store's lifetime. Each emission reconciles synced
-   * rows exactly like a refetch (pending optimistic mutations stay applied on
-   * top), and the store's disposal interrupts it. A failed stream records a
-   * load failure and restarts on the next successful preload or refetch.
-   */
-  readonly follow?: () => Stream.Stream<ReadonlyArray<A>, E, R>;
-  /** Commits optimistic inserts to the backing service. */
-  readonly onInsert?: (
-    input: ReadonlyArray<A>,
-    context: CollectionMutationContext<A, K>,
-  ) => EffectInput<void, E, R>;
-  /** Commits optimistic updates to the backing service. */
-  readonly onUpdate?: (
-    input: ReadonlyArray<{
-      readonly key: K;
-      readonly value: A;
-      readonly previous: A;
-      readonly changes: Partial<A>;
-    }>,
-    context: CollectionMutationContext<A, K>,
-  ) => EffectInput<void, E, R>;
-  /** Commits optimistic deletes to the backing service. */
-  readonly onDelete?: (
-    input: ReadonlyArray<{ readonly key: K; readonly previous: A }>,
-    context: CollectionMutationContext<A, K>,
-  ) => EffectInput<void, E, R>;
 }
 
 /**
@@ -206,8 +247,7 @@ export interface CollectionOptions<
  *
  * Read methods are synchronous and reactive through `state`/`version` signals.
  * Load and mutation Effects expose the collection error channel `E` and
- * requirements `R`; fire-and-forget write helpers fork the corresponding Effect
- * on the current runtime.
+ * requirements `R`; run them through the runtime at UI boundaries.
  */
 export interface CollectionDefinition<
   A extends object,
@@ -218,18 +258,18 @@ export interface CollectionDefinition<
   readonly [CollectionTypeId]: typeof CollectionTypeId;
   readonly options: CollectionOptions<A, K, E, R>;
   readonly name: string;
-  /** True for derived definitions that must reject direct writes and change-feed application. */
+  /** True for derived definitions that must reject direct writes and remote change application. */
   readonly readOnly?: boolean;
   getKey(value: A): K;
   /**
-   * Reactive load `AsyncResult` for the collection's preload/refetch.
+   * Reactive load `AsyncResult` for the collection's preload/refresh.
    *
    * `Success` (timestamped by the load) means rows are loaded; loads mark the
    * current result `waiting`; `Failure` carries the load `Cause`. Rows stay
    * their own signal, so local writes keep rows available while a later load
    * is waiting or failed.
    */
-  state(): ReadableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
+  result(): ReadableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
   /** Reactive version signal that changes when rows or pending mutations change. */
   version(): ReadableSignal<number>;
   /** Read one row by key from the current in-memory state. */
@@ -241,49 +281,43 @@ export interface CollectionDefinition<
   /** Read the first row from a named secondary index bucket. */
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
   /** Ensure the collection has loaded once. */
-  preloadEffect(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
+  preload(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Force a fresh load even when the collection is already ready. */
-  refetchEffect(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
-  /** Return queued optimistic mutations waiting for their handlers to commit. */
-  pendingMutationsEffect(): Effect.Effect<ReadonlyArray<CollectionPendingMutation<A, K>>>;
+  refresh(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Synchronously read queued optimistic mutations from the current runtime store. */
   pendingMutations(): ReadonlyArray<CollectionPendingMutation<A, K>>;
   /** Retry all queued mutation handlers for this collection. */
-  flushPendingMutationsEffect(): Effect.Effect<
+  flushPendingMutations(): Effect.Effect<
     ReadonlyArray<CollectionTransaction<A, K>>,
     CollectionRuntimeError<E>,
     R
   >;
   /** Capture a durable serializable snapshot with an Effect-provided timestamp. */
-  snapshotEffect(): Effect.Effect<
+  snapshot(): Effect.Effect<
     CollectionSnapshot<A, K>,
     CollectionSnapshotCodecError | EffectInputCallbackError
   >;
-  /** Synchronous inspection snapshot; durable workflows should use `snapshotEffect`. */
-  snapshot(): CollectionSnapshot<A, K>;
   /** Restore rows and pending mutations from a snapshot. */
-  hydrateEffect(
+  hydrate(
     snapshot: CollectionSnapshot<A, K>,
     options?: CollectionHydrateOptions,
   ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
-  /** Fork `hydrateEffect` on the current runtime. */
-  hydrate(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): void;
   /** Persist the current snapshot to an Effect-aware string storage backend. */
-  persistEffect<PE = never, PR = never>(
+  persist<PE = never, PR = never>(
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions,
   ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR>;
   /** Load a persisted snapshot from storage and hydrate it if present. */
-  restoreEffect<PE = never, PR = never>(
+  restore<PE = never, PR = never>(
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions,
   ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR>;
   /** Optimistically insert rows and run the insert handler. */
-  insertEffect(
+  insert(
     input: A | ReadonlyArray<A>,
   ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R>;
   /** Optimistically update one row and run the update handler. */
-  updateEffect(
+  update(
     key: K,
     update: CollectionUpdate<A>,
   ): Effect.Effect<
@@ -292,36 +326,29 @@ export interface CollectionDefinition<
     R
   >;
   /** Optimistically delete one row and run the delete handler. */
-  deleteEffect(
+  delete(
     key: K,
   ): Effect.Effect<
     CollectionTransaction<A, K>,
     CollectionRuntimeError<E> | CollectionRowNotFound,
     R
   >;
-  /** Write rows directly without queuing mutation handlers. */
-  writeInsertEffect(
-    input: A | ReadonlyArray<A>,
-    options?: CollectionWriteOptions,
-  ): Effect.Effect<void, CollectionRuntimeError<E>, R>;
-  /** Fork `writeInsertEffect` on the current runtime. */
-  writeInsert(input: A | ReadonlyArray<A>, options?: CollectionWriteOptions): void;
-  /** Write a partial patch directly without queuing mutation handlers. */
-  writeUpdateEffect(
-    key: K,
-    changes: Partial<A>,
+  /**
+   * Apply remote changes directly, without queuing mutation handlers.
+   *
+   * Changes apply in order as one write: `Upsert` stores a full row, `Update`
+   * patches an existing row (failing with `CollectionRowNotFound` or
+   * `CollectionRowKeyChanged`), and `Delete` removes a row if present.
+   * Rows default to `origin: "remote"` and `synced: true`.
+   */
+  applyChanges(
+    changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions,
   ): Effect.Effect<
     void,
     CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged,
     R
   >;
-  /** Fork `writeUpdateEffect` on the current runtime. */
-  writeUpdate(key: K, changes: Partial<A>, options?: CollectionWriteOptions): void;
-  /** Delete a row directly without queuing mutation handlers. */
-  writeDeleteEffect(key: K): Effect.Effect<void, CollectionRuntimeError<E>, R>;
-  /** Fork `writeDeleteEffect` on the current runtime. */
-  writeDelete(key: K): void;
 }
 
 /**
@@ -361,7 +388,7 @@ export type CollectionRequirements<C> =
       : never;
 
 /**
- * Update input for `updateEffect`.
+ * Update input for `update`.
  *
  * Pass a partial patch or mutate/return a shallow draft copy of the previous
  * value.
@@ -374,9 +401,10 @@ export interface CollectionWriteOptions {
   readonly synced?: boolean;
 }
 
-/** Remote change-feed event applied through `Collection.applyChangesEffect`. */
-export type CollectionChange<A extends object, K extends CollectionKey> =
+/** Remote change applied through `applyChanges` or streamed by `sync.changes`. */
+export type CollectionChange<A extends object, K extends CollectionKey = CollectionKey> =
   | { readonly _tag: "Upsert"; readonly value: A }
+  | { readonly _tag: "Update"; readonly key: K; readonly changes: Partial<A> }
   | { readonly _tag: "Delete"; readonly key: K };
 
 /** Serializable row record used by Collection snapshots and hydration payloads. */
@@ -449,24 +477,6 @@ export interface CollectionPersistenceConfig<
   readonly persistOnWrite?: boolean;
 }
 
-/**
- * `Collection.define` options with an attached persistence backend.
- *
- * `persistedCollectionOptions(...)` converts this shape into normal
- * `CollectionOptions` while unioning collection handler `E`/`R` with
- * persistence storage `PE`/`PR`.
- */
-export type CollectionPersistedOptions<
-  A extends object,
-  K extends CollectionKey = string,
-  E = never,
-  R = never,
-  PE = never,
-  PR = never,
-> = Omit<CollectionOptions<A, K, E, R>, "persistence"> & {
-  readonly persistence: CollectionPersistenceConfig<PE, PR>;
-};
-
 /** Synchronous storage shape adapted by `Collection.storage`. */
 export interface CollectionStorageLike {
   readonly getItem: (key: string) => string | null;
@@ -491,7 +501,7 @@ export interface CollectionDefinitionDiagnostics {
   readonly name: string;
   /**
    * True for derived/live-query collections that reject direct writes and
-   * change-feed application. Concrete writable definitions report `false`.
+   * remote change application. Concrete writable definitions report `false`.
    */
   readonly readOnly: boolean;
   readonly inputSchema: boolean;
@@ -530,14 +540,14 @@ export interface CollectionDiagnostics {
 
 /** Store-level collection lifecycle and mutation events used by devtools and tests. */
 export type CollectionStoreEvent =
-  /** A load/refetch completed and replaced rows; `count` is the stored row count. */
+  /** A load/refresh completed and replaced rows; `count` is the stored row count. */
   | {
       readonly _tag: "CollectionLoaded";
       readonly collection: string;
       readonly count: number;
       readonly updatedAt: number;
     }
-  /** A load/refetch failed; `error` is the normalized collection runtime error payload. */
+  /** A load/refresh failed; `error` is the normalized collection runtime error payload. */
   | { readonly _tag: "CollectionLoadFailure"; readonly collection: string; readonly error: unknown }
   /** A snapshot was applied; `count` is the hydrated row count. */
   | {
@@ -596,7 +606,7 @@ export type CollectionStoreEvent =
       readonly transaction: string;
       readonly error: unknown;
     }
-  /** An async change-feed emission failed after subscription setup. */
+  /** A `sync.changes` stream or one of its batches failed. */
   | {
       readonly _tag: "CollectionChangeFeedFailure";
       readonly collection: string;
@@ -618,24 +628,18 @@ export interface CollectionStoreDiagnosticsSnapshot {
 
 /** Effect-first diagnostics seam for runtime-local collection store facts. */
 export interface CollectionStoreDiagnostics {
-  snapshot(): CollectionStoreDiagnosticsSnapshot;
-  readonly snapshotEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot>;
+  readonly snapshot: Effect.Effect<CollectionStoreDiagnosticsSnapshot>;
 }
 
 /**
  * Runtime-local Collection Store contract.
  *
  * Stores own collection rows, pending mutation queues, lifecycle events, and
- * diagnostics for one Sunfall Arc Runtime Spine or request scope. External code
- * should read this through `Collection.storeEffect()` or
- * `Collection.currentStore()` instead of constructing stores directly.
+ * diagnostics for one Sunfall Arc Runtime Spine or request scope. Framework
+ * adapters read it through `@sunfall/arc-db/internal`.
  */
 export interface CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId;
   readonly diagnostics: CollectionStoreDiagnostics;
-  subscribeEventsEffect(): Effect.Effect<
-    PubSub.Subscription<CollectionStoreEvent>,
-    never,
-    Scope.Scope
-  >;
+  subscribeEvents(): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope>;
 }

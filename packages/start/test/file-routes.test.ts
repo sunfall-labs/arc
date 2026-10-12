@@ -12,8 +12,8 @@ import {
   generateFileRouteManifestArtifact,
   generateValidatedFileRouteManifestArtifactEffect,
   serializeFileRouteManifest,
-} from "../src/index.js";
-import { FileRouteManifestDuplicateRouteId } from "../src/file-routes.js";
+  FileRouteManifestDuplicateRouteId,
+} from "../src/file-routes.js";
 
 describe("file route manifest generation", () => {
   const options = { routeDirectory: "src/routes" };

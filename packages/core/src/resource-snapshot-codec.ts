@@ -247,13 +247,6 @@ export const validateResourceHydrationPayload = (
   };
 };
 
-/** Validates a Resource hydration payload and returns normalized snapshots. */
-export const validateResourceHydrationInput = (
-  value: unknown,
-  operation: ResourceSnapshotCodecOperation = "hydrate",
-): ReadonlyArray<ResourceHydrationSnapshot> =>
-  validateResourceHydrationPayload(value, operation).resources;
-
 const catchSnapshotCodecError =
   (operation: ResourceSnapshotCodecOperation, path: string) =>
   (error: unknown): ResourceSnapshotCodecError => {
@@ -267,22 +260,6 @@ const catchSnapshotCodecError =
       reason: error instanceof Error ? error.message : String(error),
     });
   };
-
-const encodeResourceHydrationValueSync = (
-  schema: unknown,
-  value: unknown,
-  operation: ResourceSnapshotCodecOperation,
-  path: string,
-): unknown => {
-  try {
-    const encoded = Schema.isSchema(schema)
-      ? Schema.encodeUnknownSync(schema as Schema.Encoder<unknown>)(value)
-      : value;
-    return cloneResourceSnapshotValue(encoded);
-  } catch (error) {
-    throw catchSnapshotCodecError(operation, path)(error);
-  }
-};
 
 const encodeResourceHydrationValueEffect = (
   schema: unknown,
@@ -304,16 +281,6 @@ const encodeResourceHydrationValueEffect = (
   );
 };
 
-/** Effect wrapper for validating Resource hydration payload input. */
-export const validateResourceHydrationInputEffect = (
-  value: ResourceHydrationPayload,
-  operation: ResourceSnapshotCodecOperation = "hydrate",
-): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
-  Effect.try({
-    try: () => validateResourceHydrationInput(value, operation),
-    catch: catchSnapshotCodecError(operation, "$"),
-  });
-
 /** Effect wrapper for validating a Resource hydration payload object. */
 export const validateResourceHydrationPayloadEffect = (
   value: unknown,
@@ -332,44 +299,6 @@ const successStateJson = (value: unknown, timestamp: number): ResourceHydrationS
 });
 
 /** Creates and validates a hydration snapshot from a resource ref success state. */
-export const resourceHydrationSnapshotFromRef = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-  state: AsyncResult.Success<A, unknown>,
-  path = "$",
-): ResourceHydrationSnapshot => {
-  try {
-    const input = encodeResourceHydrationValueSync(
-      ref.family.options.input,
-      ref.input,
-      "snapshot",
-      `${path}.input`,
-    );
-    const value = encodeResourceHydrationValueSync(
-      ref.family.options.output,
-      state.value,
-      "snapshot",
-      `${path}.state.value`,
-    );
-
-    return validateResourceHydrationSnapshot(
-      {
-        name: ref.family.options.name,
-        key: ref.key,
-        input,
-        state: successStateJson(value, state.timestamp),
-      },
-      "snapshot",
-      path,
-    );
-  } catch (error) {
-    if (error instanceof ResourceSnapshotCodecError) {
-      throw error;
-    }
-    throw catchSnapshotCodecError("snapshot", path)(error);
-  }
-};
-
-/** Effect wrapper for creating a Resource hydration snapshot from a success state. */
 export const resourceHydrationSnapshotFromRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: AsyncResult.Success<A, unknown>,
@@ -441,17 +370,6 @@ export const decodeResourceHydrationStateEffect = <A, E>(
       path,
     ),
     (value) => AsyncResult.success<A, E>(value, { timestamp: snapshot.state.timestamp }),
-  );
-
-/** Builds and validates a payload object from Resource hydration snapshots. */
-export const resourceHydrationPayloadFromSnapshots = (
-  snapshots: Iterable<ResourceHydrationSnapshot>,
-): ResourceHydrationPayload =>
-  validateResourceHydrationPayload(
-    {
-      resources: Array.from(snapshots),
-    },
-    "snapshot",
   );
 
 /** Encodes a validated Resource hydration payload to JSON. */

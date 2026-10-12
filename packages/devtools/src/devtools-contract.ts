@@ -1,12 +1,11 @@
 import {
   type ActionInstance,
-  type ActionState,
-  type ProgramEvent,
-  type ProgramInstance,
-  type ReadableSignal,
   type ResourceInvalidationPlan,
   type ResourceStoreEvent,
   type Route,
+  type TimelineCause,
+  type TimelineEntry,
+  type TimelineRecording,
 } from "@sunfall/arc-core";
 import { Data, type Effect, type Fiber, type Scope } from "effect";
 
@@ -136,15 +135,6 @@ export type DevtoolsRecordActionStateOptions = {
     }
 );
 
-/** Minimal Start action instance shape that Devtools can track. */
-export interface DevtoolsStartActionInstance<I = unknown, A = unknown, E = unknown> {
-  readonly definition: {
-    readonly name: string;
-  };
-  readonly state: ReadableSignal<ActionState<I, A, E>>;
-  readonly invalidation: ReadableSignal<DevtoolsInvalidationPlan | undefined>;
-}
-
 /** Collection event DTO mirrored from the DB Collection Store for Devtools panels. */
 export type DevtoolsCollectionStoreEvent =
   | {
@@ -210,8 +200,23 @@ export type DevtoolsCollectionStoreEvent =
     }
   | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
 
-/** Typed Program timeline event detached into Devtools runtime history. */
-export type DevtoolsProgramEvent = ProgramEvent<unknown, unknown, unknown>;
+/** One signal change inside a detached Timeline commit. */
+export interface DevtoolsTimelineChange {
+  /** The signal's `Signal.make` name or stable `signal#N` id. */
+  readonly signal: string;
+  readonly previous: unknown;
+  readonly next: unknown;
+}
+
+/** A Core `Timeline` entry detached into Devtools runtime history. */
+export interface DevtoolsTimelineCommit {
+  /** Sequence within the Timeline recording. */
+  readonly sequence: number;
+  /** `Timeline.describe(cause)`. */
+  readonly label: string;
+  readonly cause?: TimelineCause;
+  readonly changes: ReadonlyArray<DevtoolsTimelineChange>;
+}
 
 /** Transport family that produced a request trace. */
 export type DevtoolsRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
@@ -390,10 +395,10 @@ export type DevtoolsRuntimeEvent =
       readonly event: DevtoolsCollectionStoreEvent;
     }
   | {
-      readonly _tag: "ProgramEvent";
+      readonly _tag: "TimelineCommit";
       readonly sequence?: number;
       readonly at?: number;
-      readonly event: DevtoolsProgramEvent;
+      readonly commit: DevtoolsTimelineCommit;
     }
   | {
       readonly _tag: "ActionState";
@@ -482,9 +487,9 @@ export interface DevtoolsStoreOptions {
 /**
  * Store returned by `makeDevtoolsStore`.
  *
- * Provides synchronous and Effect variants for snapshot reads/writes, app graph
+ * Every method returns an Effect: snapshot reads/writes, app graph
  * diagnostics, invalidation plans, action state, route plans, resource and
- * collection events, Program timeline events, request traces, summaries,
+ * collection events, Timeline commits, request traces, summaries,
  * panels, and causal graphs.
  * Values are copied or projected before storage so panel consumers do not
  * mutate live framework state. Fact-recording methods return the retained
@@ -492,104 +497,54 @@ export interface DevtoolsStoreOptions {
  * point at the exact retained fact they observed.
  */
 export interface DevtoolsStore {
-  /** Read the current detached fact snapshot synchronously at host/UI boundaries. */
-  readonly getSnapshot: () => DevtoolsSnapshot;
-  /** Read the current detached fact snapshot inside Effect workflows. */
-  readonly getSnapshotEffect: () => Effect.Effect<DevtoolsSnapshot>;
+  /** Read the current detached fact snapshot. */
+  readonly getSnapshot: () => Effect.Effect<DevtoolsSnapshot>;
   /** Replace all retained facts; inputs are copied and bounded before storage. */
-  readonly setSnapshot: (next: DevtoolsSnapshot) => void;
-  /** Effect variant of `setSnapshot(...)`. */
-  readonly setSnapshotEffect: (next: DevtoolsSnapshot) => Effect.Effect<void>;
+  readonly setSnapshot: (next: DevtoolsSnapshot) => Effect.Effect<void>;
   /** Store the latest static Start app-graph diagnostics used by summaries and panels. */
-  readonly setAppGraphDiagnostics: (appGraph: DevtoolsStartAppGraphDiagnostics) => void;
-  /** Effect variant of `setAppGraphDiagnostics(...)`. */
-  readonly setAppGraphDiagnosticsEffect: (
+  readonly setAppGraphDiagnostics: (
     appGraph: DevtoolsStartAppGraphDiagnostics,
   ) => Effect.Effect<void>;
   /** Remove stored app-graph diagnostics without clearing runtime facts. */
-  readonly clearAppGraphDiagnostics: () => void;
-  /** Effect variant of `clearAppGraphDiagnostics(...)`. */
-  readonly clearAppGraphDiagnosticsEffect: () => Effect.Effect<void>;
+  readonly clearAppGraphDiagnostics: () => Effect.Effect<void>;
   /** Serialize and retain a live Resource invalidation plan, returning its retained index. */
-  readonly recordInvalidation: (plan: ResourceInvalidationPlan) => number;
-  /** Effect variant of `recordInvalidation(...)`. */
-  readonly recordInvalidationEffect: (plan: ResourceInvalidationPlan) => Effect.Effect<number>;
+  readonly recordInvalidation: (plan: ResourceInvalidationPlan) => Effect.Effect<number>;
   /** Retain an already-serialized invalidation plan, returning its retained index. */
-  readonly recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => number;
-  /** Effect variant of `recordSerializedInvalidation(...)`. */
-  readonly recordSerializedInvalidationEffect: (
-    plan: DevtoolsInvalidationPlan,
-  ) => Effect.Effect<number>;
+  readonly recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => Effect.Effect<number>;
+  /** Record one action state transition, with optional input and invalidation plan facts. */
   readonly recordActionState: (
     action: string,
     state: string,
     actionOptions?: DevtoolsRecordActionStateOptions,
-  ) => void;
-  readonly recordActionStateEffect: (
-    action: string,
-    state: string,
-    actionOptions?: DevtoolsRecordActionStateOptions,
   ) => Effect.Effect<void, DevtoolsActionInvalidationPlanConflict>;
-  readonly recordAction: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => void;
-  readonly recordActionEffect: <I, A, E, R>(
-    action: ActionInstance<I, A, E, R>,
-  ) => Effect.Effect<void>;
-  readonly trackActionEffect: <I, A, E, R>(
+  /** Record an Action instance's current state and invalidation plan. */
+  readonly recordAction: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => Effect.Effect<void>;
+  /** Records an Action instance's state changes until the scope closes. */
+  readonly trackAction: <I, A, E, R>(
     action: ActionInstance<I, A, E, R>,
   ) => Effect.Effect<void, never, Scope.Scope>;
-  readonly recordStartAction: <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) => void;
-  readonly recordStartActionEffect: <I, A, E>(
-    action: DevtoolsStartActionInstance<I, A, E>,
-  ) => Effect.Effect<void>;
-  readonly trackStartActionEffect: <I, A, E>(
-    action: DevtoolsStartActionInstance<I, A, E>,
-  ) => Effect.Effect<void, never, Scope.Scope>;
-  readonly recordRoutePlan: (plan: Route.NavigationPlan) => number;
-  /** Effect variant of `recordRoutePlan(...)`. */
-  readonly recordRoutePlanEffect: (plan: Route.NavigationPlan) => Effect.Effect<number>;
+  /** Serialize and retain a live route navigation plan, returning its retained index. */
+  readonly recordRoutePlan: (plan: Route.NavigationPlan) => Effect.Effect<number>;
   /** Retain an already-serialized route plan, returning its retained index. */
-  readonly recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => number;
-  /** Effect variant of `recordSerializedRoutePlan(...)`. */
-  readonly recordSerializedRoutePlanEffect: (plan: DevtoolsRoutePlan) => Effect.Effect<number>;
+  readonly recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => Effect.Effect<number>;
   /** Record a Core Resource Store event as a runtime event. */
-  readonly recordResourceEvent: (event: ResourceStoreEvent) => void;
-  /** Effect variant of `recordResourceEvent(...)`. */
-  readonly recordResourceEventEffect: (event: ResourceStoreEvent) => Effect.Effect<void>;
+  readonly recordResourceEvent: (event: ResourceStoreEvent) => Effect.Effect<void>;
   /** Record a DB Collection Store event as a runtime event. */
-  readonly recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => void;
-  /** Effect variant of `recordCollectionEvent(...)`. */
-  readonly recordCollectionEventEffect: (
-    event: DevtoolsCollectionStoreEvent,
-  ) => Effect.Effect<void>;
-  /** Record one Core Program timeline event as a runtime event. */
-  readonly recordProgramEvent: <Model, Message, E>(event: ProgramEvent<Model, Message, E>) => void;
-  /** Effect variant of `recordProgramEvent(...)`. */
-  readonly recordProgramEventEffect: <Model, Message, E>(
-    event: ProgramEvent<Model, Message, E>,
-  ) => Effect.Effect<void>;
-  readonly trackProgramEffect: <Model, Message, E>(
-    program: ProgramInstance<Model, Message, E>,
-  ) => Effect.Effect<void, never, Scope.Scope>;
+  readonly recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => Effect.Effect<void>;
+  /** Record one Core `Timeline` entry as a runtime event. */
+  readonly recordTimelineEntry: (entry: TimelineEntry) => Effect.Effect<void>;
+  /** Records a running `Timeline` recording's retained and future entries until the scope closes. */
+  readonly trackTimeline: (recording: TimelineRecording) => Effect.Effect<void, never, Scope.Scope>;
   /** Record a prebuilt runtime event, assigning sequence and serialization bounds. */
-  readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => void;
-  /** Effect variant of `recordRuntimeEvent(...)`. */
-  readonly recordRuntimeEventEffect: (event: DevtoolsRuntimeEvent) => Effect.Effect<void>;
+  readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => Effect.Effect<void>;
   /** Record one structural request trace and normalize its fact identity. */
-  readonly recordRequestTrace: (trace: DevtoolsRequestTrace) => void;
-  /** Effect variant of `recordRequestTrace(...)`. */
-  readonly recordRequestTraceEffect: (trace: DevtoolsRequestTrace) => Effect.Effect<void>;
+  readonly recordRequestTrace: (trace: DevtoolsRequestTrace) => Effect.Effect<void>;
   /** Project the current snapshot into summarized counts, tables, and runtime rows. */
-  readonly getSummary: () => DevtoolsSummary;
-  /** Effect variant of `getSummary(...)`. */
-  readonly getSummaryEffect: () => Effect.Effect<DevtoolsSummary>;
+  readonly getSummary: () => Effect.Effect<DevtoolsSummary>;
   /** Project the current snapshot into renderable panel data. */
-  readonly getPanels: () => DevtoolsPanels;
-  /** Effect variant of `getPanels(...)`. */
-  readonly getPanelsEffect: () => Effect.Effect<DevtoolsPanels>;
+  readonly getPanels: () => Effect.Effect<DevtoolsPanels>;
   /** Project the current snapshot into a stable causal graph. */
-  readonly getCausalGraph: () => DevtoolsCausalGraph;
-  /** Effect variant of `getCausalGraph(...)`. */
-  readonly getCausalGraphEffect: () => Effect.Effect<DevtoolsCausalGraph>;
+  readonly getCausalGraph: () => Effect.Effect<DevtoolsCausalGraph>;
 }
 
 /** Count of contracts with input, output, and error schemas in a Start app graph. */
@@ -1393,12 +1348,10 @@ export interface DevtoolsPanelBootOptions extends DevtoolsPanelMountOptions {
   readonly lifecycleWindow?: Pick<Window, "addEventListener" | "removeEventListener">;
 }
 
-/** Running Devtools panel boot fiber plus its Effect-first interrupt hook. */
+/** Running Devtools panel boot fiber plus its host interrupt hook. */
 export interface DevtoolsPanelBoot {
   /** Fiber that owns the scoped panel mount and any post-mount work. */
   readonly fiber: Fiber.Fiber<void, never>;
-  /** Interrupts the boot fiber and releases the panel mount Scope. */
-  readonly interruptEffect: Effect.Effect<void>;
-  /** Host callback facade for page lifecycle handlers. */
+  /** Interrupts the boot fiber and releases the panel mount Scope (host page lifecycle handlers). */
   readonly interrupt: () => void;
 }

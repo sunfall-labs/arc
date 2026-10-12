@@ -1,8 +1,18 @@
 // Component typing: services (R) and typed render failures (E) flow through
 // component definitions and `yield*`, never through JSX.
-import { Context, Data, Effect, Layer, pipe, Scope } from "effect";
-import { Component, Resource } from "@sunfall/arc-solid";
-import type { AnySunfallArcRuntime, SunfallArcRuntime } from "@sunfall/arc-core";
+import { Cause, Context, Data, Effect, Layer, pipe, Scope, Stream } from "effect";
+import { Component, RouterProvider } from "@sunfall/arc-solid";
+import {
+  Action,
+  Program,
+  Resource,
+  Route,
+  type ActionInterrupted,
+  type AnySunfallArcRuntime,
+  type EffectInputCallbackError,
+  type Server,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 import type { JSX } from "@solidjs/web";
 
 class ProjectApi extends Context.Service<
@@ -20,16 +30,16 @@ type Assert<T extends true> = T;
 type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Parts<C> = C extends Component<infer P, infer E, infer R> ? { P: P; E: E; R: R } : never;
 
-const ProjectById = Resource.family({
+const ProjectById = Resource.define({
   name: "type-tests/Component/ProjectById",
   load: (id: string) => ProjectApi.use((api) => api.get(id)),
 });
 
 // Leaf: a resource whose typed load error joins E and services join R. A
 // throwing load callback (EffectInputCallbackError) is a defect, not part of E.
-const ProjectCard = Component.make("ProjectCard", function* () {
+const ProjectCard = Component.define("ProjectCard", function* (props: { readonly id: string }) {
   const project = yield* Component.resource(ProjectById);
-  return (props: { readonly id: string }): JSX.Element => project(props.id);
+  return (): JSX.Element => project(props.id);
 });
 type _card = Assert<
   Eq<
@@ -43,8 +53,8 @@ type _card = Assert<
 >;
 
 // Leaf with a different service, no props, no failures. Setup finalizers need
-// no Scope in R: setup always runs in the runtime-lifetime Scope.
-const ActivityFeed = Component.make("ActivityFeed", function* () {
+// no Scope in R: setup always runs in the instance Scope.
+const ActivityFeed = Component.define("ActivityFeed", function* () {
   const realtime = yield* Realtime;
   yield* Effect.addFinalizer(() => Effect.void);
   return () => realtime.feed().join(",");
@@ -52,14 +62,14 @@ const ActivityFeed = Component.make("ActivityFeed", function* () {
 type _feed = Assert<Eq<Parts<typeof ActivityFeed>, { P: {}; E: never; R: Realtime }>>;
 
 // Parent: children's R accumulates, handled tags leave E, yielded children are plain renders.
-const Dashboard = Component.make("Dashboard", function* () {
+const Dashboard = Component.define("Dashboard", function* (props: { readonly selected: string }) {
   const Card = yield* ProjectCard.pipe(
     Component.catchTags({ ProjectNotFound: (error) => `gone ${error.id}` }),
     Component.loading(() => "loading"),
   );
   const Feed = yield* ActivityFeed;
-  type _cardRender = Assert<Eq<typeof Card, Component.Render<{ readonly id: string }>>>;
-  return (props: { readonly selected: string }) => [Card({ id: props.selected }), Feed({})];
+  type _cardRender = Assert<Eq<typeof Card, Component.Solid<{ readonly id: string }>>>;
+  return () => [Card({ id: props.selected }), Feed({})];
 });
 type _dash = Assert<
   Eq<
@@ -69,14 +79,14 @@ type _dash = Assert<
 >;
 
 // Nested yields keep inferring through a further level.
-const Shell = Component.make("Shell", function* () {
+const Shell = Component.define("Shell", function* () {
   const Inner = yield* Dashboard;
   return () => Inner({ selected: "atlas" });
 });
 type _shell = Assert<Eq<Parts<typeof Shell>, { P: {}; E: Forbidden; R: ProjectApi | Realtime }>>;
 
 // Setup failures are render failures.
-const Configured = Component.make("Configured", function* () {
+const Configured = Component.define("Configured", function* () {
   yield* Effect.fail(new ConfigMissing());
   return () => "configured";
 });
@@ -106,9 +116,108 @@ const bound = Component.resource(ProjectById);
 type _bound = Assert<
   Eq<
     typeof bound,
-    Effect.Effect<(input: string) => string, ProjectNotFound | Forbidden, ProjectApi>
+    Effect.Effect<
+      Component.ResourceReader<string, string, ProjectNotFound | Forbidden>,
+      ProjectNotFound | Forbidden,
+      ProjectApi
+    >
   >
 >;
+// Status chrome carries no value: content renders only through the reader.
+declare const reader: Component.ResourceReader<string, string, ProjectNotFound>;
+const readerValue: string = reader("atlas");
+const readerWaiting: boolean = reader.waiting("atlas");
+const readerFailure: Cause.Cause<Resource.LoadError<ProjectNotFound>> | undefined =
+  reader.failure("atlas");
+void readerValue;
+void readerWaiting;
+void readerFailure;
+
+// Actions: the definition's services join R; the handle reports its own,
+// callback, and transport failures, and submits with the instance's context.
+const Rename = Action.define({
+  name: "type-tests/Component/Rename",
+  run: (input: { readonly id: string; readonly name: string }) =>
+    ProjectApi.use((api) => api.get(input.id)),
+});
+const renameBinding = Component.action(Rename);
+type _renameBinding = Assert<
+  Eq<
+    typeof renameBinding,
+    Effect.Effect<
+      Component.ActionHandle<
+        { readonly id: string; readonly name: string },
+        string,
+        ProjectNotFound | Forbidden
+      >,
+      never,
+      ProjectApi
+    >
+  >
+>;
+declare const renameHandle: Effect.Success<typeof renameBinding>;
+const renameSubmit: Effect.Effect<
+  string,
+  ProjectNotFound | Forbidden | EffectInputCallbackError | Server.ClientError | ActionInterrupted,
+  never
+> = renameHandle.submit({ id: "atlas", name: "Atlas" });
+void renameSubmit;
+
+// Programs: the definition's services join R.
+const Counter = Program.define<number, { readonly _tag: "Load" }, never, ProjectApi>({
+  initial: 0,
+  update: (model) => model + 1,
+});
+const counterBinding = Component.program(Counter);
+type _counterBinding = Assert<
+  Eq<
+    typeof counterBinding,
+    Effect.Effect<
+      Component.ProgramHandle<number, { readonly _tag: "Load" }, never>,
+      never,
+      ProjectApi
+    >
+  >
+>;
+
+// Streams and callbacks: services join R; callbacks must handle their failures.
+const feedBinding = Component.stream(
+  Stream.fromEffect(Realtime.use((realtime) => Effect.succeed(realtime.feed().length))),
+  0,
+);
+type _feedBinding = Assert<Eq<typeof feedBinding, Effect.Effect<() => number, never, Realtime>>>;
+const openBinding = Component.callback((id: string) =>
+  ProjectApi.use((api) => api.get(id)).pipe(Effect.ignore),
+);
+type _openBinding = Assert<
+  Eq<typeof openBinding, Effect.Effect<(id: string) => void, never, ProjectApi>>
+>;
+
+// Router: route preload services and route Components' services and failures
+// join the component, so `launch` checks them.
+const ProjectRoute = Route.define("/projects/:id", {
+  preload: ({ params }) => ProjectApi.use((api) => api.get(params.id)),
+});
+const ProjectPage = Component.define(
+  "ProjectPage",
+  function* (props: Route.Props<typeof ProjectRoute>) {
+    const realtime = yield* Realtime;
+    return () => `${props.params.id}:${realtime.feed().length}`;
+  },
+);
+const routes = [Route.withComponent(ProjectRoute, ProjectPage)] as const;
+const RoutedApp = Component.define("RoutedApp", function* () {
+  const router = yield* Component.router(routes);
+  return () => RouterProvider({ router });
+});
+type _routedApp = Assert<
+  Eq<Parts<typeof RoutedApp>, { P: {}; E: never; R: ProjectApi | Realtime }>
+>;
+const routedLaunch: Effect.Effect<never> = Component.launch(
+  RoutedApp.pipe(Component.provide(Layer.merge(ProjectApiLive, RealtimeLive))),
+  root,
+);
+void routedLaunch;
 
 // Fully handled and provided: mounts as a scoped acquisition.
 const mounted: Effect.Effect<void, never, Scope.Scope> = Component.mount(Ok, root, {
@@ -158,7 +267,7 @@ const launchedOnAppRuntime: Effect.Effect<never, HostStartupError> = Component.l
 );
 void mountedOnAppRuntime;
 void launchedOnAppRuntime;
-const embedded: Component.Render<{ readonly selected: string }> = Component.embed(Ok);
+const embedded: Component.Solid<{ readonly selected: string }> = Component.embed(Ok, appRuntime);
 void mounted;
 void mountedNoProps;
 void embedded;
@@ -208,9 +317,21 @@ export function negatives() {
   ProjectCard.pipe(Component.catchTags({ EffectInputCallbackError: () => "callback" }));
 
   // @ts-expect-error embedding also requires a fully handled, fully provided component
-  Component.embed(Dashboard);
+  Component.embed(Dashboard, appRuntime);
 
-  Component.make("WrongProps", function* () {
+  // @ts-expect-error embedding checks the runtime's services too
+  Component.embed(HandledDashboard, apiRuntime);
+
+  // @ts-expect-error a route's preload services must be provided before launch
+  Component.launch(RoutedApp.pipe(Component.provide(RealtimeLive)), root);
+
+  // @ts-expect-error a route Component's services must be provided before launch
+  Component.launch(RoutedApp.pipe(Component.provide(ProjectApiLive)), root);
+
+  // @ts-expect-error callbacks must handle their failures
+  Component.callback((id: string) => ProjectApi.use((api) => api.get(id)));
+
+  Component.define("WrongProps", function* () {
     const Card = yield* ProjectCard;
     // @ts-expect-error the yielded render keeps its props type
     return () => Card({ id: 1 });

@@ -2,9 +2,9 @@ import { Cause, Data, Effect, Exit, Scope } from "effect";
 import {
   EffectInputPromiseRejected,
   isPromiseLikeValue,
-  toEffect,
   type EffectInput,
 } from "@sunfall/arc-core";
+import { toEffect } from "@sunfall/arc-core/internal";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createServer, type InlineConfig, type ViteDevServer } from "vite";

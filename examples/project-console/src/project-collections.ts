@@ -6,7 +6,6 @@ import {
   ProjectWorkItemSchema,
   ProjectsRef,
   type ProjectId,
-  type ProjectRemoteError,
   type ProjectSummary,
   type ProjectWorkItem,
   type WorkItemId,
@@ -17,32 +16,30 @@ import {
 // Resource-backed: the collection loads through the `ProjectList` Resource and
 // follows it afterward, so any invalidation of the `Projects` tag (renames,
 // advances, refreshes) reconciles these rows without a second list fetch.
-export const ProjectSummaries = Collection.define(
-  Collection.syncOptions({
-    name: "Projects.collection",
-    output: ProjectSummarySchema,
-    getKey: (project: ProjectSummary) => project.id,
-    indexes: {
-      status: (project) => project.status,
-      owner: (project) => project.owner,
-    },
-    sync: Collection.resourceSyncAdapter({ ref: ProjectsRef }),
-  }),
-);
+export const ProjectSummaries = Collection.define({
+  name: "Projects.collection",
+  output: ProjectSummarySchema,
+  getKey: (project: ProjectSummary) => project.id,
+  indexes: {
+    status: (project) => project.status,
+    owner: (project) => project.owner,
+  },
+  sync: ProjectsRef,
+});
 
-export const ProjectWorkItems = Collection.define(
-  Collection.serverOptions<ProjectWorkItem, WorkItemId, ProjectRemoteError, ProjectApi>({
-    id: "Project.workItems",
-    output: ProjectWorkItemSchema,
-    getKey: (workItem) => workItem.id,
-    indexes: {
-      byProject: (workItem) => workItem.projectId,
-      status: (workItem) => workItem.status,
-      owner: (workItem) => workItem.owner,
-    },
-    policy: {
-      retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
-    },
+export const ProjectWorkItems = Collection.define({
+  name: "Project.workItems",
+  output: ProjectWorkItemSchema,
+  getKey: (workItem: ProjectWorkItem): WorkItemId => workItem.id,
+  indexes: {
+    byProject: (workItem) => workItem.projectId,
+    status: (workItem) => workItem.status,
+    owner: (workItem) => workItem.owner,
+  },
+  policy: {
+    retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
+  },
+  sync: {
     load: () => ProjectApi.use((api) => api.listWorkItems()),
     update: ({ updates }) =>
       Effect.forEach(
@@ -51,15 +48,15 @@ export const ProjectWorkItems = Collection.define(
           typeof update.changes.status === "string"
             ? ProjectApi.use((api) =>
                 api.updateWorkItemStatus({
-                  id: update.key,
+                  id: update.key as WorkItemId,
                   status: update.changes.status as WorkItemStatus,
                 }),
               ).pipe(Effect.asVoid)
             : Effect.void,
         { discard: true },
       ),
-  }),
-);
+  },
+});
 
 const priorityWeight = (priority: WorkItemPriority): number => {
   switch (priority) {

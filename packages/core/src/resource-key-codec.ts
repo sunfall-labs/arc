@@ -6,7 +6,7 @@ export interface ResourceKeyEncodeOptions {
 }
 
 const resourceKeyGuidance =
-  "Default Resource keys support JSON-compatible values plus Date, URL, Map, and Set. Provide Resource.family({ key }) or Resource.tag(name, { key }) for unsupported key inputs.";
+  "Default Resource keys support JSON-compatible values plus Date, URL, Map, and Set. Provide Resource.define({ key }) or Resource.tag(name, { key }) for unsupported key inputs.";
 
 const pathSegment = (key: string): string =>
   /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;

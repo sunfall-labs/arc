@@ -283,9 +283,8 @@ Progress:
   - Evidence: request traces now include start/completion timestamps, duration,
     and before/after Resource Store teardown snapshots.
 - [x] Browser-embeddable panel renderer for the `DevtoolsPanels` contract.
-  - Evidence: `renderDevtoolsPanelsHtml`,
-    `renderDevtoolsPanelsHtmlEffect`, `mountDevtoolsPanels`, and
-    `mountDevtoolsPanelsEffect` in `@sunfall/arc-devtools`, covered by focused
+  - Evidence: `renderDevtoolsPanelsHtml`, the scoped `mountDevtoolsPanels`,
+    and the host `bootDevtoolsPanels` in `@sunfall/arc-devtools`, covered by focused
     devtools tests and public type tests.
 - [x] Checked app-shell integration for the browser panel renderer.
   - Evidence: `examples/devtools-panel`.

@@ -1,4 +1,4 @@
-import { Effect, Fiber } from "effect";
+import { Effect, Fiber, Option } from "effect";
 import {
   ActionResult,
   type ActionResultInvalidationRequirements,
@@ -28,6 +28,8 @@ import {
   runResourceInvalidationPlanEffect,
 } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
+import { ActionTransport } from "./action-transport.js";
+import type { ServerClientError } from "./server.js";
 
 export const actionCallbackError = (operation: string, cause: unknown): EffectInputCallbackError =>
   cause instanceof EffectInputCallbackError
@@ -43,29 +45,6 @@ const resultInvalidations = <A>(
   value: A,
 ): ReadonlyArray<ResourceInvalidation<ActionResultInvalidationRequirements<A>>> =>
   ActionResult.is(value) ? ActionResult.invalidations(value as AnyActionResult) : [];
-
-export const invalidationsFor = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
-  value: A,
-  input: I,
-): ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>> => {
-  const operation = `Action.invalidates(${definition.name})`;
-  try {
-    const invalidations =
-      definition.invalidates === undefined
-        ? []
-        : validateResourceInvalidationsArraySync(
-            operation,
-            definition.invalidates(value, input),
-            "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect.",
-          );
-    return [...invalidations, ...resultInvalidations(value)] as ReadonlyArray<
-      ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>
-    >;
-  } catch (cause) {
-    throw actionCallbackError(operation, cause);
-  }
-};
 
 export const invalidationsForEffect = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
@@ -100,7 +79,7 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
   readonly submissions: ActionSubmissionController<
     I,
     A,
-    E | ER | EffectInputCallbackError,
+    E | ER | EffectInputCallbackError | ServerClientError,
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
   >;
   readonly runAtActionBoundary: <Value, Error, Requirements>(
@@ -109,15 +88,15 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
 }
 
 export interface ActionExecutionWorkflow<I, A, E, R, ER> {
-  readonly submitEffect: (
+  readonly submit: (
     input: I,
   ) => Effect.Effect<
     A,
-    E | ER | EffectInputCallbackError | ActionInterrupted,
+    E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   >;
-  readonly captureResetEffect: () => Effect.Effect<void>;
-  readonly resetEffect: () => Effect.Effect<void>;
+  readonly captureReset: () => Effect.Effect<void>;
+  readonly reset: () => Effect.Effect<void>;
 }
 
 /**
@@ -176,10 +155,10 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
 
   const runWorkflow = (
     input: I,
-    submission: ActionSubmissionRun<A, E | ER | EffectInputCallbackError>,
+    submission: ActionSubmissionRun<A, E | ER | EffectInputCallbackError | ServerClientError>,
   ): Effect.Effect<
     A,
-    E | ER | EffectInputCallbackError | ActionInterrupted,
+    E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
     Effect.suspend(() => {
@@ -193,6 +172,21 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           const transaction = makeActionOptimisticTransactionRuntime<R>(definition.name);
           rollback = transaction.rollback;
           rollback = yield* applyOptimistic(input, transaction);
+
+          // A transport that serves this Action runs it remotely and applies
+          // the response (hydration and invalidations) itself.
+          const remote = Option.flatMap(yield* Effect.serviceOption(ActionTransport), (transport) =>
+            transport.submit(definition, input),
+          );
+          if (Option.isSome(remote)) {
+            const response = yield* remote.value;
+            yield* submissions.interruptStaleEffect(submission);
+            yield* response.apply(submissions.acceptsStateUpdate(submission));
+            const remoteValue = yield* response.exit;
+            yield* transaction.commit;
+            rollback = Effect.void as ActionRollback<R>;
+            return remoteValue;
+          }
 
           const value = yield* runEffect(input);
           yield* submissions.interruptStaleEffect(submission);
@@ -221,7 +215,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     input: I,
   ): Effect.Effect<
     A,
-    E | ER | EffectInputCallbackError | ActionInterrupted,
+    E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
     runAtActionBoundary(
@@ -229,7 +223,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
         return Effect.withFiber((fiber) => {
           const submissionFiber = fiber as ActionSubmissionFiber<
             A,
-            E | ER | EffectInputCallbackError
+            E | ER | EffectInputCallbackError | ServerClientError
           >;
 
           return submissions.beginEffect(submissionFiber).pipe(
@@ -252,8 +246,8 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     );
 
   return {
-    submitEffect,
-    captureResetEffect: submissions.captureResetEffect,
-    resetEffect: submissions.resetEffect,
+    submit: submitEffect,
+    captureReset: submissions.captureReset,
+    reset: submissions.reset,
   };
 };

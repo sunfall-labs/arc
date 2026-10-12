@@ -18,7 +18,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EffectInputPromiseRejected,
   makeRuntime,
-  read,
   Resource,
   EffectInputCallbackError,
   ResourceKeyError,
@@ -26,8 +25,8 @@ import {
   ResourcePending,
   ResourceSnapshotCodecError,
   runWithRuntime,
-  validateResourceHydrationSnapshots,
 } from "../src/index.js";
+import { validateResourceHydrationSnapshots, refsForResourceTag } from "../src/internal.js";
 import { parseDuration } from "../src/resource-duration.js";
 import { unsafeMutableResourceStore } from "../src/resource-store.js";
 
@@ -40,35 +39,35 @@ describe("Resource", () => {
 
   it("loads on first read and returns cached values afterward", async () => {
     const load = vi.fn((id: string) => Effect.succeed({ id, name: "Ada" }));
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.byId",
       load,
     });
 
     const ref = User("1");
-    expect(() => read(ref)).toThrow(ResourcePending);
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourcePending);
+    await Effect.runPromise(Resource.preload(ref));
 
-    expect(read(ref)).toEqual({ id: "1", name: "Ada" });
-    expect(read(ref)).toEqual({ id: "1", name: "Ada" });
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Ada" });
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Ada" });
     expect(load).toHaveBeenCalledTimes(1);
   });
 
   it("preserves explicitly wrapped Effect values as resource values", async () => {
     const domainEffect = Effect.succeed(42);
-    const Computation = Resource.family<string, Effect.Effect<number>>({
+    const Computation = Resource.define<string, Effect.Effect<number>>({
       name: "Computation.effect-valued",
       load: () => Effect.succeed(domainEffect),
     });
 
-    const value = await Effect.runPromise(Resource.prefetchEffect(Computation("answer")));
+    const value = await Effect.runPromise(Resource.preload(Computation("answer")));
 
     expect(value).toBe(domainEffect);
     await expect(Effect.runPromise(value)).resolves.toBe(42);
   });
 
   it("encodes common built-ins in default resource keys", () => {
-    const AnyInput = Resource.family<unknown, string>({
+    const AnyInput = Resource.define<unknown, string>({
       name: "ResourceKey.codec-builtins",
       load: () => "ok",
     });
@@ -110,7 +109,7 @@ describe("Resource", () => {
       }
     }
 
-    const AnyInput = Resource.family<unknown, string>({
+    const AnyInput = Resource.define<unknown, string>({
       name: "ResourceKey.codec-failures",
       load: () => "ok",
     });
@@ -126,7 +125,7 @@ describe("Resource", () => {
     } catch (error) {
       expect(error).toMatchObject({
         _tag: "ResourceKeyError",
-        operation: "Resource.family.ref",
+        operation: "Resource.define.ref",
         name: "ResourceKey.codec-failures",
         path: "$.self",
         reason: "CircularReference",
@@ -141,7 +140,7 @@ describe("Resource", () => {
     } catch (error) {
       expect(error).toMatchObject({
         _tag: "ResourceKeyError",
-        operation: "Resource.family.ref",
+        operation: "Resource.define.ref",
         name: "ResourceKey.codec-failures",
         path: "$",
         reason: "UnsupportedObject",
@@ -151,7 +150,7 @@ describe("Resource", () => {
   });
 
   it("rejects erased Promise-shaped custom resource keys before constructing identities", () => {
-    const Project = Resource.family<string, string>({
+    const Project = Resource.define<string, string>({
       name: "ResourceKey.promise-family-key",
       key: () => Promise.resolve("atlas") as never,
       load: () => "ok",
@@ -169,7 +168,7 @@ describe("Resource", () => {
     } catch (error) {
       expect(error).toMatchObject({
         _tag: "ResourceKeyError",
-        operation: "Resource.family.ref",
+        operation: "Resource.define.ref",
         name: "ResourceKey.promise-family-key",
         reason: "PromiseLikeKey",
         cause: expect.any(EffectInputPromiseRejected),
@@ -192,12 +191,12 @@ describe("Resource", () => {
   });
 
   it("rejects erased Effect-shaped and non-string custom resource keys before constructing identities", () => {
-    const EffectKeyProject = Resource.family<string, string>({
+    const EffectKeyProject = Resource.define<string, string>({
       name: "ResourceKey.effect-family-key",
       key: () => Effect.succeed("atlas") as never,
       load: () => "ok",
     });
-    const NumericKeyProject = Resource.family<string, string>({
+    const NumericKeyProject = Resource.define<string, string>({
       name: "ResourceKey.numeric-family-key",
       key: () => 42 as never,
       load: () => "ok",
@@ -220,7 +219,7 @@ describe("Resource", () => {
     } catch (error) {
       expect(error).toMatchObject({
         _tag: "ResourceKeyError",
-        operation: "Resource.family.ref",
+        operation: "Resource.define.ref",
         name: "ResourceKey.effect-family-key",
         reason: "EffectLikeKey",
       });
@@ -232,7 +231,7 @@ describe("Resource", () => {
     } catch (error) {
       expect(error).toMatchObject({
         _tag: "ResourceKeyError",
-        operation: "Resource.family.ref",
+        operation: "Resource.define.ref",
         name: "ResourceKey.numeric-family-key",
         reason: "NonStringKey",
       });
@@ -244,7 +243,7 @@ describe("Resource", () => {
       key: ({ id }) => id,
     });
     Resource.tag("Project.diagnostics-all");
-    Resource.family({
+    Resource.define({
       name: "Project.diagnostics",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String }),
@@ -291,14 +290,14 @@ describe("Resource", () => {
 
   it("deduplicates in-flight refreshes", async () => {
     const load = vi.fn(() => Effect.succeed(1));
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count",
       load,
     });
     const ref = Count(undefined);
 
     await Effect.runPromise(
-      Effect.all([Resource.prefetchEffect(ref), Resource.prefetchEffect(ref)], {
+      Effect.all([Resource.preload(ref), Resource.preload(ref)], {
         concurrency: "unbounded",
       }),
     );
@@ -329,14 +328,14 @@ describe("Resource", () => {
         }
       }),
     );
-    const User = Resource.requestFamily({
+    const User = Resource.define({
       name: "User.request-resolver",
       request: (id: string) => GetUserRequest({ id }),
       resolver,
     });
 
     return Effect.runPromise(
-      Effect.all([Resource.prefetchEffect(User("ada")), Resource.prefetchEffect(User("grace"))], {
+      Effect.all([Resource.preload(User("ada")), Resource.preload(User("grace"))], {
         concurrency: "unbounded",
       }).pipe(
         Effect.tap((values) =>
@@ -346,36 +345,39 @@ describe("Resource", () => {
               { id: "grace", name: "GRACE" },
             ]);
             expect(batches).toEqual([["ada", "grace"]]);
-            expect(read(User("ada"))).toEqual({ id: "ada", name: "ADA" });
+            expect(Effect.runSync(Resource.read(User("ada")))).toEqual({
+              id: "ada",
+              name: "ADA",
+            });
           }),
         ),
       ),
     );
   });
 
-  it("uses Effect cache entries for prefetch and forced refresh", async () => {
+  it("uses Effect cache entries for preload and forced refresh", async () => {
     let count = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.effect-cache",
       load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(read(ref)).toBe(1);
+    await Effect.runPromise(Resource.preload(ref));
+    await Effect.runPromise(Resource.preload(ref));
+    expect(Effect.runSync(Resource.read(ref))).toBe(1);
     expect(count).toBe(1);
 
-    await Effect.runPromise(Resource.refreshEffect(ref));
-    expect(read(ref)).toBe(2);
+    await Effect.runPromise(Resource.refresh(ref));
+    expect(Effect.runSync(Resource.read(ref))).toBe(2);
     expect(count).toBe(2);
   });
 
-  it("does not republish lifecycle events for fresh prefetches", async () => {
+  it("does not republish lifecycle events for fresh preloads", async () => {
     const runtime = makeRuntime();
     let count = 0;
-    const Count = Resource.family({
-      name: "Count.fresh-prefetch-noop",
+    const Count = Resource.define({
+      name: "Count.fresh-preload-noop",
       load: () => Effect.sync(() => ++count),
       policy: {
         staleFor: "1 minute",
@@ -388,12 +390,12 @@ describe("Resource", () => {
         runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* Resource.subscribeEventsEffect();
-              yield* Resource.prefetchEffect(ref);
+              const subscription = yield* Resource.subscribeEvents();
+              yield* Resource.preload(ref);
               yield* PubSub.take(subscription);
               yield* PubSub.take(subscription);
 
-              yield* Resource.prefetchEffect(ref);
+              yield* Resource.preload(ref);
               return yield* PubSub.take(subscription).pipe(Effect.timeoutOption("20 millis"));
             }),
           ),
@@ -401,10 +403,10 @@ describe("Resource", () => {
       );
 
       expect(Option.isNone(extraEvent)).toBe(true);
-      await expect(Effect.runPromise(runtime.provide(Resource.readEffect(ref)))).resolves.toBe(1);
+      await expect(Effect.runPromise(runtime.provide(Resource.read(ref)))).resolves.toBe(1);
       expect(count).toBe(1);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -412,51 +414,51 @@ describe("Resource", () => {
     const first = makeRuntime();
     const second = makeRuntime();
     let count = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.runtime-store",
       load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
 
     try {
-      await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
-      expect(runWithRuntime(first, () => read(ref))).toBe(1);
+      await Effect.runPromise(first.provide(Resource.preload(ref)));
+      expect(first.runSync(Resource.read(ref))).toBe(1);
       expect(runWithRuntime(second, () => Resource.result(ref).get()._tag)).toBe("Initial");
 
-      await Effect.runPromise(second.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(second.provide(Resource.preload(ref)));
 
-      expect(runWithRuntime(second, () => read(ref))).toBe(2);
-      expect(runWithRuntime(first, () => read(ref))).toBe(1);
+      expect(second.runSync(Resource.read(ref))).toBe(2);
+      expect(first.runSync(Resource.read(ref))).toBe(1);
       expect(count).toBe(2);
     } finally {
-      await Effect.runPromise(first.disposeEffect);
-      await Effect.runPromise(second.disposeEffect);
+      await Effect.runPromise(first.dispose);
+      await Effect.runPromise(second.dispose);
     }
   });
 
   it("resets existing resource result subscribers when a ref is deleted", async () => {
     let count = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.delete-subscriber-reset",
       load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
     const result = Resource.result(ref);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
     expect(result.get()).toMatchObject({
       _tag: "Success",
       value: 1,
     });
 
-    await Effect.runPromise(Resource.deleteEffect(ref));
+    await Effect.runPromise(Resource.evict(ref));
 
     expect(result.get()).toEqual({
       _tag: "Initial",
       waiting: false,
     });
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
 
     expect(result.get()).toMatchObject({
       _tag: "Success",
@@ -470,22 +472,22 @@ describe("Resource", () => {
     });
     let project = { id: "atlas", name: "Atlas" };
     const load = vi.fn((id: string) => Effect.succeed({ ...project, id }));
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.tag-resource-test",
       load,
       provides: (value) => [ProjectTag({ id: value.id })],
     });
     const ref = Project("atlas");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(Resource.refsForTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(
+    await Effect.runPromise(Resource.preload(ref));
+    expect(refsForResourceTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(
       ref.key,
     );
 
     project = { id: "atlas", name: "Renamed" };
-    await Effect.runPromise(Resource.invalidateEffect(ProjectTag({ id: "atlas" })));
+    await Effect.runPromise(Resource.invalidate(ProjectTag({ id: "atlas" })));
 
-    expect(read(ref)).toEqual({ id: "atlas", name: "Renamed" });
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "atlas", name: "Renamed" });
     expect(load).toHaveBeenCalledTimes(2);
   });
 
@@ -498,12 +500,12 @@ describe("Resource", () => {
     let keyedValue = 1;
     const loadUnkeyed = vi.fn(() => Effect.succeed({ value: unkeyedValue }));
     const loadKeyed = vi.fn(() => Effect.succeed({ value: keyedValue }));
-    const Unkeyed = Resource.family({
+    const Unkeyed = Resource.define({
       name: "Project.unkeyed-collision",
       load: loadUnkeyed,
       provides: () => [UnkeyedTag],
     });
-    const Keyed = Resource.family({
+    const Keyed = Resource.define({
       name: "Project.keyed-collision",
       load: loadKeyed,
       provides: () => [KeyedTag("atlas")],
@@ -513,21 +515,21 @@ describe("Resource", () => {
 
     expect(UnkeyedTag.key).toBe(KeyedTag("atlas").key);
 
-    await Effect.runPromise(Resource.prefetchEffect(unkeyedRef));
-    await Effect.runPromise(Resource.prefetchEffect(keyedRef));
+    await Effect.runPromise(Resource.preload(unkeyedRef));
+    await Effect.runPromise(Resource.preload(keyedRef));
 
     unkeyedValue = 2;
     keyedValue = 2;
-    await Effect.runPromise(Resource.invalidateEffect(UnkeyedTag));
+    await Effect.runPromise(Resource.invalidate(UnkeyedTag));
 
-    expect(read(unkeyedRef)).toEqual({ value: 2 });
-    expect(read(keyedRef)).toEqual({ value: 1 });
+    expect(Effect.runSync(Resource.read(unkeyedRef))).toEqual({ value: 2 });
+    expect(Effect.runSync(Resource.read(keyedRef))).toEqual({ value: 1 });
     expect(loadUnkeyed).toHaveBeenCalledTimes(2);
     expect(loadKeyed).toHaveBeenCalledTimes(1);
 
-    await Effect.runPromise(Resource.invalidateEffect(KeyedTag("atlas")));
+    await Effect.runPromise(Resource.invalidate(KeyedTag("atlas")));
 
-    expect(read(keyedRef)).toEqual({ value: 2 });
+    expect(Effect.runSync(Resource.read(keyedRef))).toEqual({ value: 2 });
     expect(loadKeyed).toHaveBeenCalledTimes(2);
   });
 
@@ -535,7 +537,7 @@ describe("Resource", () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const ProjectTag = Resource.tag("Project.runtime-store-tag");
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.runtime-store-tag",
       load: (id: string) => Effect.succeed({ id }),
       provides: () => [ProjectTag],
@@ -543,27 +545,27 @@ describe("Resource", () => {
     const ref = Project("atlas");
 
     try {
-      await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(first.provide(Resource.preload(ref)));
 
       expect(
-        runWithRuntime(first, () => Resource.refsForTag(ProjectTag).map((tagRef) => tagRef.key)),
+        runWithRuntime(first, () => refsForResourceTag(ProjectTag).map((tagRef) => tagRef.key)),
       ).toEqual([ref.key]);
-      expect(runWithRuntime(second, () => Resource.refsForTag(ProjectTag))).toEqual([]);
+      expect(runWithRuntime(second, () => refsForResourceTag(ProjectTag))).toEqual([]);
     } finally {
-      await Effect.runPromise(first.disposeEffect);
-      await Effect.runPromise(second.disposeEffect);
+      await Effect.runPromise(first.dispose);
+      await Effect.runPromise(second.dispose);
     }
   });
 
   it("inspects query status without loading the resource", () => {
     const load = vi.fn(() => Effect.succeed("loaded"));
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.status.initial",
       load,
     });
     const ref = Count(undefined);
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.status(ref));
 
     expect(status).toMatchObject({
       result: { _tag: "Initial", waiting: false },
@@ -585,13 +587,13 @@ describe("Resource", () => {
   it("inspects Effect status without registering absent refs", async () => {
     const runtime = makeRuntime();
     try {
-      const User = Resource.family({
+      const User = Resource.define({
         name: "User.status-absent",
         load: (id: string) => Effect.succeed({ id }),
       });
       const ref = User("atlas");
 
-      const status = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
+      const status = await Effect.runPromise(runtime.provide(Resource.status(ref)));
 
       expect(status.result._tag).toBe("Initial");
       const store = unsafeMutableResourceStore(runtime.resourceStore);
@@ -599,26 +601,26 @@ describe("Resource", () => {
       expect(store.entries.get(User)?.has(ref.key)).not.toBe(true);
       expect(store.inputs.get(User)?.has(ref.key)).not.toBe(true);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
   it("reads absent refs without registering store state", async () => {
     const runtime = makeRuntime();
     try {
-      const User = Resource.family({
+      const User = Resource.define({
         name: "User.read-absent",
         load: (id: string) => Effect.succeed({ id }),
       });
       const ref = User("atlas");
 
-      expect(() => runWithRuntime(runtime, () => read(ref))).toThrow(ResourcePending);
+      expect(() => runtime.runSync(Resource.read(ref))).toThrow(ResourcePending);
       const store = unsafeMutableResourceStore(runtime.resourceStore);
       expect(store.families.size).toBe(0);
       expect(store.entries.get(ref.family)).toBeUndefined();
       expect(store.inputs.get(ref.family)).toBeUndefined();
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -626,7 +628,7 @@ describe("Resource", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
     try {
-      const Count = Resource.family({
+      const Count = Resource.define({
         name: "Count.status.timing",
         load: () => Effect.succeed(1),
         policy: {
@@ -636,9 +638,9 @@ describe("Resource", () => {
       });
       const ref = Count(undefined);
 
-      await Effect.runPromise(Resource.prefetchEffect(ref));
+      await Effect.runPromise(Resource.preload(ref));
 
-      expect(Resource.status(ref)).toMatchObject({
+      expect(Effect.runSync(Resource.status(ref))).toMatchObject({
         result: { _tag: "Success", value: 1, waiting: false, timestamp: 1_000 },
         isStale: false,
         isGcExpired: false,
@@ -651,7 +653,7 @@ describe("Resource", () => {
 
       vi.setSystemTime(1_151);
 
-      expect(Resource.status(ref)).toMatchObject({
+      expect(Effect.runSync(Resource.status(ref))).toMatchObject({
         result: { _tag: "Success" },
         isStale: true,
         isGcExpired: false,
@@ -676,7 +678,7 @@ describe("Resource", () => {
       sleep: () => Effect.never,
     };
     const runtime = makeRuntime(Layer.succeed(Clock.Clock)(testClock));
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.sync-clock-status",
       load: () => Effect.succeed(1),
       policy: {
@@ -687,10 +689,10 @@ describe("Resource", () => {
     const ref = Count(undefined);
 
     try {
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
-      const syncStatus = runWithRuntime(runtime, () => Resource.status(ref));
-      const effectStatus = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
+      const syncStatus = runtime.runSync(Resource.status(ref));
+      const effectStatus = await Effect.runPromise(runtime.provide(Resource.status(ref)));
 
       expect(syncStatus).toMatchObject({
         result: { _tag: "Success", timestamp: 1_000 },
@@ -705,14 +707,12 @@ describe("Resource", () => {
         isGcExpired: effectStatus.isGcExpired,
         ageMillis: effectStatus.ageMillis,
       });
-      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+      expect(runtime.runSync(Resource.read(ref))).toBe(1);
 
       now += 151;
 
-      const staleSyncStatus = runWithRuntime(runtime, () => Resource.status(ref));
-      const staleEffectStatus = await Effect.runPromise(
-        runtime.provide(Resource.statusEffect(ref)),
-      );
+      const staleSyncStatus = runtime.runSync(Resource.status(ref));
+      const staleEffectStatus = await Effect.runPromise(runtime.provide(Resource.status(ref)));
       expect(staleSyncStatus).toMatchObject({
         isStale: true,
         isGcExpired: false,
@@ -725,13 +725,13 @@ describe("Resource", () => {
         isGcExpired: staleEffectStatus.isGcExpired,
         ageMillis: staleEffectStatus.ageMillis,
       });
-      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+      expect(runtime.runSync(Resource.read(ref))).toBe(1);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
-  it("uses the Effect Clock for collected checks while prefetching", async () => {
+  it("uses the Effect Clock for collected checks while preloading", async () => {
     let now = Date.now() + 1_000_000;
     const testClock: Clock.Clock = {
       currentTimeMillisUnsafe: () => now,
@@ -746,7 +746,7 @@ describe("Resource", () => {
     const secondStarted = Effect.runSync(Deferred.make<void>());
     const releaseSecond = Effect.runSync(Deferred.make<void>());
     let loads = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.effect-clock-collected",
       load: () =>
         Effect.gen(function* () {
@@ -764,77 +764,75 @@ describe("Resource", () => {
     const ref = Count(undefined);
 
     try {
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(runtime.provide(Resource.preload(ref)));
       now += 101;
 
-      const refresh = runtime.runFork(Resource.prefetchEffect(ref));
+      const refresh = runtime.runFork(Resource.preload(ref));
       await Effect.runPromise(runtime.provide(Deferred.await(secondStarted)));
 
-      const pending = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
+      const pending = await Effect.runPromise(runtime.provide(Resource.status(ref)));
       expect(pending.result).toMatchObject({ _tag: "Success", value: 1, waiting: true });
 
       await Effect.runPromise(runtime.provide(Deferred.succeed(releaseSecond, undefined)));
       await expect(Effect.runPromise(Fiber.join(refresh))).resolves.toBe(2);
       expect(loads).toBe(2);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
   it("exposes native Effect query status scoped to the runtime store", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.status.effect",
       load: () => Effect.succeed(1),
     });
     const ref = Count(undefined);
 
     try {
-      await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(first.provide(Resource.preload(ref)));
 
-      const firstStatus = await Effect.runPromise(first.provide(Resource.statusEffect(ref)));
-      const secondStatus = await Effect.runPromise(second.provide(Resource.statusEffect(ref)));
+      const firstStatus = await Effect.runPromise(first.provide(Resource.status(ref)));
+      const secondStatus = await Effect.runPromise(second.provide(Resource.status(ref)));
 
       expect(firstStatus.result).toMatchObject({ _tag: "Success", value: 1 });
       expect(secondStatus.result).toMatchObject({ _tag: "Initial", waiting: false });
     } finally {
-      await Effect.runPromise(first.disposeEffect);
-      await Effect.runPromise(second.disposeEffect);
+      await Effect.runPromise(first.dispose);
+      await Effect.runPromise(second.dispose);
     }
   });
 
   it("reads resources from the provided runtime in Effect code", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.read.effect-runtime",
       load: () => Effect.succeed(1),
     });
     const ref = Count(undefined);
 
     try {
-      await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(first.provide(Resource.preload(ref)));
 
-      await expect(Effect.runPromise(first.provide(Resource.readEffect(ref)))).resolves.toBe(1);
-      await expect(
-        Effect.runPromise(second.provide(Resource.readEffect(ref))),
-      ).rejects.toBeInstanceOf(ResourcePending);
-      await expect(
-        Effect.runPromise(second.provide(Resource.statusEffect(ref))),
-      ).resolves.toMatchObject({
+      await expect(Effect.runPromise(first.provide(Resource.read(ref)))).resolves.toBe(1);
+      await expect(Effect.runPromise(second.provide(Resource.read(ref)))).rejects.toBeInstanceOf(
+        ResourcePending,
+      );
+      await expect(Effect.runPromise(second.provide(Resource.status(ref)))).resolves.toMatchObject({
         result: { _tag: "Initial" },
       });
     } finally {
-      await Effect.runPromise(first.disposeEffect);
-      await Effect.runPromise(second.disposeEffect);
+      await Effect.runPromise(first.dispose);
+      await Effect.runPromise(second.dispose);
     }
   });
 
   it("reports refreshes with previous data as refreshing instead of loading", async () => {
     const gate = Effect.runSync(Deferred.make<void>());
     let count = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.status.refreshing",
       load: () =>
         Effect.gen(function* () {
@@ -847,11 +845,11 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    const refreshing = Effect.runFork(Resource.refreshEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
+    const refreshing = Effect.runFork(Resource.refresh(ref));
 
     // A refresh keeps the current tag and marks it waiting: refreshing, not loading.
-    expect(Resource.status(ref).result).toMatchObject({
+    expect(Effect.runSync(Resource.status(ref)).result).toMatchObject({
       _tag: "Success",
       value: 1,
       waiting: true,
@@ -859,7 +857,7 @@ describe("Resource", () => {
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
     await expect(Effect.runPromise(Fiber.join(refreshing))).resolves.toBe(2);
-    expect(Resource.status(ref).result).toMatchObject({
+    expect(Effect.runSync(Resource.status(ref)).result).toMatchObject({
       _tag: "Success",
       value: 2,
       waiting: false,
@@ -870,7 +868,7 @@ describe("Resource", () => {
     const releaseRefresh = Effect.runSync(Deferred.make<void>());
     let shouldFail = false;
     let loads = 0;
-    const MaybeValue = Resource.family<void, undefined, Error>({
+    const MaybeValue = Resource.define<void, undefined, Error>({
       name: "MaybeValue.previous-undefined",
       load: () =>
         Effect.gen(function* () {
@@ -886,24 +884,24 @@ describe("Resource", () => {
     });
     const ref = MaybeValue(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    const refreshing = Effect.runFork(Resource.refreshEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
+    const refreshing = Effect.runFork(Resource.refresh(ref));
 
-    const pending = Resource.status(ref).result;
+    const pending = Effect.runSync(Resource.status(ref)).result;
     expect(pending).toMatchObject({ _tag: "Success", value: undefined, waiting: true });
     expect(AsyncResult.value(pending)).toEqual(Option.some(undefined));
-    expect(read(ref)).toBeUndefined();
+    expect(Effect.runSync(Resource.read(ref))).toBeUndefined();
 
     shouldFail = true;
     await Effect.runPromise(Deferred.succeed(releaseRefresh, undefined));
     await expect(Effect.runPromise(Fiber.join(refreshing))).rejects.toThrow("refresh failed");
 
-    const failed = Resource.status(ref).result;
+    const failed = Effect.runSync(Resource.status(ref)).result;
     expect(failed).toMatchObject({ _tag: "Failure", waiting: false });
     expect(AsyncResult.value(failed)).toEqual(Option.some(undefined));
 
     try {
-      read(ref);
+      Effect.runSync(Resource.read(ref));
       expect.fail("expected ResourceFailure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -914,12 +912,12 @@ describe("Resource", () => {
     }
   });
 
-  it("dedupes Effect prefetch through one in-flight fiber", async () => {
+  it("dedupes Effect preload through one in-flight fiber", async () => {
     const started = Effect.runSync(Deferred.make<void>());
     const gate = Effect.runSync(Deferred.make<void>());
     let loads = 0;
-    const Count = Resource.family({
-      name: "Count.public-prefetch-fiber",
+    const Count = Resource.define({
+      name: "Count.public-preload-fiber",
       load: () =>
         Effect.gen(function* () {
           loads++;
@@ -930,8 +928,8 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const first = Effect.runFork(Resource.prefetchEffect(ref));
-    const second = Effect.runFork(Resource.prefetchEffect(ref));
+    const first = Effect.runFork(Resource.preload(ref));
+    const second = Effect.runFork(Resource.preload(ref));
 
     await Effect.runPromise(Deferred.await(started));
     expect(loads).toBe(1);
@@ -942,15 +940,18 @@ describe("Resource", () => {
         Effect.all([Fiber.join(first), Fiber.join(second)], { concurrency: "unbounded" }),
       ),
     ).resolves.toEqual([1, 1]);
-    expect(Resource.status(ref).result).toMatchObject({ _tag: "Success", value: 1 });
+    expect(Effect.runSync(Resource.status(ref)).result).toMatchObject({
+      _tag: "Success",
+      value: 1,
+    });
   });
 
-  it("keeps store-owned in-flight prefetch alive when one joiner is interrupted", async () => {
+  it("keeps store-owned in-flight preload alive when one joiner is interrupted", async () => {
     const started = Effect.runSync(Deferred.make<void>());
     const gate = Effect.runSync(Deferred.make<void>());
     let loads = 0;
-    const Count = Resource.family({
-      name: "Count.store-owned-prefetch-fiber",
+    const Count = Resource.define({
+      name: "Count.store-owned-preload-fiber",
       load: () =>
         Effect.gen(function* () {
           loads++;
@@ -961,8 +962,8 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const first = Effect.runFork(Resource.prefetchEffect(ref));
-    const second = Effect.runFork(Resource.prefetchEffect(ref));
+    const first = Effect.runFork(Resource.preload(ref));
+    const second = Effect.runFork(Resource.preload(ref));
 
     await Effect.runPromise(Deferred.await(started));
     await Effect.runPromise(Fiber.interrupt(first));
@@ -971,17 +972,20 @@ describe("Resource", () => {
     await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe(1);
     expect(Exit.isFailure(await Effect.runPromise(Fiber.await(first)))).toBe(true);
     expect(loads).toBe(1);
-    expect(Resource.status(ref).result).toMatchObject({ _tag: "Success", value: 1 });
+    expect(Effect.runSync(Resource.status(ref)).result).toMatchObject({
+      _tag: "Success",
+      value: 1,
+    });
   });
 
   it("forced invalidation does not join a stale non-forced load", async () => {
     const firstStarted = Effect.runSync(Deferred.make<void>());
     const firstRelease = Effect.runSync(Deferred.make<void>());
-    const CountTag = Resource.tag("Count.force-restarts-prefetch");
+    const CountTag = Resource.tag("Count.force-restarts-preload");
     let value = 1;
     let loads = 0;
-    const Count = Resource.family({
-      name: "Count.force-restarts-prefetch",
+    const Count = Resource.define({
+      name: "Count.force-restarts-preload",
       load: () =>
         Effect.gen(function* () {
           loads++;
@@ -996,23 +1000,23 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const prefetch = Effect.runFork(Resource.prefetchEffect(ref));
+    const prefetch = Effect.runFork(Resource.preload(ref));
     await Effect.runPromise(Deferred.await(firstStarted));
     value = 2;
-    await Effect.runPromise(Resource.invalidateEffect(ref));
+    await Effect.runPromise(Resource.invalidate(ref));
     await Effect.runPromise(Deferred.succeed(firstRelease, undefined));
     await Effect.runPromise(Fiber.await(prefetch));
 
-    expect(read(ref)).toBe(2);
+    expect(Effect.runSync(Resource.read(ref))).toBe(2);
     expect(loads).toBe(2);
   });
 
-  it("interrupts Effect prefetch fibers when the owning runtime is disposed", async () => {
+  it("interrupts Effect preload fibers when the owning runtime is disposed", async () => {
     const runtime = makeRuntime();
     const started = Effect.runSync(Deferred.make<void>());
     let interrupted = false;
-    const Count = Resource.family<unknown, number>({
-      name: "Count.public-prefetch-dispose",
+    const Count = Resource.define<unknown, number>({
+      name: "Count.public-preload-dispose",
       load: () =>
         Effect.gen(function* () {
           yield* Deferred.succeed(started, undefined);
@@ -1026,9 +1030,9 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const prefetch = runtime.runFork(Resource.prefetchEffect(ref));
+    const prefetch = runtime.runFork(Resource.preload(ref));
     await Effect.runPromise(runtime.provide(Deferred.await(started)));
-    await Effect.runPromise(runtime.disposeEffect);
+    await Effect.runPromise(runtime.dispose);
 
     const exit = await Effect.runPromise(Fiber.await(prefetch));
     expect(exit._tag).toBe("Failure");
@@ -1039,17 +1043,17 @@ describe("Resource", () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.plan-resource-test", {
       key: ({ id }) => id,
     });
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.invalidation-plan-resource-test",
       load: (id: string) => Effect.succeed({ id }),
       provides: (value) => [ProjectTag({ id: value.id })],
     });
     const ref = Project("atlas");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
 
     const targets = [ref, ProjectTag({ id: "atlas" })];
-    const plan = Resource.planInvalidation(targets);
+    const plan = Effect.runSync(Resource.planInvalidation(targets));
     targets.push(ProjectTag({ id: "ignored" }));
 
     expect(plan.targets).toHaveLength(2);
@@ -1069,32 +1073,32 @@ describe("Resource", () => {
       key: ({ slug }) => slug,
     });
     let slug = "draft";
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.dynamic-tags-resource-test",
       load: () => Effect.succeed({ id: "atlas", slug }),
       provides: (value) => [SlugTag({ slug: value.slug })],
     });
     const ref = Project(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(Resource.refsForTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([
+    await Effect.runPromise(Resource.preload(ref));
+    expect(refsForResourceTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([
       ref.key,
     ]);
 
     slug = "published";
-    await Effect.runPromise(Resource.refreshEffect(ref));
+    await Effect.runPromise(Resource.refresh(ref));
 
-    expect(Resource.refsForTag(SlugTag({ slug: "draft" }))).toEqual([]);
-    expect(Resource.refsForTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual(
-      [ref.key],
-    );
+    expect(refsForResourceTag(SlugTag({ slug: "draft" }))).toEqual([]);
+    expect(refsForResourceTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual([
+      ref.key,
+    ]);
   });
 
   it("expires resource entries with gcFor", async () => {
     vi.useFakeTimers();
     try {
       let count = 0;
-      const Count = Resource.family({
+      const Count = Resource.define({
         name: "Count.gc",
         load: () => Effect.sync(() => ++count),
         policy: {
@@ -1103,14 +1107,14 @@ describe("Resource", () => {
       });
       const ref = Count(undefined);
 
-      await Effect.runPromise(Resource.prefetchEffect(ref));
-      expect(read(ref)).toBe(1);
+      await Effect.runPromise(Resource.preload(ref));
+      expect(Effect.runSync(Resource.read(ref))).toBe(1);
 
       await vi.advanceTimersByTimeAsync(11);
 
-      expect(() => read(ref)).toThrow(ResourcePending);
-      await Effect.runPromise(Resource.prefetchEffect(ref));
-      expect(read(ref)).toBe(2);
+      expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourcePending);
+      await Effect.runPromise(Resource.preload(ref));
+      expect(Effect.runSync(Resource.read(ref))).toBe(2);
     } finally {
       vi.useRealTimers();
     }
@@ -1118,28 +1122,28 @@ describe("Resource", () => {
 
   it("deletes resource entries through the native Effect API", async () => {
     let count = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.delete-effect",
       load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(read(ref)).toBe(1);
+    await Effect.runPromise(Resource.preload(ref));
+    expect(Effect.runSync(Resource.read(ref))).toBe(1);
 
     const deleted = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const subscription = yield* Resource.subscribeEventsEffect();
-          yield* Resource.deleteEffect(ref);
+          const subscription = yield* Resource.subscribeEvents();
+          yield* Resource.evict(ref);
           return yield* PubSub.take(subscription);
         }),
       ),
     );
 
-    expect(() => read(ref)).toThrow(ResourcePending);
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(read(ref)).toBe(2);
+    expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourcePending);
+    await Effect.runPromise(Resource.preload(ref));
+    expect(Effect.runSync(Resource.read(ref))).toBe(2);
     expect(count).toBe(2);
     expect(deleted).toMatchObject({
       _tag: "ResourceDeleted",
@@ -1152,7 +1156,7 @@ describe("Resource", () => {
     vi.useFakeTimers();
     const runtime = makeRuntime();
     try {
-      const Count = Resource.family({
+      const Count = Resource.define({
         name: "Count.input-lifetime",
         load: (id: string) => Effect.succeed(id),
         policy: {
@@ -1162,25 +1166,25 @@ describe("Resource", () => {
       const deleted = Count("deleted");
       const collected = Count("collected");
 
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(deleted)));
-      await Effect.runPromise(runtime.provide(Resource.deleteEffect(deleted)));
+      await Effect.runPromise(runtime.provide(Resource.preload(deleted)));
+      await Effect.runPromise(runtime.provide(Resource.evict(deleted)));
       const store = unsafeMutableResourceStore(runtime.resourceStore);
       expect(store.inputs.get(deleted.family)?.has(deleted.key)).not.toBe(true);
 
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(collected)));
+      await Effect.runPromise(runtime.provide(Resource.preload(collected)));
       expect(store.inputs.get(collected.family)?.has(collected.key)).toBe(true);
 
       await vi.advanceTimersByTimeAsync(11);
       expect(store.inputs.get(collected.family)?.has(collected.key)).not.toBe(true);
     } finally {
       vi.useRealTimers();
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
   it("publishes resource lifecycle events through Effect PubSub", async () => {
     const runtime = makeRuntime();
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.events",
       load: () => Effect.succeed(1),
     });
@@ -1191,8 +1195,8 @@ describe("Resource", () => {
         runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* Resource.subscribeEventsEffect();
-              yield* Resource.prefetchEffect(ref);
+              const subscription = yield* Resource.subscribeEvents();
+              yield* Resource.preload(ref);
               const pending = yield* PubSub.take(subscription);
               const success = yield* PubSub.take(subscription);
               return [pending, success] as const;
@@ -1204,7 +1208,7 @@ describe("Resource", () => {
       expect(events.map((event) => event._tag)).toEqual(["ResourcePending", "ResourceSuccess"]);
       expect(events.map((event) => event.key)).toEqual([ref.key, ref.key]);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -1212,7 +1216,7 @@ describe("Resource", () => {
     const runtime = makeRuntime();
     let value = 0;
     const CountTag = Resource.tag("Count.invalidation-events");
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.invalidation-events",
       load: () =>
         Effect.sync(() => {
@@ -1228,12 +1232,12 @@ describe("Resource", () => {
         runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* Resource.subscribeEventsEffect();
-              yield* Resource.prefetchEffect(ref);
+              const subscription = yield* Resource.subscribeEvents();
+              yield* Resource.preload(ref);
               yield* PubSub.take(subscription);
               yield* PubSub.take(subscription);
 
-              yield* Resource.invalidateEffect(CountTag);
+              yield* Resource.invalidate(CountTag);
               const invalidated = yield* PubSub.take(subscription);
               const pending = yield* PubSub.take(subscription);
               const success = yield* PubSub.take(subscription);
@@ -1262,26 +1266,26 @@ describe("Resource", () => {
       });
       expect(value).toBe(2);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
-  it("exposes native Effect prefetch", async () => {
-    const User = Resource.family({
+  it("exposes native Effect preload", async () => {
+    const User = Resource.define({
       name: "User.effect",
       load: (id: string) => Effect.succeed({ id }),
     });
     const ref = User("effect");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+    await expect(Effect.runPromise(Resource.preload(ref))).resolves.toEqual({
       id: "effect",
     });
-    expect(read(ref)).toEqual({ id: "effect" });
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "effect" });
   });
 
   it("uses Effect schedules for retry policy", async () => {
     let attempts = 0;
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.retry",
       load: () =>
         Effect.gen(function* () {
@@ -1297,16 +1301,16 @@ describe("Resource", () => {
     });
     const ref = User(undefined);
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+    await expect(Effect.runPromise(Resource.preload(ref))).resolves.toEqual({
       id: "retry",
     });
     expect(attempts).toBe(3);
-    expect(read(ref)).toEqual({ id: "retry" });
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "retry" });
   });
 
   it("does not retry synchronous resource loader callback throws", async () => {
     let attempts = 0;
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.retry.sync-loader-throw",
       load: (_id: string) => {
         attempts++;
@@ -1318,7 +1322,7 @@ describe("Resource", () => {
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.load(User.retry.sync-loader-throw)",
       cause: expect.any(Error),
@@ -1327,7 +1331,7 @@ describe("Resource", () => {
   });
 
   it("captures synchronous resource loader throws in the Effect error channel", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.sync-loader-throw",
       load: (_id: string) => {
         throw new Error("loader exploded");
@@ -1335,15 +1339,15 @@ describe("Resource", () => {
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.load(User.sync-loader-throw)",
       cause: expect.any(Error),
     });
 
-    expect(() => read(ref)).toThrow(ResourceFailure);
+    expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourceFailure);
     try {
-      read(ref);
+      Effect.runSync(Resource.read(ref));
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -1358,20 +1362,20 @@ describe("Resource", () => {
   });
 
   it("captures erased Promise-shaped resource loader returns as failures instead of leaving pending state", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.promise-loader-erased",
       load: (_id: string) => Promise.resolve({ id: "promise" }) as never,
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.load(User.promise-loader-erased)",
       cause: expect.any(EffectInputPromiseRejected),
     });
 
-    expect(() => read(ref)).toThrow(ResourceFailure);
-    const status = Resource.status(ref);
+    expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourceFailure);
+    const status = Effect.runSync(Resource.status(ref));
     expect(status.result).toMatchObject({ _tag: "Failure", waiting: false });
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1379,7 +1383,7 @@ describe("Resource", () => {
   });
 
   it("captures synchronous resource provides throws in the Effect error channel", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.sync-provides-throw",
       load: (id: string) => Effect.succeed({ id }),
       provides: () => {
@@ -1388,13 +1392,13 @@ describe("Resource", () => {
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.sync-provides-throw)",
       cause: expect.any(Error),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1402,20 +1406,20 @@ describe("Resource", () => {
   });
 
   it("captures erased Promise-shaped resource provides returns in the Effect error channel", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.promise-provides-erased",
       load: (id: string) => Effect.succeed({ id }),
       provides: () => Promise.resolve([]) as never,
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.promise-provides-erased)",
       cause: expect.any(EffectInputPromiseRejected),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1424,20 +1428,20 @@ describe("Resource", () => {
 
   it("captures erased Promise-shaped resource provides entries in the Effect error channel", async () => {
     const UserTag = Resource.tag("User.provides-entry-promise");
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.provides-entry-promise",
       load: (id: string) => Effect.succeed({ id }),
       provides: () => [Promise.resolve(UserTag) as never],
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.provides-entry-promise)[0]",
       cause: expect.any(EffectInputPromiseRejected),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1446,20 +1450,20 @@ describe("Resource", () => {
 
   it("captures erased Effect-shaped resource provides entries in the Effect error channel", async () => {
     const UserTag = Resource.tag("User.provides-entry-effect");
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.provides-entry-effect",
       load: (id: string) => Effect.succeed({ id }),
       provides: () => [Effect.succeed(UserTag) as never],
     });
     const ref = User("1");
 
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.provides-entry-effect)[0]",
       cause: expect.any(TypeError),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1471,7 +1475,7 @@ describe("Resource", () => {
       key: ({ id }) => id,
     });
     let current = { id: "old" };
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.provides-refresh-atomicity",
       load: () => Effect.succeed(current),
       provides: (user) => {
@@ -1483,36 +1487,38 @@ describe("Resource", () => {
     });
     const ref = User(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
     current = { id: "new" };
-    await expect(Effect.runPromise(Resource.refreshEffect(ref))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.refresh(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.provides-refresh-atomicity)",
     });
 
-    const failed = Resource.status(ref).result;
+    const failed = Effect.runSync(Resource.status(ref)).result;
     expect(failed._tag).toBe("Failure");
     expect(AsyncResult.value(failed)).toEqual(Option.some({ id: "old" }));
     expect(
-      Resource.planInvalidation(UserTag({ id: "old" })).entries.map((entry) => entry.ref.key),
+      Effect.runSync(Resource.planInvalidation(UserTag({ id: "old" }))).entries.map(
+        (entry) => entry.ref.key,
+      ),
     ).toEqual([ref.key]);
-    expect(Resource.planInvalidation(UserTag({ id: "new" })).entries).toEqual([]);
+    expect(Effect.runSync(Resource.planInvalidation(UserTag({ id: "new" }))).entries).toEqual([]);
   });
 
   it("throws typed resource failures with previous data", async () => {
     let shouldFail = false;
-    const Item = Resource.family<unknown, string, Error>({
+    const Item = Resource.define<unknown, string, Error>({
       name: "Item",
       load: () => (shouldFail ? Effect.fail(new Error("nope")) : Effect.succeed("ok")),
     });
     const ref = Item(undefined);
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
     shouldFail = true;
-    await expect(Effect.runPromise(Resource.refreshEffect(ref))).rejects.toThrow("nope");
+    await expect(Effect.runPromise(Resource.refresh(ref))).rejects.toThrow("nope");
 
     try {
-      read(ref);
+      Effect.runSync(Resource.read(ref));
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -1526,30 +1532,32 @@ describe("Resource", () => {
 
   it("hydrates resource state and Effect cache without loading", async () => {
     const load = vi.fn((id: string) => Effect.succeed({ id, name: "Loaded" }));
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.hydrate",
       load,
     });
     const ref = User("1");
 
-    Resource.hydrate({
-      resources: [
-        {
-          name: "User.hydrate",
-          key: ref.key,
-          input: "1",
-          state: {
-            _tag: "Success",
-            waiting: false,
-            value: { id: "1", name: "Hydrated" },
-            timestamp: Date.now(),
+    Effect.runSync(
+      Resource.hydrate({
+        resources: [
+          {
+            name: "User.hydrate",
+            key: ref.key,
+            input: "1",
+            state: {
+              _tag: "Success",
+              waiting: false,
+              value: { id: "1", name: "Hydrated" },
+              timestamp: Date.now(),
+            },
           },
-        },
-      ],
-    });
+        ],
+      }),
+    );
 
-    expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Hydrated" });
+    await expect(Effect.runPromise(Resource.preload(ref))).resolves.toEqual({
       id: "1",
       name: "Hydrated",
     });
@@ -1561,7 +1569,7 @@ describe("Resource", () => {
     vi.setSystemTime(120_000);
     try {
       const load = vi.fn((id: string) => Effect.succeed({ id, name: "Loaded" }));
-      const User = Resource.family({
+      const User = Resource.define({
         name: "User.hydrate-now",
         load,
         policy: {
@@ -1571,7 +1579,7 @@ describe("Resource", () => {
       const ref = User("1");
 
       await Effect.runPromise(
-        Resource.hydrateEffect(
+        Resource.hydrate(
           {
             resources: [
               {
@@ -1590,11 +1598,11 @@ describe("Resource", () => {
           { timestamp: "now" },
         ),
       );
-      const status = await Effect.runPromise(Resource.statusEffect(ref));
+      const status = await Effect.runPromise(Resource.status(ref));
 
       expect(status.result).toMatchObject({ _tag: "Success", timestamp: 120_000 });
       expect(status.isStale).toBe(false);
-      await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+      await expect(Effect.runPromise(Resource.preload(ref))).resolves.toEqual({
         id: "1",
         name: "Hydrated",
       });
@@ -1608,7 +1616,7 @@ describe("Resource", () => {
     vi.useFakeTimers();
     vi.setSystemTime(120_000);
     try {
-      const User = Resource.family({
+      const User = Resource.define({
         name: "User.hydrate-skip-fresh",
         load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
         policy: {
@@ -1618,7 +1626,7 @@ describe("Resource", () => {
       const ref = User("1");
 
       await Effect.runPromise(
-        Resource.hydrateEffect(
+        Resource.hydrate(
           {
             resources: [
               {
@@ -1640,7 +1648,7 @@ describe("Resource", () => {
 
       vi.setSystemTime(121_000);
       await Effect.runPromise(
-        Resource.hydrateEffect(
+        Resource.hydrate(
           {
             resources: [
               {
@@ -1660,11 +1668,11 @@ describe("Resource", () => {
         ),
       );
 
-      expect(read(ref)).toEqual({ id: "1", name: "Current" });
+      expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Current" });
 
       vi.setSystemTime(181_001);
       await Effect.runPromise(
-        Resource.hydrateEffect(
+        Resource.hydrate(
           {
             resources: [
               {
@@ -1684,7 +1692,7 @@ describe("Resource", () => {
         ),
       );
 
-      expect(read(ref)).toEqual({ id: "1", name: "Target" });
+      expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Target" });
     } finally {
       vi.useRealTimers();
     }
@@ -1693,7 +1701,7 @@ describe("Resource", () => {
   it("does not commit hydrated resource state when provides throws", async () => {
     const thrown = new Error("hydrate provides exploded");
     const load = vi.fn((id: string) => Effect.succeed({ id, name: "Loaded" }));
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.hydrate-provides-throw",
       load,
       provides: () => {
@@ -1704,7 +1712,7 @@ describe("Resource", () => {
 
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
+        Resource.hydrate({
           resources: [
             {
               name: "User.hydrate-provides-throw",
@@ -1726,8 +1734,8 @@ describe("Resource", () => {
       cause: thrown,
     });
 
-    expect(() => read(ref)).toThrow(ResourcePending);
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+    expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourcePending);
+    await expect(Effect.runPromise(Resource.preload(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.hydrate-provides-throw)",
     });
@@ -1737,7 +1745,7 @@ describe("Resource", () => {
   it("fails invalid hydration payloads through typed snapshot codec errors", async () => {
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
+        Resource.hydrate({
           resources: [
             {
               name: "User.invalid-hydrate",
@@ -1773,16 +1781,18 @@ describe("Resource", () => {
       },
     ] as never;
 
-    await expect(Effect.runPromise(Resource.hydrateEffect(legacySnapshots))).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.hydrate(legacySnapshots))).rejects.toMatchObject({
       _tag: "ResourceSnapshotCodecError",
       operation: "hydrate",
       path: "$",
       reason: "Expected a resource hydration payload.",
     });
 
-    expect(() => Resource.hydrate(legacySnapshots)).toThrow(ResourceSnapshotCodecError);
+    expect(() => Effect.runSync(Resource.hydrate(legacySnapshots))).toThrow(
+      ResourceSnapshotCodecError,
+    );
     try {
-      Resource.hydrate(legacySnapshots);
+      Effect.runSync(Resource.hydrate(legacySnapshots));
       expect.fail("Expected synchronous Resource hydration to reject legacy snapshot arrays.");
     } catch (error) {
       expect(error).toMatchObject({
@@ -1809,7 +1819,7 @@ describe("Resource", () => {
 
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
+        Resource.hydrate({
           resources: [snapshot, snapshot],
         }),
       ),
@@ -1822,20 +1832,20 @@ describe("Resource", () => {
 
   it("rejects duplicate hydration payload snapshots created from refs", async () => {
     const runtime = makeRuntime();
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.duplicate-payload",
       load: (id: string) => Effect.succeed({ id }),
     });
     const ref = User("1");
 
     try {
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
-      expect(() => runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]))).toThrow(
+      expect(() => runtime.runSync(Resource.hydrationPayload([ref, ref]))).toThrow(
         ResourceSnapshotCodecError,
       );
       try {
-        runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]));
+        runtime.runSync(Resource.hydrationPayload([ref, ref]));
         expect.fail("Expected Resource.hydrationPayload to reject duplicate ref snapshots.");
       } catch (error) {
         expect(error).toMatchObject({
@@ -1846,7 +1856,7 @@ describe("Resource", () => {
       }
 
       const failure = await Effect.runPromise(
-        runtime.provide(Resource.hydrationPayloadEffect([ref, ref]).pipe(Effect.flip)),
+        runtime.provide(Resource.hydrationPayload([ref, ref]).pipe(Effect.flip)),
       );
       expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
       expect(failure).toMatchObject({
@@ -1854,7 +1864,7 @@ describe("Resource", () => {
         path: "$.resources[1].key",
       });
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -1891,7 +1901,7 @@ describe("Resource", () => {
   it("fails hydration when a snapshot family is not registered", async () => {
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
+        Resource.hydrate({
           resources: [
             {
               name: "User.missing-hydration-family",
@@ -1916,7 +1926,7 @@ describe("Resource", () => {
   });
 
   it("fails hydration when a decoded input does not match the snapshot key", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.hydration-key-mismatch",
       load: (input: { readonly id: string }) => Effect.succeed(input),
       key: (input) => input.id,
@@ -1924,7 +1934,7 @@ describe("Resource", () => {
 
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
+        Resource.hydrate({
           resources: [
             {
               name: "User.hydration-key-mismatch",
@@ -1950,7 +1960,7 @@ describe("Resource", () => {
   });
 
   it("can explicitly skip missing hydration families and key mismatches", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.hydration-explicit-skip",
       load: (input: { readonly id: string }) => Effect.succeed(input),
       key: (input) => input.id,
@@ -1958,7 +1968,7 @@ describe("Resource", () => {
 
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect(
+        Resource.hydrate(
           {
             resources: [
               {
@@ -1993,11 +2003,11 @@ describe("Resource", () => {
       ),
     ).resolves.toBeUndefined();
 
-    expect(() => read(User({ id: "1" }))).toThrow(ResourcePending);
+    expect(() => Effect.runSync(Resource.read(User({ id: "1" })))).toThrow(ResourcePending);
   });
 
   it("decodes schema-backed hydration inputs and outputs", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.hydration-schema",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
@@ -2007,7 +2017,7 @@ describe("Resource", () => {
     const ref = User({ id: "1" });
 
     await Effect.runPromise(
-      Resource.hydrateEffect({
+      Resource.hydrate({
         resources: [
           {
             name: "User.hydration-schema",
@@ -2024,11 +2034,11 @@ describe("Resource", () => {
       }),
     );
 
-    expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
+    expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Hydrated" });
   });
 
   it("normalizes resource hydration schema errors through the snapshot codec", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.hydration-schema-error",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
@@ -2039,7 +2049,7 @@ describe("Resource", () => {
 
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
+        Resource.hydrate({
           resources: [
             {
               name: "User.hydration-schema-error",
@@ -2067,14 +2077,14 @@ describe("Resource", () => {
     const firstLoad = vi.fn((input: { readonly id: string }) =>
       Effect.succeed({ id: input.id, name: "Loaded" }),
     );
-    const First = Resource.family({
+    const First = Resource.define({
       name: "User.hydration-atomic-first",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
       load: firstLoad,
       key: (input) => input.id,
     });
-    const Second = Resource.family({
+    const Second = Resource.define({
       name: "User.hydration-atomic-second",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
@@ -2089,9 +2099,9 @@ describe("Resource", () => {
         runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* Resource.subscribeEventsEffect();
+              const subscription = yield* Resource.subscribeEvents();
               const exit = yield* Effect.exit(
-                Resource.hydrateEffect({
+                Resource.hydrate({
                   resources: [
                     {
                       name: "User.hydration-atomic-first",
@@ -2129,21 +2139,21 @@ describe("Resource", () => {
 
       expect(Exit.isFailure(result.exit)).toBe(true);
       expect(Option.isNone(result.event)).toBe(true);
-      expect(() => runWithRuntime(runtime, () => read(firstRef))).toThrow(ResourcePending);
-      await expect(
-        Effect.runPromise(runtime.provide(Resource.prefetchEffect(firstRef))),
-      ).resolves.toEqual({
-        id: "1",
-        name: "Loaded",
-      });
+      expect(() => runtime.runSync(Resource.read(firstRef))).toThrow(ResourcePending);
+      await expect(Effect.runPromise(runtime.provide(Resource.preload(firstRef)))).resolves.toEqual(
+        {
+          id: "1",
+          name: "Loaded",
+        },
+      );
       expect(firstLoad).toHaveBeenCalledTimes(1);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
   it("clones resource snapshots at dehydration and hydration seams", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.snapshot-clone",
       load: (input: { readonly id: string }) =>
         Effect.succeed({
@@ -2153,11 +2163,11 @@ describe("Resource", () => {
     });
     const ref = User({ id: "1" });
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    const dehydrated = Resource.dehydrate([ref]);
+    await Effect.runPromise(Resource.preload(ref));
+    const dehydrated = Effect.runSync(Resource.dehydrate([ref]));
     (dehydrated[0]!.state.value as { profile: { name: string } }).profile.name = "Mutated";
 
-    expect(read(ref)).toEqual({
+    expect(Effect.runSync(Resource.read(ref))).toEqual({
       id: "1",
       profile: { name: "Loaded" },
     });
@@ -2167,7 +2177,7 @@ describe("Resource", () => {
       profile: { name: "Hydrated" },
     };
     await Effect.runPromise(
-      Resource.hydrateEffect({
+      Resource.hydrate({
         resources: [
           {
             name: "User.snapshot-clone",
@@ -2185,7 +2195,7 @@ describe("Resource", () => {
     );
     hydratedValue.profile.name = "Mutated";
 
-    expect(read(ref)).toEqual({
+    expect(Effect.runSync(Resource.read(ref))).toEqual({
       id: "1",
       profile: { name: "Hydrated" },
     });
@@ -2193,7 +2203,7 @@ describe("Resource", () => {
 
   it("schema-encodes resource inputs and success values while creating hydration snapshots", async () => {
     const runtime = makeRuntime();
-    const Counter = Resource.family({
+    const Counter = Resource.define({
       name: "Counter.snapshot-schema-encode",
       input: Schema.NumberFromString,
       output: Schema.Struct({
@@ -2204,13 +2214,11 @@ describe("Resource", () => {
     const ref = Counter(42);
 
     try {
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
-      const syncSnapshot = runWithRuntime(runtime, () => Resource.dehydrate([ref]));
-      const effectSnapshot = await Effect.runPromise(
-        runtime.provide(Resource.dehydrateEffect([ref])),
-      );
-      const syncPayload = runWithRuntime(runtime, () => Resource.hydrationPayload([ref]));
+      const syncSnapshot = runtime.runSync(Resource.dehydrate([ref]));
+      const effectSnapshot = await Effect.runPromise(runtime.provide(Resource.dehydrate([ref])));
+      const syncPayload = runtime.runSync(Resource.hydrationPayload([ref]));
 
       expect(syncSnapshot[0]).toMatchObject({
         input: "42",
@@ -2223,34 +2231,32 @@ describe("Resource", () => {
       expect(effectSnapshot).toEqual(syncSnapshot);
       expect(syncPayload.resources).toEqual(syncSnapshot);
 
-      const encoded = await Effect.runPromise(Resource.encodeHydrationPayloadEffect(syncPayload));
-      const decoded = await Effect.runPromise(Resource.decodeHydrationPayloadEffect(encoded));
+      const encoded = await Effect.runPromise(Resource.encodeHydrationPayload(syncPayload));
+      const decoded = await Effect.runPromise(Resource.decodeHydrationPayload(encoded));
       const hydrated = makeRuntime();
       try {
-        await Effect.runPromise(hydrated.provide(Resource.hydrateEffect(decoded)));
-        await expect(
-          Effect.runPromise(hydrated.provide(Resource.readEffect(ref))),
-        ).resolves.toEqual({
+        await Effect.runPromise(hydrated.provide(Resource.hydrate(decoded)));
+        await expect(Effect.runPromise(hydrated.provide(Resource.read(ref)))).resolves.toEqual({
           count: 42,
         });
       } finally {
-        await Effect.runPromise(hydrated.disposeEffect);
+        await Effect.runPromise(hydrated.dispose);
       }
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
   it("does not register absent refs while dehydrating resources", async () => {
     const runtime = makeRuntime();
     try {
-      const User = Resource.family({
+      const User = Resource.define({
         name: "User.dehydrate-absent",
         load: (id: string) => Effect.succeed({ id }),
       });
       const ref = User("atlas");
 
-      const snapshot = await Effect.runPromise(runtime.provide(Resource.dehydrateEffect([ref])));
+      const snapshot = await Effect.runPromise(runtime.provide(Resource.dehydrate([ref])));
 
       expect(snapshot).toEqual([]);
       const store = unsafeMutableResourceStore(runtime.resourceStore);
@@ -2258,14 +2264,14 @@ describe("Resource", () => {
       expect(store.entries.get(User)?.has(ref.key)).not.toBe(true);
       expect(store.inputs.get(User)?.has(ref.key)).not.toBe(true);
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
   it("fails resource dehydration snapshot errors through the Effect error channel", async () => {
     const runtime = makeRuntime();
     try {
-      const Broken = Resource.family<string, { readonly id: string; readonly boom: string }>({
+      const Broken = Resource.define<string, { readonly id: string; readonly boom: string }>({
         name: "User.dehydrate-broken",
         load: (id) =>
           Effect.succeed(
@@ -2282,10 +2288,10 @@ describe("Resource", () => {
           ),
       });
       const ref = Broken("atlas");
-      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
       const failure = await Effect.runPromise(
-        runtime.provide(Resource.dehydrateEffect([ref]).pipe(Effect.flip)),
+        runtime.provide(Resource.dehydrate([ref]).pipe(Effect.flip)),
       );
 
       expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
@@ -2293,7 +2299,7 @@ describe("Resource", () => {
         operation: "snapshot",
       });
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -2314,24 +2320,24 @@ describe("Resource", () => {
       ],
     };
 
-    const encoded = await Effect.runPromise(Resource.encodeHydrationPayloadEffect(payload));
-    const decoded = await Effect.runPromise(Resource.decodeHydrationPayloadEffect(encoded));
+    const encoded = await Effect.runPromise(Resource.encodeHydrationPayload(payload));
+    const decoded = await Effect.runPromise(Resource.decodeHydrationPayload(encoded));
 
     expect(decoded).toEqual(payload);
-    await expect(
-      Effect.runPromise(Resource.decodeHydrationPayloadEffect("{")),
-    ).rejects.toBeInstanceOf(ResourceSnapshotCodecError);
+    await expect(Effect.runPromise(Resource.decodeHydrationPayload("{"))).rejects.toBeInstanceOf(
+      ResourceSnapshotCodecError,
+    );
   });
 
   it("collects resources touched during Effect preload", async () => {
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.collect",
       load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
 
-    const collected = await Effect.runPromise(Resource.collectEffect(Resource.prefetchEffect(ref)));
-    const snapshot = Resource.dehydrate(collected.refs);
+    const collected = await Effect.runPromise(Resource.collect(Resource.preload(ref)));
+    const snapshot = Effect.runSync(Resource.dehydrate(collected.refs));
 
     expect(collected.value).toEqual({ id: "atlas" });
     expect(collected.refs.map((touched) => touched.key)).toEqual([ref.key]);
@@ -2351,14 +2357,14 @@ describe("Resource", () => {
   });
 
   it("collects resources touched during Effect reads", async () => {
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.collect-read",
       load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-    const collected = await Effect.runPromise(Resource.collectEffect(Resource.readEffect(ref)));
+    await Effect.runPromise(Resource.preload(ref));
+    const collected = await Effect.runPromise(Resource.collect(Resource.read(ref)));
 
     expect(collected.value).toEqual({ id: "atlas" });
     expect(collected.refs.map((touched) => touched.key)).toEqual([ref.key]);
@@ -2368,7 +2374,7 @@ describe("Resource", () => {
     const runtime = makeRuntime();
     let loads = 0;
     const Tag = Resource.tag("Count.changes.tag");
-    const Count = Resource.family<void, number>({
+    const Count = Resource.define<void, number>({
       name: "Count.changes",
       load: () => Effect.sync(() => ++loads),
       provides: () => [Tag],
@@ -2392,8 +2398,8 @@ describe("Resource", () => {
             expect(seen).toEqual([]);
             expect(retained()).toBe(1);
 
-            yield* Resource.prefetchEffect(ref);
-            yield* Resource.invalidateEffect(Tag);
+            yield* Resource.preload(ref);
+            yield* Resource.invalidate(Tag);
             yield* Effect.sleep("1 millis");
             expect(seen).toEqual([1, 2]);
 
@@ -2403,7 +2409,7 @@ describe("Resource", () => {
         ),
       );
     } finally {
-      await Effect.runPromise(Effect.orDie(runtime.disposeEffect));
+      await Effect.runPromise(Effect.orDie(runtime.dispose));
     }
   });
 });

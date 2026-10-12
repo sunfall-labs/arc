@@ -5,10 +5,10 @@ import {
   EffectInputCallbackError,
   EffectInputPromiseRejected,
   Form,
-  read,
   Resource,
 } from "../src/index.js";
 import { ActionResult, type ActionResult as ActionResultValue } from "../src/action-result.js";
+import { defaultRuntime } from "../src/internal.js";
 
 describe("ActionResult", () => {
   const RenameInput = Schema.Struct({
@@ -31,7 +31,7 @@ describe("ActionResult", () => {
     });
 
     return Effect.runPromise(
-      Effect.exit(ActionResult.validateFormEffect(form)).pipe(
+      Effect.exit(ActionResult.validateForm(form)).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isSuccess(exit)).toBe(true);
@@ -68,10 +68,10 @@ describe("ActionResult", () => {
         return Effect.succeed(result);
       },
     });
-    const action = Action.use(SubmitProject);
+    const action = Action.use(SubmitProject, { runtime: defaultRuntime });
 
     return Effect.runPromise(
-      action.submitEffect("redirect").pipe(
+      action.submit("redirect").pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
             expect(ActionResult.isRedirect(result)).toBe(true);
@@ -80,7 +80,7 @@ describe("ActionResult", () => {
               expect(result.status).toBe(303);
               expect(result.replace).toBe(true);
             }
-            expect(read(action.state).result).toMatchObject({
+            expect(action.state.get().result).toMatchObject({
               _tag: "Success",
               value: {
                 _tag: "Redirect",
@@ -97,9 +97,7 @@ describe("ActionResult", () => {
   it("rejects Promise-shaped success and failure result payloads", () => {
     for (const build of [
       () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
-      () => ActionResult.successEffect(Promise.resolve({ id: "atlas" }) as never),
       () => ActionResult.failure(Promise.resolve("failed") as never),
-      () => ActionResult.failureEffect(Promise.resolve("failed") as never),
     ]) {
       try {
         build();
@@ -116,9 +114,7 @@ describe("ActionResult", () => {
   it("rejects Effect-shaped success and failure result payloads", () => {
     for (const build of [
       () => ActionResult.success(Effect.succeed({ id: "atlas" }) as never),
-      () => ActionResult.successEffect(Effect.succeed({ id: "atlas" }) as never),
       () => ActionResult.failure(Effect.succeed("failed") as never),
-      () => ActionResult.failureEffect(Effect.succeed("failed") as never),
     ]) {
       try {
         build();
@@ -149,7 +145,7 @@ describe("ActionResult", () => {
     ));
 
   it("rejects Promise-shaped and Effect-shaped invalidation entries", () => {
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Project.action-result-invalidations",
       load: (id: string) => Effect.succeed({ id }),
     });
@@ -239,9 +235,9 @@ describe("ActionResult", () => {
           name: "project.submit.promise-result-payload",
           run: () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
         });
-        const action = Action.use(SubmitProject);
+        const action = Action.use(SubmitProject, { runtime: defaultRuntime });
 
-        const exit = yield* Effect.exit(action.submitEffect("save"));
+        const exit = yield* Effect.exit(action.submit("save"));
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -251,7 +247,7 @@ describe("ActionResult", () => {
             operation: "ActionResult.success",
             cause: expect.any(EffectInputPromiseRejected),
           });
-          expect(read(action.state)).toMatchObject({
+          expect(action.state.get()).toMatchObject({
             result: { _tag: "Failure", waiting: false },
             input: Option.some("save"),
           });
@@ -307,7 +303,7 @@ describe("ActionResult", () => {
   it("automatically invalidates resources carried by ActionResult values", () => {
     let value = 0;
     const load = vi.fn(() => Effect.succeed(value));
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "ActionResult.invalidate",
       load,
     });
@@ -322,17 +318,17 @@ describe("ActionResult", () => {
           return ActionResult.withInvalidation(ActionResult.success(value), [ref]);
         }),
     });
-    const action = Action.use(Increment);
+    const action = Action.use(Increment, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Resource.prefetchEffect(ref);
-        yield* action.submitEffect(undefined);
+        yield* Resource.preload(ref);
+        yield* action.submit(undefined);
 
         yield* Effect.sync(() => {
-          expect(read(ref)).toBe(1);
+          expect(Effect.runSync(Resource.read(ref))).toBe(1);
           expect(load).toHaveBeenCalledTimes(2);
-          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toEqual([
+          expect(action.invalidationPlan.get()?.entries.map((entry) => entry.ref.key)).toEqual([
             ref.key,
           ]);
         });
@@ -341,11 +337,11 @@ describe("ActionResult", () => {
   });
 
   it("snapshots and freezes invalidations carried by ActionResult values", () => {
-    const First = Resource.family({
+    const First = Resource.define({
       name: "ActionResult.freeze-first",
       load: () => Effect.succeed(1),
     });
-    const Second = Resource.family({
+    const Second = Resource.define({
       name: "ActionResult.freeze-second",
       load: () => Effect.succeed(2),
     });
@@ -407,11 +403,11 @@ describe("ActionResult", () => {
   it("merges ActionResult invalidations with definition invalidations", () => {
     let left = 0;
     let right = 0;
-    const Left = Resource.family({
+    const Left = Resource.define({
       name: "ActionResult.invalidate-left",
       load: () => Effect.succeed(left),
     });
-    const Right = Resource.family({
+    const Right = Resource.define({
       name: "ActionResult.invalidate-right",
       load: () => Effect.succeed(right),
     });
@@ -428,19 +424,20 @@ describe("ActionResult", () => {
         }),
       invalidates: () => [leftRef],
     });
-    const action = Action.use(IncrementBoth);
+    const action = Action.use(IncrementBoth, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Resource.prefetchEffect(leftRef);
-        yield* Resource.prefetchEffect(rightRef);
-        yield* action.submitEffect(undefined);
+        yield* Resource.preload(leftRef);
+        yield* Resource.preload(rightRef);
+        yield* action.submit(undefined);
 
         yield* Effect.sync(() => {
-          expect(read(leftRef)).toBe(1);
-          expect(read(rightRef)).toBe(1);
+          expect(Effect.runSync(Resource.read(leftRef))).toBe(1);
+          expect(Effect.runSync(Resource.read(rightRef))).toBe(1);
           expect(
-            read(action.invalidationPlan)
+            action.invalidationPlan
+              .get()
               ?.entries.map((entry) => entry.ref.key)
               .sort(),
           ).toEqual([leftRef.key, rightRef.key].sort());

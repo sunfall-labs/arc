@@ -15,8 +15,6 @@ import {
 import type {
   BrowserRouterError,
   AnyBrowserRoute,
-  BrowserRouterPath,
-  BrowserRouterRouteForPath,
   BrowserRouterState,
 } from "./browser-router-state.js";
 
@@ -54,36 +52,22 @@ export interface BrowserRouterHostController<
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly state: ReadableSignal<BrowserRouterState<Routes, ER>>;
   readonly match: ReadableSignal<Route.Match<Routes[number]> | undefined>;
-  /** Starts history listening and returns an idempotent host-listener cleanup. */
+  /**
+   * Starts history listening and returns the host-owner cleanup, which forks
+   * `dispose()` on the router runtime.
+   */
   start(): () => void;
   /** Effect-first disposal for host listeners plus active route preload work. */
-  disposeEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for framework host cleanup hooks. */
-  dispose(): void;
+  dispose(): Effect.Effect<void>;
   canHandleRoute(definition: AnyBrowserRoute): definition is Routes[number];
   href<R extends Routes[number]>(definition: R, ...args: Route.HrefArgs<R>): string;
   /** Maps a router-owned href to the browser-visible href used by anchors. */
   createHref(href: string): string;
-  hrefByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-    ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): string;
   navigate<R extends Routes[number]>(definition: R, ...args: BrowserNavigateArgs<R>): void;
-  navigateByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-    ...args: BrowserNavigateArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): void;
   navigateHref(href: string, options?: BrowserNavigateOptions): void;
-  matchByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-  ): Route.Match<BrowserRouterRouteForPath<Routes, Path>> | undefined;
-  preloadEffect<R extends Routes[number]>(
+  preload<R extends Routes[number]>(
     definition: R,
     ...args: Route.HrefArgs<R>
-  ): Effect.Effect<void, BrowserRouterError<Routes> | ER>;
-  preloadByPathEffect<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-    ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
   ): Effect.Effect<void, BrowserRouterError<Routes> | ER>;
 }
 
@@ -106,9 +90,7 @@ export const createBrowserRouterHostController = <
   const kernelOptions: BrowserRouterKernelOptions<Routes, ER> = {
     runtime,
     initialHref,
-    ...(history.prepareHrefEffect === undefined
-      ? {}
-      : { prepareHrefEffect: history.prepareHrefEffect }),
+    ...(history.prepareHref === undefined ? {} : { prepareHref: history.prepareHref }),
     ...(options.initialMatchedState === undefined
       ? {}
       : { initialMatchedState: options.initialMatchedState }),
@@ -124,11 +106,10 @@ export const createBrowserRouterHostController = <
   const disposeEffect = (): Effect.Effect<void> =>
     Effect.gen(function* () {
       stopHost();
-      yield* kernel.disposeEffect();
+      yield* kernel.dispose();
     });
-  const dispose = (): void => {
-    stopHost();
-    kernel.dispose();
+  const forkDispose = (): void => {
+    void Effect.runFork(disposeEffect());
   };
 
   const controller: BrowserRouterHostController<Routes, ER> = {
@@ -155,26 +136,19 @@ export const createBrowserRouterHostController = <
         kernel.navigateHref(initialHref);
       }
 
-      return controller.dispose;
+      return forkDispose;
     },
-    disposeEffect,
-    dispose,
+    dispose: disposeEffect,
     canHandleRoute: kernel.canHandleRoute,
     href: kernel.href,
     createHref: (href) => history.createHref?.(href) ?? href,
-    hrefByPath: kernel.hrefByPath,
     navigate: (definition, ...args) => {
       kernel.navigate(definition, controller.navigateHref, ...args);
-    },
-    navigateByPath: (path, ...args) => {
-      kernel.navigateByPath(path, controller.navigateHref, ...args);
     },
     navigateHref: (href, navigateOptions = {}) => {
       kernel.navigateHref(history.commit(href, navigateOptions));
     },
-    matchByPath: kernel.matchByPath,
-    preloadEffect: kernel.preloadEffect,
-    preloadByPathEffect: kernel.preloadByPathEffect,
+    preload: kernel.preload,
   };
 
   return controller;

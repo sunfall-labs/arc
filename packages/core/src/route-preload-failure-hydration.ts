@@ -9,7 +9,7 @@ const RoutePreloadFailureHydrationKey: unique symbol = Symbol.for(
 /** Store-local route preload failures waiting for the router that renders their href. */
 class RoutePreloadFailureHydration implements ResourceStoreModule {
   readonly failures = new Map<string, RoutePreloadFailureSnapshot>();
-  readonly disposeEffect: Effect.Effect<void> = Effect.sync(() => {
+  readonly dispose: Effect.Effect<void> = Effect.sync(() => {
     this.failures.clear();
   });
 }

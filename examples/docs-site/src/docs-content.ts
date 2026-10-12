@@ -1,29 +1,18 @@
-import { Schema } from "effect";
+import { goldenPathBlocks } from "./golden-path.js";
 
-export const DocsPageSlug = Schema.Literals([
-  "getting-started",
-  "core-concepts",
-  "guided-tour",
-  "reference",
-  "deployment",
-  "troubleshooting",
-  "examples",
-]);
-
-export type DocsPageSlug = typeof DocsPageSlug.Type;
-
-export const DocsRouteParams = Schema.Struct({
-  slug: DocsPageSlug,
-});
-
-export type DocsRouteParams = typeof DocsRouteParams.Type;
+export { DocsPageSlug, DocsRouteParams } from "./docs-slugs.js";
+import type { DocsPageSlug } from "./docs-slugs.js";
 
 export type DocsSection = "Start here" | "Learn" | "Ship" | "Reference";
 
 export interface DocsBlock {
-  readonly _tag: "Heading" | "Paragraph" | "List" | "Code";
+  readonly _tag: "Heading" | "Paragraph" | "List" | "Code" | "Table";
   readonly text?: string;
+  /** Heading level; defaults to 2. */
+  readonly level?: 2 | 3;
   readonly items?: readonly string[];
+  /** Table rows; the first row is the header. */
+  readonly rows?: readonly (readonly string[])[];
   readonly code?: string;
   readonly language?: string;
 }
@@ -38,6 +27,14 @@ export interface DocsPage {
 
 export const docsPages = [
   {
+    slug: "golden-path",
+    section: "Start here",
+    title: "The golden path",
+    summary:
+      "Which Arc tool to use for each job, then one feature built end to end: Resource, Component, Route, Action, Collection, SSR, and Timeline.",
+    blocks: goldenPathBlocks,
+  },
+  {
     slug: "getting-started",
     section: "Start here",
     title: "Getting started",
@@ -46,7 +43,7 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. Start with a checked starter, then use the guided tour and cookbook to see the same contracts in small slices.",
+        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. Install the packages and run a checked starter here; read The golden path to learn which tool to use for each job, then use the cookbook for small slices.",
       },
       {
         _tag: "Heading",
@@ -59,7 +56,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "Start apps also add the host facade they deploy through, such as @sunfall/arc-start-fetch or @sunfall/arc-start-node.",
+        text: "Start apps deploy through one host adapter subpath: @sunfall/arc-start/fetch or @sunfall/arc-start/node.",
       },
       {
         _tag: "Heading",
@@ -121,119 +118,6 @@ export const docsPages = [
     ],
   },
   {
-    slug: "guided-tour",
-    section: "Learn",
-    title: "Guided tour",
-    summary:
-      "Build the smallest useful correctness slice: server contract, Capability, Resource, route preload, UI, Action, and graph impact.",
-    blocks: [
-      {
-        _tag: "Paragraph",
-        text: "A typical Arc feature starts with a domain contract and ends with definitions that can explain what the route loads, what the action mutates, and what an agent should verify before shipping.",
-      },
-      {
-        _tag: "Heading",
-        text: "1. Define the browser-safe contract",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const GetProject = Server.contract<
-  { readonly id: ProjectId },
-  Project,
-  ProjectError
->("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
-  output: ProjectSchema,
-  error: ProjectErrorSchema,
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "2. Expose it through a Capability-backed Resource",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
-
-export const ProjectById = Resource.family({
-  name: "Project.byId",
-  input: ProjectId,
-  output: ProjectSchema,
-  load: (id) => ProjectApi.use((api) => api.get(id)),
-  provides: (project) => [ProjectTag({ id: project.id })],
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "3. Declare the route-owned data",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `const RouteBuilder = defineFileRoute("/projects/:id");
-
-export const Route = RouteBuilder.preload({
-  params: ProjectRouteParams,
-  resources: ({ resource }) => [
-    resource(ProjectById, ({ params }) => params.id),
-  ],
-}).route();`,
-      },
-      {
-        _tag: "Heading",
-        text: "4. Read the same Resource in the UI",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `import { Option } from "effect";
-import { AsyncResult } from "effect/reactivity";
-import { Show } from "solid-js";
-
-const project = useResource(() => ProjectById(props.params.id));
-// Current or stale value: the view mounts once and refreshes update it in place.
-const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
-
-return (
-  <Show
-    when={current()}
-    fallback={AsyncResult.builder(project.result())
-      .onFailure((cause) => <ProjectError cause={cause} />)
-      .orElse(() => <Skeleton />)}
-  >
-    {(value) => <ProjectView project={value()} refreshing={project.result().waiting} />}
-  </Show>
-);`,
-      },
-      {
-        _tag: "Heading",
-        text: "5. Keep mutations attached to domain meaning",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const RenameProject = Action.define({
-  name: "Project.rename",
-  input: RenameProjectInput,
-  output: ProjectSchema,
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "6. Inspect the graph before changing code",
-      },
-      {
-        _tag: "Code",
-        language: "shellscript",
-        code: "sunfall-arc-start graph route /projects/:id\nsunfall-arc-start impact action Project.rename --json",
-      },
-    ],
-  },
-  {
     slug: "reference",
     section: "Reference",
     title: "Package reference",
@@ -243,9 +127,7 @@ return (
         _tag: "List",
         items: [
           "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, Capabilities, server contracts, and runtime helpers.",
-          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling.",
-          "@sunfall/arc-start-fetch: Fetch-host facade for Workers, edge-style runtimes, Bun, and other Request/Response hosts.",
-          "@sunfall/arc-start-node: Node HTTP facade for IncomingMessage/ServerResponse hosts.",
+          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
           "@sunfall/arc-db: Collections, live queries, persistence, optimistic mutation queues, and sync adapter seams.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, app graph summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
           "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, streams, and component scopes.",
@@ -270,7 +152,7 @@ return (
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc deployment centers on createRequestHandlerEffect(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup through the app runtime.",
+        text: "Arc deployment centers on createRequestHandler(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup through the app runtime.",
       },
       {
         _tag: "Heading",
@@ -279,12 +161,12 @@ return (
       {
         _tag: "Code",
         language: "tsx",
-        code: `import { createRequestHandlerEffect } from "@sunfall/arc-start";
-import { createFetchHandler } from "@sunfall/arc-start-fetch";
+        code: `import { createRequestHandler } from "@sunfall/arc-start";
+import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
 
 export default {
-  fetch: createFetchHandler(createRequestHandlerEffect(app), {
+  fetch: createFetchHandler(createRequestHandler(app), {
     runtime: app.runtime,
   }),
 };`,
@@ -297,16 +179,19 @@ export default {
         _tag: "Code",
         language: "tsx",
         code: `import { createServer } from "node:http";
-import { createRequestHandlerEffect } from "@sunfall/arc-start";
-import { createNodeServerHandler } from "@sunfall/arc-start-node";
+import { createRequestHandler } from "@sunfall/arc-start";
+import { createNodeServerHandler } from "@sunfall/arc-start/node";
 import { app } from "./app-definition.js";
 
 createServer(
-  createNodeServerHandler(createRequestHandlerEffect(app), {
+  createNodeServerHandler(createRequestHandler(app), {
     runtime: app.runtime,
-    trustForwardedHeaders: true,
   }),
 ).listen(3000);`,
+      },
+      {
+        _tag: "Paragraph",
+        text: "Forwarded headers are untrusted by default. Pass trustForwardedHeaders: true only behind a proxy that overwrites x-forwarded-proto and x-forwarded-host.",
       },
       {
         _tag: "Heading",
@@ -331,7 +216,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resource or Collection it owns with RouteBuilder.preload(...). Start diagnostics can require those declarations at build time.",
+        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in FileRoute.define(path)(options). Start diagnostics can require those declarations at build time.",
       },
       {
         _tag: "Heading",

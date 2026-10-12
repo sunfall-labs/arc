@@ -1,28 +1,26 @@
 import {
   Action,
   createBrowserRouterHostController,
-  defineApp,
-  eraseRuntime,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
   Resource,
   Route,
-  route,
   runWithRuntime,
   Server,
   type BrowserRouterHostController,
   type SunfallArcRuntime,
+  App,
 } from "@sunfall/arc-core";
-import { Collection, eq } from "@sunfall/arc-db";
+import { eraseRuntime } from "@sunfall/arc-core/internal";
+import { Collection } from "@sunfall/arc-db";
+import type { StartHydrationPayload } from "@sunfall/arc-start";
+import { createServerRpcResponseEffect } from "../packages/start/src/start-request-endpoints.js";
 import {
-  createServerRpcResponseEffect,
   createStartHydrationPayload,
   hydrateStartPayloadEffect,
-  preloadRequestEffect,
-  serverRpcPath,
-  startJsonMediaType,
-  type StartHydrationPayload,
-} from "@sunfall/arc-start";
+} from "../packages/start/src/hydration.js";
+import { preloadRequest } from "../packages/start/src/start-request-preload.js";
+import { serverRpcPath, startJsonMediaType } from "../packages/start/src/rpc.js";
 import { Effect, Schema } from "effect";
 import { afterAll, beforeAll, bench, describe } from "vitest";
 import { handleRequest, serverApp } from "../examples/project-console/src/server.js";
@@ -37,7 +35,7 @@ const assertBench = (condition: unknown, message: string): void => {
   }
 };
 
-const BenchProject = Resource.family({
+const BenchProject = Resource.define({
   name: "Benchmark.Project.byId",
   input: Schema.String,
   output: Schema.Struct({ id: Schema.String, name: Schema.String }),
@@ -48,7 +46,7 @@ const BenchProjectTag = Resource.tag<{ readonly id: string }>("Benchmark.Project
   key: ({ id }) => id,
 });
 
-const BenchTaggedProject = Resource.family({
+const BenchTaggedProject = Resource.define({
   name: "Benchmark.TaggedProject.byId",
   input: Schema.String,
   output: Schema.Struct({ id: Schema.String, name: Schema.String }),
@@ -56,36 +54,36 @@ const BenchTaggedProject = Resource.family({
   provides: (project) => [BenchProjectTag({ id: project.id })],
 });
 
-const BenchProjectRoute = route("/bench/projects/:id", {
+const BenchProjectRoute = Route.define("/bench/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preload: ({ params }) => Resource.prefetchEffect(BenchProject(params.id)),
+  preload: ({ params }) => Resource.preload(BenchProject(params.id)),
   preloadResources: [BenchProject],
 });
 
-const benchStartApp = defineApp({
+const benchStartApp = App.define({
   routes: [BenchProjectRoute] as const,
   client: {},
 });
 
-const routerProjectRoute = route("/bench/router/projects/:id", {
+const routerProjectRoute = Route.define("/bench/router/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preload: ({ params }) => Resource.prefetchEffect(BenchProject(params.id)),
+  preload: ({ params }) => Resource.preload(BenchProject(params.id)),
   preloadResources: [BenchProject],
 });
 
-const routerIssueRoute = route("/bench/router/issues/:id", {
+const routerIssueRoute = Route.define("/bench/router/issues/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preload: ({ params }) => Resource.prefetchEffect(BenchProject(params.id)),
+  preload: ({ params }) => Resource.preload(BenchProject(params.id)),
   preloadResources: [BenchProject],
 });
 
 const routerRoutes = [routerProjectRoute, routerIssueRoute] as const;
 
 const routeTable = [
-  route("/bench/routes", {}),
-  route("/bench/routes/docs", {}),
+  Route.define("/bench/routes", {}),
+  Route.define("/bench/routes/docs", {}),
   ...Array.from({ length: 48 }, (_, index) =>
-    route(`/bench/routes/${index}/:id`, {
+    Route.define(`/bench/routes/${index}/:id`, {
       params: Schema.Struct({ id: Schema.String }),
     }),
   ),
@@ -100,8 +98,8 @@ const Echo = Server.contract<{ readonly value: string }, { readonly value: strin
 );
 const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
 
-const benchRpcApp = defineApp({
-  routes: [route("/", {})] as const,
+const benchRpcApp = App.define({
+  routes: [Route.define("/", {})] as const,
   client: {},
 });
 
@@ -138,7 +136,7 @@ const BenchProjectCards = Collection.liveQuery({
   query: (query) =>
     query
       .from({ project: BenchProjects })
-      .where(({ project }) => eq(project.status, "active"))
+      .where(({ project }) => project.status === "active")
       .select(({ project }) => ({
         id: project.id,
         name: project.name,
@@ -176,7 +174,7 @@ let action: ReturnType<
 
 const disposeRuntime = async (runtime: SunfallArcRuntime | undefined): Promise<void> => {
   if (runtime) {
-    await Effect.runPromise(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)));
+    await Effect.runPromise(runtime.dispose.pipe(Effect.catchCause(() => Effect.void)));
   }
 };
 
@@ -215,19 +213,19 @@ const waitForRouterReady = (
 beforeAll(async () => {
   hotRuntime = makeRuntime();
   hotResourceRef = BenchProject("atlas");
-  await Effect.runPromise(hotRuntime.provide(Resource.prefetchEffect(hotResourceRef)));
+  await Effect.runPromise(hotRuntime.provide(Resource.preload(hotResourceRef)));
 
   tagRuntime = makeRuntime();
   await Effect.runPromise(
     tagRuntime.provide(
       Effect.all(
-        [...payloadRefs, ...taggedRefs].map((ref) => Resource.prefetchEffect(ref)),
+        [...payloadRefs, ...taggedRefs].map((ref) => Resource.preload(ref)),
         { concurrency: "unbounded", discard: true },
       ),
     ),
   );
   const resources = await Effect.runPromise(
-    tagRuntime.provide(Resource.hydrationPayloadEffect(payloadRefs)),
+    tagRuntime.provide(Resource.hydrationPayload(payloadRefs)),
   );
   hydrationPayload = createStartHydrationPayload(resources);
 
@@ -237,7 +235,7 @@ beforeAll(async () => {
   await Effect.runPromise(
     routerRuntime.provide(
       Effect.all(
-        [BenchProject("atlas"), BenchProject("kepler")].map((ref) => Resource.prefetchEffect(ref)),
+        [BenchProject("atlas"), BenchProject("kepler")].map((ref) => Resource.preload(ref)),
         { discard: true },
       ),
     ),
@@ -257,7 +255,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await Effect.runPromise(router.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
+  await Effect.runPromise(router.dispose().pipe(Effect.catchCause(() => Effect.void)));
   await Promise.all([
     disposeRuntime(hotRuntime),
     disposeRuntime(tagRuntime),
@@ -291,7 +289,7 @@ describe("Sunfall Arc release baseline", () => {
     "Runtime create and dispose",
     async () => {
       const runtime = makeRuntime();
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     },
     asyncBenchOptions,
   );
@@ -300,27 +298,25 @@ describe("Sunfall Arc release baseline", () => {
     "Resource hot cached read x100",
     () => {
       let seen = "";
-      runWithRuntime(hotRuntime, () => {
-        for (let index = 0; index < 100; index++) {
-          seen = Resource.read(hotResourceRef).id;
-        }
-      });
+      for (let index = 0; index < 100; index++) {
+        seen = hotRuntime.runSync(Resource.read(hotResourceRef)).id;
+      }
       assertBench(seen === "atlas", "Hot cached resource read returned the wrong value.");
     },
     microBenchOptions,
   );
 
   bench(
-    "Resource cold plus cached prefetch",
+    "Resource cold plus cached preload",
     async () => {
       const runtime = makeRuntime();
       try {
         const ref = BenchProject("cold");
-        const first = await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
-        const second = await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+        const first = await Effect.runPromise(runtime.provide(Resource.preload(ref)));
+        const second = await Effect.runPromise(runtime.provide(Resource.preload(ref)));
         assertBench(first.id === "cold" && second === first, "Resource cache did not reuse data.");
       } finally {
-        await Effect.runPromise(runtime.disposeEffect);
+        await Effect.runPromise(runtime.dispose);
       }
     },
     asyncBenchOptions,
@@ -330,7 +326,7 @@ describe("Sunfall Arc release baseline", () => {
     "Resource semantic tag invalidation plan over 50 refs",
     async () => {
       const plan = await Effect.runPromise(
-        tagRuntime.provide(Resource.planInvalidationEffect(BenchProjectTag({ id: "tagged-025" }))),
+        tagRuntime.provide(Resource.planInvalidation(BenchProjectTag({ id: "tagged-025" }))),
       );
       assertBench(plan.entries.length === 1, "Semantic tag plan should target one cached ref.");
     },
@@ -363,7 +359,7 @@ describe("Sunfall Arc release baseline", () => {
     "Action submit with typed invalidation callback",
     async () => {
       const value = await Effect.runPromise(
-        actionRuntime.provide(action.submitEffect({ id: "atlas", name: "Atlas" })),
+        actionRuntime.provide(action.submit({ id: "atlas", name: "Atlas" })),
       );
       assertBench(value.id === "atlas", "Action submission returned the wrong project.");
     },
@@ -375,11 +371,11 @@ describe("Sunfall Arc release baseline", () => {
     async () => {
       const runtime = makeRuntime();
       try {
-        await Effect.runPromise(runtime.provide(BenchProjectCards.preloadEffect()));
+        await Effect.runPromise(runtime.provide(BenchProjectCards.preload()));
         const rows = runWithRuntime(runtime, () => BenchProjectCards.rows());
         assertBench(rows.length === 750, "Collection live query should select active projects.");
       } finally {
-        await Effect.runPromise(runtime.disposeEffect);
+        await Effect.runPromise(runtime.dispose);
       }
     },
     asyncBenchOptions,
@@ -389,10 +385,7 @@ describe("Sunfall Arc release baseline", () => {
     "Start route preload request",
     async () => {
       const result = await Effect.runPromise(
-        preloadRequestEffect(
-          benchStartApp,
-          new Request("https://example.test/bench/projects/atlas"),
-        ),
+        preloadRequest(benchStartApp, new Request("https://example.test/bench/projects/atlas")),
       );
       assertBench(
         result.resources.resources.length === 1,

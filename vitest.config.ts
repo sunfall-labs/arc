@@ -8,26 +8,21 @@ const solidSignalsProductionEntry = createRequire(
 ).resolve("@solidjs/signals");
 
 const sharedAlias = {
+  "@sunfall/arc-core/internal": new URL("./packages/core/src/internal.ts", import.meta.url)
+    .pathname,
   "@sunfall/arc-core": new URL("./packages/core/src/index.ts", import.meta.url).pathname,
+  "@sunfall/arc-db/internal": new URL("./packages/db/src/internal.ts", import.meta.url).pathname,
   "@sunfall/arc-db": new URL("./packages/db/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-solid": new URL("./packages/solid/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-solid-db": new URL("./packages/solid-db/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-tsrx": new URL("./packages/tsrx/src/index.ts", import.meta.url).pathname,
-  "@sunfall/arc-start/adapters": new URL("./packages/start/src/adapters.ts", import.meta.url)
+  "@sunfall/arc-start/fetch": new URL("./packages/start/src/fetch.ts", import.meta.url).pathname,
+  "@sunfall/arc-start/node": new URL("./packages/start/src/node.ts", import.meta.url).pathname,
+  "@sunfall/arc-start/internal": new URL("./packages/start/src/internal.ts", import.meta.url)
     .pathname,
-  "@sunfall/arc-start/fetch-adapter": new URL(
-    "./packages/start/src/fetch-adapter.ts",
-    import.meta.url,
-  ).pathname,
-  "@sunfall/arc-start/node-adapter": new URL(
-    "./packages/start/src/node-adapter.ts",
-    import.meta.url,
-  ).pathname,
+  "@sunfall/arc-start/testing": new URL("./packages/start/src/testing.ts", import.meta.url)
+    .pathname,
   "@sunfall/arc-start": new URL("./packages/start/src/index.ts", import.meta.url).pathname,
-  "@sunfall/arc-start-fetch": new URL("./packages/start-fetch/src/index.ts", import.meta.url)
-    .pathname,
-  "@sunfall/arc-start-node": new URL("./packages/start-node/src/index.ts", import.meta.url)
-    .pathname,
   "@sunfall/arc-devtools": new URL("./packages/devtools/src/index.ts", import.meta.url).pathname,
 };
 

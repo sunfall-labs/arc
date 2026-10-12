@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { Collection } from "@sunfall/arc-db";
+import { defaultCollectionDefinitionRegistry } from "@sunfall/arc-db/internal";
 import type {
   ActionManifest,
   ActionManifestError,
@@ -182,11 +182,12 @@ export type StartAppGraphResourceTagDiagnostics =
  * collections that reject direct writes from concrete writable definitions.
  */
 export type StartAppGraphCollectionDiagnostics =
-  import("@sunfall/arc-db").Collection.DefinitionDiagnostics;
+  import("@sunfall/arc-db/internal").CollectionDefinitionDiagnostics;
 
 /** Reads collection definition diagnostics through Start's DB dependency. */
 export const startAppGraphCollectionDefinitions =
-  (): readonly StartAppGraphCollectionDiagnostics[] => Collection.diagnostics().collections;
+  (): readonly StartAppGraphCollectionDiagnostics[] =>
+    defaultCollectionDefinitionRegistry.diagnostics().collections;
 
 /** Contract missing one or more input/output/error schemas. */
 export interface StartAppGraphMissingSchema {
@@ -1153,11 +1154,6 @@ export const describeStartAppGraphRuntimeDiagnostics = (
     }),
   };
 };
-
-/** Effect wrapper for static Start app graph diagnostics projection. */
-export const describeStartAppGraphEffect = (
-  graph: StartAppGraph,
-): Effect.Effect<StartAppGraphDiagnostics> => Effect.succeed(describeStartAppGraph(graph));
 
 const shouldReportMissingSchema = (
   missing: StartAppGraphMissingSchema,

@@ -28,8 +28,6 @@ import type {
 } from "./devtools-contract.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 
-export type { DevtoolsSerializationPolicy } from "./devtools-contract.js";
-
 /** Error raised when a live invalidation plan contains a non-serializable target shape. */
 export class DevtoolsUnknownInvalidationTarget extends Data.TaggedError(
   "DevtoolsUnknownInvalidationTarget",
@@ -1233,10 +1231,10 @@ export const copyDevtoolsRuntimeEvent = (
         ...event,
         event: copyCollectionStoreEvent(event.event, policy),
       };
-    case "ProgramEvent":
+    case "TimelineCommit":
       return {
         ...event,
-        event: copyDetachedValue(event.event, state),
+        commit: copyDetachedValue(event.commit, state),
       };
     case "ActionState":
       return {

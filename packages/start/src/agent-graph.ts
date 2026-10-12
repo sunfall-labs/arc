@@ -1,4 +1,3 @@
-import { Effect } from "effect";
 import type {
   StartAppGraphActionDiagnostics,
   StartAppGraphCollectionDiagnostics,
@@ -40,11 +39,8 @@ export {
   formatStartAgentGraph,
   formatStartAgentGraphImpact,
 } from "./start-agent-graph-formatter.js";
-export {
-  createStartAgentGraphImpact,
-  createStartAgentGraphImpactEffect,
-} from "./start-agent-graph-impact.js";
-export { queryStartAgentGraph, queryStartAgentGraphEffect } from "./start-agent-graph-query.js";
+export { createStartAgentGraphImpact } from "./start-agent-graph-impact.js";
+export { queryStartAgentGraph } from "./start-agent-graph-query.js";
 
 const nodeId = (kind: string, key: string): string => `${kind}:${key}`;
 
@@ -463,8 +459,3 @@ export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGr
     findings,
   };
 };
-
-/** Effect wrapper for `createStartAgentGraph(...)`. */
-export const createStartAgentGraphEffect = (
-  input: StartAgentGraphInput,
-): Effect.Effect<StartAgentGraph> => Effect.succeed(createStartAgentGraph(input));

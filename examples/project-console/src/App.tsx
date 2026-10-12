@@ -1,29 +1,10 @@
-import {
-  Resource,
-  Route,
-  Program,
-  Signal,
-  RouterLink,
-  RouterOutlet,
-  RouterProvider,
-  createComponentScope,
-  read,
-  useAction,
-  useResource,
-  useProgram,
-  useStream,
-  useRouter,
-  useRuntimeEffect,
-  watch,
-} from "@sunfall/arc-solid";
-import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import type { CollectionRow } from "@sunfall/arc-db";
-import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
+import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
+import { Program, Resource, Route, Signal } from "@sunfall/arc-core";
+import type { Collection } from "@sunfall/arc-db";
+import { SolidDb } from "@sunfall/arc-solid-db";
 import { StartAction } from "@sunfall/arc-start";
-import { Cause, Effect, Option, Schema } from "effect";
-import { AsyncResult } from "effect/reactivity";
-import { For, Show, createEffect, onSettled, untrack } from "solid-js";
-import { isServer } from "@solidjs/web";
+import { Cause, Effect, Schema } from "effect";
+import { For, Loading, Show, createEffect, onSettled, untrack } from "solid-js";
 import {
   AdvanceProject,
   ProjectById,
@@ -37,9 +18,9 @@ import {
   projectSearch,
   type PresenceEvent,
   type Project,
-  type ProjectApi,
   type ProjectHealth,
   type ProjectId,
+  type ProjectNameSubmissionResult,
   type ProjectWorkItem,
   type ProjectTab,
   type ProjectStatus,
@@ -47,27 +28,17 @@ import {
   type WorkItemId,
   type WorkItemStatus,
 } from "./domain.js";
-import { HomeRoute, ProjectRoute, ProjectsRoute, app } from "./app-definition.js";
+import { HomeRoute, ProjectRoute, ProjectsRoute } from "./app-definition.js";
 import {
   ProjectSummaries,
   ProjectWorkItems,
   projectWorkQueueQuery,
   type ProjectWorkQueueItem,
 } from "./project-collections.js";
-import { hrefByPath, isRoutePathMatch } from "./routeTree.gen.js";
 import { HealthBadge, Metric, PresencePill } from "./ui.tsrx";
 
-const HomeUiRoute = Route.withComponent(HomeRoute, HomeRouteView);
-const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView);
-const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectRouteView);
-const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
-type AppRoutes = typeof routes;
-type ProjectConsoleRuntime<RuntimeServices = ProjectApi> = [ProjectApi] extends [RuntimeServices]
-  ? SunfallArcRuntime<RuntimeServices, never>
-  : never;
-type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
-type ProjectWorkItemRow = CollectionRow<ProjectWorkItem, WorkItemId>;
-type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
+type ProjectSummaryRow = Collection.Row<ProjectSummary, ProjectId>;
+type ProjectWorkItemRow = Collection.Row<ProjectWorkItem, WorkItemId>;
 
 const ProjectNameFormInput = Schema.Struct({
   name: Schema.String,
@@ -75,13 +46,8 @@ const ProjectNameFormInput = Schema.Struct({
 
 const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
   tab === undefined || tab === "overview"
-    ? hrefByPath("/projects/:id", { params: { id } })
-    : hrefByPath("/projects/:id", { params: { id }, search: { tab } });
-
-export interface AppProps<RuntimeServices = ProjectApi> {
-  readonly initialHref?: string;
-  readonly runtime?: ProjectConsoleRuntime<RuntimeServices>;
-}
+    ? Route.href(ProjectRoute, { params: { id } })
+    : Route.href(ProjectRoute, { params: { id }, search: { tab } });
 
 const initialPresence: PresenceEvent = {
   activeUsers: 4,
@@ -142,10 +108,6 @@ const workItemCommandLabel = (status: WorkItemStatus): string =>
 
 const formatSpend = (spend: number): string => `${spend}%`;
 
-/** The failure `Cause` once a load settles; a retry in flight reads as `waiting` instead. */
-const settledFailure = <A, E>(result: AsyncResult.AsyncResult<A, E>): Cause.Cause<E> | undefined =>
-  result._tag === "Failure" && !result.waiting ? result.cause : undefined;
-
 const SearchIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="m21 21-4.6-4.6" />
@@ -177,27 +139,11 @@ const SaveIcon = () => (
   </svg>
 );
 
-export default function App<RuntimeServices = ProjectApi>(props: AppProps<RuntimeServices> = {}) {
-  const runtime = (props.runtime ?? app.runtime) as SunfallArcRuntime<
-    ProjectApi | RuntimeServices,
-    never
-  >;
-  const routerProps =
-    props.initialHref === undefined
-      ? { routes, runtime }
-      : { routes, initialHref: props.initialHref, runtime };
-
-  return (
-    <RouterProvider {...routerProps}>
-      <AppShell />
-    </RouterProvider>
-  );
-}
+type AppRoutes = typeof routes;
 
 const projectIdFromMatch = (
   match: Route.Match<AppRoutes[number]> | undefined,
-): ProjectId | undefined =>
-  isRoutePathMatch("/projects/:id", match) ? match.params.id : undefined;
+): ProjectId | undefined => (Route.isMatch(ProjectRoute, match) ? match.params.id : undefined);
 
 function HomeRouteView() {
   const router = useRouter<AppRoutes>();
@@ -219,38 +165,88 @@ function ProjectIndexRouteView() {
   );
 }
 
-function ProjectRouteView(props: Route.Props<typeof ProjectRoute>) {
-  return <ProjectDetail id={props.params.id} tab={props.search.tab ?? "overview"} />;
-}
+const ProjectRows = Component.define(
+  "ProjectRows",
+  function* (props: { readonly selectedId: ProjectId | undefined; readonly search: string }) {
+    const projects = yield* SolidDb.collection(ProjectSummaries);
+    const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummaryRow>) => {
+      const query = props.search.trim().toLowerCase();
+      if (query.length === 0) {
+        return currentProjects;
+      }
 
-function AppShell() {
-  return createComponentScope(() => {
+      return currentProjects.filter((project) =>
+        [project.name, project.owner, project.status].some((part) =>
+          part.toLowerCase().includes(query),
+        ),
+      );
+    };
+    const rows = () => filteredProjects(projects.rows());
+    const result = () => projects.result();
+    const failure = () => {
+      const current = result();
+      return current._tag === "Failure" && !current.waiting ? current.cause : undefined;
+    };
+    // Rows are their own signal: the load result only decides the chrome around
+    // them, so a refresh never remounts the list.
+    const hasRows = () =>
+      projects.rows().length > 0 || (result()._tag === "Success" && !result().waiting);
+
+    return () => (
+      <div class="projectList">
+        <Show
+          when={hasRows()}
+          fallback={
+            <Show when={failure() === undefined}>
+              <ProjectListSkeleton />
+            </Show>
+          }
+        >
+          {/* Keyed by id: a refetch hands back new row objects, the same rows stay mounted. */}
+          <For each={rows()} keyed={(project) => project.id}>
+            {(project) => (
+              <ProjectRow project={project()} selected={project().id === props.selectedId} />
+            )}
+          </For>
+
+          <Show when={rows().length === 0}>
+            <p class="emptyState">No projects match that filter.</p>
+          </Show>
+        </Show>
+
+        <Show when={hasRows() && result().waiting}>
+          <p class="inlineStatus">Refreshing projects</p>
+        </Show>
+        <Show when={failure()}>{(cause) => <InlineFailure error={Cause.squash(cause())} />}</Show>
+      </div>
+    );
+  },
+);
+
+const AppShell = Component.define("AppShell", function* () {
+  const presence = yield* Component.stream(makePresenceStream(), initialPresence);
+  // ProjectSummaries follows ProjectsRef, so refreshing the Resource refreshes
+  // the sidebar rows too.
+  const refresh = yield* Component.callback((id: ProjectId | undefined) =>
+    Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(Effect.ignore),
+  );
+  const Rows = yield* ProjectRows;
+
+  return () => {
     const router = useRouter<AppRoutes>();
-    const runEffect = useRuntimeEffect();
-    const presence = useStream(makePresenceStream(), initialPresence);
+    const selectedId = () => projectIdFromMatch(router.match());
     const title = Signal.derive(() => {
-      const id = projectIdFromMatch(router.match());
+      const id = selectedId();
       return id ? `${id} · Sunfall Arc Project Console` : "Projects · Sunfall Arc Project Console";
     });
 
-    if (!isServer) {
-      watch(
-        () => read(title),
-        (nextTitle) =>
-          Effect.sync(() => {
-            document.title = nextTitle;
-          }),
-      );
-    }
-
-    const refreshVisibleData = () => {
-      const id = projectIdFromMatch(router.match());
-      runEffect(
-        // ProjectSummaries follows ProjectsRef, so refreshing the Resource
-        // refreshes the sidebar rows too.
-        Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef),
-      );
-    };
+    // Solid effects run only in the browser, after render.
+    createEffect(
+      () => title.get(),
+      (nextTitle) => {
+        document.title = nextTitle;
+      },
+    );
 
     return (
       <main class="appShell">
@@ -263,18 +259,35 @@ function AppShell() {
             </div>
           </div>
 
-          <ProjectListPane selectedId={projectIdFromMatch(router.match())} />
+          <section class="projectRail" aria-label="Projects">
+            <label class="searchField">
+              <SearchIcon />
+              <input
+                type="search"
+                placeholder="Filter projects"
+                value={projectSearch.get()}
+                onInput={(event) => projectSearch.set(event.currentTarget.value)}
+              />
+            </label>
+
+            <Rows selectedId={selectedId()} search={projectSearch.get()} />
+          </section>
         </aside>
 
         <section class="workbench">
           <header class="topBar">
             <div>
-              <p class="eyebrow">{app.fullStack ? "Full stack" : "Client only"} vertical slice</p>
+              <p class="eyebrow">Full stack vertical slice</p>
               <h2>Resource cache and action state</h2>
             </div>
             <div class="topBarActions">
               <PresencePill presence={presence()} />
-              <button class="iconButton" type="button" title="Refresh" onClick={refreshVisibleData}>
+              <button
+                class="iconButton"
+                type="button"
+                title="Refresh"
+                onClick={() => refresh(selectedId())}
+              >
                 <RefreshIcon />
               </button>
             </div>
@@ -288,83 +301,8 @@ function AppShell() {
         </section>
       </main>
     );
-  });
-}
-
-function ProjectListPane(props: { readonly selectedId: ProjectId | undefined }) {
-  const search = () => projectSearch.get();
-
-  return (
-    <section class="projectRail" aria-label="Projects">
-      <label class="searchField">
-        <SearchIcon />
-        <input
-          type="search"
-          placeholder="Filter projects"
-          value={search()}
-          onInput={(event) => Signal.set(projectSearch, event.currentTarget.value)}
-        />
-      </label>
-
-      <ProjectRows selectedId={props.selectedId} search={search()} />
-    </section>
-  );
-}
-
-function ProjectRows(props: {
-  readonly selectedId: ProjectId | undefined;
-  readonly search: string;
-}) {
-  const projects = useCollection(ProjectSummaries);
-  const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummaryRow>) => {
-    const query = props.search.trim().toLowerCase();
-    if (query.length === 0) {
-      return currentProjects;
-    }
-
-    return currentProjects.filter((project) =>
-      [project.name, project.owner, project.status].some((part) =>
-        part.toLowerCase().includes(query),
-      ),
-    );
   };
-  const rows = () => filteredProjects(projects.rows());
-  const result = () => projects.result();
-  const failure = () => settledFailure(result());
-  // Rows are their own signal: the load result only decides the chrome around
-  // them, so a refresh never remounts the list.
-  const hasRows = () =>
-    projects.rows().length > 0 || (result()._tag === "Success" && !result().waiting);
-
-  return (
-    <div class="projectList">
-      <Show
-        when={hasRows()}
-        fallback={
-          <Show when={failure() === undefined}>
-            <ProjectListSkeleton />
-          </Show>
-        }
-      >
-        {/* Keyed by id: a refetch hands back new row objects, the same rows stay mounted. */}
-        <For each={rows()} keyed={(project) => project.id}>
-          {(project) => (
-            <ProjectRow project={project()} selected={project().id === props.selectedId} />
-          )}
-        </For>
-
-        <Show when={rows().length === 0}>
-          <p class="emptyState">No projects match that filter.</p>
-        </Show>
-      </Show>
-
-      <Show when={hasRows() && result().waiting}>
-        <p class="inlineStatus">Refreshing projects</p>
-      </Show>
-      <Show when={failure()}>{(cause) => <InlineFailure error={Cause.squash(cause())} />}</Show>
-    </div>
-  );
-}
+});
 
 function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selected: boolean }) {
   return (
@@ -387,69 +325,6 @@ function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selec
         </Show>
       </span>
     </RouterLink>
-  );
-}
-
-function ProjectDetail(props: { readonly id: ProjectId; readonly tab: ProjectTab }) {
-  const project = useResource(() => ProjectById(props.id));
-  // Current or stale value. The content below is keyed on *having* a value, not
-  // on each AsyncResult transition, so refreshes (Success -> waiting -> Success)
-  // update it in place instead of remounting the rename form and its Program.
-  const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
-  const failure = () => settledFailure(project.result());
-
-  return (
-    <Show
-      when={current()}
-      fallback={
-        <Show when={failure()} fallback={<ProjectSkeleton />}>
-          {(cause) => <FailureView error={Cause.squash(cause())} />}
-        </Show>
-      }
-    >
-      {(value) => (
-        <>
-          <ProjectDetailContent
-            project={value()}
-            tab={props.tab}
-            refreshing={project.result().waiting}
-          />
-          <Show when={failure()}>{(cause) => <InlineFailure error={Cause.squash(cause())} />}</Show>
-        </>
-      )}
-    </Show>
-  );
-}
-
-function ProjectDetailContent(props: {
-  readonly project: Project;
-  readonly tab: ProjectTab;
-  readonly refreshing: boolean;
-}) {
-  return (
-    <article class={["projectDetail", { refreshing: props.refreshing }]}>
-      <section class="detailHeader">
-        <div>
-          <p class="eyebrow">{statusLabel(props.project.status)} project</p>
-          <h2>{props.project.name}</h2>
-          <p>{props.project.goal}</p>
-        </div>
-        <HealthBadge health={props.project.health} label={healthLabel(props.project.health)} />
-      </section>
-
-      <ProjectTabs project={props.project} selected={props.tab} />
-
-      <section class="metricGrid" aria-label="Project metrics">
-        <Metric label="Progress" value={`${props.project.progress}%`} tone="blue" />
-        <Metric label="Budget used" value={formatSpend(props.project.spend)} tone="amber" />
-        <Metric label="Owner" value={props.project.owner} tone="green" />
-        <Metric label="Updated" value={props.project.updatedAt} tone="slate" />
-      </section>
-
-      <WorkQueueSummary project={props.project} />
-
-      <ProjectTabPanel project={props.project} tab={props.tab} />
-    </article>
   );
 }
 
@@ -485,68 +360,74 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
   );
 }
 
-function WorkQueueSummary(props: { readonly project: Project }) {
-  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query), {
-    deps: () => props.project.id,
-  });
-  const items = () => queue.data();
-  const blocked = () => items().filter((item) => item.status === "blocked").length;
-  const unsynced = () => items().filter((item) => !item.synced).length;
+const WorkQueueSummary = Component.define(
+  "WorkQueueSummary",
+  function* (props: { readonly projectId: ProjectId }) {
+    const queue = yield* SolidDb.liveQuery((query) =>
+      projectWorkQueueQuery(props.projectId)(query),
+    );
+    const items = () => queue.rows();
+    const blocked = () => items().filter((item) => item.status === "blocked").length;
+    const unsynced = () => items().filter((item) => !item.synced).length;
 
-  return (
-    <section class="workQueueSummary" aria-label="Live work queue summary">
-      <div>
-        <p class="eyebrow">Live query</p>
-        <h3>Indexed work queue</h3>
-      </div>
-      <div class="queueStats">
-        <span>{items().length} open</span>
-        <span>{blocked()} blocked</span>
-        <span>{unsynced()} syncing</span>
-      </div>
-    </section>
-  );
-}
-
-function ProjectWorkQueue(props: { readonly project: Project }) {
-  const runEffect = useRuntimeEffect();
-  const collection = useCollection(ProjectWorkItems, { preload: false });
-  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query), {
-    deps: () => props.project.id,
-  });
-  const moveItem = (id: WorkItemId, status: WorkItemStatus) => {
-    runEffect(collection.updateEffect(id, { status }).pipe(Effect.catchCause(() => Effect.void)));
-  };
-
-  return (
-    <section class="taskPanel">
-      <div class="panelHeader">
+    return () => (
+      <section class="workQueueSummary" aria-label="Live work queue summary">
         <div>
-          <p class="eyebrow">Collection + Query.live</p>
-          <h3>{props.project.name} work queue</h3>
+          <p class="eyebrow">Live query</p>
+          <h3>Indexed work queue</h3>
         </div>
-        <Show when={queue.result().waiting}>
-          <p class="inlineStatus">Refreshing work items</p>
-        </Show>
-      </div>
+        <div class="queueStats">
+          <span>{items().length} open</span>
+          <span>{blocked()} blocked</span>
+          <span>{unsynced()} syncing</span>
+        </div>
+      </section>
+    );
+  },
+);
 
-      <div class="taskList">
-        <For each={queue.data()}>
-          {(item) => (
-            <WorkQueueRow
-              item={item}
-              source={collection.get(item.id)}
-              onMove={() => moveItem(item.id, nextWorkItemStatus(item.status))}
-            />
-          )}
-        </For>
-        <Show when={queue.data().length === 0}>
-          <p class="emptyState">No open work items for this project.</p>
-        </Show>
-      </div>
-    </section>
-  );
-}
+const ProjectWorkQueue = Component.define(
+  "ProjectWorkQueue",
+  function* (props: { readonly project: Project }) {
+    const collection = yield* SolidDb.collection(ProjectWorkItems, { preload: false });
+    const queue = yield* SolidDb.liveQuery((query) =>
+      projectWorkQueueQuery(props.project.id)(query),
+    );
+    const moveItem = yield* Component.callback((id: WorkItemId, status: WorkItemStatus) =>
+      ProjectWorkItems.update(id, { status }).pipe(Effect.ignore),
+    );
+
+    return () => (
+      <section class="taskPanel">
+        <div class="panelHeader">
+          <div>
+            <p class="eyebrow">Collection + Query.live</p>
+            <h3>{props.project.name} work queue</h3>
+          </div>
+          <Show when={queue.result().waiting}>
+            <p class="inlineStatus">Refreshing work items</p>
+          </Show>
+        </div>
+
+        <div class="taskList">
+          {/* Keyed by id: a recomputed query hands back new row objects for the same items. */}
+          <For each={queue.rows()} keyed={(item) => item.id}>
+            {(item) => (
+              <WorkQueueRow
+                item={item()}
+                source={collection.get(item().id)}
+                onMove={() => moveItem(item().id, nextWorkItemStatus(item().status))}
+              />
+            )}
+          </For>
+          <Show when={queue.rows().length === 0}>
+            <p class="emptyState">No open work items for this project.</p>
+          </Show>
+        </div>
+      </section>
+    );
+  },
+);
 
 function WorkQueueRow(props: {
   readonly item: ProjectWorkQueueItem;
@@ -577,48 +458,6 @@ function WorkQueueRow(props: {
   );
 }
 
-function ProjectTabPanel(props: { readonly project: Project; readonly tab: ProjectTab }) {
-  if (props.tab === "activity") {
-    return (
-      <section class="activityPanel">
-        <h3>Recent activity</h3>
-        <p>Route preload refreshed this project at {props.project.updatedAt}.</p>
-        <p>
-          {props.project.owner} is clearing the next milestone: {props.project.nextMilestone}
-        </p>
-        <p>
-          Health moved to {healthLabel(props.project.health)} with {props.project.progress}%
-          progress.
-        </p>
-      </section>
-    );
-  }
-
-  if (props.tab === "tasks") {
-    return <ProjectWorkQueue project={props.project} />;
-  }
-
-  return (
-    <section class="detailLayout">
-      <div class="primaryPanel">
-        <h3>{props.tab === "settings" ? "Project controls" : "Next milestone"}</h3>
-        <p>{props.project.nextMilestone}</p>
-
-        <div class="progressTrack" aria-label={`Progress ${props.project.progress}%`}>
-          <span style={{ width: `${props.project.progress}%` }} />
-        </div>
-
-        <ProjectActions project={props.project} />
-      </div>
-
-      <aside class="riskPanel" aria-label="Current risks">
-        <h3>Risk register</h3>
-        <For each={props.project.risks}>{(risk) => <p>{risk}</p>}</For>
-      </aside>
-    </section>
-  );
-}
-
 interface ProjectActionsModel {
   readonly project: Project;
   readonly renamePending: boolean;
@@ -630,7 +469,7 @@ interface ProjectActionsModel {
 type ProjectActionsMessage =
   | { readonly _tag: "ProjectChanged"; readonly project: Project }
   | { readonly _tag: "SubmitRename"; readonly formData: FormData }
-  | { readonly _tag: "RenameFinished"; readonly result: ProjectNameSubmissionClientResult }
+  | { readonly _tag: "RenameFinished"; readonly result: ProjectNameSubmissionResult }
   | { readonly _tag: "RenameFailed"; readonly error: unknown }
   | { readonly _tag: "Advance" }
   | { readonly _tag: "AdvanceFinished"; readonly project: Project }
@@ -642,214 +481,355 @@ const projectActionsInitial = (project: Project): ProjectActionsModel => ({
   advancePending: false,
 });
 
-const renameValidationMessage = (result: ProjectNameSubmissionClientResult): string | undefined =>
+const renameValidationMessage = (result: ProjectNameSubmissionResult): string | undefined =>
   result._tag === "ValidationFailure"
     ? (result.fieldErrors.name?.[0] ?? result.formErrors[0])
     : undefined;
 
-const useProjectActionsProgram = (project: () => Project) => {
-  const router = useRouter<AppRoutes>();
-  // The same action the no-JS form posts. Its invalidations refresh the
-  // ProjectById header and the ProjectList Resource the sidebar collection
-  // follows, so both show the new name before the redirect lands.
-  const rename = StartAction.use(SubmitProjectName);
-  const advance = useAction(AdvanceProject);
-  const actions = useProgram(
-    Program.define<ProjectActionsModel, ProjectActionsMessage>({
-      // Seed once; later project values arrive as ProjectChanged messages.
-      initial: projectActionsInitial(untrack(project)),
-      on: {
-        ProjectChanged: (model, message) =>
-          message.project.id === model.project.id
-            ? { ...model, project: message.project }
-            : projectActionsInitial(message.project),
-        SubmitRename: (model, message) => {
-          if (model.renamePending) {
-            return model;
-          }
+/**
+ * Rename and advance controls. Setup runs once per instance, so each mounted
+ * form owns its Actions and Program. Both Actions submit the same way: the
+ * client runtime's ActionTransport serves the rename on the server (the same
+ * Action the no-JS form posts), while advance runs locally.
+ */
+const ProjectActions = Component.define(
+  "ProjectActions",
+  function* (props: { readonly project: Project }) {
+    // The router only follows redirect hrefs here, so it needs no route typing.
+    const router = useRouter();
+    // The rename's invalidations refresh the ProjectById header and the
+    // ProjectList Resource the sidebar collection follows, so both show the new
+    // name before the redirect lands.
+    const rename = yield* Component.action(SubmitProjectName);
+    const advance = yield* Component.action(AdvanceProject);
+    const actions = yield* Component.program(
+      Program.define<ProjectActionsModel, ProjectActionsMessage>({
+        // Seed once; later project values arrive as ProjectChanged messages.
+        initial: projectActionsInitial(untrack(() => props.project)),
+        on: {
+          ProjectChanged: (model, message) =>
+            message.project.id === model.project.id
+              ? { ...model, project: message.project }
+              : projectActionsInitial(message.project),
+          SubmitRename: (model, message) => {
+            if (model.renamePending) {
+              return model;
+            }
 
-          return Program.next(
-            {
-              project: model.project,
-              renamePending: true,
-              advancePending: model.advancePending,
-            },
-            Program.emit(
-              StartAction.decodeFormDataEffect(ProjectNameFormInput, message.formData).pipe(
-                Effect.flatMap(({ name }) =>
-                  rename.submitEffect({
-                    id: model.project.id,
-                    name,
-                    redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
+            return Program.next(
+              {
+                project: model.project,
+                renamePending: true,
+                advancePending: model.advancePending,
+              },
+              Program.emit(
+                StartAction.decodeFormData(ProjectNameFormInput, message.formData).pipe(
+                  Effect.flatMap(({ name }) =>
+                    rename.submit({
+                      id: model.project.id,
+                      name,
+                      redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
+                    }),
+                  ),
+                  Effect.match({
+                    onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
+                    onSuccess: (result): ProjectActionsMessage => ({
+                      _tag: "RenameFinished",
+                      result,
+                    }),
                   }),
                 ),
-                Effect.match({
-                  onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
-                  onSuccess: (result): ProjectActionsMessage => ({
-                    _tag: "RenameFinished",
-                    result,
-                  }),
-                }),
               ),
-            ),
-          );
-        },
-        RenameFinished: (model, message) => {
-          const result = message.result;
-          switch (result._tag) {
-            case "Success":
-              return {
-                project: result.value,
-                renamePending: false,
-                advancePending: model.advancePending,
-              };
-            case "ValidationFailure":
-              const validation = renameValidationMessage(result);
-              return validation === undefined
-                ? {
-                    project: model.project,
-                    renamePending: false,
-                    advancePending: model.advancePending,
-                  }
-                : {
-                    project: model.project,
-                    renamePending: false,
-                    advancePending: model.advancePending,
-                    validation,
-                  };
-            case "Failure":
-              return {
-                project: model.project,
-                renamePending: false,
-                advancePending: model.advancePending,
-                error: result.error,
-              };
-            case "Redirect":
-              return Program.next(
-                {
+            );
+          },
+          RenameFinished: (model, message) => {
+            const result = message.result;
+            switch (result._tag) {
+              case "Success":
+                return {
+                  project: result.value,
+                  renamePending: false,
+                  advancePending: model.advancePending,
+                };
+              case "ValidationFailure":
+                const validation = renameValidationMessage(result);
+                return validation === undefined
+                  ? {
+                      project: model.project,
+                      renamePending: false,
+                      advancePending: model.advancePending,
+                    }
+                  : {
+                      project: model.project,
+                      renamePending: false,
+                      advancePending: model.advancePending,
+                      validation,
+                    };
+              case "Failure":
+                return {
                   project: model.project,
                   renamePending: false,
                   advancePending: model.advancePending,
-                },
-                Program.effect(
-                  Effect.sync(() =>
-                    router.navigateHref(
-                      result.location,
-                      result.replace === undefined ? undefined : { replace: result.replace },
+                  error: result.error,
+                };
+              case "Redirect":
+                return Program.next(
+                  {
+                    project: model.project,
+                    renamePending: false,
+                    advancePending: model.advancePending,
+                  },
+                  Program.emit(
+                    Effect.sync(() =>
+                      router.navigateHref(
+                        result.location,
+                        result.replace === undefined ? undefined : { replace: result.replace },
+                      ),
                     ),
                   ),
-                ),
-              );
-          }
-        },
-        RenameFailed: (model, message) => ({
-          project: model.project,
-          renamePending: false,
-          advancePending: model.advancePending,
-          error: message.error,
-        }),
-        Advance: (model) => {
-          if (model.advancePending) {
-            return model;
-          }
+                );
+            }
+          },
+          RenameFailed: (model, message) => ({
+            project: model.project,
+            renamePending: false,
+            advancePending: model.advancePending,
+            error: message.error,
+          }),
+          Advance: (model) => {
+            if (model.advancePending) {
+              return model;
+            }
 
-          return Program.next(
-            {
-              project: model.project,
-              renamePending: model.renamePending,
-              advancePending: true,
-            },
-            Program.emit(
-              advance.submitEffect({ id: model.project.id }).pipe(
-                Effect.match({
-                  onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
-                  onSuccess: (project): ProjectActionsMessage => ({
-                    _tag: "AdvanceFinished",
-                    project,
+            return Program.next(
+              {
+                project: model.project,
+                renamePending: model.renamePending,
+                advancePending: true,
+              },
+              Program.emit(
+                advance.submit({ id: model.project.id }).pipe(
+                  Effect.match({
+                    onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
+                    onSuccess: (project): ProjectActionsMessage => ({
+                      _tag: "AdvanceFinished",
+                      project,
+                    }),
                   }),
-                }),
+                ),
               ),
-            ),
-          );
+            );
+          },
+          AdvanceFinished: (model, message) => ({
+            project: message.project,
+            renamePending: model.renamePending,
+            advancePending: false,
+          }),
+          AdvanceFailed: (model, message) => ({
+            project: model.project,
+            renamePending: model.renamePending,
+            advancePending: false,
+            error: message.error,
+          }),
         },
-        AdvanceFinished: (model, message) => ({
-          project: message.project,
-          renamePending: model.renamePending,
-          advancePending: false,
-        }),
-        AdvanceFailed: (model, message) => ({
-          project: model.project,
-          renamePending: model.renamePending,
-          advancePending: false,
-          error: message.error,
-        }),
+      }),
+    );
+
+    // Program failures land in `actions.failures()`, so handlers ignore them.
+    const send = yield* Component.callback((message: ProjectActionsMessage) =>
+      actions.dispatch(message).pipe(Effect.ignore),
+    );
+
+    createEffect(
+      () => props.project,
+      (current) => {
+        send({ _tag: "ProjectChanged", project: current });
       },
-    }),
-  );
+    );
 
-  createEffect(project, (current) => {
-    actions.dispatch({ _tag: "ProjectChanged", project: current });
-  });
+    const model = actions.model;
+    const renameForm = () =>
+      projectNameActionTarget({
+        id: model().project.id,
+        redirectTo: makeProjectReturnTo(projectHref(model().project.id, "activity")),
+      });
 
-  return actions;
-};
+    return () => (
+      <div class="actionPanel">
+        <form
+          class="renameForm"
+          method={renameForm().method}
+          action={renameForm().action}
+          onSubmit={(event) => {
+            event.preventDefault();
+            send({
+              _tag: "SubmitRename",
+              formData: new FormData(event.currentTarget),
+            });
+          }}
+        >
+          <For each={renameForm().hiddenFields}>
+            {(field) => <input type="hidden" name={field.name} value={field.value} />}
+          </For>
+          <label>
+            <span>Name</span>
+            <input
+              name="name"
+              value={model().project.name}
+              aria-invalid={model().validation === undefined ? "false" : "true"}
+              aria-describedby={model().validation === undefined ? undefined : "project-name-error"}
+            />
+          </label>
+          <button class="commandButton" type="submit" disabled={model().renamePending}>
+            <SaveIcon />
+            {model().renamePending ? "Saving" : "Rename"}
+          </button>
+        </form>
 
-function ProjectActions(props: { readonly project: Project }) {
-  const actions = useProjectActionsProgram(() => props.project);
-  const model = actions.model;
-
-  const renameForm = () =>
-    projectNameActionTarget({
-      id: model().project.id,
-      redirectTo: makeProjectReturnTo(projectHref(model().project.id, "activity")),
-    });
-
-  return (
-    <div class="actionPanel">
-      <form
-        class="renameForm"
-        method={renameForm().method}
-        action={renameForm().action}
-        onSubmit={(event) => {
-          event.preventDefault();
-          actions.dispatch({
-            _tag: "SubmitRename",
-            formData: new FormData(event.currentTarget),
-          });
-        }}
-      >
-        <For each={renameForm().hiddenFields}>
-          {(field) => <input type="hidden" name={field.name} value={field.value} />}
-        </For>
-        <label>
-          <span>Name</span>
-          <input
-            name="name"
-            value={model().project.name}
-            aria-invalid={model().validation === undefined ? "false" : "true"}
-            aria-describedby={model().validation === undefined ? undefined : "project-name-error"}
-          />
-        </label>
-        <button class="commandButton" type="submit" disabled={model().renamePending}>
-          <SaveIcon />
-          {model().renamePending ? "Saving" : "Rename"}
+        <button
+          class="commandButton secondary"
+          type="button"
+          disabled={model().advancePending}
+          onClick={() => send({ _tag: "Advance" })}
+        >
+          <ArrowIcon />
+          {model().advancePending ? "Advancing" : "Advance"}
         </button>
-      </form>
 
-      <button
-        class="commandButton secondary"
-        type="button"
-        disabled={model().advancePending}
-        onClick={() => actions.dispatch({ _tag: "Advance" })}
+        <ActionMessage validation={model().validation} error={model().error} />
+      </div>
+    );
+  },
+);
+
+/**
+ * The project route. The reader is the only way content gets its value: the
+ * first load suspends the `<Loading>` (route preload and hydration make it
+ * synchronous), and refreshes keep the same content mounted (the rename form
+ * keeps its text) while `waiting`/`failure` drive the status chrome.
+ */
+const ProjectPage = Component.define(
+  "ProjectPage",
+  function* (props: Route.Props<typeof ProjectRoute>) {
+    const project = yield* Component.resource(ProjectById);
+    const Summary = yield* WorkQueueSummary;
+    const WorkQueue = yield* ProjectWorkQueue;
+    const Actions = yield* ProjectActions;
+    const id = () => props.params.id;
+    const tab = (): ProjectTab => props.search.tab ?? "overview";
+
+    const TabPanel = (panel: { readonly project: Project }) => (
+      <Show
+        when={tab() === "activity"}
+        fallback={
+          <Show
+            when={tab() === "tasks"}
+            fallback={
+              <section class="detailLayout">
+                <div class="primaryPanel">
+                  <h3>{tab() === "settings" ? "Project controls" : "Next milestone"}</h3>
+                  <p>{panel.project.nextMilestone}</p>
+
+                  <div class="progressTrack" aria-label={`Progress ${panel.project.progress}%`}>
+                    <span style={{ width: `${panel.project.progress}%` }} />
+                  </div>
+
+                  <Actions project={panel.project} />
+                </div>
+
+                <aside class="riskPanel" aria-label="Current risks">
+                  <h3>Risk register</h3>
+                  <For each={panel.project.risks}>{(risk) => <p>{risk}</p>}</For>
+                </aside>
+              </section>
+            }
+          >
+            <WorkQueue project={panel.project} />
+          </Show>
+        }
       >
-        <ArrowIcon />
-        {model().advancePending ? "Advancing" : "Advance"}
-      </button>
+        <section class="activityPanel">
+          <h3>Recent activity</h3>
+          <p>Route preload refreshed this project at {panel.project.updatedAt}.</p>
+          <p>
+            {panel.project.owner} is clearing the next milestone: {panel.project.nextMilestone}
+          </p>
+          <p>
+            Health moved to {healthLabel(panel.project.health)} with {panel.project.progress}%
+            progress.
+          </p>
+        </section>
+      </Show>
+    );
 
-      <ActionMessage validation={model().validation} error={model().error} />
-    </div>
-  );
-}
+    const Content = (content: { readonly project: Project }) => (
+      <article class={["projectDetail", { refreshing: project.waiting(id()) }]}>
+        <section class="detailHeader">
+          <div>
+            <p class="eyebrow">{statusLabel(content.project.status)} project</p>
+            <h2>{content.project.name}</h2>
+            <p>{content.project.goal}</p>
+          </div>
+          <HealthBadge
+            health={content.project.health}
+            label={healthLabel(content.project.health)}
+          />
+        </section>
+
+        <ProjectTabs project={content.project} selected={tab()} />
+
+        <section class="metricGrid" aria-label="Project metrics">
+          <Metric label="Progress" value={`${content.project.progress}%`} tone="blue" />
+          <Metric label="Budget used" value={formatSpend(content.project.spend)} tone="amber" />
+          <Metric label="Owner" value={content.project.owner} tone="green" />
+          <Metric label="Updated" value={content.project.updatedAt} tone="slate" />
+        </section>
+
+        <Summary projectId={content.project.id} />
+
+        <TabPanel project={content.project} />
+      </article>
+    );
+
+    return () => (
+      <Loading fallback={<ProjectSkeleton />}>
+        <Content project={project(id())} />
+        <Show when={project.failure(id())}>
+          {(cause) => <InlineFailure error={Cause.squash(cause())} />}
+        </Show>
+      </Loading>
+    );
+  },
+).pipe(Component.catchAll((error) => <FailureView error={error} />));
+
+const HomeUiRoute = Route.withComponent(HomeRoute, HomeRouteView);
+const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView);
+const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectPage);
+const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
+
+/**
+ * The Project Console: one Component tree from the client entry (`launch`) and
+ * the server render (`embed`). Its routes' preload services and route
+ * Components' services join its `R`, so `launch` checks the runtime provides
+ * them.
+ */
+const ProjectConsole = Component.define(
+  "ProjectConsole",
+  function* (props: { readonly initialHref?: string }) {
+    const router = yield* Component.router(
+      routes,
+      props.initialHref === undefined ? {} : { initialHref: props.initialHref },
+    );
+    const Shell = yield* AppShell;
+    return () => (
+      <RouterProvider router={router}>
+        <Shell />
+      </RouterProvider>
+    );
+  },
+);
+
+export default ProjectConsole;
 
 function ActionMessage(props: {
   readonly validation: string | undefined;

@@ -1,21 +1,20 @@
 import {
-  defineApp,
   RequestContext,
   Resource,
   ResponseContext,
-  route,
   Server,
   type AnySunfallArcRuntime,
   type SunfallArcRuntime,
+  Route,
+  App,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
+import { createRequestHandler, StartAction } from "@sunfall/arc-start";
 import {
-  createRequestHandler,
   serverActionPath,
-  startActionForm,
   streamHydrationAttribute,
   type StartHydrationChunk,
-} from "@sunfall/arc-start";
+} from "@sunfall/arc-start/testing";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -42,7 +41,7 @@ const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
   Effect.runPromise((runtime as unknown as AnySunfallArcRuntime<RuntimeError>).provide(effect));
 
 const postActionForm = async (
-  form: ReturnType<typeof startActionForm>,
+  form: StartAction.Form<typeof SubmitProjectName>,
   body: URLSearchParams,
 ): Promise<Response> =>
   runInRuntime(
@@ -102,7 +101,7 @@ describe("project console full-stack golden path", () => {
       name: "Meridian Analytics",
     });
 
-    const form = startActionForm(SubmitProjectName, {
+    const form = StartAction.form(SubmitProjectName, {
       input: {
         id: projectId,
         redirectTo: makeProjectReturnTo("/projects/meridian?tab=activity"),
@@ -181,7 +180,7 @@ describe("project console full-stack golden path", () => {
       readonly requestPath: string;
     }
 
-    const BoundaryResource = Resource.family({
+    const BoundaryResource = Resource.define({
       name: "ProjectConsoleGolden.boundary.resource",
       input: Schema.String,
       output: Schema.Struct({
@@ -200,26 +199,25 @@ describe("project console full-stack golden path", () => {
         }),
       ),
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }]),
+      sync: {
+        load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }]),
+      },
     });
-    const BoundaryRoute = route("/golden/:id", {
+    const BoundaryRoute = Route.define("/golden/:id", {
       params: Schema.Struct({ id: Schema.String }),
       preload: ({ params }) =>
         Effect.asVoid(
-          Effect.all([
-            Resource.prefetchEffect(BoundaryResource(params.id)),
-            BoundaryCollection.preloadEffect(),
-          ]),
+          Effect.all([Resource.preload(BoundaryResource(params.id)), BoundaryCollection.preload()]),
         ),
     });
-    const boundaryApp = defineApp({
+    const boundaryApp = App.define({
       routes: [BoundaryRoute] as const,
       client: {},
     });
     const handler = createRequestHandler(boundaryApp, {
-      render: ({ collections, legacyHydrationScript, match }) => {
+      render: ({ collections, legacyHydrationScript, match, runtime }) => {
         const id = match?.params.id ?? "missing";
-        const project = Resource.read(BoundaryResource(id));
+        const project = runtime.runSync(Resource.read(BoundaryResource(id)));
         const collection = collections.collections[0];
         return [
           "<html><body>",

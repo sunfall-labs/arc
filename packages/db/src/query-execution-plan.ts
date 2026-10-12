@@ -128,7 +128,7 @@ export const preloadQueryExecutionPlanSourcesEffect = <E, R>(
 ): Effect.Effect<void, E, R> =>
   Effect.gen(function* () {
     for (const source of sources) {
-      yield* source.preloadEffect(force);
+      yield* source.preload(force);
     }
   });
 
