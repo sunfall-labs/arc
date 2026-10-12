@@ -1,8 +1,9 @@
-export type CodeLanguage = "shellscript" | "text" | "tsx";
+export type CodeLanguage = "diff" | "shellscript" | "text" | "tsx";
 
 const languageAliases: Record<string, CodeLanguage> = {
   bash: "shellscript",
   console: "shellscript",
+  diff: "diff",
   javascript: "tsx",
   js: "tsx",
   jsx: "tsx",
@@ -73,8 +74,9 @@ const escapeHtml = (value: string): string =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-const span = (className: string, color: string, value: string): string =>
-  `<span class="${className}" style="color:${color}">${escapeHtml(value)}</span>`;
+/** Token colors live in the stylesheet, so one markup serves the light and dark themes. */
+const span = (className: string, value: string): string =>
+  `<span class="${className}">${escapeHtml(value)}</span>`;
 
 const isIdentifierStart = (char: string | undefined): boolean =>
   char !== undefined && /[A-Za-z_$]/u.test(char);
@@ -116,21 +118,21 @@ const highlightTsxLine = (line: string): string => {
     const next = line[index + 1];
 
     if (char === "/" && next === "/") {
-      html += span("token comment", "#8b949e", line.slice(index));
+      html += span("token comment", line.slice(index));
       break;
     }
 
     if (char === "/" && next === "*") {
       const closeIndex = line.indexOf("*/", index + 2);
       const end = closeIndex === -1 ? line.length : closeIndex + 2;
-      html += span("token comment", "#8b949e", line.slice(index, end));
+      html += span("token comment", line.slice(index, end));
       index = end;
       continue;
     }
 
     if (char === '"' || char === "'" || char === "`") {
       const end = readQuotedToken(line, index, char);
-      html += span("token string", "#a5d6ff", line.slice(index, end));
+      html += span("token string", line.slice(index, end));
       index = end;
       continue;
     }
@@ -140,7 +142,7 @@ const highlightTsxLine = (line: string): string => {
       while (/[\d._]/u.test(line[end] ?? "")) {
         end += 1;
       }
-      html += span("token number", "#79c0ff", line.slice(index, end));
+      html += span("token number", line.slice(index, end));
       index = end;
       continue;
     }
@@ -152,11 +154,11 @@ const highlightTsxLine = (line: string): string => {
       }
       const word = line.slice(index, end);
       if (tsxKeywords.has(word)) {
-        html += span("token keyword", "#ff7b72", word);
+        html += span("token keyword", word);
       } else if (nextNonWhitespace(line, end) === "(") {
-        html += span("token function", "#d2a8ff", word);
+        html += span("token function", word);
       } else if (/^[A-Z]/u.test(word)) {
-        html += span("token class-name", "#ffa657", word);
+        html += span("token class-name", word);
       } else {
         html += escapeHtml(word);
       }
@@ -174,18 +176,19 @@ const highlightTsxLine = (line: string): string => {
 const highlightShellLine = (line: string): string => {
   let html = "";
   let index = 0;
+  let commandSeen = false;
 
   while (index < line.length) {
     const char = line[index] ?? "";
 
     if (char === "#") {
-      html += span("token comment", "#8b949e", line.slice(index));
+      html += span("token comment", line.slice(index));
       break;
     }
 
     if (char === '"' || char === "'") {
       const end = readQuotedToken(line, index, char);
-      html += span("token string", "#a5d6ff", line.slice(index, end));
+      html += span("token string", line.slice(index, end));
       index = end;
       continue;
     }
@@ -200,18 +203,29 @@ const highlightShellLine = (line: string): string => {
           end += 1;
         }
       }
-      html += span("token variable", "#7ee787", line.slice(index, end));
+      html += span("token variable", line.slice(index, end));
       index = end;
       continue;
     }
 
-    if (isIdentifierStart(char)) {
+    if (!/\s/u.test(char)) {
       let end = index + 1;
-      while (/[A-Za-z0-9_:-]/u.test(line[end] ?? "")) {
+      while (end < line.length && !/[\s"'#$]/u.test(line[end] ?? "")) {
         end += 1;
       }
       const word = line.slice(index, end);
-      html += span("token command", "#d2a8ff", word);
+      // The first word of a command is the program; the rest are its arguments.
+      if (!commandSeen && isIdentifierStart(word[0]) && !word.includes("=")) {
+        commandSeen = true;
+        html += span("token command", word);
+      } else if (word.startsWith("-")) {
+        html += span("token flag", word);
+      } else {
+        if (word === "&&" || word === "||" || word === "|" || word === ";") {
+          commandSeen = false;
+        }
+        html += span("token arg", word);
+      }
       index = end;
       continue;
     }
@@ -223,7 +237,7 @@ const highlightShellLine = (line: string): string => {
   return html;
 };
 
-const highlightLine = (line: string, language: CodeLanguage): string => {
+const highlightLine = (line: string, language: Exclude<CodeLanguage, "diff">): string => {
   switch (language) {
     case "shellscript":
       return highlightShellLine(line);
@@ -234,17 +248,35 @@ const highlightLine = (line: string, language: CodeLanguage): string => {
   }
 };
 
+/** A unified diff of TypeScript: `+`/`-` lines are marked, and their code is highlighted. */
+const highlightDiffLine = (line: string): string => {
+  if (line.startsWith("@@")) {
+    return `<span class="line diff-hunk">${escapeHtml(line)}</span>`;
+  }
+  const marker = line[0];
+  const kind = marker === "+" ? "diff-add" : marker === "-" ? "diff-remove" : "diff-context";
+  const code = marker === "+" || marker === "-" || marker === " " ? line.slice(1) : line;
+  const gutter = marker === "+" || marker === "-" ? marker : " ";
+  return `<span class="line ${kind}"><span class="diff-marker" aria-hidden="true">${gutter}</span>${highlightTsxLine(code)}</span>`;
+};
+
 export const highlightCode = (code: string, language?: string): string => {
   const normalizedLanguage = normalizeCodeLanguage(language);
   const lines = code
     .split("\n")
-    .map((line) => `<span class="line">${highlightLine(line, normalizedLanguage)}</span>`);
+    .map((line) =>
+      normalizedLanguage === "diff"
+        ? highlightDiffLine(line)
+        : `<span class="line">${highlightLine(line, normalizedLanguage)}</span>`,
+    );
 
-  return `<pre class="shiki github-dark-default" style="background-color:#0d1117;color:#e6edf3" tabindex="0"><code>${lines.join("\n")}</code></pre>`;
+  return `<pre class="arcCode" data-language="${normalizedLanguage}" tabindex="0"><code>${lines.join("\n")}</code></pre>`;
 };
 
 export const codeLanguageLabel = (language?: string): string => {
   switch (normalizeCodeLanguage(language)) {
+    case "diff":
+      return "Diff";
     case "shellscript":
       return "Shell";
     case "text":

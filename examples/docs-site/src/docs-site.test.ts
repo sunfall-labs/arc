@@ -67,11 +67,28 @@ describe("docs site", () => {
         const html = yield* Effect.tryPromise(() => response.text());
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
+        const visibleText = visibleTextFromHtml(html);
+
         expect(response.status).toBe(200);
-        expect(html).toContain("Built with Arc");
-        expect(html).toContain("Sunfall Arc docs and cookbook.");
-        expect(html).toContain("service-backed Resource");
+        expect(html).toContain(
+          "<title>Sunfall Arc: full-stack TypeScript, correct by construction</title>",
+        );
+        expect(html).toContain(
+          '<meta name="description" content="A full-stack TypeScript framework',
+        );
+        expect(visibleText).toContain("Full-stack TypeScript, correct by construction.");
+        expect(visibleText).toContain(
+          "Arc is a framework on Effect and Solid where errors, services, and every state change are typed and named.",
+        );
+        // The homepage code comes from type-tests/site/home.tsx regions.
+        expect(visibleText).toContain("export const ProjectById = Resource.define({");
+        expect(visibleText).toContain("// @ts-expect-error ProjectNotFound is not handled");
+        expect(visibleText).toContain("durable: { maxAge: &quot;1 day&quot; }");
+        expect(visibleText).toContain("const recording = yield* Timeline.record({ limit: 500 });");
+        expect(visibleText).not.toContain("#region");
+        expect(html).toContain("This site is an Arc app.");
         expect(html).not.toContain("Dogfooded");
+        expect(html).not.toContain("agent-operated");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
         );
@@ -117,6 +134,7 @@ describe("docs site", () => {
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
         expect(response.status).toBe(200);
+        expect(html).toContain("<title>Semantic invalidation tags · Sunfall Arc</title>");
         expect(html).toContain("Semantic invalidation tags");
         expect(html).toContain("Tags describe domain concepts");
         expect(html).toContain('aria-label="On this page"');
@@ -141,24 +159,26 @@ describe("docs site", () => {
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
         expect(response.status).toBe(200);
-        expect(html).toContain("Correctness by construction for agent-operated TypeScript apps.");
+        expect(html).toContain("<title>Introducing Sunfall Arc</title>");
+        expect(html).toContain('<meta property="og:type" content="article" />');
+        expect(html).toContain(
+          "Full-stack TypeScript where failures, services, and state changes are typed.",
+        );
         expect(html).toContain("What conventional stacks would do");
         expect(html).toContain('href="#what-conventional-stacks-would-do"');
-        expect(html).toContain("In Arc, a definition is a named typed declaration");
-        expect(html).toContain("Effect gives Arc dependency injection and testability");
-        expect(html).toContain('href="#effect-gives-arc-dependency-injection-and-testability"');
+        expect(html).toContain("Services are Effect services");
+        expect(html).toContain('href="#services-are-effect-services"');
         expect(html).toContain("What Arc replaces");
         expect(html).toContain('href="#what-arc-replaces"');
-        expect(html).toContain("The hero slice: route, resource, action");
-        expect(html).toContain('href="#the-hero-slice-route-resource-action"');
-        expect(html).toContain("The running demo is an issue tracker");
-        expect(visibleText).toContain("export const IssueId");
-        expect(visibleText).toContain("const IssueApiTest = Layer.succeed(IssueApi");
-        expect(html).toContain("Built by an agent, verified in public");
-        expect(html).toContain("For durable app behavior");
-        expect(html).toContain('class="shiki github-dark-default"');
+        expect(html).toContain('id="failures-are-part-of-the-type"');
+        // Arc code on the blog comes from type-checked fixtures.
+        expect(visibleText).toContain("export const ProjectById = Resource.define({");
+        expect(visibleText).toContain("Action.planOptimistic(RenameProject");
+        expect(html).toContain("Legible to people, CI, and agents");
+        expect(html).toContain('class="arcCode"');
         expect(visibleText).toContain("queryClient.invalidateQueries");
-        expect(visibleText).toContain("const useIssueStore = create");
+        expect(visibleText).toContain("const useProjectStore = create");
+        expect(html).not.toContain("agent-operated");
         expect(html).toContain("Resource from a server function");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
@@ -184,14 +204,17 @@ describe("docs site", () => {
         const referenceHtml = yield* Effect.tryPromise(() => referenceResponse.text());
 
         expect(overviewResponse.status).toBe(200);
-        expect(overviewHtml).toContain("Docs for agent-operated TypeScript apps.");
+        expect(overviewHtml).toContain("<title>Documentation · Sunfall Arc</title>");
+        expect(overviewHtml).toContain("Learn Arc");
         expect(overviewHtml).toContain("Getting started");
         expect(overviewHtml).toContain("Troubleshooting");
         expect(gettingStartedResponse.status).toBe(200);
         expect(gettingStartedHtml).toContain("Install the alpha packages");
         expect(gettingStartedHtml).toContain('href="#install-the-core-packages"');
         expect(gettingStartedHtml).toContain('id="run-a-checked-starter"');
-        expect(gettingStartedHtml).toContain('class="shiki github-dark-default"');
+        expect(gettingStartedHtml).toContain("<title>Getting started · Sunfall Arc</title>");
+        expect(gettingStartedHtml).toContain('class="arcCode"');
+        expect(gettingStartedHtml).toContain('class="callout"');
         expect(gettingStartedText).toContain(
           "pnpm add @sunfall/arc-core @sunfall/arc-start @sunfall/arc-solid effect solid-js",
         );
@@ -199,6 +222,30 @@ describe("docs site", () => {
         expect(referenceResponse.status).toBe(200);
         expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-core/);
         expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-solid/);
+      }),
+    ));
+
+  it("renders the golden path with a drawn diagram, inline code headings, and scrolling tables", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const response = yield* Effect.scoped(
+          handleRequest(new Request("https://docs.test/docs/golden-path")),
+        );
+        const html = yield* Effect.tryPromise(() => response.text());
+
+        expect(response.status).toBe(200);
+        expect(html).toContain("<title>The golden path · Sunfall Arc</title>");
+        // The Markdown's text diagram is drawn as a theme-aware SVG.
+        expect(html).toContain('class="archFigure"');
+        expect(html).not.toContain("Layer \u2500\u2500provides");
+        // Inline code in headings and the page rail renders as code, not backticks.
+        expect(html).toContain('id="5-add-rows-and-an-instant-rename"');
+        expect(html).toMatch(/<h3[^>]*>5\. Add <code class="inlineCode">rows<\/code>/);
+        expect(html).not.toContain("Add `rows`");
+        expect(html).toContain('<div class="tableScroll"');
+        // "`src/projects.ts`:" before a fence becomes the block's file label.
+        expect(html).toContain('<span class="codeFile">src/projects.ts</span>');
+        expect(html).toContain('class="line diff-add"');
       }),
     ));
 

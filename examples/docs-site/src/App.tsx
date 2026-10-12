@@ -1,6 +1,6 @@
 import { Component, RouterLink, RouterProvider, useRouter } from "@sunfall/arc-solid";
-import { Route } from "@sunfall/arc-core";
-import { Loading, Show, createMemo, createSignal, onSettled, untrack } from "solid-js";
+import { Route, State } from "@sunfall/arc-core";
+import { onSettled } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
   BlogPostRoute,
@@ -11,80 +11,50 @@ import {
   RecipeRoute,
 } from "./site-routes.js";
 import {
-  RecipeBySlug,
-  RecipeIndex,
-  type Recipe,
-  type RecipeBlock,
-  type RecipeSummary,
-} from "./content.js";
-import {
   docsPages,
   docsPagesBySection,
   docsSections,
   getDocsPage,
   type DocsBlock,
-  type DocsSection,
+  type DocsPage,
 } from "./docs-content.js";
-import type { RecipeCategory, RecipeSlug } from "./content.contract.js";
-import { codeLanguageLabel, highlightCode } from "./code-highlighting.js";
+import type { RecipeSlug } from "./content.contract.js";
+import { ArchitectureDiagram } from "./architecture-diagram.js";
+import { BlogPostView } from "./blog.js";
+import { HomeView } from "./home.js";
+import {
+  PageRail,
+  createPageRailItems,
+  pageRailIdsByBlockIndex,
+  type HeadingSource,
+  type PageRailItem,
+} from "./page-rail.js";
+import { RecipeIndexGrid, RecipeNavList, RecipeRouteView } from "./recipes.js";
+import { FailureView, LoadingView, NotFoundView } from "./status-views.js";
+import {
+  AnchoredHeading,
+  ArcMark,
+  ArrowIcon,
+  Callout,
+  CloseIcon,
+  CodeBlock,
+  DocumentTitle,
+  GitHubIcon,
+  InlineText,
+  MenuIcon,
+  TableBlock,
+  ThemeToggle,
+  githubUrl,
+  themeBootScript,
+} from "./ui.js";
 import { docsSiteHref, makeDocsSiteHistoryAdapter } from "./site-base.js";
 import "./styles.css";
 
-const articleBodyClass = "recipeBody prose prose-stone max-w-none";
 const packageListItemPattern = /^(@sunfall\/[a-z0-9-]+(?: and @sunfall\/[a-z0-9-]+)*):\s(.+)$/u;
-interface HeadingSource {
-  readonly blockIndex: number;
-  readonly level: 2 | 3;
-  readonly text: string;
-}
-
-interface PageRailItem extends HeadingSource {
-  readonly id: string;
-}
 
 type DocsRoutes = typeof routes;
 
-const categoryLabel = (category: RecipeCategory): string => {
-  switch (category) {
-    case "resources":
-      return "Resources";
-    case "routing":
-      return "Routing";
-    case "actions":
-      return "Actions";
-    case "testing":
-      return "Testing";
-  }
-};
-
 const recipeHref = (slug: RecipeSlug): string => docsSiteHref(`/cookbook/${slug}`);
-
-const slugifyHeading = (text: string): string => {
-  const slug = text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-|-$/gu, "");
-
-  return slug.length > 0 ? slug : "section";
-};
-
-const createPageRailItems = (headings: ReadonlyArray<HeadingSource>): readonly PageRailItem[] => {
-  const seen = new Map<string, number>();
-
-  return headings.map((heading) => {
-    const slug = slugifyHeading(heading.text);
-    const count = seen.get(slug) ?? 0;
-    seen.set(slug, count + 1);
-
-    return {
-      ...heading,
-      id: count === 0 ? slug : `${slug}-${count + 1}`,
-    };
-  });
-};
-
-const pageRailIdsByBlockIndex = (items: ReadonlyArray<PageRailItem>): ReadonlyMap<number, string> =>
-  new Map(items.map((item) => [item.blockIndex, item.id] as const));
 
 const docsPageRailItems = (blocks: ReadonlyArray<DocsBlock>): readonly PageRailItem[] =>
   createPageRailItems(
@@ -95,246 +65,70 @@ const docsPageRailItems = (blocks: ReadonlyArray<DocsBlock>): readonly PageRailI
     ),
   );
 
-const recipePageRailItems = (blocks: ReadonlyArray<RecipeBlock>): readonly PageRailItem[] =>
-  createPageRailItems(
-    blocks.flatMap((block, blockIndex): readonly HeadingSource[] =>
-      block._tag === "Heading"
-        ? [{ blockIndex, level: block.level <= 2 ? 2 : 3, text: block.text }]
-        : [],
-    ),
-  );
-
-const blogRailItems = createPageRailItems([
-  { blockIndex: 0, level: 2, text: "The problem: agents inherit implicit apps" },
-  { blockIndex: 1, level: 2, text: "What agent-native means" },
-  { blockIndex: 2, level: 2, text: "Correctness by construction" },
-  { blockIndex: 3, level: 2, text: "Effect gives Arc dependency injection and testability" },
-  { blockIndex: 4, level: 2, text: "The hero slice: route, resource, action" },
-  { blockIndex: 5, level: 2, text: "What conventional stacks would do" },
-  { blockIndex: 6, level: 2, text: "What Arc replaces" },
-  { blockIndex: 7, level: 2, text: "Built by an agent, verified in public" },
-  { blockIndex: 8, level: 2, text: "What this alpha does not claim" },
-]);
-
-const blogHeadingId = (index: number): string =>
-  blogRailItems[index]?.id ?? `blog-section-${index}`;
-
-function DocsNav() {
-  return (
-    <nav class="sidebarSection" aria-label="Documentation">
-      <p class="navHeading">Docs</p>
-      <RouterLink route={DocsOverviewUiRoute} class="navSectionLink">
-        Overview
-      </RouterLink>
-      <div class="navList">
-        {docsPages.map((page) => (
-          <RouterLink
-            route={DocsPageUiRoute}
-            options={{ params: { slug: page.slug } }}
-            class="navRecipeLink"
-          >
-            <span>{page.title}</span>
-            <small>{page.section}</small>
-          </RouterLink>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
-/** The recipe index in the sidebar: suspends until loaded and fails quietly. */
-const RecipeNavList = Component.define("RecipeNavList", function* () {
-  const recipes = yield* Component.resource(RecipeIndex);
-  return () => <RecipeNavLinks recipes={recipes("all")} />;
-}).pipe(
-  Component.catchAll(() => <p class="muted">Recipe index unavailable</p>),
-  Component.loading(() => <p class="muted">Loading recipes</p>),
-);
-
-function RecipeNavLinks(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
-  return (
-    <>
-      <RouterLink route={CookbookUiRoute} class="navSectionLink">
-        All recipes
-      </RouterLink>
-      <div class="navList">
-        {props.recipes.map((recipe) => (
-          <RouterLink
-            route={RecipeUiRoute}
-            options={{ params: { slug: recipe.slug } }}
-            class="navRecipeLink"
-          >
-            <span>{recipe.title}</span>
-            <small>{categoryLabel(recipe.category)}</small>
-          </RouterLink>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
-  const [activeId, setActiveId] = createSignal(untrack(() => props.items[0]?.id ?? ""));
-
-  onSettled(() => {
-    const headings = props.items
-      .map((item) => document.getElementById(item.id))
-      .filter((heading): heading is HTMLElement => heading !== null);
-
-    if (headings.length === 0) {
-      return;
-    }
-
-    const firstHeading = headings[0];
-
-    if (firstHeading === undefined) {
-      return;
-    }
-
-    const updateActiveHeading = () => {
-      const current = headings.reduce<HTMLElement>((active, heading) => {
-        const top = heading.getBoundingClientRect().top;
-        return top <= 128 ? heading : active;
-      }, firstHeading);
-
-      setActiveId(current.id);
-    };
-
-    updateActiveHeading();
-    window.addEventListener("scroll", updateActiveHeading, { passive: true });
-    window.addEventListener("resize", updateActiveHeading);
-
-    // Solid 2: settled callbacks return their cleanup (onCleanup is forbidden here).
-    return () => {
-      window.removeEventListener("scroll", updateActiveHeading);
-      window.removeEventListener("resize", updateActiveHeading);
-    };
-  });
-
-  return (
-    <Show when={props.items.length > 0}>
-      <aside class="pageRail" aria-label="On this page">
-        <p class="pageRailTitle">On this page</p>
-        <nav class="pageRailNav">
-          {props.items.map((item) => (
-            <a
-              href={`#${item.id}`}
-              class={[
-                "pageRailLink",
-                {
-                  active: activeId() === item.id,
-                  nested: item.level > 2,
-                },
-              ]}
-              aria-current={activeId() === item.id ? "location" : undefined}
-            >
-              {item.text}
-            </a>
-          ))}
-        </nav>
-      </aside>
-    </Show>
-  );
-}
-
-/** A recipe grid over the shared recipe index Resource. */
-const RecipeIndexGrid = Component.define(
-  "RecipeIndexGrid",
-  function* (props: { readonly limit?: number }) {
-    const recipes = yield* Component.resource(RecipeIndex);
-    return () => <RecipeGrid recipes={recipes("all").slice(0, props.limit)} />;
-  },
-).pipe(
-  Component.catchAll((error) => <FailureView error={error} />),
-  Component.loading(() => <RecipeGridSkeleton />),
-);
-
-const HomeView = Component.define("HomeView", function* () {
-  const Recipes = yield* RecipeIndexGrid;
-  return () => (
-    <article class="pageStack">
-      <header class="heroBand">
-        <p class="eyebrow">Built with Arc</p>
-        <h1>Sunfall Arc docs and cookbook.</h1>
-        <p>
-          This site is a small Arc app: recipes load through server functions, pass through a
-          service-backed Resource, preload from file routes, and hydrate before the UI mounts.
-        </p>
-        <RouterLink
-          route={DocsPageUiRoute}
-          options={{ params: { slug: "golden-path" } }}
-          class="primaryLink"
-        >
-          Start with the golden path
-        </RouterLink>
-        <RouterLink route={CookbookUiRoute} class="secondaryLink">
-          Browse cookbook
-        </RouterLink>
-      </header>
-
-      <section class="featureCallout" aria-label="Introduction">
-        <p class="eyebrow">From the blog</p>
-        <h2>Why Sunfall Arc exists</h2>
-        <p>
-          The first public alpha is about correctness by construction for agent-operated apps:
-          routes, resources, actions, server boundaries, and local-first state become typed
-          definitions that humans and agents can inspect, edit, and verify.
-        </p>
-        <RouterLink route={BlogPostUiRoute} class="primaryLink">
-          Read the introduction
-        </RouterLink>
-      </section>
-
-      <Recipes limit={3} />
-    </article>
-  );
-});
-
-const docsSectionLabel = (section: DocsSection): string => section;
-
 function DocsOverviewView() {
+  const [featured, ...rest]: ReadonlyArray<DocsPage> = docsPages;
   return (
-    <article class="pageStack">
-      <header class="pageHeader">
-        <p class="eyebrow">Documentation</p>
-        <h1>Docs for agent-operated TypeScript apps.</h1>
-        <p>
-          Start here to learn how Arc turns full-stack TypeScript behavior into typed, inspectable
-          definitions that humans, CI, and agents can check before release.
-        </p>
-      </header>
+    <article class="docPage wide">
+      <DocumentTitle title="Documentation" />
+      <div class="docColumn">
+        <header class="pageHeader">
+          <p class="eyebrow">Documentation</p>
+          <h1>Learn Arc</h1>
+          <p class="pageLede">
+            Start with the golden path: it picks the right definition for each job and builds one
+            feature end to end. The rest of the docs go deeper, one topic at a time.
+          </p>
+        </header>
 
-      <section class="docsSectionGrid" aria-label="Documentation sections">
-        {docsSections.map((section) => (
-          <div class="docsSection">
-            <h2>{docsSectionLabel(section)}</h2>
-            <div class="docsCardList">
-              {docsPagesBySection(section).map((page) => (
-                <RouterLink
-                  route={DocsPageUiRoute}
-                  options={{ params: { slug: page.slug } }}
-                  class="docsCard"
-                >
-                  <span>{page.title}</span>
-                  <p>{page.summary}</p>
-                </RouterLink>
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section class="featureCallout" aria-label="Cookbook next step">
-        <p class="eyebrow">Next step</p>
-        <h2>Use the cookbook for working slices</h2>
-        <p>
-          Each recipe is intentionally small, but the shape is real: Effect-first callbacks, typed
-          schemas, route-owned preload, explicit invalidation, and testable boundaries.
-        </p>
-        <RouterLink route={CookbookUiRoute} class="primaryLink">
-          Browse cookbook
+        <RouterLink
+          route={DocsPageRoute}
+          options={{ params: { slug: featured.slug } }}
+          class="featuredCard"
+        >
+          <span class="cardMeta">{featured.section}</span>
+          <span class="featuredTitle">{featured.title}</span>
+          <span class="cardBody">{featured.summary}</span>
+          <span class="cardCta">
+            Read the guide
+            <ArrowIcon />
+          </span>
         </RouterLink>
-      </section>
+
+        <section class="docsIndexSection" aria-label="All guides">
+          <h2 class="sectionLabel">All guides</h2>
+          <ul class="cardGrid">
+            {docsSections.flatMap((section) =>
+              docsPagesBySection(section)
+                .filter((page) => rest.includes(page))
+                .map((page) => (
+                  <li>
+                    <RouterLink
+                      route={DocsPageRoute}
+                      options={{ params: { slug: page.slug } }}
+                      class="card"
+                    >
+                      <span class="cardMeta">{section}</span>
+                      <span class="cardTitle">{page.title}</span>
+                      <span class="cardBody">{page.summary}</span>
+                    </RouterLink>
+                  </li>
+                )),
+            )}
+          </ul>
+        </section>
+
+        <section class="docsIndexSection" aria-label="Cookbook">
+          <h2 class="sectionLabel">Cookbook</h2>
+          <p class="sectionNote">
+            Small working slices: Effect-first callbacks, typed schemas, route-owned preload,
+            explicit invalidation, and testable boundaries.
+          </p>
+          <RouterLink route={CookbookRoute} class="textLink">
+            Browse the cookbook
+            <ArrowIcon />
+          </RouterLink>
+        </section>
+      </div>
     </article>
   );
 }
@@ -348,22 +142,53 @@ function DocsPageView(props: Route.Props<typeof DocsPageRoute>) {
 
   const railItems = docsPageRailItems(page.blocks);
   const headingIds = pageRailIdsByBlockIndex(railItems);
+  const index = docsPages.findIndex((candidate) => candidate.slug === page.slug);
+  const previous = docsPages[index - 1];
+  const next = docsPages[index + 1];
 
   return (
-    <article class="recipeDetail articleWithRail">
-      <header class="pageHeader">
-        <p class="eyebrow">{page.section}</p>
-        <h1>{page.title}</h1>
-        <p>{page.summary}</p>
-      </header>
+    <article class="docPage">
+      <DocumentTitle title={page.title} />
+      <div class="docColumn">
+        <header class="pageHeader">
+          <p class="eyebrow">{page.section}</p>
+          <h1>{page.title}</h1>
+          <p class="pageLede">{page.summary}</p>
+        </header>
+
+        <div class="prose">
+          {page.blocks.map((block, blockIndex) => (
+            <DocsBlockView block={block} headingId={headingIds.get(blockIndex)} />
+          ))}
+        </div>
+
+        <nav class="pageFooterNav pager" aria-label="Previous and next pages">
+          {previous === undefined ? (
+            <span />
+          ) : (
+            <RouterLink
+              route={DocsPageRoute}
+              options={{ params: { slug: previous.slug } }}
+              class="pagerLink"
+            >
+              <span class="pagerLabel">Previous</span>
+              <span class="pagerTitle">{previous.title}</span>
+            </RouterLink>
+          )}
+          {next === undefined ? null : (
+            <RouterLink
+              route={DocsPageRoute}
+              options={{ params: { slug: next.slug } }}
+              class="pagerLink next"
+            >
+              <span class="pagerLabel">Next</span>
+              <span class="pagerTitle">{next.title}</span>
+            </RouterLink>
+          )}
+        </nav>
+      </div>
 
       <PageRail items={railItems} />
-
-      <section class={articleBodyClass}>
-        {page.blocks.map((block, blockIndex) => (
-          <DocsBlockView block={block} headingId={headingIds.get(blockIndex)} />
-        ))}
-      </section>
     </article>
   );
 }
@@ -374,10 +199,12 @@ function DocsBlockView(props: {
 }) {
   switch (props.block._tag) {
     case "Heading":
-      return props.block.level === 3 ? (
-        <h3 id={props.headingId}>{props.block.text ?? "Section"}</h3>
-      ) : (
-        <h2 id={props.headingId}>{props.block.text ?? "Section"}</h2>
+      return (
+        <AnchoredHeading
+          level={props.block.level === 3 ? 3 : 2}
+          id={props.headingId}
+          text={props.block.text ?? "Section"}
+        />
       );
     case "Paragraph":
       return (
@@ -394,62 +221,20 @@ function DocsBlockView(props: {
         </ul>
       );
     case "Code":
-      return <CodeBlock code={props.block.code ?? ""} language={props.block.language} />;
-    case "Table": {
-      const [header = [], ...rows] = props.block.rows ?? [];
       return (
-        <table>
-          <thead>
-            <tr>
-              {header.map((cell) => (
-                <th>
-                  <InlineText text={cell} />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr>
-                {row.map((cell) => (
-                  <td>
-                    <InlineText text={cell} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <CodeBlock
+          code={props.block.code ?? ""}
+          language={props.block.language}
+          title={props.block.title}
+        />
       );
-    }
+    case "Table":
+      return <TableBlock rows={props.block.rows ?? []} />;
+    case "Callout":
+      return <Callout title={props.block.title} text={props.block.text ?? ""} />;
+    case "Diagram":
+      return <ArchitectureDiagram />;
   }
-}
-
-const inlinePattern = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/gu;
-
-/** Renders the inline Markdown docs text uses: `code`, **strong**, and [links](href). */
-function InlineText(props: { readonly text: string }) {
-  return (
-    <>
-      {props.text.split(inlinePattern).map((part) => {
-        if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
-          return <code class="inlineCode">{part.slice(1, -1)}</code>;
-        }
-        if (part.startsWith("**") && part.endsWith("**") && part.length > 3) {
-          return <strong>{part.slice(2, -2)}</strong>;
-        }
-        const link = /^\[([^\]]+)\]\(([^)]+)\)$/u.exec(part);
-        if (link) {
-          return (
-            <a href={link[2]}>
-              <InlineText text={link[1] ?? ""} />
-            </a>
-          );
-        }
-        return part;
-      })}
-    </>
-  );
 }
 
 function DocsListItem(props: { readonly item: string }) {
@@ -473,7 +258,7 @@ function DocsListItem(props: { readonly item: string }) {
           <code class="inlineCode">{packageName}</code>
         </>
       ))}
-      : {description}
+      : <InlineText text={description} />
     </li>
   );
 }
@@ -481,642 +266,24 @@ function DocsListItem(props: { readonly item: string }) {
 const CookbookIndexView = Component.define("CookbookIndexView", function* () {
   const Recipes = yield* RecipeIndexGrid;
   return () => (
-    <article class="pageStack">
-      <header class="pageHeader">
-        <p class="eyebrow">Cookbook</p>
-        <h1>Working Sunfall Arc recipes</h1>
-        <p>
-          Each recipe is small enough to copy, but it still follows the framework contracts:
-          Effect-first callbacks, typed schemas, route-owned data, and checks that explain what
-          changed.
-        </p>
-      </header>
+    <article class="docPage wide">
+      <DocumentTitle title="Cookbook" />
+      <div class="docColumn">
+        <header class="pageHeader">
+          <p class="eyebrow">Cookbook</p>
+          <h1>Working Sunfall Arc recipes</h1>
+          <p class="pageLede">
+            Each recipe is small enough to copy and still follows the framework's contracts:
+            Effect-first callbacks, typed schemas, route-owned data, and checks that explain what
+            changed.
+          </p>
+        </header>
 
-      <Recipes />
+        <Recipes />
+      </div>
     </article>
   );
 });
-
-const blogDomainExample = `export const IssueId = Schema.String.pipe(Schema.brand("IssueId"));
-export type IssueId = typeof IssueId.Type;
-
-export const IssueStatus = Schema.Literals("open", "triaged", "in_progress", "done");
-
-export const IssueSchema = Schema.Struct({
-  id: IssueId,
-  title: Schema.String,
-  status: IssueStatus,
-  assigneeId: Schema.NullOr(Schema.String),
-  updatedAt: Schema.DateFromString,
-});
-export type Issue = typeof IssueSchema.Type;
-
-export const UpdateIssueStatusInput = Schema.Struct({
-  id: IssueId,
-  status: IssueStatus,
-});`;
-
-const blogContractExample = `export const GetIssue = Server.contract("Issue.get", {
-  input: Schema.Struct({ id: IssueId }),
-  output: IssueSchema,
-  error: IssueErrorSchema,
-});`;
-
-const blogResourceExample = `export const IssueApi = Context.Service<IssueApi>("IssueApi");
-
-export const IssueById = Resource.define({
-  name: "Issue.byId",
-  input: IssueId,
-  output: IssueSchema,
-  load: (id) => IssueApi.use((api) => api.get(id)),
-  provides: (issue) => [IssueTag({ id: issue.id })],
-});`;
-
-const blogEffectTestExample = `const IssueApiTest = Layer.succeed(IssueApi, {
-  get: (id) =>
-    Effect.succeed({
-      id,
-      title: "Search filters drop assignees",
-      status: "triaged",
-      assigneeId: "ada",
-      updatedAt: new Date(),
-    }),
-  updateStatus: (input) =>
-    Effect.succeed({
-      id: input.id,
-      title: "Search filters drop assignees",
-      status: input.status,
-      assigneeId: "ada",
-      updatedAt: new Date(),
-    }),
-});
-
-const issue = yield* makeRuntime(IssueApiTest).provide(
-  Effect.gen(function* () {
-    yield* Resource.preload(IssueById(makeIssueId("ISSUE-42")));
-    return yield* Resource.read(IssueById(makeIssueId("ISSUE-42")));
-  }),
-);`;
-
-const blogRouteExample = `export const route = Route.define("/issues/:id", {
-  params: IssueRouteParams,
-  preloadResources: [IssueById],
-  preload: ({ params }) => Resource.preload(IssueById(params.id)),
-});`;
-
-const blogUiExample = `const IssuePage = Component.define("IssuePage", function* (
-  props: Route.Props<typeof IssueRoute>,
-) {
-  const issue = yield* Component.resource(IssueById);
-  const updateStatus = yield* Component.action(UpdateIssueStatus);
-
-  return () => (
-    <Loading fallback={<Skeleton />}>
-      <IssueView
-        issue={issue(props.params.id)}
-        refreshing={issue.waiting(props.params.id)}
-        onStatus={(status) => updateStatus.submit({ id: props.params.id, status })}
-      />
-    </Loading>
-  );
-}).pipe(Component.catchTags({ IssueNotFound: (error) => <IssueMissing id={error.id} /> }));`;
-
-const blogTanstackExample = `function IssuePage({ id }: { readonly id: IssueId }) {
-  const queryClient = useQueryClient();
-  const issue = useQuery({
-    queryKey: ["issue", id],
-    queryFn: () => fetchIssue(id),
-  });
-  const updateStatus = useMutation({
-    mutationFn: updateIssueStatus,
-    onSuccess: (issue) => {
-      queryClient.invalidateQueries({ queryKey: ["issue", issue.id] });
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-    },
-  });
-
-  return <IssueView issue={issue.data} updateStatus={updateStatus.mutate} />;
-}`;
-
-const blogStoreExample = `const useIssueStore = create<IssueStore>((set, get) => ({
-  issuesById: {},
-  pendingById: {},
-  markIssueLoading(id) {
-    set((state) => ({ pendingById: { ...state.pendingById, [id]: true } }));
-  },
-  loadIssueSucceeded(issue) {
-    set((state) => ({
-      issuesById: { ...state.issuesById, [issue.id]: issue },
-      pendingById: { ...state.pendingById, [issue.id]: false },
-    }));
-  },
-  updateIssueStatusSucceeded(issue) {
-    set((state) => ({
-      issuesById: { ...state.issuesById, [issue.id]: issue },
-    }));
-  },
-}));`;
-
-const blogActionExample = `export const UpdateIssueStatus = Action.define({
-  name: "Issue.updateStatus",
-  input: UpdateIssueStatusInput,
-  output: IssueSchema,
-  run: (input) => IssueApi.use((api) => api.updateStatus(input)),
-  invalidates: (issue) => [IssuesTag, IssueTag({ id: issue.id })],
-});`;
-
-function BlogCode(props: { readonly code: string }) {
-  return <CodeBlock code={props.code} language="tsx" />;
-}
-
-function BlogPostView() {
-  return (
-    <article class="blogPost articleWithRail">
-      <header class="pageHeader">
-        <p class="eyebrow">Introducing Sunfall Arc</p>
-        <h1>Correctness by construction for agent-operated TypeScript apps.</h1>
-        <p>
-          Sunfall Arc is an agent-native, Effect-first framework for full-stack TypeScript. It turns
-          routes, resources, actions, forms, Effect services, and server contracts into typed
-          definitions that can be checked at type time, verified at build time, and explained at
-          runtime.
-        </p>
-      </header>
-
-      <PageRail items={blogRailItems} />
-
-      <section class={articleBodyClass}>
-        <p>
-          Agents are powerful when the app is explicit. They are risky when the app is a maze of
-          conventions: route loaders over here, query keys over there, server-only handlers in
-          another directory, form validation in a component, invalidation hidden in a callback, and
-          tests rebuilding the missing context by hand.
-        </p>
-        <p>
-          Humans can eventually learn those conventions. Agents have to infer them every time. Arc
-          exists to reduce that guessing. If a route loads data, an action mutates it, a server
-          boundary protects it, a form submits it, or a Resource persists it, Arc wants that
-          behavior represented as a typed definition the framework can inspect.
-        </p>
-        <p>
-          That is the meaning of agent-native here: not magic code generation, and not a vague AI
-          label. Arc gives humans and agents a typed map of the app, stable definitions to edit, and
-          verification gates that can prove the change.
-        </p>
-
-        <h2 id={blogHeadingId(0)}>The problem: agents inherit implicit apps</h2>
-        <p>
-          In a conventional app, the shape of the system is scattered. Next, Remix, TanStack Start,
-          TanStack Query, Zustand, Jotai, fetch clients, form libraries, and custom devtools can all
-          be good choices on their own. The problem is that each one owns a different piece of the
-          truth.
-        </p>
-        <p>
-          The running demo is an issue tracker. An Issue is the durable record the UI is showing: it
-          has a branded id, a title, a status, an optional assignee, and a server-backed source of
-          truth. The route reads one issue, the UI renders it, the user changes its status, and the
-          framework should know exactly which cached data and route output that change can affect.
-        </p>
-        <p>
-          In a conventional stack, those facts are usually split apart. A route knows it needs the
-          issue. A query key knows how to cache it. A mutation knows how to update it. A store knows
-          what the sidebar selected. A server handler knows the real permission boundary. Tests know
-          a mock. Devtools know whatever the runtime happened to expose. Those pieces are related,
-          but they usually cannot explain themselves as one system.
-        </p>
-        <p>
-          That is where agents get into trouble. If the route, cache, mutation, store, server
-          boundary, and test boundary are implicit agreements, an agent has to reverse-engineer them
-          before it can make a safe edit.
-        </p>
-
-        <h2 id={blogHeadingId(1)}>What agent-native means</h2>
-        <p>
-          Arc is agent-native because the app is made of named typed definitions. In Arc, a
-          definition is a named typed declaration the framework can run and inspect: a Route,
-          Resource, Action, Form, Signal, or server contract. Each one carries the facts the
-          framework needs to explain it, and the Effect services it depends on show up in its type.
-        </p>
-        <p>
-          The practical promise is simple: an agent can read what the app owns, change the stable
-          definition that owns it, and verify the result through type tests, build checks, leak
-          scans, and runtime tests.
-        </p>
-        <ul>
-          <li>Read: generated route trees, definition diagnostics, and devtools.</li>
-          <li>Change: stable Resources, Actions, Forms, Routes, and Effect services.</li>
-          <li>
-            Verify: TypeScript gates, schema checks, build policy, and{" "}
-            <code class="inlineCode">pnpm verify</code>.
-          </li>
-        </ul>
-
-        <h2 id={blogHeadingId(2)}>Correctness by construction</h2>
-        <p>
-          Compile-time correctness is the headline, but Arc's model is broader than TypeScript
-          alone. Arc prevents drift where it can, and explains it where it cannot.
-        </p>
-        <ul>
-          <li>
-            TypeScript catches invalid route params, field names, branded ids, and callback shapes.
-          </li>
-          <li>
-            Effect keeps effectful work explicit: services, retries, interruption, scopes, and typed
-            errors.
-          </li>
-          <li>
-            Build checks catch duplicate routes and server/client boundary drift; dev warns about
-            undeclared preload ownership.
-          </li>
-          <li>
-            Runtime scopes isolate requests, resources, action submissions, and streamed responses.
-          </li>
-          <li>
-            Devtools explain route plans, invalidation, request spans, and resource lifetimes.
-          </li>
-        </ul>
-        <p>
-          This is why Arc is not just a nicer fetch wrapper. The core product is a layered
-          correctness system: type-time contracts, build-time route checks, runtime ownership, and
-          diagnostics that preserve enough structure for humans and agents to trust.
-        </p>
-
-        <h2 id={blogHeadingId(3)}>Effect gives Arc dependency injection and testability</h2>
-        <p>
-          Arc's app services are plain Effect services: no wrapper, no separate container. Services
-          live in a typed Context, implementations are assembled with Layers, request and component
-          work runs in scoped runtimes, and tests can replace live services without changing the
-          Resource, Action, Route, or component under test.
-        </p>
-        <p>
-          That gives Arc useful testability by construction. A test can provide an in-memory
-          IssueApi layer, run the same Resource and Action definitions the browser uses, assert the
-          typed values and invalidation plan, and never import the server-only handler. The mock is
-          not a parallel code path; it is another implementation of the same service.
-        </p>
-        <BlogCode code={blogEffectTestExample} />
-        <p>
-          Effect also carries typed failures, retries, interruption, and lifetime cleanup through
-          the same execution model. Arc does not need to invent a separate dependency-injection
-          container or host runtime; it exposes those Effect guarantees through framework-level
-          definitions that agents can inspect.
-        </p>
-
-        <h2 id={blogHeadingId(4)}>The hero slice: route, resource, action</h2>
-        <p>
-          The smallest useful example is the Issue detail page: a route that owns the Issue Resource
-          and an Action that updates the same Issue, with the relationship declared in the
-          definitions themselves.
-        </p>
-        <p>
-          Here is the domain shape the rest of the examples are using. The branded id prevents a
-          random string from being passed where an Issue id is required, and the schema is reused by
-          the server contract, Resource, Action, tests, and hydration payload.
-        </p>
-        <BlogCode code={blogDomainExample} />
-        <p>
-          Start with the browser-safe contract for loading one Issue. The client can import the
-          schema and typed handle; the handler stays in a server-only module.
-        </p>
-        <BlogCode code={blogContractExample} />
-
-        <p>
-          Expose that contract through an Effect service, then define a Resource around the Issue
-          value the UI needs. The Resource owns the input schema, output schema, loading Effect,
-          cache identity, and semantic tags it provides.
-        </p>
-        <BlogCode code={blogResourceExample} />
-
-        <p>
-          The file route declares that the Issue detail page owns that Resource. During SSR, Start
-          runs the preload in the request runtime, renders with the Resource available, and streams
-          hydration data for the client runtime.
-        </p>
-        <BlogCode code={blogRouteExample} />
-
-        <p>
-          The component reads the same Issue Resource. It does not need to know whether the value
-          came from SSR preload, client navigation, a refresh, or a hydrated action response.
-        </p>
-        <BlogCode code={blogUiExample} />
-
-        <p>
-          The status update Action keeps write behavior in the same vocabulary. It has a stable
-          name, a schema, an Effect, and an invalidation plan expressed as domain tags rather than
-          string cache keys.
-        </p>
-        <BlogCode code={blogActionExample} />
-
-        <h2 id={blogHeadingId(5)}>What conventional stacks would do</h2>
-        <p>
-          Next, Remix, and TanStack Start make full-stack apps productive. Arc asks for a stricter
-          contract: can every route, server boundary, resource, action, and runtime effect be typed,
-          generated, inspected, and verified?
-        </p>
-        <p>
-          TanStack Query is excellent at server reads and mutations. A common issue detail page
-          would use a query keyed by issue id and a mutation that invalidates or updates related
-          query keys.
-        </p>
-        <BlogCode code={blogTanstackExample} />
-        <p>
-          That handles the client cache well. Arc pushes the boundary outward: the cache entry,
-          route data contract, server function contract, invalidation plan, SSR hydration payload,
-          and mock boundary all connect through the same typed definitions.
-        </p>
-
-        <h2 id={blogHeadingId(6)}>What Arc replaces</h2>
-        <p>
-          Arc overlaps with state and data libraries, but the honest boundary matters. Solid
-          signals, refs, memos, and component props are still right for private UI details. Arc
-          starts to earn its keep when state becomes durable app behavior.
-        </p>
-        <p>
-          Zustand and Jotai are productive ways to share domain state, but stores and atoms are
-          opaque to the framework unless you build conventions around them. Which route needs this
-          value before render? Which server function is browser-safe? Which Resources should refresh
-          after a mutation? Which mock should tests provide?
-        </p>
-        <BlogCode code={blogStoreExample} />
-        <p>
-          For durable app behavior - issues, sessions, local-first rows, pending writes, resource
-          lifetimes, form submissions, permissioned server calls - Arc wants a typed Signal,
-          Resource, Action, Form, Route, or Effect service instead of an opaque global store.
-        </p>
-        <p>
-          In practice, Arc replaces much of the glue where teams combine TanStack Query,
-          Zustand/Jotai, typed fetch clients, form action plumbing, route preload, SSR hydration,
-          optimistic queues, mocks, and custom diagnostics. It does not replace the renderer's local
-          state model.
-        </p>
-
-        <h2 id={blogHeadingId(7)}>Built by an agent, verified in public</h2>
-        <p>
-          Arc was built by an agent working inside this model. That is not the headline value; it is
-          a proof point for the framework itself. The repo includes generated route artifacts,
-          public API manifests, type tests, package dry runs, leak scans, architecture docs, and
-          release gates because the framework has to stay legible to the next agent that edits it.
-        </p>
-        <p>
-          The ambition is not that agents should write code unchecked. It is the opposite: agentic
-          development needs stronger structure than human-only development. Arc makes the structure
-          public enough that humans, CI, devtools, and agents can all ask the same questions before
-          a change ships.
-        </p>
-
-        <h2 id={blogHeadingId(8)}>What this alpha does not claim</h2>
-        <p>
-          Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
-          every host can wait until real deployments demand them. The first public alpha is about
-          the core foundation: typed definitions, Effect runtimes, Start SSR and hydration, the
-          Solid adapter, Resource rows and live queries, devtools contracts, starters, package
-          gates, and docs that are themselves built with the framework.
-        </p>
-        <p>
-          It also should not be read as a mature Next, Remix, or TanStack Start replacement for
-          every team today. Those ecosystems have production miles, examples, integrations, and
-          hosting stories Arc has not earned yet.
-        </p>
-        <p>
-          The promise is narrower and sharper: correctness by construction for agent-operated
-          full-stack TypeScript apps. Prevent drift where the framework can prove it. Explain drift
-          where runtime behavior is the only honest source of truth.
-        </p>
-      </section>
-    </article>
-  );
-}
-
-function RecipeGrid(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
-  return (
-    <section class="recipeGrid" aria-label="Recipes">
-      {props.recipes.map((recipe) => (
-        <RouterLink
-          route={RecipeUiRoute}
-          options={{ params: { slug: recipe.slug } }}
-          class="recipeCard"
-        >
-          <span class="recipeCategory">{categoryLabel(recipe.category)}</span>
-          <h2>{recipe.title}</h2>
-          <p>{recipe.summary}</p>
-          <span class="recipeCta">Open recipe</span>
-        </RouterLink>
-      ))}
-    </section>
-  );
-}
-
-/**
- * The recipe route. Content renders only from the reader: the first load
- * suspends the `<Loading>` (route preload and hydration make it synchronous),
- * and refreshes keep the article mounted while `waiting` drives the chrome.
- */
-const RecipeRouteView = Component.define(
-  "RecipeRouteView",
-  function* (props: Route.Props<typeof RecipeRoute>) {
-    const recipe = yield* Component.resource(RecipeBySlug);
-    const Related = yield* RelatedRecipes;
-    const slug = () => props.params.slug;
-    return () => (
-      <Loading fallback={<LoadingView />}>
-        <RecipeDetail recipe={recipe(slug())} refreshing={recipe.waiting(slug())}>
-          <Related recipe={recipe(slug())} />
-        </RecipeDetail>
-      </Loading>
-    );
-  },
-).pipe(Component.catchAll((error) => <FailureView error={error} />));
-
-function RecipeDetail(props: {
-  readonly recipe: Recipe;
-  readonly refreshing: boolean;
-  readonly children?: JSX.Element;
-}) {
-  const railItems = createMemo(() => recipePageRailItems(props.recipe.blocks));
-  const headingIds = createMemo(() => pageRailIdsByBlockIndex(railItems()));
-
-  return (
-    <article class={["recipeDetail articleWithRail", { refreshing: props.refreshing }]}>
-      <header class="pageHeader">
-        <p class="eyebrow">{categoryLabel(props.recipe.category)}</p>
-        <h1>{props.recipe.title}</h1>
-        <p>{props.recipe.summary}</p>
-      </header>
-
-      <PageRail items={railItems()} />
-
-      <section class={articleBodyClass}>
-        {props.recipe.blocks.map((block, blockIndex) => (
-          <RecipeBlockView block={block} headingId={headingIds().get(blockIndex)} />
-        ))}
-      </section>
-
-      {props.children}
-    </article>
-  );
-}
-
-function RecipeBlockView(props: {
-  readonly block: RecipeBlock;
-  readonly headingId: string | undefined;
-}) {
-  switch (props.block._tag) {
-    case "Heading":
-      return props.block.level <= 2 ? (
-        <h2 id={props.headingId}>{props.block.text}</h2>
-      ) : (
-        <h3 id={props.headingId}>{props.block.text}</h3>
-      );
-    case "Paragraph":
-      return <p>{props.block.text}</p>;
-    case "List":
-      return (
-        <ul>
-          {props.block.items.map((item) => (
-            <li>{item}</li>
-          ))}
-        </ul>
-      );
-    case "Code":
-      return <CodeBlock code={props.block.code} language={props.block.language} />;
-  }
-}
-
-function CodeBlock(props: { readonly code: string; readonly language?: string | undefined }) {
-  const [copied, setCopied] = createSignal(false);
-  let copiedTimeout: number | undefined;
-
-  const copyCodeWithSelection = () => {
-    const textarea = document.createElement("textarea");
-    textarea.value = props.code;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.top = "-9999px";
-    textarea.style.opacity = "0";
-    document.body.append(textarea);
-    textarea.select();
-
-    try {
-      return document.execCommand("copy");
-    } finally {
-      textarea.remove();
-    }
-  };
-
-  const markCodeCopied = () => {
-    window.clearTimeout(copiedTimeout);
-    setCopied(true);
-    copiedTimeout = window.setTimeout(() => setCopied(false), 1400);
-  };
-
-  const copyCode = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard !== undefined) {
-      void navigator.clipboard.writeText(props.code);
-      markCodeCopied();
-      return;
-    } else if (typeof document !== "undefined") {
-      if (!copyCodeWithSelection()) {
-        return;
-      }
-    } else {
-      return;
-    }
-
-    markCodeCopied();
-  };
-
-  return (
-    <figure class="codeFrame not-prose" data-language={codeLanguageLabel(props.language)}>
-      <figcaption class="codeToolbar">
-        <span>{codeLanguageLabel(props.language)}</span>
-        <button type="button" class="codeCopyButton" onClick={copyCode}>
-          {copied() ? "Copied" : "Copy"}
-        </button>
-      </figcaption>
-      <div class="codeBlock" innerHTML={highlightCode(props.code, props.language)} />
-    </figure>
-  );
-}
-
-/** Related recipes read the shared index; while it loads or if it fails, nothing shows. */
-const RelatedRecipes = Component.define(
-  "RelatedRecipes",
-  function* (props: { readonly recipe: Recipe }) {
-    const recipes = yield* Component.resource(RecipeIndex);
-    return () => (
-      <Show when={props.recipe.related.length > 0}>
-        <RelatedRecipeList recipe={props.recipe} recipes={recipes("all")} />
-      </Show>
-    );
-  },
-).pipe(
-  Component.catchAll(() => undefined),
-  Component.loading(() => undefined),
-);
-
-function RelatedRecipeList(props: {
-  readonly recipe: Recipe;
-  readonly recipes: ReadonlyArray<RecipeSummary>;
-}) {
-  const related = () =>
-    props.recipes.filter((recipe) => props.recipe.related.includes(recipe.slug));
-
-  return (
-    <Show when={related().length > 0}>
-      <aside class="relatedPanel" aria-label="Related recipes">
-        <h2>Related recipes</h2>
-        <div class="relatedList">
-          {related().map((recipe) => (
-            <RouterLink
-              route={RecipeUiRoute}
-              options={{ params: { slug: recipe.slug } }}
-              class="relatedLink"
-            >
-              {recipe.title}
-            </RouterLink>
-          ))}
-        </div>
-      </aside>
-    </Show>
-  );
-}
-
-function RecipeGridSkeleton() {
-  return (
-    <section class="recipeGrid" aria-label="Loading recipes">
-      <div class="recipeCard skeleton" />
-      <div class="recipeCard skeleton" />
-      <div class="recipeCard skeleton" />
-    </section>
-  );
-}
-
-function LoadingView() {
-  return (
-    <section class="statusView">
-      <h1>Loading cookbook</h1>
-      <p>The route-owned Resource preload is still resolving.</p>
-    </section>
-  );
-}
-
-function FailureView(props: { readonly error: unknown }) {
-  return (
-    <section class="statusView failure">
-      <h1>Could not load docs</h1>
-      <p>{props.error instanceof Error ? props.error.message : "The docs Resource failed."}</p>
-    </section>
-  );
-}
-
-function NotFoundView() {
-  return (
-    <section class="statusView">
-      <h1>Page not found</h1>
-      <p>Try the cookbook index or one of the recipe links.</p>
-    </section>
-  );
-}
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
 const DocsOverviewUiRoute = Route.withComponent(DocsOverviewRoute, DocsOverviewView);
@@ -1175,7 +342,7 @@ const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
       }
     };
 
-    return (() => {
+    const page = (() => {
       const current = state();
       switch (current._tag) {
         case "Pending":
@@ -1188,7 +355,24 @@ const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
           return renderReady(current);
       }
     }) as unknown as JSX.Element;
+    return (
+      <>
+        {page}
+        <SiteFooter />
+      </>
+    );
   };
+});
+
+// The phone navigation drawer. Client UI state, so it is a State: the
+// Timeline reads `State "Site.menu" Toggle` and `Close`.
+const SiteMenu = State.define({
+  name: "Site.menu",
+  initial: false,
+  on: {
+    Toggle: (open) => !open,
+    Close: () => false,
+  },
 });
 
 /**
@@ -1201,98 +385,242 @@ const DocsSite = Component.define("DocsSite", function* (props: { readonly href:
   const history = makeDocsSiteHistoryAdapter({ runtime, routes, hydratedHrefs: [props.href] });
   const router = yield* Component.router(routes, { history, initialHref: props.href });
   const Outlet = yield* DocsRouteOutlet;
-  const RecipeIndexNav = yield* RecipeNavList;
+  const RecipeLinks = yield* RecipeNavList;
+  const menu = yield* Component.state(SiteMenu);
 
   return () => (
     <RouterProvider router={router}>
-      <DocsShell Outlet={Outlet} RecipeIndex={RecipeIndexNav} />
+      <DocsShell Outlet={Outlet} RecipeLinks={RecipeLinks} menu={menu} />
     </RouterProvider>
   );
 });
 
 export default DocsSite;
 
+type SiteSection = "home" | "docs" | "cookbook" | "blog" | "none";
+
 function DocsShell(props: {
   readonly Outlet: Component.Solid<{}>;
-  readonly RecipeIndex: Component.Solid<{}>;
+  readonly RecipeLinks: Component.Solid<{ readonly activeSlug: string | undefined }>;
+  readonly menu: {
+    readonly model: () => boolean;
+    readonly send: { readonly Toggle: () => void; readonly Close: () => void };
+  };
 }) {
-  const { Outlet, RecipeIndex } = props;
+  const { Outlet, RecipeLinks, menu } = props;
   const router = useRouter<DocsRoutes>();
-  const activeRoute = () => router.match()?.route;
-  const isReadmeActive = () => activeRoute() === HomeUiRoute;
-  const isDocsActive = () =>
-    activeRoute() === DocsOverviewUiRoute || activeRoute() === DocsPageUiRoute;
-  const isCookbookActive = () =>
-    activeRoute() === CookbookUiRoute || activeRoute() === RecipeUiRoute;
-  const isBlogActive = () => activeRoute() === BlogPostUiRoute;
+  const match = () => router.match();
+  const section = (): SiteSection => {
+    switch (match()?.route.path) {
+      case HomeRoute.path:
+        return "home";
+      case DocsOverviewRoute.path:
+      case DocsPageRoute.path:
+        return "docs";
+      case CookbookRoute.path:
+      case RecipeRoute.path:
+        return "cookbook";
+      case BlogPostRoute.path:
+        return "blog";
+      default:
+        return "none";
+    }
+  };
+  const activeSlug = (): string | undefined => {
+    const params = match()?.params as { readonly slug?: string } | undefined;
+    return params?.slug;
+  };
+  const hasSidebar = () => section() === "docs" || section() === "cookbook";
+  const currentPath = () => match()?.route.path;
+
+  onSettled(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && menu.model()) {
+        menu.send.Close();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // A link inside the drawer navigates, and the drawer closes behind it.
+  const closeOnLink = (event: MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest("a") !== null) {
+      menu.send.Close();
+    }
+  };
 
   return (
-    <main class="docsShell">
-      <header class="siteTopbar">
-        <RouterLink route={HomeUiRoute} class="topbarBrand" aria-label="Sunfall Arc home">
-          <span class="brandWordmark">Sunfall Arc</span>
-        </RouterLink>
-        <nav class="topbarTabs" aria-label="Primary navigation">
-          <RouterLink
-            route={HomeUiRoute}
-            class={isReadmeActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isReadmeActive() ? "page" : undefined}
+    <div
+      class={["siteShell", { hasSidebar: hasSidebar(), menuOpen: menu.model() }]}
+      data-section={section()}
+    >
+      <script innerHTML={themeBootScript} />
+      <a class="skipLink" href="#content">
+        Skip to content
+      </a>
+      <header class="topbar">
+        <div class="topbarInner">
+          <button
+            type="button"
+            class="iconButton menuButton"
+            aria-expanded={menu.model() ? "true" : "false"}
+            aria-controls="site-navigation"
+            onClick={menu.send.Toggle}
           >
-            Readme
+            <span class="srOnly">{menu.model() ? "Close navigation" : "Open navigation"}</span>
+            {menu.model() ? <CloseIcon /> : <MenuIcon />}
+          </button>
+          <RouterLink route={HomeRoute} class="brand" aria-label="Sunfall Arc home">
+            <ArcMark />
+            <span class="brandName">Sunfall Arc</span>
+            <span class="brandBadge">alpha</span>
           </RouterLink>
-          <RouterLink
-            route={DocsOverviewUiRoute}
-            class={isDocsActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isDocsActive() ? "page" : undefined}
-          >
-            Docs
-          </RouterLink>
-          <RouterLink
-            route={CookbookUiRoute}
-            class={isCookbookActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isCookbookActive() ? "page" : undefined}
-          >
-            Cookbook
-          </RouterLink>
-          <RouterLink
-            route={BlogPostUiRoute}
-            class={isBlogActive() ? "topbarTab active" : "topbarTab"}
-            aria-current={isBlogActive() ? "page" : undefined}
-          >
-            Why Arc
-          </RouterLink>
-        </nav>
-        <a
-          href="https://github.com/sunfall-labs/arc"
-          class="topbarCta"
-          rel="noreferrer"
-          target="_blank"
-        >
-          GitHub
-        </a>
+          <nav class="topNav" aria-label="Primary">
+            <RouterLink
+              route={DocsOverviewRoute}
+              class="topNavLink"
+              aria-current={section() === "docs" ? "page" : undefined}
+            >
+              Docs
+            </RouterLink>
+            <RouterLink
+              route={CookbookRoute}
+              class="topNavLink"
+              aria-current={section() === "cookbook" ? "page" : undefined}
+            >
+              Cookbook
+            </RouterLink>
+            <RouterLink
+              route={BlogPostRoute}
+              class="topNavLink"
+              aria-current={section() === "blog" ? "page" : undefined}
+            >
+              Blog
+            </RouterLink>
+          </nav>
+          <div class="topbarActions">
+            <a
+              class="iconButton"
+              href={githubUrl}
+              rel="noreferrer"
+              aria-label="Sunfall Arc on GitHub"
+            >
+              <GitHubIcon />
+            </a>
+            <ThemeToggle />
+          </div>
+        </div>
       </header>
 
-      <aside class="docsSidebar">
-        <div class="sidebarMeta" aria-label="Docs metadata">
-          <span class="sidebarVersion">v0 alpha</span>
-          <RouterLink route={DocsOverviewUiRoute} class="sidebarMetaLink">
-            Documentation index
-          </RouterLink>
-        </div>
-        <DocsNav />
-        <nav class="sidebarSection" aria-label="Cookbook recipes">
-          <p class="navHeading">Cookbook</p>
-          <RecipeIndex />
-        </nav>
-        <RouterLink route={BlogPostUiRoute} class="navSectionLink">
-          Why Sunfall Arc
-        </RouterLink>
-      </aside>
+      <div class="siteBody">
+        <div class="drawerBackdrop" aria-hidden="true" onClick={menu.send.Close} />
+        <aside class="sidebar" id="site-navigation" aria-label="Site" onClick={closeOnLink}>
+          <nav class="sidebarGroup mobileOnly" aria-label="Primary">
+            <ul class="navList">
+              <li>
+                <RouterLink
+                  route={HomeRoute}
+                  class="navLink"
+                  aria-current={section() === "home" ? "page" : undefined}
+                >
+                  Home
+                </RouterLink>
+              </li>
+              <li>
+                <RouterLink
+                  route={BlogPostRoute}
+                  class="navLink"
+                  aria-current={section() === "blog" ? "page" : undefined}
+                >
+                  Blog
+                </RouterLink>
+              </li>
+              <li>
+                <a class="navLink" href={githubUrl} rel="noreferrer">
+                  GitHub
+                </a>
+              </li>
+            </ul>
+          </nav>
+          {docsSections.map((group) => (
+            <nav class="sidebarGroup" aria-label={group}>
+              <p class="sidebarHeading">{group}</p>
+              <ul class="navList">
+                {group === "Start here" ? (
+                  <li>
+                    <RouterLink
+                      route={DocsOverviewRoute}
+                      class="navLink"
+                      aria-current={currentPath() === DocsOverviewRoute.path ? "page" : undefined}
+                    >
+                      Overview
+                    </RouterLink>
+                  </li>
+                ) : null}
+                {docsPagesBySection(group).map((page) => (
+                  <li>
+                    <RouterLink
+                      route={DocsPageRoute}
+                      options={{ params: { slug: page.slug } }}
+                      class="navLink"
+                      aria-current={
+                        currentPath() === DocsPageRoute.path && activeSlug() === page.slug
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      {page.title}
+                    </RouterLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
+          <nav class="sidebarGroup" aria-label="Cookbook">
+            <p class="sidebarHeading">
+              <RouterLink
+                route={CookbookRoute}
+                class="sidebarHeadingLink"
+                aria-current={currentPath() === CookbookRoute.path ? "page" : undefined}
+              >
+                Cookbook
+              </RouterLink>
+            </p>
+            {/* Every site route preloads the recipe index; a 404 has no route to preload it. */}
+            {section() === "none" ? null : (
+              <RecipeLinks
+                activeSlug={currentPath() === RecipeRoute.path ? activeSlug() : undefined}
+              />
+            )}
+          </nav>
+        </aside>
 
-      <section class="docsMain">
-        <Outlet />
-      </section>
-    </main>
+        <main class="siteMain" id="content" tabindex="-1">
+          {/* The Outlet also renders the footer: nothing may follow it here. */}
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer class="siteFooter">
+      <div class="footerBrand">
+        <ArcMark />
+        <span>Sunfall Arc · MIT licensed · Public alpha</span>
+      </div>
+      <nav class="footerLinks" aria-label="Footer">
+        <RouterLink route={DocsOverviewRoute}>Docs</RouterLink>
+        <RouterLink route={CookbookRoute}>Cookbook</RouterLink>
+        <RouterLink route={BlogPostRoute}>Blog</RouterLink>
+        <a href={githubUrl} rel="noreferrer">
+          GitHub
+        </a>
+      </nav>
+    </footer>
   );
 }
 

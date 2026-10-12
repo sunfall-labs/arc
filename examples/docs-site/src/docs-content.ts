@@ -6,8 +6,10 @@ import type { DocsPageSlug } from "./docs-slugs.js";
 export type DocsSection = "Start here" | "Learn" | "Ship" | "Reference";
 
 export interface DocsBlock {
-  readonly _tag: "Heading" | "Paragraph" | "List" | "Code" | "Table";
+  readonly _tag: "Heading" | "Paragraph" | "List" | "Code" | "Table" | "Callout" | "Diagram";
   readonly text?: string;
+  /** Code: the file the snippet comes from. Callout: its heading. */
+  readonly title?: string;
   /** Heading level; defaults to 2. */
   readonly level?: 2 | 3;
   readonly items?: readonly string[];
@@ -43,7 +45,12 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. Install the packages and run a checked starter here; read The golden path to learn which tool to use for each job, then use the cookbook for small slices.",
+        text: "Install the packages and run a checked starter here. Then read [The golden path](/docs/golden-path) to learn which tool to use for each job, and use the [cookbook](/cookbook) for small working slices.",
+      },
+      {
+        _tag: "Callout",
+        title: "Public alpha",
+        text: "Arc's APIs are still settling and can change between alpha releases. Pin exact versions, and prefer the checked starters over a fresh host integration.",
       },
       {
         _tag: "Heading",
@@ -56,7 +63,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "Start apps deploy through one host adapter subpath: @sunfall/arc-start/fetch or @sunfall/arc-start/node.",
+        text: "Start apps deploy through one host adapter subpath: `@sunfall/arc-start/fetch` or `@sunfall/arc-start/node`.",
       },
       {
         _tag: "Heading",
@@ -81,11 +88,11 @@ export const docsPages = [
     slug: "core-concepts",
     section: "Learn",
     title: "Core concepts",
-    summary: "The vocabulary behind Arc's typed, agent-readable definitions.",
+    summary: "The vocabulary behind Arc's typed, named definitions.",
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc is organized around named definitions: typed declarations that can run at runtime and remain visible to tooling, CI, devtools, and agents.",
+        text: "Arc is organized around named definitions: typed declarations that run at runtime and stay visible to the compiler, tests, devtools, and the Timeline.",
       },
       {
         _tag: "Heading",
@@ -93,7 +100,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "Arc prevents drift where it can and explains drift where it cannot. TypeScript catches invalid shapes early, the build verifies the generated route tree, and the runtime preserves scoped Effect lifetimes across client, server, tests, and agents.",
+        text: "Arc prevents drift where it can and explains drift where it cannot. TypeScript catches invalid shapes early, the build verifies the generated route tree, and the runtime preserves scoped Effect lifetimes across client, server, and tests.",
       },
       {
         _tag: "List",
@@ -104,7 +111,7 @@ export const docsPages = [
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
           "Route: a typed URL definition that can declare the Resources it owns before render.",
           "Resource rows: a keyed list Resource with indexes, optimistic row patches, change feeds, and live queries.",
-          "Generated route tree: deterministic route ids, params, search, and href types written to routeTree.gen.ts for editors, CI, and agents.",
+          "Generated route tree: deterministic route ids, params, search, and href types written to `routeTree.gen.ts` for editors and CI.",
         ],
       },
       {
@@ -113,7 +120,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "If state or behavior matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code. That gives humans and agents one stable place to inspect, edit, and verify the behavior.",
+        text: "If state or behavior matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code. That gives every reader, human or tool, one stable place to inspect, edit, and verify the behavior.",
       },
     ],
   },
@@ -127,18 +134,15 @@ export const docsPages = [
         _tag: "List",
         items: [
           "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, server contracts, and runtime helpers.",
-          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, prerendering, and the Vite plugin. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
+          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, prerendering, and the Vite plugin. Host adapters live at `@sunfall/arc-start/fetch` (Workers, edge runtimes, Bun) and `@sunfall/arc-start/node` (`IncomingMessage`/`ServerResponse`).",
           "@sunfall/arc-db: the Query engine: incremental live queries over the rows of Resources.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
           "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, States, live queries, streams, and component scopes.",
         ],
       },
       {
-        _tag: "Heading",
-        text: "Alpha expectations",
-      },
-      {
-        _tag: "Paragraph",
+        _tag: "Callout",
+        title: "Alpha expectations",
         text: "The public packages are meant to be usable, inspectable, and testable, but the ecosystem is still early. Prefer the checked starters and examples over inventing a fresh host integration from scratch.",
       },
     ],
@@ -151,7 +155,7 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc deployment centers on createRequestHandler(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup on a request runtime built from the server Layer.",
+        text: "Arc deployment centers on `createRequestHandler(app)`. The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup on a request runtime built from the server Layer.",
       },
       {
         _tag: "Heading",
@@ -188,7 +192,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Forwarded headers are untrusted by default. Pass trustForwardedHeaders: true only behind a proxy that overwrites x-forwarded-proto and x-forwarded-host.",
+        text: "Forwarded headers are untrusted by default. Pass `trustForwardedHeaders: true` only behind a proxy that overwrites `x-forwarded-proto` and `x-forwarded-host`.",
       },
       {
         _tag: "Heading",
@@ -213,7 +217,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resources it owns with preloadResources in Route.define(path, options). In dev, Start logs a warning for each route whose preload declares none.",
+        text: "Make sure the file route declares the Resources it owns with `preloadResources` in `Route.define(path, options)`. In dev, Start logs a warning for each route whose preload declares none.",
       },
       {
         _tag: "Heading",
@@ -221,7 +225,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Move handlers into .server.ts modules, export only contracts and typed clients from browser-safe modules, and keep leak-scan sentinels in the production build gate.",
+        text: "Move handlers into `.server.ts` modules, export only contracts and typed clients from browser-safe modules, and keep leak-scan sentinels in the production build gate.",
       },
       {
         _tag: "Heading",
@@ -229,7 +233,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Convert host Promise work with Effect.tryPromise at the adapter boundary. Resource.load, Action.run, Server.implement handlers, and route preload should stay Effect-first.",
+        text: "Convert host Promise work with `Effect.tryPromise` at the adapter boundary. `Resource.load`, `Action.run`, `Server.implement` handlers, and route preload should stay Effect-first.",
       },
       {
         _tag: "Heading",
@@ -237,7 +241,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Run the docs or app build so the Start Vite plugin regenerates routeTree.gen.ts. Generated files are committed because editors, CI, and agents read them.",
+        text: "Run the docs or app build so the Start Vite plugin regenerates `routeTree.gen.ts`. Generated files are committed because editors, CI, and agents read them.",
       },
     ],
   },
@@ -252,7 +256,7 @@ createServer(
         items: [
           "Basic starter: the smallest checked full-stack shell with SSR, hydration, route-owned Resource preload, and leak scanning.",
           "Project console: the larger golden path for actions, Resource rows, optimistic work, mocks, and diagnostics.",
-          "Docs site: the live cookbook and public alpha docs app you are reading now.",
+          "Docs site: the Arc app you are reading now: server functions, Resources, file-route preload, prerendering, and hydration.",
           "Devtools panel and extension examples: checked hosts for JSON-safe runtime summaries and inspected-window bridge contracts.",
         ],
       },
