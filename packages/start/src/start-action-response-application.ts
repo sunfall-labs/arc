@@ -3,9 +3,6 @@ import {
   ResourceTagIdentityTypeId,
   ResourceTagTypeId,
   ServerTransportError,
-  type ResourceHydrationSnapshot,
-  type ResourceInvalidation,
-  type ResourceInvalidationPlanEntry,
 } from "@sunfall/arc-core";
 import { lookupResourceFamily } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
@@ -61,7 +58,7 @@ const malformedStartActionTagTransportError = (
 const startActionInvalidationTargetEffect = (
   body: StartActionResponseBody,
   target: StartActionInvalidationTarget,
-): Effect.Effect<ResourceInvalidation<any>, ServerTransportError> => {
+): Effect.Effect<Resource.Invalidation<any>, ServerTransportError> => {
   if (target._tag === "Tag") {
     const identity = resourceTagIdentityFromStartTarget(target);
     if (identity === undefined) {
@@ -125,7 +122,7 @@ const startActionInvalidationCauseEffect = (
 const validateStartActionInvalidationPlanEffect = (
   body: StartActionResponseBody,
   plan: StartActionInvalidationPlan | undefined,
-): Effect.Effect<ReadonlyArray<ResourceInvalidation<any>>, ServerTransportError> =>
+): Effect.Effect<ReadonlyArray<Resource.Invalidation<any>>, ServerTransportError> =>
   plan === undefined
     ? Effect.succeed([])
     : Effect.gen(function* () {
@@ -167,11 +164,11 @@ const startActionHydrationTransportError = (
 const startActionResourceIdentity = (name: string, key: string): string =>
   JSON.stringify([name, key]);
 
-const startActionHydrationResourceIdentity = (resource: ResourceHydrationSnapshot): string =>
+const startActionHydrationResourceIdentity = (resource: Resource.Snapshot): string =>
   startActionResourceIdentity(resource.name, resource.key);
 
 const startActionInvalidationEntryIdentity = (
-  entry: ResourceInvalidationPlanEntry<unknown>,
+  entry: Resource.InvalidationPlanEntry<unknown>,
 ): string => startActionResourceIdentity(entry.ref.family.options.name, entry.ref.key);
 
 const startActionResponseInvalidationEffect = (

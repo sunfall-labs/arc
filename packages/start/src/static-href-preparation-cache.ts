@@ -1,8 +1,4 @@
-import {
-  Resource,
-  type ResourceHydrationPayload,
-  type ResourceStoreEvent,
-} from "@sunfall/arc-core";
+import { Resource } from "@sunfall/arc-core";
 import { lookupResourceFamily } from "@sunfall/arc-core/internal";
 import { Effect, Exit, Fiber, PubSub, Scope } from "effect";
 
@@ -47,7 +43,7 @@ const isResolvedStartStaticHydratedResourceRef = (
 ): ref is Resource.AnyRef => ref !== undefined;
 
 export const startStaticHydratedHrefPreparationOutcome = (
-  payload: ResourceHydrationPayload | undefined,
+  payload: Resource.HydrationPayload | undefined,
 ): Effect.Effect<StartStaticHrefPreparationOutcome> =>
   Effect.forEach(payload?.resources ?? [], (snapshot) =>
     lookupResourceFamily(snapshot.name).pipe(
@@ -84,7 +80,7 @@ const startStaticPreparedHrefReusableEffect = (
   }
 };
 
-const startStaticPreparedHrefInvalidatedByResourceEvent = (event: ResourceStoreEvent): boolean =>
+const startStaticPreparedHrefInvalidatedByResourceEvent = (event: Resource.StoreEvent): boolean =>
   event._tag === "ResourceInvalidated" || event._tag === "ResourceDeleted";
 
 const watchStartStaticPreparedHrefInvalidationsEffect = (

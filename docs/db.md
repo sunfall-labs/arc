@@ -93,7 +93,7 @@ Collection and live-query load state uses Effect's `AsyncResult`
 Resources and Actions. Rows are always their own signal, so local-first reads
 never wait on load state.
 
-- `collection.result()` is `ReadableSignal<AsyncResult<void, E>>`: `Initial`
+- `collection.result()` is `Signal.Readable<AsyncResult<void, E>>`: `Initial`
   before the first load, `Success` (timestamped with the load's `Clock` time)
   once rows are loaded, and `Failure` carrying the load `Cause` with the last
   success as `previousSuccess`. A preload or refresh marks the current result
@@ -109,7 +109,7 @@ never wait on load state.
   `snapshot`, `hydrate`, `persist`, and `restore` still return codec and
   callback failures: they move data across a boundary that can hand them
   malformed input.
-- `liveQuery.result` is `ReadableSignal<AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>>`
+- `liveQuery.result` is `Signal.Readable<AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>>`
   beside `liveQuery.rows` (always the last good rows). It folds source load
   results and evaluation failures: `Initial` while any source has never loaded,
   `Success` with the current rows (timestamped by the latest source load),

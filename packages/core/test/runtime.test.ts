@@ -10,7 +10,6 @@ import {
   RuntimeDisposeError,
   ResourcePending,
   Server,
-  ServerClient,
 } from "../src/index.js";
 
 describe("Sunfall Arc runtime", () => {
@@ -62,7 +61,7 @@ describe("Sunfall Arc runtime", () => {
       handler: (id) => Effect.succeed(`local:${id}`),
     });
     const runtime = makeRuntime(
-      Layer.succeed(ServerClient)({
+      Layer.succeed(Server.Client)({
         // The fake transport answers every function with a string; the test only calls string functions.
         call: <I, A, E, R>(_fn: unknown, input: I) =>
           Effect.succeed(`remote:${String(input)}`) as unknown as Effect.Effect<A, E, R>,
@@ -88,7 +87,7 @@ describe("Sunfall Arc runtime", () => {
     const GetNumber = Server.contract<string, number, never>("Number.local-stub");
     const getNumber = Server.client(GetNumber);
     Server.implement(GetNumber, (id) => Effect.succeed(id.length));
-    const runtime = makeRuntime(Layer.succeed(ServerClient)(Server.localClient()));
+    const runtime = makeRuntime(Layer.succeed(Server.Client)(Server.localClient()));
 
     return Effect.runPromise(
       runtime.provide(

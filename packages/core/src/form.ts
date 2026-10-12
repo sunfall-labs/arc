@@ -555,8 +555,24 @@ export namespace Form {
   export type Instance<Values extends object, E = never, R = never> = FormInstance<Values, E, R>;
   /** Namespace alias for validator helper functions. */
   export type ValidationTools<Values extends object, E> = FormValidationTools<Values, E>;
-  /** Namespace alias for typed Form validation failures. */
-  export type ValidationError<Values extends object, E = never> = FormValidationError<Values, E>;
+  /** Typed validation failure produced by schema decoding or custom Form validators. */
+  export type ValidationError<
+    Values extends object = Record<string, unknown>,
+    E = never,
+  > = FormValidationError<Values, E>;
+  /** Typed validation failure produced by schema decoding or custom Form validators. */
+  export const ValidationError = FormValidationError;
+  /** Options used to create a schema-backed Form controller with `Form.make`. */
+  export type Options<
+    S extends Schema.Top,
+    Values extends FormSchemaValues<S>,
+    E = never,
+    R = never,
+  > = FormOptions<S, Values, E, R>;
+  /** Object value decoded by a form schema. Non-object schemas are rejected. */
+  export type SchemaValues<S extends Schema.Top> = FormSchemaValues<S>;
+  /** Effect services required by the form schema decoder. */
+  export type SchemaServices<S extends Schema.Top> = FormSchemaServices<S>;
   /** Namespace alias for FormData file conversion mode. */
   export type DataFileMode = FormDataFileMode;
   /** Namespace alias for FormData decoding options. */

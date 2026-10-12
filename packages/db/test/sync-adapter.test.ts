@@ -1,11 +1,4 @@
-import {
-  Action,
-  EffectInputCallbackError,
-  Resource,
-  Server,
-  makeRuntime,
-  type ServerClientError,
-} from "@sunfall/arc-core";
+import { Action, EffectInputCallbackError, Resource, Server, makeRuntime } from "@sunfall/arc-core";
 import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
   defaultCollectionDefinitionRegistry,
@@ -190,7 +183,7 @@ describe("Collection sync adapters", () => {
         const Projects = Collection.define<
           Project,
           string,
-          ServerClientError | EffectInputCallbackError
+          Server.ClientError | EffectInputCallbackError
         >({
           name: "Projects.sync.server",
           getKey: (project) => project.id,

@@ -1,12 +1,7 @@
 import { Effect, Schema, Stream } from "effect";
 import type { KeyValueStore } from "effect/persistence";
 import type { AsyncResult } from "effect/reactivity";
-import {
-  Resource,
-  Server,
-  type EffectInputCallbackError,
-  type ServerClientError,
-} from "@sunfall/arc-core";
+import { Resource, Server, type EffectInputCallbackError } from "@sunfall/arc-core";
 import {
   Collection,
   CollectionRowKeyChanged,
@@ -94,7 +89,7 @@ const writableSyncAdapter: Collection.SyncAdapter<Project, string> = {
 const serverProjects: Collection.Definition<
   Project,
   string,
-  EffectInputCallbackError | ServerClientError
+  EffectInputCallbackError | Server.ClientError
 > = ServerProjects;
 
 // A Resource ref backs a collection directly.

@@ -5,12 +5,15 @@ import {
   ActionOutbox,
   emptyActionOutboxView,
   type ActionDurablePolicy,
+  type ActionOutboxEntry,
+  type ActionOutboxFailure,
   type ActionOutboxOptions,
   type ActionOutboxRestoreOptions,
   type ActionOutboxView,
   type ActionQueued,
 } from "./action-outbox.js";
 import { makeActionOutboxLayer } from "./action-outbox-layer.js";
+import type { ActionTransportResponse, ActionTransportSubmission } from "./action-transport.js";
 import type { KeyValueStore } from "effect/persistence";
 import {
   makeActionOptimisticPlanRuntime,
@@ -186,16 +189,6 @@ export interface ActionUseOptions<R = never, ER = never> {
   readonly runtime: SunfallArcRuntime<R, ER>;
 }
 
-export {
-  ActionOptimisticRowsTypeId,
-  type ActionOptimisticChange,
-  type ActionOptimisticRowChange,
-  type ActionOptimisticRows,
-  type ActionOptimisticRowsLayer,
-  type ActionOptimisticRowUpdate,
-  type ActionOptimisticTransaction,
-} from "./action-optimistic.js";
-
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 type ActionRuntimeProvidedRequirements<R> = R | ResourceStoreState;
 type ActionRuntimeRemainingRequirements<RIn, RProvided> = Exclude<
@@ -276,6 +269,18 @@ export namespace Action {
   export type RestoreOutboxOptions = ActionOutboxRestoreOptions;
   /** Public namespace alias for the Action Outbox read side. */
   export type Outbox = ActionOutboxView;
+  /** One pending durable submission in the Action Outbox. */
+  export type OutboxEntry = ActionOutboxEntry;
+  /** One durable submission that finally failed while nobody was waiting. */
+  export type OutboxFailure = ActionOutboxFailure;
+  /** Options accepted by `Action.define(...)`. */
+  export type Options<I, A, E = never, R = never> = ActionOptions<I, A, E, R>;
+  /** Runtime options for constructing an Action Instance from a definition. */
+  export type UseOptions<R = never, ER = never> = ActionUseOptions<R, ER>;
+  /** Submission an `ActionTransport` sends for one Action run. */
+  export type TransportSubmission = ActionTransportSubmission;
+  /** Response an `ActionTransport` returns for one Action submission. */
+  export type TransportResponse<A, E> = ActionTransportResponse<A, E>;
 
   /**
    * Layer providing the runtime's Action Outbox, which persists durable Action

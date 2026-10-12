@@ -1,13 +1,5 @@
-import type {
-  ActionInstance,
-  ActionState,
-  ResourceInvalidationPlan,
-  ResourceStoreEvent,
-  Route,
-  TimelineEntry,
-  TimelineRecording,
-} from "@sunfall/arc-core";
-import { Timeline } from "@sunfall/arc-core";
+import type { Route } from "@sunfall/arc-core";
+import { Timeline, type Action, type Resource } from "@sunfall/arc-core";
 import { Effect, Option } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
@@ -46,7 +38,7 @@ import { describeDevtoolsPanels } from "./panels.js";
 import { describeDevtoolsCausalGraph, describeDevtoolsSummary } from "./summary.js";
 
 const actionStateFacts = <I, A, E>(
-  state: ActionState<I, A, E>,
+  state: Action.State<I, A, E>,
 ): { readonly tag: string; readonly waiting: boolean; readonly input: I | undefined } => ({
   tag: state.result._tag,
   waiting: state.result.waiting,
@@ -242,7 +234,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     };
   };
 
-  const recordInvalidationPlan = (plan: ResourceInvalidationPlan<any>): number =>
+  const recordInvalidationPlan = (plan: Resource.InvalidationPlan<any>): number =>
     recordSerializedInvalidationPlan(describeInvalidationPlan(plan));
 
   const recordSerializedInvalidationPlan = (plan: DevtoolsInvalidationPlan): number => {
@@ -382,7 +374,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     });
   };
 
-  const recordAction = <I, A, E, R>(action: ActionInstance<I, A, E, R>): void => {
+  const recordAction = <I, A, E, R>(action: Action.Instance<I, A, E, R>): void => {
     const { tag, waiting, input } = actionStateFacts(action.state.get());
     const invalidationPlan = action.invalidationPlan.get();
     recordActionState(action.definition.name, tag, {
@@ -392,7 +384,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     });
   };
 
-  const recordTimelineEntry = (entry: TimelineEntry): void => {
+  const recordTimelineEntry = (entry: Timeline.Entry): void => {
     recordRuntimeEvent({
       _tag: "TimelineCommit",
       at: entry.at,
@@ -430,7 +422,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       const { appGraph: _appGraph, ...next } = snapshot;
       snapshot = next;
     });
-  const recordInvalidationEffect = (plan: ResourceInvalidationPlan) =>
+  const recordInvalidationEffect = (plan: Resource.InvalidationPlan) =>
     Effect.sync(() => recordInvalidationPlan(plan));
   const recordSerializedInvalidationEffect = (plan: DevtoolsInvalidationPlan) =>
     Effect.sync(() => recordSerializedInvalidationPlan(plan));
@@ -445,11 +437,11 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
         recordActionState(action, state, actionOptions);
       });
     });
-  const recordActionEffect = <I, A, E, R>(action: ActionInstance<I, A, E, R>) =>
+  const recordActionEffect = <I, A, E, R>(action: Action.Instance<I, A, E, R>) =>
     Effect.sync(() => {
       recordAction(action);
     });
-  const trackActionEffect = <I, A, E, R>(action: ActionInstance<I, A, E, R>) =>
+  const trackActionEffect = <I, A, E, R>(action: Action.Instance<I, A, E, R>) =>
     Effect.acquireRelease(
       Effect.sync(() => {
         recordAction(action);
@@ -461,7 +453,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     Effect.sync(() => recordSerializedRoutePlan(describeRoutePlan(plan)));
   const recordSerializedRoutePlanEffect = (plan: DevtoolsRoutePlan) =>
     Effect.sync(() => recordSerializedRoutePlan(plan));
-  const recordResourceEventEffect = (event: ResourceStoreEvent) =>
+  const recordResourceEventEffect = (event: Resource.StoreEvent) =>
     Effect.sync(() => {
       recordRuntimeEvent({
         _tag: "ResourceStoreEvent",
@@ -475,11 +467,11 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
         event,
       });
     });
-  const recordTimelineEntryEffect = (entry: TimelineEntry) =>
+  const recordTimelineEntryEffect = (entry: Timeline.Entry) =>
     Effect.sync(() => {
       recordTimelineEntry(entry);
     });
-  const trackTimelineEffect = (recording: TimelineRecording) =>
+  const trackTimelineEffect = (recording: Timeline.Recording) =>
     Effect.acquireRelease(
       Effect.sync(() => {
         let observedSequence = 0;

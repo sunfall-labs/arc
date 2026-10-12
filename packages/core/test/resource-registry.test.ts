@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { Resource, type AnyResourceFamily } from "../src/index.js";
+import { Resource } from "../src/index.js";
 import {
   makeResourceDefinitionRegistry,
   resourceDefinitionRegistry,
@@ -48,10 +48,10 @@ describe("Resource definition registry", () => {
     const name = registryName("isolated");
     const first = {
       options: { name },
-    } as unknown as AnyResourceFamily;
+    } as unknown as Resource.AnyFamily;
     const second = {
       options: { name },
-    } as unknown as AnyResourceFamily;
+    } as unknown as Resource.AnyFamily;
     const registry = makeResourceDefinitionRegistry({ duplicates: "keep-first" });
 
     registry.registerFamily(name, first);
@@ -99,7 +99,7 @@ describe("Resource definition registry", () => {
         output: { description: "not an Effect schema" },
         error: { description: "not an Effect schema" },
       },
-    } as unknown as AnyResourceFamily;
+    } as unknown as Resource.AnyFamily;
 
     registry.registerFamily(schemaName, SchemaBacked.family);
     registry.registerFamily(metadataName, MetadataBacked);

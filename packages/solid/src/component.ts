@@ -3,21 +3,16 @@ import {
   RuntimeTypeId,
   runWithRuntime,
   Signal,
-  type ActionDefinition,
   type ActionInterrupted,
-  type ActionResultInvalidationRequirements,
   type AnySunfallArcRuntime,
   type Program,
-  type ProgramFailure,
-  type ReadableSignal,
   type Resource,
-  type ResourceRef,
-  type ResourceStoreModule,
   type Route,
-  type RouteView,
   type RouteViewTypeId,
-  type ServerClientError,
   type SunfallArcRuntime,
+  type Action,
+  type ActionResult,
+  type Server,
 } from "@sunfall/arc-core";
 import {
   eraseRuntime,
@@ -25,6 +20,7 @@ import {
   resourceRenderCause,
   startProgramOnRuntime,
   withSignalTransition,
+  type ResourceStoreModule,
 } from "@sunfall/arc-core/internal";
 import { Cause, Context, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -81,7 +77,7 @@ const RouteViewKey: typeof RouteViewTypeId = "~@sunfall/arc-core/RouteView";
  * });
  * ```
  */
-export interface Component<in P, out E = never, out R = never> extends Pipeable, RouteView<P> {
+export interface Component<in P, out E = never, out R = never> extends Pipeable, Route.View<P> {
   readonly [ComponentTypeId]: {
     readonly _P: (props: P) => void;
     readonly _E: () => E;
@@ -373,7 +369,7 @@ const readerHost = createRoot(() => getOwner());
 
 const makeResourceReader = <I, A, E, R>(
   runtime: AnySunfallArcRuntime<unknown>,
-  family: (input: I) => ResourceRef<I, A, E, R>,
+  family: (input: I) => Resource.Ref<I, A, E, R>,
 ) => {
   const entries = new Map<string, ResourceReaderEntry<A, E>>();
   const release = (key: string, entry: ResourceReaderEntry<A, E>) => (): void => {
@@ -387,7 +383,7 @@ const makeResourceReader = <I, A, E, R>(
   // it may be created while Solid runs effects (route renders do, and a
   // detached root is not allowed there), and it is disposed explicitly on
   // release or with the instance.
-  const bind = (ref: ResourceRef<I, A, E, R>): ResourceReaderEntry<A, E> =>
+  const bind = (ref: Resource.Ref<I, A, E, R>): ResourceReaderEntry<A, E> =>
     runWithOwner(readerHost, () =>
       createRoot(
         (dispose): ResourceReaderEntry<A, E> => ({
@@ -468,7 +464,7 @@ type ProgramModelLeaf =
  * reconciles. A projection's proxies belong to its own family.
  */
 const projectModel = <Model>(
-  model: ReadableSignal<Model>,
+  model: Signal.Readable<Model>,
   key: Component.ProgramOptions["key"],
 ): Accessor<Component.ProgramModelView<Model>> => {
   const view = createProjection<{ value: Component.ProgramModelView<Model> }>(
@@ -642,7 +638,7 @@ export namespace Component {
    * Failures an Action submission reports: its own and transport failures. A
    * callback that breaks its contract is a defect, not part of the type.
    */
-  export type ActionError<E> = E | ServerClientError;
+  export type ActionError<E> = E | Server.ClientError;
 
   /**
    * Instance-bound Action handle from `Component.action`.
@@ -715,9 +711,9 @@ export namespace Component {
      */
     readonly model: Accessor<ProgramModelView<Model>>;
     /** Committed model for Effect-side reads (`Signal.peek`, `Signal.changes`). */
-    readonly committed: ReadableSignal<Model>;
+    readonly committed: Signal.Readable<Model>;
     /** Typed update, command, and subscription failures reported by the Program loop. */
-    readonly failures: Accessor<ReadonlyArray<ProgramFailure<Message, Program.RuntimeError<E>>>>;
+    readonly failures: Accessor<ReadonlyArray<Program.Failure<Message, Program.RuntimeError<E>>>>;
     /**
      * Queues `message` and completes once its update commits (failing if the
      * update fails or disposal drops it). Bridge it to an event handler with
@@ -725,7 +721,7 @@ export namespace Component {
      */
     readonly dispatch: (
       message: Message,
-    ) => Effect.Effect<void, ProgramFailure<Message, Program.DispatchError<E>>>;
+    ) => Effect.Effect<void, Program.Failure<Message, Program.DispatchError<E>>>;
     /** Clears accumulated failures. */
     readonly clearFailures: () => void;
   }
@@ -816,8 +812,8 @@ export namespace Component {
    * handle. Unmounting interrupts in-flight submissions.
    */
   export const action = <I, A, E, R>(
-    definition: ActionDefinition<I, A, E, R>,
-  ): Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResultInvalidationRequirements<A>> =>
+    definition: Action.Definition<I, A, E, R>,
+  ): Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResult.InvalidationRequirements<A>> =>
     Effect.gen(function* () {
       const current = yield* instance;
       const instanceAction = makeActionInstance(definition, current.runtime);
@@ -835,7 +831,7 @@ export namespace Component {
         reset: instanceAction.reset,
       };
       return handle;
-    }) as Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResultInvalidationRequirements<A>>;
+    }) as Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResult.InvalidationRequirements<A>>;
 
   /**
    * Starts a Program for this instance and returns its handle, with the model

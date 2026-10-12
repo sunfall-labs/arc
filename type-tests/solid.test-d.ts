@@ -13,7 +13,6 @@ import {
   type BrowserRouterError,
   type BrowserRouterState,
   type EffectInputCallbackError,
-  type ProgramFailure,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -99,7 +98,7 @@ const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, SolidTi
 solidProgramHandle.clearTimeline();
 const solidProgramDispatch: Effect.Effect<
   void,
-  ProgramFailure<SolidTick, EffectInputCallbackError | Program.Disposed>
+  Program.Failure<SolidTick, EffectInputCallbackError | Program.Disposed>
 > = solidProgramHandle.dispatch({ _tag: "Tick" });
 declare const solidUnknownProgramHandle: Component.ProgramHandle<number, unknown, never>;
 const solidProgramCount: number = solidProgramHandle.model();

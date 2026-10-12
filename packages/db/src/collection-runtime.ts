@@ -1,10 +1,10 @@
 import { collectionContractDefects } from "./collection-contract-defects.js";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
 import {
   ActionOptimisticRowsTypeId,
-  EffectInputCallbackError,
   type ActionOptimisticRowChange,
   type ActionOptimisticRowsLayer,
-} from "@sunfall/arc-core";
+} from "@sunfall/arc-core/internal";
 import { Effect, Option } from "effect";
 import {
   CollectionRowKeyChanged,

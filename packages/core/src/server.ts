@@ -385,7 +385,18 @@ export namespace Server {
   export type Fn<I, A, E = never, R = never> = ServerFunction<I, A, E, R>;
   export type Contract<I, A, E = never> = ServerFunctionContract<I, A, E>;
   export type Mock<I, A, E = never, R = never> = ServerFunctionMock<I, A, E, R>;
+  /** Transport used by server function clients; provide it to route `.effect` calls. */
   export type Client = ServerClient;
+  /** Transport used by server function clients; provide it to route `.effect` calls. */
+  export const Client = ServerClient;
+  /** Schema metadata shared by server function clients, implementations, and mocks. */
+  export type ContractDefinition<I, A, E = never> = ServerFunctionContractDefinition<I, A, E>;
+  /** Server-side handler definition for `Server.fn`. */
+  export type FnDefinition<I, A, E = never, R = never> = ServerFunctionDefinition<I, A, E, R>;
+  /** HTTP route handler used by server adapters. */
+  export type Route<E = never, R = never> = ServerRoute<E, R>;
+  /** Options for `Server.localClient`. */
+  export type LocalClientOptions = LocalServerClientOptions;
   export type ClientError = ServerClientError;
   export type RpcRequest = ServerRpcRequest;
   export type RpcResponse = ServerRpcResponse;

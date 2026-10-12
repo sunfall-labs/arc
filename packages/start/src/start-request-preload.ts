@@ -3,10 +3,9 @@ import {
   makeResponseContext,
   runWithRuntime,
   type AnySunfallArcRuntime,
-  type RoutePreloadFailureSnapshot,
   type SunfallArcRuntime,
-  type ResourceHydrationPayload,
   type ResponseContext,
+  type Resource,
 } from "@sunfall/arc-core";
 import { eraseRuntime, matchRoutes } from "@sunfall/arc-core/internal";
 import type { Collection } from "@sunfall/arc-db";
@@ -48,7 +47,7 @@ export interface StartPreloadResult<
     readonly Route.Definition<string, unknown, unknown, any>[],
 > {
   readonly match: Route.Match<Routes[number]> | undefined;
-  readonly resources: ResourceHydrationPayload;
+  readonly resources: Resource.HydrationPayload;
   readonly collections: Collection.HydrationPayload;
   readonly collectionPreload: StartCollectionPreload;
   readonly hydration: StartHydrationPayload;
@@ -58,7 +57,7 @@ export interface StartPreloadResult<
    * routers on the request runtime start in this `Failure` state (the outlet's
    * failure view), and the hydration payload hands it to the client.
    */
-  readonly routeFailure?: RoutePreloadFailureSnapshot;
+  readonly routeFailure?: Route.PreloadFailureSnapshot;
 }
 
 /**
@@ -268,7 +267,7 @@ interface StartRoutePlanOutcome<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
 > {
   readonly routePlan: Route.NavigationPlan<Routes[number]>;
-  readonly routeFailure?: RoutePreloadFailureSnapshot;
+  readonly routeFailure?: Route.PreloadFailureSnapshot;
 }
 
 /**
@@ -291,7 +290,7 @@ const startRoutePlanEffect = <
   routePreloadFailure: StartRoutePreloadFailurePolicy,
 ): Effect.Effect<
   StartRoutePlanOutcome<Routes>,
-  Route.NavigationError<Routes[number]>,
+  Route.NavigationPlanError<Routes[number]>,
   Route.PreloadRequirements<Routes[number]>
 > => {
   const planned = Route.planNavigation(routes, url).pipe(

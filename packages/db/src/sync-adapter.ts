@@ -1,4 +1,4 @@
-import { Resource, ResourceTypeId, type EffectInput, type ResourceRef } from "@sunfall/arc-core";
+import { Resource, ResourceTypeId, type EffectInput } from "@sunfall/arc-core";
 import type { Effect, Stream } from "effect";
 import type {
   AnyCollection,
@@ -34,13 +34,13 @@ const emptyHandlers: CollectionSyncHandlers<any, any, any, any> = {
 
 const isResourceRefSync = <A extends object, K extends CollectionKey, E, R>(
   sync: CollectionSync<A, K, E, R>,
-): sync is ResourceRef<any, ReadonlyArray<A>, any, any> =>
+): sync is Resource.Ref<any, ReadonlyArray<A>, any, any> =>
   typeof sync === "object" &&
   sync !== null &&
   (sync as { readonly [ResourceTypeId]?: unknown })[ResourceTypeId] === ResourceTypeId;
 
 const resourceHandlers = <A extends object, K extends CollectionKey, E, R>(
-  ref: ResourceRef<any, ReadonlyArray<A>, any, any>,
+  ref: Resource.Ref<any, ReadonlyArray<A>, any, any>,
 ): CollectionSyncHandlers<A, K, E, R> => ({
   ...(emptyHandlers as CollectionSyncHandlers<A, K, E, R>),
   diagnostics: { adapter: `resource:${ref.family.options.name}` },

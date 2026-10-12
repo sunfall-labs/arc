@@ -1,11 +1,6 @@
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  EffectInputCallbackError,
-  Server,
-  ServerClient,
-  ServerFunctionNotFound,
-} from "../src/index.js";
+import { EffectInputCallbackError, Server, ServerFunctionNotFound } from "../src/index.js";
 import { makeCoreDefinitionRegistry } from "../src/internal.js";
 
 describe("Server contracts", () => {
@@ -192,7 +187,7 @@ describe("Server contracts", () => {
 
     return Effect.runPromise(
       Effect.exit(
-        Effect.provideService(failingUser.effect(undefined), ServerClient, Server.localClient()),
+        Effect.provideService(failingUser.effect(undefined), Server.Client, Server.localClient()),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -225,7 +220,7 @@ describe("Server contracts", () => {
     return Effect.runPromise(
       Effect.provideService(
         echo.effect("atlas"),
-        ServerClient,
+        Server.Client,
         Server.localClient({ registry }),
       ).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe("snapshot:atlas"))),

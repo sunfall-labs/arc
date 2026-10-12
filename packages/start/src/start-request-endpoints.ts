@@ -4,17 +4,19 @@ import {
   applyResponseContext,
   type EffectInputCallbackError,
   makeResponseContext,
-  type ActionDefinition,
-  type AppDefinitionRegistry,
-  type AppDefinitionRegistryActionRequirements,
-  type AppDefinitionRegistryServerFunctionRequirements,
-  type ActionDefinitionRequirements,
   type AnySunfallArcRuntime,
   type SunfallArcRuntime,
   type Route,
   type ResponseContext,
+  type Action,
 } from "@sunfall/arc-core";
-import { makeActionInstance } from "@sunfall/arc-core/internal";
+import {
+  makeActionInstance,
+  type AppDefinitionRegistry,
+  type AppDefinitionRegistryActionRequirements,
+  type AppDefinitionRegistryServerFunctionRequirements,
+  type ActionDefinitionRequirements,
+} from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, type Scope } from "effect";
 import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
 import {
@@ -320,7 +322,7 @@ export const createServerActionResponseEffectWithRuntime = <
             // The endpoint runs the Action locally and skips `optimistic`: only
             // the submitting client applies it.
             const instance = makeActionInstance(
-              action as unknown as ActionDefinition<any, any, never, any>,
+              action as unknown as Action.Definition<any, any, never, any>,
               runtime as unknown as AnySunfallArcRuntime<never>,
               "endpoint",
             );

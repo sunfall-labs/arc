@@ -29,7 +29,11 @@ import {
   ResourceTagTypeId,
   ResourceTypeId,
 } from "./resource-identifiers.js";
-import type { ResourceStoreEvent } from "./resource-store.js";
+import type {
+  ResourceStoreDiagnostics,
+  ResourceStoreDiagnosticsSnapshot,
+  ResourceStoreEvent,
+} from "./resource-store.js";
 import type { ReadableSignal } from "./signal.js";
 import { encodeResourceKey } from "./resource-key-codec.js";
 import type { ResourceCollected } from "./resource-collector.js";
@@ -37,7 +41,9 @@ import {
   decodeResourceHydrationPayload,
   encodeResourceHydrationPayload,
   ResourceHydrationApplyError,
-  type ResourceSnapshotCodecError,
+  ResourceSnapshotCodecError,
+  type ResourceHydrationApplyReason,
+  type ResourceSnapshotCodecOperation,
 } from "./resource-snapshot-codec.js";
 import {
   registerResourceDefinition,
@@ -591,8 +597,18 @@ export namespace Resource {
   export type HydrationOptions = ResourceHydrationOptions;
   /** Typed error raised when Resource hydration payloads cannot be decoded. */
   export type SnapshotCodecError = ResourceSnapshotCodecError;
+  /** Typed error raised when Resource hydration payloads cannot be decoded. */
+  export const SnapshotCodecError = ResourceSnapshotCodecError;
+  /** Codec step a `Resource.SnapshotCodecError` failed in. */
+  export type SnapshotCodecOperation = ResourceSnapshotCodecOperation;
   /** Typed error raised when a decoded Resource hydration payload cannot apply. */
   export type HydrationApplyError = ResourceHydrationApplyError;
+  /** Typed error raised when a decoded Resource hydration payload cannot apply. */
+  export const HydrationApplyError = ResourceHydrationApplyError;
+  /** Why a `Resource.HydrationApplyError` could not apply a snapshot. */
+  export type HydrationApplyReason = ResourceHydrationApplyReason;
+  /** Successful Resource state carried by a hydration snapshot. */
+  export type HydrationSuccessState<A = unknown> = ResourceHydrationSuccessState<A>;
   /** Error thrown by synchronous Resource reads when data is pending or failed. */
   export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
   /** Diagnostic status for one Resource ref: its `AsyncResult` plus cache freshness facts. */
@@ -620,6 +636,23 @@ export namespace Resource {
   > = ResourceRequestFamilyOptions<I, Req, EX, RX>;
   /** Value returned from `collect(...)` with the Resource refs touched by preload/read work. */
   export type Collected<A> = ResourceCollected<A>;
+  /** Resource family created by `Resource.define(...)`. */
+  export type Family<I, A, E = never, R = never> = ResourceFamily<I, A, E, R>;
+  /** Erased Resource family used by registries and diagnostics. */
+  export type AnyFamily = AnyResourceFamily;
+  /** Options accepted by `Resource.define(...)` for a `load`-backed family. */
+  export type FamilyOptions<I, A, E = never, R = never> = ResourceFamilyOptions<I, A, E, R>;
+  /** Cache lifecycle policy for a Resource family. */
+  export type Policy<E = never> = ResourcePolicy<E>;
+  /** Stable identity of a Resource tag. */
+  export type TagIdentity = ResourceTagIdentity;
+  /** Compile error reported when a family's load can fail outside its `error` schema. */
+  export type LoadFailureNotInErrorSchema<Undeclared> =
+    ResourceLoadFailureNotInErrorSchema<Undeclared>;
+  /** Resource Store diagnostics service. */
+  export type StoreDiagnostics = ResourceStoreDiagnostics;
+  /** One snapshot read from `Resource.StoreDiagnostics`. */
+  export type StoreDiagnosticsSnapshot = ResourceStoreDiagnosticsSnapshot;
   /** Schema for a family's typed load failure (the `error` option). */
   export type ErrorSchema<E = unknown> = ResourceErrorSchema<E>;
   /** Ref factory returned by `Resource.define(...)`. */

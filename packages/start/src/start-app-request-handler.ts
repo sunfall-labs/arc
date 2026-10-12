@@ -1,4 +1,5 @@
-import type { AppDefinitionRegistry, Route, RuntimeSource, Server } from "@sunfall/arc-core";
+import type { Route, RuntimeSource, Server } from "@sunfall/arc-core";
+import type { AppDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
 import { Effect, Stream } from "effect";

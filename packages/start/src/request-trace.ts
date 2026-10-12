@@ -4,8 +4,8 @@ import {
   runWithRuntime,
   type EffectInput,
   type SunfallArcRuntime,
-  type ResourceStoreDiagnosticsSnapshot,
   type Route,
+  type Resource,
 } from "@sunfall/arc-core";
 import { toEffect } from "@sunfall/arc-core/internal";
 import type { Collection } from "@sunfall/arc-db";
@@ -162,7 +162,7 @@ export interface StartRequestTraceStream {
 }
 
 /** Resource Store diagnostics snapshot captured during request runtime teardown. */
-export interface StartRequestTraceTeardownSnapshot extends ResourceStoreDiagnosticsSnapshot {}
+export interface StartRequestTraceTeardownSnapshot extends Resource.StoreDiagnosticsSnapshot {}
 
 /** Best-effort summary recorded when request runtime cleanup fails. */
 export interface StartRequestTraceCleanupFailure {

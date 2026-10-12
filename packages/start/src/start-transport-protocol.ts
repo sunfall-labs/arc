@@ -4,8 +4,7 @@ import {
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
-  type ActionDefinition,
-  type ServerFunction,
+  type Action,
 } from "@sunfall/arc-core";
 import { type CoreDefinitionRegistry, actionDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
@@ -86,7 +85,7 @@ export interface StartActionClientOptions<FetchError = never, FetchRequirements 
 
 /** Extracts the input value type from a core `ActionDefinition`. */
 export type ActionDefinitionInputValue<D> =
-  D extends ActionDefinition<infer I, infer _A, infer _E, infer _R> ? I : never;
+  D extends Action.Definition<infer I, infer _A, infer _E, infer _R> ? I : never;
 
 /** True when a request targets the Start server-function RPC endpoint. */
 export const isServerRpcRequest = (
@@ -225,7 +224,7 @@ export const materializeStartActionMap = <Actions extends StartActionDefinition>
 
 export const makeActionMap = <Actions extends StartActionDefinition = StartActionDefinition>(
   actions?: StartActionSource<Actions>,
-  registry?: CoreDefinitionRegistry<Actions, ServerFunction<any, any, any, any>>,
+  registry?: CoreDefinitionRegistry<Actions, Server.Fn<any, any, any, any>>,
 ): StartActionMap<Actions> => {
   if (actions === undefined) {
     return (registry?.actions ?? actionDefinitionRegistry()) as StartActionMap<Actions>;
@@ -245,7 +244,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 };
 
 export const rpcFailureKind = <FnError>(
-  fn: ServerFunction<unknown, unknown, FnError, unknown>,
+  fn: Server.Fn<unknown, unknown, FnError, unknown>,
   exit: Exit.Exit<unknown, FnError>,
 ): Effect.Effect<StartRequestTraceFailureKind> => {
   if (Exit.isSuccess(exit)) {
@@ -315,7 +314,7 @@ export const functionNotFoundResponse = (functionName: string): Response =>
   startTransportFunctionNotFoundResponse(rpcJson, functionName);
 
 export const exitToRpcResponse = <FnError>(
-  fn: ServerFunction<unknown, unknown, FnError, unknown>,
+  fn: Server.Fn<unknown, unknown, FnError, unknown>,
   exit: Exit.Exit<unknown, FnError>,
 ): Effect.Effect<Response, never> => {
   if (Exit.isSuccess(exit)) {

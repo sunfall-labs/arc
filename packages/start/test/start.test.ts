@@ -39,7 +39,6 @@ import {
   EffectInputPromiseRejected,
   makeRuntime,
   Resource,
-  ResourceFamily,
   ResourceTypeId,
   RequestContext,
   ResponseContext,
@@ -50,11 +49,8 @@ import {
   runWithRuntime,
   type BrowserRouterState,
   Server,
-  ServerClient,
   ServerTransportError,
   type SunfallArcRuntime,
-  type ActionDefinition,
-  type ResourceRef,
 } from "@sunfall/arc-core";
 import {
   defaultRuntime,
@@ -63,6 +59,7 @@ import {
   createBrowserRouterKernel,
   clearActionDefinitionRegistryUnsafe,
   resourceDefinitionRegistry,
+  ResourceFamily,
 } from "@sunfall/arc-core/internal";
 import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
@@ -232,10 +229,10 @@ const derivedManifestsOptions = {
   fileRoutes: [] as readonly string[],
   fileRouteGeneration: { outputFile: false as const },
 };
-const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): ServerClient =>
+const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): Server.Client =>
   Effect.runSync(
     Effect.gen(function* () {
-      return yield* ServerClient;
+      return yield* Server.Client;
     }).pipe(Effect.provide(makeRpcClientLayer(options as never))),
   );
 
@@ -401,7 +398,7 @@ const oneShotIterable = <A>(values: readonly A[]) => {
  * and the response applies to `runtime`.
  */
 const submitViaActionTransport = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
+  definition: Action.Definition<I, A, E, R>,
   input: I,
   options: Omit<ActionTransportLayerOptions<any, any>, "actions"> & {
     readonly runtime?: object;
@@ -918,7 +915,7 @@ describe("Sunfall Arc Start", () => {
         ),
       ),
     );
-    const ambientClient: ServerClient = {
+    const ambientClient: Server.Client = {
       call: () =>
         Effect.fail(
           new ServerTransportError({
@@ -933,7 +930,7 @@ describe("Sunfall Arc Start", () => {
     });
     const app = makeStartServerApp({
       routes: [ProjectRoute] as const,
-      server: Layer.succeed(ServerClient)(ambientClient),
+      server: Layer.succeed(Server.Client)(ambientClient),
     });
     const handler = createStartRequestHandler(app, {
       render: ({ match }) => `<html><body><main>${match?.params.id}</main></body></html>`,
@@ -2401,7 +2398,7 @@ describe("Sunfall Arc Start", () => {
       Effect.orDie(
         Effect.scoped(handler(new Request(new URL(String(input), "https://example.com"), init))),
       );
-    const client = Layer.succeed(ServerClient)(makeRpcClient({ fetch: fetcher }));
+    const client = Layer.succeed(Server.Client)(makeRpcClient({ fetch: fetcher }));
 
     const clientSpan = await Effect.runPromise(
       Effect.gen(function* () {
@@ -2991,7 +2988,7 @@ describe("Sunfall Arc Start", () => {
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
-    const rpcRuntime = Layer.succeed(ServerClient)(
+    const rpcRuntime = Layer.succeed(Server.Client)(
       makeRpcClient({
         fetch: fetcher,
         serverFunctionManifest: endpoints.serverFunctions,
@@ -3533,7 +3530,7 @@ describe("Sunfall Arc Start", () => {
     const handler = createStartRequestHandler(app);
     const fetcher: StartFetch = (input, init) =>
       Effect.orDie(Effect.scoped(handler(new Request(input, init))));
-    const runtime = Layer.succeed(ServerClient)(
+    const runtime = Layer.succeed(Server.Client)(
       makeRpcClient({
         endpoint: `https://example.com${serverRpcPath}`,
         fetch: fetcher,
@@ -3570,7 +3567,7 @@ describe("Sunfall Arc Start", () => {
     const handler = createStartRequestHandler(app);
     const fetcher: StartFetch = (input, init) =>
       Effect.orDie(Effect.scoped(handler(new Request(input, init))));
-    const runtime = Layer.succeed(ServerClient)(
+    const runtime = Layer.succeed(Server.Client)(
       makeRpcClient({
         endpoint: `https://example.com${serverRpcPath}`,
         fetch: fetcher,
@@ -4238,7 +4235,7 @@ describe("Sunfall Arc Start", () => {
       name: Schema.String,
     });
     class FamilyLocalKeyResource<A> extends ResourceFamily<string, A> {
-      override ref(input: string): ResourceRef<string, A> {
+      override ref(input: string): Resource.Ref<string, A> {
         return {
           [ResourceTypeId]: ResourceTypeId,
           family: this,

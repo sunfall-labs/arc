@@ -1,12 +1,6 @@
 import { Cause, Data, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  EffectInputPromiseRejected,
-  Server,
-  ServerClient,
-  ServerTransportError,
-  Route,
-} from "@sunfall/arc-core";
+import { EffectInputPromiseRejected, Server, ServerTransportError, Route } from "@sunfall/arc-core";
 import type { StartFetch } from "../src/index.js";
 import { makeRpcClientLayer } from "../src/start-rpc-client.js";
 import type { ServerRpcClientOptions } from "../src/start-fetch.js";
@@ -32,10 +26,10 @@ import {
 import { resolveStartFetch } from "../src/start-fetch.js";
 import { parseRpcResponse, parseStartActionResponse } from "../src/start-transport-protocol.js";
 
-const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): ServerClient =>
+const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): Server.Client =>
   Effect.runSync(
     Effect.gen(function* () {
-      return yield* ServerClient;
+      return yield* Server.Client;
     }).pipe(Effect.provide(makeRpcClientLayer(options as never))),
   );
 
@@ -409,7 +403,7 @@ describe("Start RPC transport", () => {
         }),
       );
     };
-    const runtime = Layer.succeed(ServerClient)(
+    const runtime = Layer.succeed(Server.Client)(
       makeRpcClient({
         fetch: fetcher,
         headers: { [startRequestIdHeader]: "req-client" },
@@ -450,14 +444,14 @@ describe("Start RPC transport", () => {
         const echo = Server.client(Echo);
         const headerCause = new Error("headers failed");
         const fetchCause = new Error("fetcher failed");
-        const headerRuntime = Layer.succeed(ServerClient)(
+        const headerRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             headers: () => {
               throw headerCause;
             },
           }),
         );
-        const fetchRuntime = Layer.succeed(ServerClient)(
+        const fetchRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             fetch: () => {
               throw fetchCause;
@@ -500,7 +494,7 @@ describe("Start RPC transport", () => {
           output: Schema.String,
         });
         const echo = Server.client(Echo);
-        const fetchRuntime = Layer.succeed(ServerClient)(
+        const fetchRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             fetch: (() =>
               Effect.runPromise(
@@ -539,7 +533,7 @@ describe("Start RPC transport", () => {
           output: Schema.String,
         });
         const echo = Server.client(Echo);
-        const headerRuntime = Layer.succeed(ServerClient)(
+        const headerRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never,
           }),
@@ -573,7 +567,7 @@ describe("Start RPC transport", () => {
             throw new Error("then getter failed");
           },
         });
-        const headerRuntime = Layer.succeed(ServerClient)(
+        const headerRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             headers: () => throwingThenHeaders as never,
           }),
@@ -627,7 +621,7 @@ describe("Start RPC transport", () => {
           );
         }) as typeof globalThis.fetch;
 
-        const runtime = Layer.succeed(ServerClient)(
+        const runtime = Layer.succeed(Server.Client)(
           makeRpcClient({
             endpoint: `https://example.com${serverRpcPath}`,
           }),
@@ -860,7 +854,7 @@ describe("Start RPC transport", () => {
       output: Schema.String,
     });
     const echo = Server.client(Echo);
-    const runtime = Layer.succeed(ServerClient)(
+    const runtime = Layer.succeed(Server.Client)(
       makeRpcClient({
         fetch: () =>
           Effect.succeed(

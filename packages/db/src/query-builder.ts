@@ -1,9 +1,4 @@
-import {
-  isEffectLike,
-  isPromiseLikeValue,
-  type PlainValue,
-  type ReadableSignal,
-} from "@sunfall/arc-core";
+import { isEffectLike, isPromiseLikeValue, type PlainValue, type Signal } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { makeLiveQueryState } from "./live-query-state.js";
@@ -441,8 +436,8 @@ export interface QueryRoot {
  * channels.
  */
 export interface LiveQuery<T, E = never, R = never> {
-  readonly rows: ReadableSignal<ReadonlyArray<T>>;
-  readonly state: ReadableSignal<
+  readonly rows: Signal.Readable<ReadonlyArray<T>>;
+  readonly state: Signal.Readable<
     AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>
   >;
   readonly sources: ReadonlyArray<AnyCollection>;

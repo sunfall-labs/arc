@@ -1,13 +1,4 @@
-import {
-  type EffectInputCallbackError,
-  Resource,
-  Route,
-  type RoutePreloadFailureSnapshot,
-  type ResourceHydrationApplyError,
-  type ResourceSnapshotCodecError,
-  type ResourceHydrationPayload,
-  type ResourceHydrationOptions,
-} from "@sunfall/arc-core";
+import { type EffectInputCallbackError, Resource, Route } from "@sunfall/arc-core";
 import { validateResourceHydrationPayload } from "@sunfall/arc-core/internal";
 import { type Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
@@ -64,8 +55,8 @@ export const startHydrationChunkVersion = 1;
 export type StartHydrationCodecError =
   | CollectionSnapshotCodecError
   | EffectInputCallbackError
-  | ResourceSnapshotCodecError
-  | ResourceHydrationApplyError
+  | Resource.SnapshotCodecError
+  | Resource.HydrationApplyError
   | Schema.SchemaError;
 
 /**
@@ -120,11 +111,11 @@ export type StartHydrationError =
   | StartHydrationPayloadParseError;
 
 /** Serialized Resource and Collection state transported from Start SSR to the browser. */
-export interface StartHydrationPayload extends ResourceHydrationPayload {
+export interface StartHydrationPayload extends Resource.HydrationPayload {
   /** Collection snapshots fail hydration with `CollectionSnapshotCodecError` when malformed. */
   readonly collections?: Collection.HydrationPayload["collections"];
   /** Route preload failure the server rendered; the hydrating router starts in that `Failure` state. */
-  readonly routeFailure?: RoutePreloadFailureSnapshot;
+  readonly routeFailure?: Route.PreloadFailureSnapshot;
   /**
    * Ids of the browser's pending durable submissions (from its outbox cookie)
    * that the server settled before rendering this state. `App.launch` restores
@@ -159,7 +150,7 @@ export interface StartCollectionHydrationOptions extends StartCollectionResoluti
 
 /** Effect-first options for applying a Start hydration payload. */
 export interface HydrateStartPayloadEffectOptions
-  extends StartCollectionHydrationOptions, Collection.HydrateOptions, ResourceHydrationOptions {}
+  extends StartCollectionHydrationOptions, Collection.HydrateOptions, Resource.HydrationOptions {}
 
 /**
  * Options for applying streamed hydration chunks from a document.
@@ -334,9 +325,9 @@ export const collectionHydrationPayload = (
 
 /** Combines Resource and Collection dehydration output into one Start payload. */
 export const createStartHydrationPayload = (
-  resources: ResourceHydrationPayload,
+  resources: Resource.HydrationPayload,
   collections: Collection.HydrationPayload = emptyCollectionHydrationPayload,
-  routeFailure?: RoutePreloadFailureSnapshot,
+  routeFailure?: Route.PreloadFailureSnapshot,
 ): StartHydrationPayload => ({
   resources: resources.resources,
   ...(collections.collections.length > 0 ? { collections: collections.collections } : {}),
@@ -354,7 +345,7 @@ const isRoutePreloadFailureEncoding = (value: unknown): boolean =>
       ? value.tag === undefined || typeof value.tag === "string"
       : value._tag === "Unencodable");
 
-const isRoutePreloadFailureSnapshot = (value: unknown): value is RoutePreloadFailureSnapshot =>
+const isRoutePreloadFailureSnapshot = (value: unknown): value is Route.PreloadFailureSnapshot =>
   isRecord(value) &&
   typeof value.path === "string" &&
   typeof value.href === "string" &&
@@ -517,7 +508,7 @@ export const mergeStartHydrationPayloads = (
   const resources: Array<StartHydrationPayload["resources"][number]> = [];
   const collections: Array<NonNullable<StartHydrationPayload["collections"]>[number]> = [];
   const settledSubmissions = new Set<string>();
-  let routeFailure: RoutePreloadFailureSnapshot | undefined;
+  let routeFailure: Route.PreloadFailureSnapshot | undefined;
 
   for (const payload of payloads) {
     resources.push(...payload.resources);

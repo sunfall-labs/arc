@@ -1,4 +1,4 @@
-import { Signal, type TimelineCollectionCause, type WritableSignal } from "@sunfall/arc-core";
+import { Signal, type Timeline } from "@sunfall/arc-core";
 import { batchSignalWrites } from "@sunfall/arc-core/internal";
 import { Semaphore, type Deferred } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -54,9 +54,9 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   /** Synced base and pending Action patches for each optimistically patched key. */
   readonly optimisticRows: Map<K, OptimisticRowStack<A, K>>;
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
-  readonly version: WritableSignal<number>;
+  readonly version: Signal.Writable<number>;
   /** The latest load; contract violations are recorded as defects, so it fails only with `E`. */
-  readonly loadState: WritableSignal<AsyncResult.AsyncResult<void, E>>;
+  readonly loadState: Signal.Writable<AsyncResult.AsyncResult<void, E>>;
   loadGeneration: number;
   activeLoad: CollectionLoadAttempt | undefined;
   initialized: boolean;
@@ -96,8 +96,8 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
 
 const collectionCause = (
   state: CollectionState<any, any, any>,
-  event: TimelineCollectionCause["event"],
-): TimelineCollectionCause => ({ _tag: "Collection", collection: state.name, event });
+  event: Timeline.CollectionCause["event"],
+): Timeline.CollectionCause => ({ _tag: "Collection", collection: state.name, event });
 
 /** Publishes a row change: the one write path for a collection's version signal. */
 export const bumpCollectionState = (state: CollectionState<any, any, any>): void => {

@@ -1,10 +1,4 @@
-import {
-  ActionTransport,
-  type ActionDefinition,
-  type ActionTransportResponse,
-  type ActionTransportSubmission,
-  type Server,
-} from "@sunfall/arc-core";
+import { ActionTransport, type Server, type Action } from "@sunfall/arc-core";
 import { Effect, Exit, Layer, Option } from "effect";
 import { executeStartClientTransport } from "./start-client-transport.js";
 import {
@@ -40,11 +34,11 @@ export interface ActionTransportLayerOptions<
 }
 
 const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
-  definition: ActionDefinition<I, A, E, R>,
+  definition: Action.Definition<I, A, E, R>,
   input: I,
-  submission: ActionTransportSubmission | undefined,
+  submission: Action.TransportSubmission | undefined,
   options: ActionTransportLayerOptions<FetchError, FetchRequirements>,
-): Effect.Effect<ActionTransportResponse<A, E>, Server.ClientError> => {
+): Effect.Effect<Action.TransportResponse<A, E>, Server.ClientError> => {
   const exchange = Effect.gen(function* () {
     const request = yield* encodeStartActionRequest(definition, input, submission?.id);
     const { body } = yield* executeStartClientTransport({

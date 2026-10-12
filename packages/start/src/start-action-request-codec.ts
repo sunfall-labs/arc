@@ -1,10 +1,4 @@
-import {
-  Form,
-  Server,
-  ServerRpcProtocolError,
-  type ActionDefinition,
-  type FormDataDecodeOptions,
-} from "@sunfall/arc-core";
+import { Form, Server, ServerRpcProtocolError, type Action } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, startJsonMediaType } from "./rpc.js";
 import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
@@ -63,8 +57,8 @@ export interface StartActionFormOptions<I> {
 
 /** Any core action definition that can be exposed through Start actions. */
 export type StartActionDefinition =
-  | ActionDefinition<any, any, never, any>
-  | ActionDefinition<any, any, any, any>;
+  | Action.Definition<any, any, never, any>
+  | Action.Definition<any, any, any, any>;
 
 /** Hidden form field that carries the action name for progressive POST forms. */
 export const startActionNameField = "__sunfall_arc_action";
@@ -74,7 +68,7 @@ export const startActionInputField = "__sunfall_arc_input";
 const startActionTransportFields = [startActionNameField, startActionInputField] as const;
 
 const startActionOmittedFormFields = (
-  omitFields: FormDataDecodeOptions["omitFields"],
+  omitFields: Form.DataOptions["omitFields"],
 ): ReadonlySet<string> => {
   const fields = new Set<string>(startActionTransportFields);
 
@@ -92,8 +86,8 @@ const startActionOmittedFormFields = (
  * transport fields while preserving any app-level omitted fields.
  */
 export const startActionFormDataDecodeOptions = (
-  options: FormDataDecodeOptions = {},
-): FormDataDecodeOptions => ({
+  options: Form.DataOptions = {},
+): Form.DataOptions => ({
   ...options,
   omitFields: startActionOmittedFormFields(options.omitFields),
 });
@@ -108,7 +102,7 @@ export const startActionFormDataDecodeOptions = (
 export const decodeStartActionFormData = <S extends Schema.Top>(
   schema: S,
   formData: FormData,
-  options: FormDataDecodeOptions = {},
+  options: Form.DataOptions = {},
 ) => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
 
 /** Error raised by the synchronous progressive form encoding facade. */
@@ -234,7 +228,7 @@ const encodeStartActionFormInputSync = (action: StartActionDefinition, input: un
 
 /** Creates the hidden POST fields needed to submit a Start action from HTML. */
 export const startActionForm = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
+  definition: Action.Definition<I, A, E, R>,
   options: StartActionFormOptions<I> = {},
 ): StartActionForm => ({
   method: "post",

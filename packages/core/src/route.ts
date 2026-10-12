@@ -919,10 +919,55 @@ export namespace Route {
   export type PreloadCollectionDiagnostics = RoutePreloadCollectionDiagnostics;
 
   /** Error union for running route preload and resource hydration planning. */
-  export type PreloadError<R = Definition> = RoutePreloadPlanError<PreloadFailure<R>>;
+  export type PreloadPlanError<R = Definition> = RoutePreloadPlanError<PreloadFailure<R>>;
 
   /** Error union for matching and preloading a navigation to one of the routes `R`. */
-  export type NavigationError<R = Definition> = RouteNavigationPlanError<PreloadFailure<R>>;
+  export type NavigationPlanError<R = Definition> = RouteNavigationPlanError<PreloadFailure<R>>;
+
+  /** Options accepted by `Route.define(path, options)`. */
+  export type DefineOptions<
+    Path extends string,
+    ParamsSchema,
+    SearchSchema,
+    ErrorSchema,
+    Out,
+  > = RouteDefineOptions<Path, ParamsSchema, SearchSchema, ErrorSchema, Out>;
+
+  /** Normalized options stored on a route definition. */
+  export type Options<
+    Path extends string,
+    Params,
+    Search,
+    PreloadRequirements = never,
+  > = RouteOptions<Path, Params, Search, PreloadRequirements>;
+
+  /** Value a route preload returns: nothing or an Effect. */
+  export type PreloadResult<Requirements = never, E = unknown> = RoutePreloadResult<
+    Requirements,
+    E
+  >;
+
+  /** Compile error reported when a route preload returns a Promise. */
+  export type PreloadReturnsPromise = RoutePreloadReturnsPromise;
+
+  /** Compile error reported when a route preload can fail outside its `error` schema. */
+  export type PreloadFailureNotInErrorSchema<Undeclared> =
+    RoutePreloadFailureNotInErrorSchema<Undeclared>;
+
+  /** How a server-rendered route preload failure was encoded for hydration. */
+  export type PreloadFailureEncoding = RoutePreloadFailureEncoding;
+
+  /** Serializable route preload failure carried from the server render to the client. */
+  export type PreloadFailureSnapshot = RoutePreloadFailureSnapshot;
+
+  /** Whether a route preload declares its Resource families statically. */
+  export type PreloadResourceStatus = RoutePreloadResourceStatus;
+
+  /** Whether a route preload declares its collections statically. */
+  export type PreloadCollectionStatus = RoutePreloadCollectionStatus;
+
+  /** Renderer component value taking props `P`. */
+  export type View<P> = RouteView<P>;
 
   /** Props a route passes to its component: decoded params and search plus the match. */
   export type Props<R extends Definition<string, unknown, unknown, any, any>> =
@@ -1343,7 +1388,7 @@ export namespace Route {
   /** Runs matched route preload and captures touched resources for hydration. */
   export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
-  ): Effect.Effect<PreloadPlan<R>, PreloadError<R>, PreloadRequirements<R>> =>
+  ): Effect.Effect<PreloadPlan<R>, PreloadPlanError<R>, PreloadRequirements<R>> =>
     collectResource(preload(match)).pipe(
       Effect.flatMap((collected) =>
         resourceHydrationPayload(collected.refs).pipe(
@@ -1369,7 +1414,7 @@ export namespace Route {
     input: string | URL,
   ): Effect.Effect<
     NavigationPlan<Routes[number]>,
-    NavigationError<Routes[number]>,
+    NavigationPlanError<Routes[number]>,
     PreloadRequirements<Routes[number]>
   > =>
     Effect.try({
@@ -1388,7 +1433,7 @@ export namespace Route {
           matched,
         }): Effect.Effect<
           NavigationPlan<Routes[number]>,
-          NavigationError<Routes[number]>,
+          NavigationPlanError<Routes[number]>,
           PreloadRequirements<Routes[number]>
         > => {
           if (!matched) {

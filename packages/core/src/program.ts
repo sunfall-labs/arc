@@ -34,8 +34,6 @@ export {
   type ProgramSubscriptionInput,
   type ProgramTaggedMessage,
   type ProgramUpdate,
-  type ProgramSubscriptionError,
-  type ProgramSubscriptionRequirements,
 } from "./program-contract.js";
 import {
   defineProgram,
@@ -115,6 +113,8 @@ export namespace Program {
   export type DispatchError<E, ER = never> = ProgramDispatchError<E, ER>;
   /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
   export type Disposed = ProgramDisposed;
+  /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
+  export const Disposed = ProgramDisposed;
   /** Tagged message shape every Program message has. */
   export type TaggedMessage = ProgramTaggedMessage;
   /** Exhaustive pure handlers keyed by each message `_tag`. */

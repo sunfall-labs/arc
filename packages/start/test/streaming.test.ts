@@ -1,6 +1,6 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import type { ResourceHydrationPayload } from "@sunfall/arc-core";
+import type { Resource } from "@sunfall/arc-core";
 import {
   StartHydrationPayloadSerializeError,
   type StartHydrationPayload,
@@ -50,7 +50,7 @@ const cyclicHydrationPayload = (): StartHydrationPayload => {
 
 describe("Start streaming", () => {
   it("emits shell, HTML chunks, hydration chunks, and tail in order", () => {
-    const payload: ResourceHydrationPayload = {
+    const payload: Resource.HydrationPayload = {
       resources: [
         {
           name: "Streaming.Project.byId",

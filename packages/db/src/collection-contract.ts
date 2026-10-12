@@ -1,11 +1,11 @@
-import {
-  type ActionOptimisticRows,
-  type EffectInputCallbackError,
-  type EffectInput,
-  type ReadableSignal,
-  type ResourceRef,
-  type RetrySchedule,
+import type {
+  EffectInputCallbackError,
+  EffectInput,
+  RetrySchedule,
+  Signal,
+  Resource,
 } from "@sunfall/arc-core";
+import type { ActionOptimisticRows } from "@sunfall/arc-core/internal";
 import { Effect, type PubSub, type Scope, type Stream } from "effect";
 import type { KeyValueStore } from "effect/persistence";
 import type { AsyncResult } from "effect/reactivity";
@@ -125,7 +125,7 @@ export type CollectionSync<
   K extends CollectionKey = string,
   E = never,
   R = never,
-> = CollectionSyncAdapter<A, K, E, R> | ResourceRef<any, ReadonlyArray<A>, any, any>;
+> = CollectionSyncAdapter<A, K, E, R> | Resource.Ref<any, ReadonlyArray<A>, any, any>;
 
 /**
  * Defines a local-first collection.
@@ -202,9 +202,9 @@ export interface CollectionDefinition<
    * their own signal, so local writes keep rows available while a later load
    * is waiting or failed.
    */
-  result(): ReadableSignal<AsyncResult.AsyncResult<void, E>>;
+  result(): Signal.Readable<AsyncResult.AsyncResult<void, E>>;
   /** Reactive version signal that changes when rows or pending mutations change. */
-  version(): ReadableSignal<number>;
+  version(): Signal.Readable<number>;
   /** Read one row by key from the current in-memory state. */
   get(key: K): CollectionRow<A, K> | undefined;
   /** Read all current rows, including rows Actions are optimistically patching. */

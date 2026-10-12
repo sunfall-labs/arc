@@ -1,5 +1,6 @@
 import { collectionContractDefects } from "./collection-contract-defects.js";
-import { ActionOptimisticRowsTypeId, EffectInputCallbackError } from "@sunfall/arc-core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
+import { ActionOptimisticRowsTypeId } from "@sunfall/arc-core/internal";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";

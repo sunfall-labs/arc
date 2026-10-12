@@ -67,11 +67,11 @@ documented as outside the current release bar.
   the message an Effect produces, or nothing when the Effect completes with
   `void`. `Program.commands(...)` only batches.
 - Update, command, and subscription failures are reported as typed
-  `ProgramFailure` values without replacing the current model.
+  `Program.Failure` values without replacing the current model.
 - Subscriptions are tied to committed model generations; stale generations
   cannot emit follow-up messages or timeline facts after a restart.
 - `dispatch(message)` is an Effect that acknowledges only updates that commit. Disposal before
-  commit fails the acknowledgement with `ProgramDisposed`; disposal after commit
+  commit fails the acknowledgement with `Program.Disposed`; disposal after commit
   preserves the committed model.
 
 ## Resource Store

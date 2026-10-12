@@ -1,8 +1,5 @@
-import {
-  isEffectLike,
-  isPromiseLikeValue,
-  type ActionOptimisticRowUpdate,
-} from "@sunfall/arc-core";
+import { isEffectLike, isPromiseLikeValue } from "@sunfall/arc-core";
+import type { ActionOptimisticRowUpdate } from "@sunfall/arc-core/internal";
 import { Data } from "effect";
 import type { CollectionKey, CollectionOrigin, CollectionRow } from "./collection-contract.js";
 

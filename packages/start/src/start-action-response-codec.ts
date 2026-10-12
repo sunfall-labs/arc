@@ -7,11 +7,7 @@ import {
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
-  type ActionDefinition,
-  type ActionRedirectStatus,
-  type ResourceInvalidationCause,
-  type ResourceInvalidationPlan,
-  type ResourceSnapshotCodecError,
+  type Action,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Schema } from "effect";
 import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
@@ -169,7 +165,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 };
 
 const describeStartActionInvalidationTarget = (
-  target: ResourceInvalidationPlan<any>["targets"][number],
+  target: Resource.InvalidationPlan<any>["targets"][number],
 ): StartActionInvalidationTarget | undefined => {
   if (isResourceRef(target)) {
     return {
@@ -192,7 +188,7 @@ const describeStartActionInvalidationTarget = (
 };
 
 const describeStartActionInvalidationCause = (
-  cause: ResourceInvalidationCause,
+  cause: Resource.InvalidationCause,
 ): StartActionInvalidationCause =>
   cause._tag === "Ref"
     ? {
@@ -208,7 +204,7 @@ const describeStartActionInvalidationCause = (
 
 /** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
-  plan: ResourceInvalidationPlan<any>,
+  plan: Resource.InvalidationPlan<any>,
 ): StartActionInvalidationPlan => ({
   targets: plan.targets.flatMap((target) => {
     const described = describeStartActionInvalidationTarget(target);
@@ -225,8 +221,8 @@ export const describeStartActionInvalidationPlan = (
 });
 
 export const actionResponseMeta = (
-  plan: ResourceInvalidationPlan<any> | undefined,
-): Effect.Effect<StartActionResponseMeta, ResourceSnapshotCodecError> =>
+  plan: Resource.InvalidationPlan<any> | undefined,
+): Effect.Effect<StartActionResponseMeta, Resource.SnapshotCodecError> =>
   plan === undefined
     ? Effect.succeed({})
     : Effect.gen(function* () {
@@ -602,7 +598,7 @@ export type StartActionOutcome<A, E> =
  * `ActionResult` values the server action returned.
  */
 export const decodeStartActionOutcome = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
+  definition: Action.Definition<I, A, E, R>,
   body: Extract<
     StartActionResponseBody,
     { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
@@ -638,7 +634,7 @@ export const decodeStartActionOutcome = <I, A, E, R>(
         return {
           _tag: "Value",
           value: ActionResult.redirect(body.location, {
-            status: body.status as ActionRedirectStatus,
+            status: body.status as ActionResult.RedirectStatus,
             ...(body.headers === undefined ? {} : { headers: body.headers }),
             ...(body.replace === undefined ? {} : { replace: body.replace }),
           }) as A,

@@ -121,12 +121,12 @@ without one. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-on
 `AsyncResult` (`import { AsyncResult } from "effect/reactivity"`) is Arc's one
 async-state vocabulary. Arc signals own it and Solid renders it:
 
-- `Resource.result(ref)` is `ReadableSignal<AsyncResult<A, E>>` (a load or
+- `Resource.result(ref)` is `Signal.Readable<AsyncResult<A, E>>` (a load or
   `provides` callback that breaks its contract is a defect in the `Cause`, not
   part of `E`);
   `Resource.status(ref)` adds cache-policy facts (`isStale`, `isGcExpired`,
   `staleAt`, `gcAt`, `ageMillis`, `staleInMillis`, `gcInMillis`) beside `result`.
-- Action instances expose `state: ReadableSignal<{ result: AsyncResult<A, E>; input: Option<I> }>`
+- Action instances expose `state: Signal.Readable<{ result: AsyncResult<A, E>; input: Option<I> }>`
   (idle is `Initial`; a `run`, `optimistic`, or `invalidates` callback that
   breaks its contract is a defect, not part of `E`); the latest invalidation
   plan stays its own signal.
@@ -410,12 +410,12 @@ resource refs from the request-local Resource Store and includes them in the
 response metadata.
 
 The client side of that transport is Core's `ActionTransport` service, the
-Action counterpart of `ServerClient`. Every Action instance looks it up when it
+Action counterpart of `Server.Client`. Every Action instance looks it up when it
 submits: Actions the transport serves run remotely, and the response (decoded
 outcome, hydrated Resources and Collections, invalidations) applies to the
 submitting runtime; every other Action runs its `run` locally. Start's
 `App.launch(app)` provides it for the app's `actions`, next to the RPC
-`ServerClient`. UI code never chooses: Solid's
+`Server.Client`. UI code never chooses: Solid's
 `Component.action(definition)` submits the same way either way, with the same
 result type and error type (the Action's own errors plus `Server.ClientError`).
 A superseded `parallel` submission applies only its invalidations, so hydrated
@@ -945,7 +945,7 @@ A route's preload failure is typed. `preload` is inferred from its own body
 returns), so inline pipelines keep their types. Like an Effect RPC `error`
 schema, a route can declare `error`; the inferred failure must then be covered
 by that schema's type (otherwise the type error on `error` names the
-undeclared failures as `RoutePreloadFailureNotInErrorSchema<...>`), and the
+undeclared failures as `Route.PreloadFailureNotInErrorSchema<...>`), and the
 failure flows into router state as `RoutePreloadError<E>`:
 
 ```ts
@@ -968,7 +968,7 @@ concurrently, values in order), the same target shape as `Resource.invalidate`.
 cross the wire, so server, client, and hydrated renders agree), and it is
 `never` for a preload that cannot fail or a route without preload. The router's
 `Failure` state carries `Cause<BrowserRouterError<Routes> | ER>`, where
-`BrowserRouterError` is `Route.NavigationError<Routes[number]>` (navigation,
+`BrowserRouterError` is `Route.NavigationPlanError<Routes[number]>` (navigation,
 `RoutePreloadError<Route.PreloadFailure<...>>`, resource snapshot codec
 failures) plus `RouteLazyComponentFailed` for lazy component loads. Synchronous
 throws and Promise returns from `preload` break its contract and are defects.
@@ -999,7 +999,7 @@ This runs route preload through `Resource.collect`, so the framework can
 explain which resources a navigation touched and which hydration entries it
 would send before rendering the page. Start uses this same route plan for
 SSR preload. If a touched resource cannot be serialized, planning fails through
-the typed `ResourceSnapshotCodecError` Effect error channel. When
+the typed `Resource.SnapshotCodecError` Effect error channel. When
 `@sunfall/arc-start` is present, it separately composes
 `collectCollections` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
 observed without making `@sunfall/arc-core` depend on `@sunfall/arc-db`.
@@ -1111,7 +1111,7 @@ and Effect `Cache` entry update in the same Runtime Spine.
 A failed route preload is a render outcome in Start: the request renders with
 status 500 and every router on the request runtime starts in the `Failure`
 state, so the outlet's failure view renders. The failure crosses to the client
-as a `RoutePreloadFailureSnapshot` in the hydration payload, and the hydrating
+as a `Route.PreloadFailureSnapshot` in the hydration payload, and the hydrating
 router starts in the same `Failure` state without re-running the preload. With
 an `error` schema, `Route.preloadFailureSnapshot(...)` encodes the
 failure as JSON with that schema and `Route.preloadFailureCauseFromSnapshot(...)`
@@ -1303,11 +1303,11 @@ export const getProjectLegacy = Server.fn("Project.get", {
 });
 ```
 
-On the server, Start provides a request-local `ServerClient` during request
+On the server, Start provides a request-local `Server.Client` during request
 preload and render, so shared clients dispatch to registered local handlers
 through the Effect runtime even when the app runtime also provides a remote
 client service. In the browser, `App.launch` provides a fetch-backed
-`ServerClient` (compiled out of static-client builds) that posts to the
+`Server.Client` (compiled out of static-client builds) that posts to the
 configured Start RPC endpoint, defaulting to
 `POST /__sunfall-arc/rpc`. Start action clients and progressive forms use the same
 shared endpoint policy, defaulting to `POST /__sunfall-arc/action`, so custom
@@ -1617,8 +1617,8 @@ deterministic.
   is always on: SSR, tests, and production behave the same, and its cost is a
   context lookup on the solo-write path only. Solid effects and bare DOM
   handlers therefore call a named callback; tests write through a named
-  `Signal.batch`. `TimelineCause` is a closed tagged union,
-  `TimelineEntry.cause` is always present, and `Timeline.describe(cause)`
+  `Signal.batch`. `Timeline.Cause` is a closed tagged union,
+  `Timeline.Entry.cause` is always present, and `Timeline.describe(cause)`
   renders it.
 - **Names** come from `Signal.make(initial, { name })`, where `name` is
   required. Framework signals name themselves (`Board.model`,

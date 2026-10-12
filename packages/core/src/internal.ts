@@ -6,6 +6,25 @@
  * import from `@sunfall/arc-core/internal`.
  */
 export {
+  ActionOptimisticRowsTypeId,
+  type ActionOptimisticRowChange,
+  type ActionOptimisticRows,
+  type ActionOptimisticRowsLayer,
+  type ActionOptimisticRowUpdate,
+} from "./action-optimistic.js";
+export type {
+  ActionDefinitionRequirements,
+  AppDefinitionRegistry,
+  AppDefinitionRegistryActionDefinitions,
+  AppDefinitionRegistryActionRequirements,
+  AppDefinitionRegistryFromInput,
+  AppDefinitionRegistryInput,
+  AppDefinitionRegistryRequirements,
+  AppDefinitionRegistryServerFunctionRequirements,
+  AppDefinitionRegistryServerFunctions,
+  ServerFunctionRequirements,
+} from "./app.js";
+export {
   makeActionSubmissionController,
   type ActionSubmissionController,
   type ActionSubmissionControllerOptions,
@@ -40,6 +59,13 @@ export {
   type ResourceFailureSnapshot,
 } from "./resource-failure-snapshot.js";
 export * from "./resource-registry.js";
+export type {
+  ResourceStoreEventBus,
+  ResourceStoreFiberRegistry,
+  ResourceStoreInvalidationCause,
+  ResourceStoreModule,
+  ResourceStoreModuleRegistry,
+} from "./resource-store.js";
 export { lookupResourceFamily, refsForResourceTag } from "./resource-runtime.js";
 export {
   cloneResourceSnapshotValue,
@@ -80,6 +106,8 @@ export {
   type StripRouteParamName,
 } from "./route-grammar.js";
 export { matchRoutes } from "./route-match.js";
+export type { AnySchema, RouteWithComponent } from "./route.js";
+export { ResourceFamily } from "./resource.js";
 export { makeActionInstance } from "./action-instance.js";
 export { startProgramOnRuntime } from "./program-start.js";
 export {

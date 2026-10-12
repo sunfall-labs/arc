@@ -1,4 +1,4 @@
-import { type ResourceStoreEvent } from "@sunfall/arc-core";
+import type { Resource } from "@sunfall/arc-core";
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsCollectionNodeId as collectionNodeId,
@@ -187,7 +187,7 @@ export const summarizeRequestTrace = (
 });
 
 const resourceEventTarget = (
-  event: ResourceStoreEvent,
+  event: Resource.StoreEvent,
 ): { readonly id: string; readonly label: string } => ({
   id: resourceNodeId(event.key),
   label: event.name,
@@ -492,7 +492,7 @@ export const resourceIndex = (
     }
   }
 
-  const stateFromResourceEvent = (event: ResourceStoreEvent): string => {
+  const stateFromResourceEvent = (event: Resource.StoreEvent): string => {
     switch (event._tag) {
       case "ResourcePending":
         return "Pending";

@@ -1,4 +1,4 @@
-import { type ActionDefinition } from "@sunfall/arc-core";
+import type { Action } from "@sunfall/arc-core";
 import {
   decodeStartActionFormData,
   startActionForm,
@@ -6,6 +6,7 @@ import {
   type StartActionForm,
   type StartActionFormOptions,
 } from "./start-action-request-codec.js";
+import type { StartActionInvalidationPlan } from "./start-action-response-codec.js";
 
 /**
  * Progressive (no-JS) HTML form helpers for Start actions.
@@ -18,12 +19,16 @@ import {
 export namespace StartAction {
   /** Progressive POST form description for a Start action definition. */
   export type Form<_D extends StartActionDefinition> = StartActionForm;
+  /** Options for `StartAction.form(...)`. */
+  export type FormOptions<I> = StartActionFormOptions<I>;
+  /** Resource invalidation plan returned by an action response. */
+  export type InvalidationPlan = StartActionInvalidationPlan;
 
   /**
    * Creates the hidden POST fields needed to submit a Start action from HTML.
    */
   export const form = <I, A, E, R>(
-    definition: ActionDefinition<I, A, E, R>,
+    definition: Action.Definition<I, A, E, R>,
     options: StartActionFormOptions<I> = {},
   ): StartActionForm => startActionForm(definition, options);
 

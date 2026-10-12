@@ -12,7 +12,6 @@ import {
   RoutePreloadError,
   RoutePreloadFailureCodecError,
   RoutePreloadUntypedFailure,
-  type RoutePreloadFailureEncoding,
   Server,
   ServerRouteHandlerError,
 } from "../src/index.js";
@@ -312,7 +311,7 @@ describe("route", () => {
       expect(snapshot.failure).toEqual({ _tag: "Unencodable" });
       expect(JSON.stringify(snapshot)).not.toContain("not-a-project-not-found");
 
-      const defect = (failure: RoutePreloadFailureEncoding) =>
+      const defect = (failure: Route.PreloadFailureEncoding) =>
         Cause.squash(Route.preloadFailureCauseFromSnapshot(ProjectRoute, { ...snapshot, failure }));
       expect(defect({ _tag: "Unencodable" })).toEqual(
         new RoutePreloadFailureCodecError({
@@ -458,7 +457,7 @@ describe("route", () => {
     });
 
     let effect:
-      | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationError>
+      | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationPlanError>
       | undefined;
     expect(() => {
       effect = Route.planNavigation([ProjectRoute] as const, "/projects/atlas");

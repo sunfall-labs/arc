@@ -1,8 +1,5 @@
-import {
-  type AppDefinitionRegistry,
-  type SunfallArcRuntime,
-  type ResponseContext,
-} from "@sunfall/arc-core";
+import type { SunfallArcRuntime, ResponseContext } from "@sunfall/arc-core";
+import type { AppDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Effect, type Scope } from "effect";
 import {
   startRequestIdHeader,

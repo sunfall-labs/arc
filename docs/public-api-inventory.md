@@ -88,43 +88,52 @@ coverage.
 The root export re-exports these local modules:
 
 - `action`, `action-outbox`, `action-result`, `action-submission`,
-  `action-transport`, `app` (registry requirement types only), `capability`
+  `action-transport`, `capability`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
   `program`, `request-context`
-- `resource`, `resource-snapshot-codec`, `resource-store`, `route`,
-  `route-grammar`
+- `resource`, `resource-store`, `route`, `route-grammar`
 - `runtime`, `server`, `signal`, `timeline`
 
-Mixed modules (`action-submission`, the `browser-router-*` modules,
-`effect-like`, `resource-snapshot-codec`, `route-grammar`, `runtime`) are
-selected by name. Their adapter plumbing, plus `definition-registry`,
+Every module is selected by name: the root exports each namespace (`Action`,
+`ActionResult`, `Capability`, `Form`, `Program`, `Resource`, `Route`,
+`Server`, `Signal`, `Timeline`) plus the error classes, Type IDs, guards,
+services, and runtime helpers that have no namespace home. Each type has
+exactly one public name: types a namespace owns are reachable only as
+namespace members (`Action.Definition`, `Resource.Ref`, `Route.Match`,
+`Server.Client`), never also as flat `ActionDefinition` / `ResourceRef`
+exports. Cross-package plumbing types (the `app` registry requirement types,
+the `ActionOptimisticRows` row-store seam, Resource Store module/event/fiber
+seams, `AnySchema`, `RouteWithComponent`, and the `ResourceFamily` class) are
+exported only from `@sunfall/arc-core/internal`. Mixed modules' adapter
+plumbing, plus `definition-registry`,
 `resource-registry`, `resource-ui-binding`, `resource-failure-snapshot` (the
 SSR wire codec for failed Resource reads), `action-instance` and
 `program-start` (runtime-erased instance constructors for renderer bindings),
 `scope` (the ambient `UiScope`), `signal-watch`, `signal-transaction`'s
 framework commit seam (`batchSignalWrites` / `signalTransaction` with a
-`TimelineCause`, `withSignalTransition` for an ambient named transition, and
+`Timeline.Cause`, `withSignalTransition` for an ambient named transition, and
 `writeUntracedSignals` for bookkeeping that is never recorded), and
 `stable-stringify` (DB query identity), is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
 exactly one import path; nothing is exported from both entrypoints.
 
 `resource-store` is intentionally selected rather than star-exported so the
-public root exposes `ResourceStore`, `makeResourceStore(...)`, diagnostics, and
-event/fiber/module seams without exposing mutable cache internals.
+public root exposes `ResourceStore`, `makeResourceStore(...)`, and
+diagnostics (`Resource.StoreDiagnostics`) without exposing mutable cache
+internals.
 
 Golden-path public groups:
 
 - `Route`, `Resource`, `Action`, `ActionResult`, `Program` (the app
   definition, `App`, is Start's)
-- `Server`, `ServerClient`, request/response context services
+- `Server`, `Server.Client`, request/response context services
 - `Signal`, `Form`, `Capability`
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
-  `TimelineRecording` (`entries`, `position`, `travel(sequence)`, `resume()`)
-  over every committed change set; every `TimelineEntry` has a `cause`, and
-  `Timeline.describe(cause)` renders a `TimelineCause` (application commits
-  are `TimelineTransitionCause`: `{ _tag: "Transition", name }`).
+  `Timeline.Recording` (`entries`, `position`, `travel(sequence)`, `resume()`)
+  over every committed change set; every `Timeline.Entry` has a `cause`, and
+  `Timeline.describe(cause)` renders a `Timeline.Cause` (application commits
+  are `Timeline.TransitionCause`: `{ _tag: "Transition", name }`).
   `Signal.make(initial, { name })` requires a name. Every write happens in a
   named transition: `Component.callback(name, f)` / `Component.stream(name,
 ...)` (named `<Component>.<name>`), `Signal.fromStream(stream, initial, {
@@ -137,26 +146,26 @@ name })`, `Signal.transaction(effect, { name? })` / `Signal.batch(f, { name?
   `<name>.setField` / `touchField` / `reset` / `validate` transitions.
 - `makeRuntime`, `runWithRuntime`, `SunfallArcRuntime.provide(...)`,
   `AnySunfallArcRuntime`
-- `ActionTransport` (with `ActionTransportResponse`): the Action counterpart of
-  `ServerClient`. Every Action instance looks it up on submit; Actions it
+- `ActionTransport` (with `Action.TransportResponse`): the Action counterpart of
+  `Server.Client`. Every Action instance looks it up on submit; Actions it
   serves run remotely and the response applies to the submitting runtime,
   every other Action runs locally. Start's `App.launch(app)` provides it for
-  the app's Actions. `ActionTransportSubmission` carries a durable
+  the app's Actions. `Action.TransportSubmission` carries a durable
   submission's id (its idempotency key).
 - Durable submissions: `Action.define({ input, durable: { maxAge } })`
-  (`ActionDurablePolicy`, schema input required by the types) adds
+  (`Action.DurablePolicy`, schema input required by the types) adds
   `ActionQueued` to the Action's error type. `Action.outboxLayer({
-retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
+retry? })` (`Action.OutboxOptions`) provides the `ActionOutbox` service over
   the runtime's `effect/persistence` `KeyValueStore` (prefix
   `arc/actions/v1/`); `Action.outbox`
-  is its read side (`ActionOutboxView`: `pending`, `failures`, `dismiss`,
-  with `ActionOutboxEntry` / `ActionOutboxFailure`), empty without an outbox;
-  `Action.restoreOutbox(options?)` (`ActionOutboxRestoreOptions`:
+  is its read side (`Action.Outbox`: `pending`, `failures`, `dismiss`,
+  with `Action.OutboxEntry` / `Action.OutboxFailure`), empty without an outbox;
+  `Action.restoreOutbox(options?)` (`Action.RestoreOutboxOptions`:
   `settled`) restores pending submissions after hydration.
   `ActionSubmissionExpired` and `ActionSubmissionUnrestorable` are the
   outbox's failure vocabulary;
   `isRetryableActionFailure` is the retry classification.
-- `RouteView`, `RouteViewTypeId`, and `RouteWithComponent`: route components
+- `Route.View`, `RouteViewTypeId`, and `Route.WithComponent`: route components
   may be renderer component values (Solid's typed `Component`), and
   `Route.withComponent(...)` keeps the attached component's type
   (`Route.ComponentOf<R>`) so adapters can check its requirements.
@@ -166,15 +175,12 @@ retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
 - `Resource.evict(ref)` for explicit Effect-first removal from the
   active Resource Store when tests, adapters, or cache policies need to drop a
   ref before GC.
-- Resource namespace aliases such as `Resource.Tag`,
-  `Resource.InvalidationTarget`, `Resource.HydrationPayload`, and
-  `Resource.Status` are public LSP vocabulary for invalidation, hydration, and
-  diagnostics adapters.
-- Direct Resource symbols such as `ResourceTag`, `ResourceTagDefinition`,
-  `ResourceInvalidationPlan`, `ResourceStatus`, and
-  `ResourceHydrationSuccessState` are also Core-owned public vocabulary. Type-test and hover-policy pins keep adapters from depending on
-  namespace-only imports when a top-level type is the clearer LSP target.
-- `ResourceHydrationPayload` (`Resource.HydrationPayload`) is the one name for
+- Resource namespace members such as `Resource.Tag`, `Resource.TagDefinition`,
+  `Resource.InvalidationTarget`, `Resource.InvalidationPlan`,
+  `Resource.HydrationPayload`, `Resource.HydrationSuccessState`, and
+  `Resource.Status` are the public LSP vocabulary for invalidation, hydration,
+  and diagnostics adapters; there are no flat `Resource*` type aliases.
+- `Resource.HydrationPayload` is the one name for
   the shared Core/Start payload-only contract. `Resource.hydrate(...)`
   accepts the payload object shape; raw snapshot arrays must be wrapped as
   `{ resources: snapshots }`. `Resource.hydrationPayload(...)` creates
@@ -208,11 +214,11 @@ retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
   durations for `staleFor` and `gcFor`. Numeric values are milliseconds, and
   string values accept millisecond, second, or minute units before unsupported
   strings fail as `UnsupportedDuration`.
-- Action direct root symbols such as `ActionPolicy`, `ActionDefinition`,
-  `ActionOptions`, `ActionInstance`, `ActionUseOptions`, `ActionTypeId`, and
-  `isActionDefinition(...)` are expert-public LSP vocabulary for adapters,
-  generated clients, and tests that need to name the Action contract without
-  going through namespace aliases.
+- Action namespace members such as `Action.Policy`, `Action.Definition`,
+  `Action.Options`, `Action.Instance`, and `Action.UseOptions`, plus the root
+  `ActionTypeId` and `isActionDefinition(...)`, are expert-public LSP
+  vocabulary for adapters, generated clients, and tests that need to name the
+  Action contract.
 
 Release decisions:
 
@@ -259,18 +265,18 @@ Release decisions:
   route's `error` option (`Resource.ErrorSchema<E>`, the same service-free Schema codec Resource families use)
   types its preload failure as `RoutePreloadError<E>`; `preload` is inferred
   from its own body and failures the schema does not cover are compile errors
-  reported on `error` as `RoutePreloadFailureNotInErrorSchema<Undeclared>`
-  (a Promise-returning preload reports `RoutePreloadReturnsPromise`). Without
+  reported on `error` as `Route.PreloadFailureNotInErrorSchema<Undeclared>`
+  (a Promise-returning preload reports `Route.PreloadReturnsPromise`). Without
   an `error` schema a failing preload reports `RoutePreloadUntypedFailure`
   (only the failure's `tag`), on server, client, and after hydration alike. `BrowserRouterError<Routes>` is the typed
   failure union in router `Failure` state. `Route.preloadFailureSnapshot`
   and `Route.preloadFailureCauseFromSnapshot` own the
-  `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
+  `Route.PreloadFailureSnapshot` wire form (`Route.PreloadFailureEncoding`):
   schema-encoded JSON with an `error` schema, the failure `_tag` only without
   one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
-  cross with the schema. `RouteDefineOptions<...>` names the options
+  cross with the schema. `Route.DefineOptions<...>` names the options
   `Route.define(path, options)` checks. Planning Effects also expose
-  `ResourceSnapshotCodecError` when touched resources cannot be serialized into
+  `Resource.SnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
 - `Route.lazyComponent(...)` is Effect-first: the chunk loader is an
@@ -367,14 +373,14 @@ commands)`, never an Effect. `Program.emit(...)`
   with Solid's `Component.callback`.
   Programs keep no history of their own: message and failure commits are
   labelled entries on the app `Timeline`. When disposal drops a queued update
-  before it commits, `dispatch(...)` fails with a `ProgramFailure` whose
-  error is `ProgramDisposed`; updates that already committed still acknowledge
+  before it commits, `dispatch(...)` fails with a `Program.Failure` whose
+  error is `Program.Disposed`; updates that already committed still acknowledge
   successfully. Definitions may set `name`, which labels the Program's signals
   (`<name>.model`, `<name>.failures`) and its `Timeline` causes. The public
   Program facade keeps queue, command, subscription, failure, and disposal
   orchestration. Runtime lifecycle policy also stays internal:
   disposal fails pending or queued `dispatch(...)` acknowledgements with
-  `ProgramFailure<..., ProgramDisposed>` when the update has not committed;
+  `Program.Failure<..., Program.Disposed>` when the update has not committed;
   already committed updates acknowledge successfully. Committed model changes
   own subscription restarts, and stale subscription generations cannot emit
   follow-up messages or timeline facts.
@@ -384,7 +390,7 @@ commands)`, never an Effect. `Program.emit(...)`
   while the public export surface stays anchored at `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
-  `ProgramDisposed` for live `dispatch(...)` acknowledgement drops. The
+  `Program.Disposed` for live `dispatch(...)` acknowledgement drops. The
   Solid `Component.program(...)` binding runs on its instance's already-started
   runtime, so its handle carries no `ER`.
   `Program.step(program, model, message)` is the one test surface: a pure,
@@ -397,7 +403,7 @@ commands)`, never an Effect. `Program.emit(...)`
   `Form.data(...)` is the explicit intermediate object conversion, preserving
   repeated field names as arrays and allowing framework hidden fields to be
   omitted before decoding.
-- `ServerClient.call(...)` preserves the target server function's requirement
+- `Server.Client.call(...)` preserves the target server function's requirement
   type in its returned Effect. Browser RPC clients can still satisfy that with
   `never`, while local/mock clients can run functions that depend on test or app
   services. `Server` schema encode/decode, RPC envelope parsing, manifest
@@ -443,7 +449,7 @@ commands)`, never an Effect. `Program.emit(...)`
   retained-ref cleanup through `dispose()`, and Suspense preload-token
   dedupe. The Solid adapter still owns host reactivity and host Suspense throwing.
 - Async state is Effect's `AsyncResult` (`effect/reactivity`) everywhere:
-  `Resource.result(ref)`, `ResourceStatus.result`, `ActionState.result`,
+  `Resource.result(ref)`, `Resource.Status.result`, `Action.State.result`,
   `Collection.state(...)`, and `LiveQuery.state`. Arc publishes no parallel
   state union, match helper, or value/error extractor; the removed
   `ResourceState`, `Resource.State`, `Resource.value`, `Resource.error`,
@@ -471,15 +477,15 @@ includes:
   `start-request-handler`, `start-transport-endpoints`,
   `start-transport-protocol`, `static-client-navigation`, and `streaming`.
 - the app: `App.define({ root, routes, collections?, actions?, client? })`
-  returns the one `AppDefinition` both entries derive from (`AnyAppDefinition`
+  returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
-  client Layer must provide `R` (minus `AppLaunchServices`) or `App.define`
+  client Layer must provide `R` (minus `App.LaunchServices`) or `App.define`
   does not compile. `App.launch(app, options?)` (`App.LaunchOptions`: `href`,
   `hydration`, `transport`) is the browser entry: it builds the runtime from
   the client Layer plus the action transport and (outside static builds) the
-  RPC `ServerClient`, restores the server's hydration payload with the app's
+  RPC `Server.Client`, restores the server's hydration payload with the app's
   Collections, and hydrates the root; it fails with the client Layer's error,
-  `StartRootMissing`, or a hydration error (`AppLaunchError`).
+  `StartRootMissing`, or a hydration error (`App.LaunchError`).
 - request handling: `createRequestHandler(app, options?)` returns the
   Effect-returning `StartRequestHandler` (one name; there are no
   `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`
@@ -528,8 +534,8 @@ includes:
   types, and responses hydrate and invalidate the submitting runtime. The
   `StartAction` namespace keeps only progressive (no-JS) form support:
   `StartAction.form`, `StartAction.decodeFormData`, and
-  `StartAction.Form`; plus `StartActionFormOptions`,
-  `StartActionInvalidationPlan`, `StartActionFormEncodeError`, and
+  `StartAction.Form`; plus `StartAction.FormOptions`,
+  `StartAction.InvalidationPlan`, `StartActionFormEncodeError`, and
   `StartActionDuplicateName`.
 - static sites: `makeStartStaticHistoryAdapter`, `currentStartStaticHref`,
   `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
@@ -590,7 +596,7 @@ Subpath exports:
 Release decisions:
 
 - `StartRequestTrace` is intentionally structural with `DevtoolsRequestTrace`,
-  and `StartActionInvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
+  and `StartAction.InvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
   and Devtools never import each other.
 - The root does not re-export Core symbols; import `Action`, `Resource`,
   `Route`, `Server`, and `Signal` from `@sunfall/arc-core`.
@@ -887,7 +893,7 @@ Release decisions:
   contract directly instead of depending on the root facade. Serialization
   policy belongs to this contract too.
 - `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
-  emits a compatible `StartActionInvalidationPlan`, and type tests pin the
+  emits a compatible `StartAction.InvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata
   without importing `@sunfall/arc-start`.
 - `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
@@ -897,7 +903,7 @@ Release decisions:
   indexes for adapters that emit runtime events against duplicate recorded facts.
 - Timeline observation is a first-class store capability:
   `recordTimelineEntry(...)`, `recordTimelineEntry(...)`, and
-  `trackTimeline(recording)` copy Core `TimelineEntry` values into
+  `trackTimeline(recording)` copy Core `Timeline.Entry` values into
   `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
   Program, Action, Resource, or Collection their cause names. Store
   `serializationPolicy` options apply before those commits enter snapshots.
@@ -1037,7 +1043,7 @@ initial)` commits each element as `<Component>.<name>`.
 - `Route.withComponent(route, component, props?)` attaches a route component:
   without `props` it takes `Route.Props<typeof route>`; with `props` the
   mapper turns route props into the component's props. It is the only
-  attachment path (`RouteDefineOptions` has no `component`), and Start's Vite
+  attachment path (`Route.DefineOptions` has no `component`), and Start's Vite
   plugin code-splits the component it attaches without changing its type, so
   the router's service and failure check covers code-split Components. Router
   membership compares routes by path, like `Route.isMatch`.
@@ -1066,12 +1072,14 @@ initial)` commits each element as `<Component>.<name>`.
 
 The root export includes:
 
-- Local source modules: `collection` and `live-query`, whose bindings index.ts groups under the SolidDb namespace.
+- Local source modules: `solid-db`, re-exported as the SolidDb namespace that
+  groups the collection and live-query bindings and their types; the package
+  root exports nothing else.
 - `SolidDb.collection(definition, options?)` and
   `SolidDb.liveQuery(query, options?)`: setup-time Component bindings (built on
-  `Component.instance`) returning `CollectionHandle` / `LiveQueryHandle`, each
+  `Component.instance`) returning `SolidDb.CollectionHandle` / `SolidDb.LiveQueryHandle`, each
   with `waiting()` / `failure()` status beside rows (the vocabulary every
-  binding uses), plus `CollectionBindingOptions` and `LiveQueryBindingOptions`.
+  binding uses), plus `SolidDb.CollectionBindingOptions` and `SolidDb.LiveQueryBindingOptions`.
   The collection's or query's declared load errors join the component's `E`
   (a never-loaded collection whose load failed throws to `<Errored>`) and its
   services join `R`. `Collection` and `Query` are imported from
@@ -1082,10 +1090,10 @@ The root export includes:
 
 Release decisions:
 
-- The focused Solid DB type test and public API manifest pin `SolidDb`,
-  `CollectionHandle`, `LiveQueryHandle`, `CollectionBindingOptions`, and
-  `LiveQueryBindingOptions` as direct imports so this Adapter Interface cannot
-  drift silently.
+- The focused Solid DB type test and public API manifest pin `SolidDb` as a
+  direct import and `SolidDb.CollectionHandle`, `SolidDb.LiveQueryHandle`,
+  `SolidDb.CollectionBindingOptions`, and `SolidDb.LiveQueryBindingOptions` as
+  type-test references so this Adapter Interface cannot drift silently.
 - Both bindings share one internal Solid DB Reactive Binding Module for the
   instance runtime, source subscriptions, cleanup with the instance owner,
   automatic preload through the DB-owned Collection Reactive Preload

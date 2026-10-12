@@ -4,7 +4,6 @@ import {
   makeRuntime,
   runWithRuntime,
   Signal,
-  type ActionOptimisticTransaction,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
@@ -48,7 +47,7 @@ const gatedRun = (gate: Gate) =>
 /** An Action that applies `patch` optimistically and runs `run`. */
 const patchAction = (
   name: string,
-  patch: (transaction: ActionOptimisticTransaction) => Effect.Effect<void>,
+  patch: (transaction: Action.OptimisticTransaction) => Effect.Effect<void>,
   run: Effect.Effect<void, string> = Effect.void,
   concurrency: Action.Concurrency = "parallel",
 ) =>

@@ -13,7 +13,6 @@ import {
   RequestContext,
   Resource,
   ResourceStoreDisposeError,
-  ResourceSnapshotCodecError,
   ResponseContext,
   Route,
   RouteLazyComponentLoadError,
@@ -37,43 +36,17 @@ import {
   provideRequest,
   provideResponse,
   serializeResponseCookie,
-  type ActionConcurrency,
-  type ActionDefinition,
-  type ActionDurablePolicy,
-  type ActionOutboxView,
-  type ActionInstance,
-  type ActionOptions,
-  type ActionPolicy,
-  type ActionResultBoundary,
-  type ActionResultFailure,
-  type ActionResultRedirect,
-  type ActionResultSuccess,
-  type ActionResultValidationFailure,
-  type ActionState,
   type BrowserHistoryAdapter,
   type BrowserHistoryWindow,
   type BrowserNavigateOptions,
   type BrowserNavigateArgs,
   type BrowserRouterHostController,
-  type ActionUseOptions,
   type AnySunfallArcRuntime,
   type DurationInput,
   type SunfallArcRuntime,
-  type FormInstance,
   type ParamsForPath,
-  type ResourceInvalidationPlan,
-  type ResourceStatus,
-  type ResourceTag,
-  type ResourceTagDefinition,
   type MemoryBrowserHistoryAdapter,
-  type ResourceSnapshotCodecOperation,
-  type ResourceHydrationPayload,
   type BrowserRouterError,
-  type RoutePreloadFailureEncoding,
-  type RoutePreloadFailureSnapshot,
-  type ActionTransportResponse,
-  type RouteView,
-  type RouteWithComponent,
 } from "@sunfall/arc-core";
 import {
   UiScope,
@@ -142,6 +115,7 @@ import {
   StableStringifyInvalidDate,
   StableStringifyUnsupportedValue,
   stableStringify,
+  type RouteWithComponent,
 } from "@sunfall/arc-core/internal";
 // @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
 type ResourceCollectorIsInternal = typeof import("@sunfall/arc-core").ResourceCollector;
@@ -229,10 +203,10 @@ const CoreTypedRoute = Route.define("/core-typed/:id", {
   preload: ({ params }) => Effect.fail(new CoreProjectNotFound({ id: params.id })),
 });
 declare const coreTypedPreloadError: RoutePreloadError<CoreProjectNotFound>;
-const coreTypedFailureSnapshot: Effect.Effect<RoutePreloadFailureSnapshot> =
+const coreTypedFailureSnapshot: Effect.Effect<Route.PreloadFailureSnapshot> =
   Route.preloadFailureSnapshot(CoreTypedRoute, coreTypedPreloadError);
-declare const coreTypedSnapshot: RoutePreloadFailureSnapshot;
-const coreTypedSnapshotEncoding: RoutePreloadFailureEncoding = coreTypedSnapshot.failure;
+declare const coreTypedSnapshot: Route.PreloadFailureSnapshot;
+const coreTypedSnapshotEncoding: Route.PreloadFailureEncoding = coreTypedSnapshot.failure;
 const coreTypedFailureCause: Cause.Cause<RoutePreloadError<CoreProjectNotFound>> =
   Route.preloadFailureCauseFromSnapshot(CoreTypedRoute, coreTypedSnapshot);
 const coreTypedRouterError: BrowserRouterError<readonly [typeof CoreTypedRoute]> =
@@ -295,21 +269,21 @@ const historyWindow: BrowserHistoryWindow = {
   addEventListener: () => undefined,
   removeEventListener: () => undefined,
 };
-const coreActionConcurrency: ActionConcurrency = "exhaust";
-const coreActionPolicy: ActionPolicy<never> = {
+const coreActionConcurrency: Action.Concurrency = "exhaust";
+const coreActionPolicy: Action.Policy<never> = {
   concurrency: coreActionConcurrency,
 };
-const coreActionOptions: ActionOptions<string, string> = {
+const coreActionOptions: Action.Options<string, string> = {
   name: "type-tests/core-action",
   policy: coreActionPolicy,
   run: (input) => Effect.succeed(input),
 };
-const coreActionDefinition: ActionDefinition<string, string> = Action.define(coreActionOptions);
-const coreActionUseOptions: ActionUseOptions<never, never> = { runtime };
-const coreActionInstance: ActionInstance<string, string> = Action.use(coreActionDefinition, {
+const coreActionDefinition: Action.Definition<string, string> = Action.define(coreActionOptions);
+const coreActionUseOptions: Action.UseOptions<never, never> = { runtime };
+const coreActionInstance: Action.Instance<string, string> = Action.use(coreActionDefinition, {
   runtime,
 });
-const coreActionState: ActionState<string, string> = {
+const coreActionState: Action.State<string, string> = {
   result: AsyncResult.success("ok", { timestamp: 1 }),
   input: Option.some("publish"),
 };
@@ -335,11 +309,11 @@ const stableEncodeFailure = new StableStringifyEncodeFailure({
   cause: new Error("host read failed"),
   guidance: "use readable data",
 });
-declare const coreResourceTag: ResourceTag;
-declare const coreResourceTagDefinition: ResourceTagDefinition<string>;
-declare const coreResourceInvalidationPlan: ResourceInvalidationPlan;
-declare const coreResourceStatus: ResourceStatus<string, { readonly id: string }>;
-const coreResourceTagFromDefinition: ResourceTag = coreResourceTagDefinition("atlas");
+declare const coreResourceTag: Resource.Tag;
+declare const coreResourceTagDefinition: Resource.TagDefinition<string>;
+declare const coreResourceInvalidationPlan: Resource.InvalidationPlan;
+declare const coreResourceStatus: Resource.Status<string, { readonly id: string }>;
+const coreResourceTagFromDefinition: Resource.Tag = coreResourceTagDefinition("atlas");
 const resourceStaleFor: DurationInput = "5 seconds";
 const resourceUnsupportedDuration = new UnsupportedDuration({ duration: "forever" });
 const coreExports: Array<unknown> = [
@@ -352,7 +326,7 @@ const coreExports: Array<unknown> = [
   RequestContext,
   Resource,
   ResourceStoreDisposeError,
-  ResourceSnapshotCodecError,
+  Resource.SnapshotCodecError,
   ResponseContext,
   Route,
   RuntimeDisposeError,
@@ -442,18 +416,18 @@ const coreExports: Array<unknown> = [
   resourceStaleFor,
   resourceUnsupportedDuration,
 ];
-const actionPendingWithUndefinedPrevious: ActionState<string, void, string> = {
+const actionPendingWithUndefinedPrevious: Action.State<string, void, string> = {
   result: AsyncResult.waiting(AsyncResult.success<void, string>(undefined, { timestamp: 1 })),
   input: Option.some("publish"),
 };
-const actionFailureWithUndefinedPrevious: ActionState<string, void, string> = {
+const actionFailureWithUndefinedPrevious: Action.State<string, void, string> = {
   result: AsyncResult.fail<string, void>("failed", {
     previousSuccess: Option.some(AsyncResult.success(undefined, { timestamp: 1 })),
   }),
   input: Option.some("publish"),
 };
 // @ts-expect-error -- action submission state is an AsyncResult plus input, not a tagged union.
-const actionStateIsNotTagged: ActionState<string, void, string> = { _tag: "Idle" };
+const actionStateIsNotTagged: Action.State<string, void, string> = { _tag: "Idle" };
 const actionFailureCause: Option.Option<Cause.Cause<string>> = AsyncResult.cause(
   actionFailureWithUndefinedPrevious.result,
 );
@@ -481,7 +455,7 @@ const typeTestResourceSnapshot: Resource.Snapshot<string, string> = {
     timestamp: 1,
   },
 };
-const typeTestResourceHydrationPayload: ResourceHydrationPayload = {
+const typeTestResourceHydrationPayload: Resource.HydrationPayload = {
   resources: [typeTestResourceSnapshot],
 };
 const typeTestResourceNamespacePayload: Resource.HydrationPayload =
@@ -566,12 +540,12 @@ type MemoryHistoryShape = MemoryBrowserHistoryAdapter;
 type BrowserHistoryWindowShape = BrowserHistoryWindow;
 type BrowserNavigateOptionsShape = BrowserNavigateOptions;
 
-const actionSuccess: ActionResultSuccess<number> = ActionResult.success(1);
-const actionFailure: ActionResultFailure<"failed"> = ActionResult.failure("failed");
-const actionRedirect: ActionResultRedirect = ActionResult.redirect("/login", { replace: true });
-const actionValidation: ActionResultValidationFailure<{ readonly name: string }, "required"> =
+const actionSuccess: ActionResult.Success<number> = ActionResult.success(1);
+const actionFailure: ActionResult.Failure<"failed"> = ActionResult.failure("failed");
+const actionRedirect: ActionResult.Redirect = ActionResult.redirect("/login", { replace: true });
+const actionValidation: ActionResult.ValidationFailure<{ readonly name: string }, "required"> =
   ActionResult.validation({ fieldErrors: { name: ["required" as const] } });
-const actionBoundary: ActionResultBoundary<{ readonly name: string }, "required", "failed"> =
+const actionBoundary: ActionResult.Boundary<{ readonly name: string }, "required", "failed"> =
   actionValidation;
 const actionResultLabel: string = ActionResult.match(actionSuccess, {
   success: (value) => String(value),
@@ -581,7 +555,7 @@ const actionResultLabel: string = ActionResult.match(actionSuccess, {
 });
 
 const profileSchema = Schema.Struct({ name: Schema.String });
-const profileForm: FormInstance<{ readonly name: string }, "required"> = Form.make({
+const profileForm: Form.Instance<{ readonly name: string }, "required"> = Form.make({
   name: "profileForm",
   schema: profileSchema,
   initial: { name: "" },
@@ -698,8 +672,8 @@ const providedRequest = provideRequest(request)(Effect.succeed("ok"));
 const providedResponse = provideResponse(responseContext)(Effect.succeed("ok"));
 const cookieHeaderEffect = serializeResponseCookie("theme", "dark", { sameSite: "lax" });
 
-const codecOperation: ResourceSnapshotCodecOperation = "decode";
-const codecError = new ResourceSnapshotCodecError({
+const codecOperation: Resource.SnapshotCodecOperation = "decode";
+const codecError = new Resource.SnapshotCodecError({
   operation: codecOperation,
   path: "$.resources[0]",
   reason: "Expected a Resource hydration snapshot",
@@ -897,7 +871,7 @@ type _BrowserNavigateOptionsShape = BrowserNavigateOptionsShape;
 const coreActionTransport: ActionTransport = {
   submit: (_definition, _input) => Option.none(),
 };
-declare const coreActionTransportResponse: ActionTransportResponse<string, "rejected">;
+declare const coreActionTransportResponse: Action.TransportResponse<string, "rejected">;
 const coreActionTransportApply: Effect.Effect<void, Server.ClientError> =
   coreActionTransportResponse.apply(true);
 const coreActionTransportService: Context.Service<ActionTransport, ActionTransport> =
@@ -908,7 +882,7 @@ void coreActionTransportService;
 
 // Route components may be renderer component values; `withComponent` keeps the
 // attached component's type for adapters to check.
-declare const coreRouteView: RouteView<Route.Props<typeof coreTypedRoute>>;
+declare const coreRouteView: Route.View<Route.Props<typeof coreTypedRoute>>;
 const coreTypedRoute = Route.define("/core-view/:id", {});
 const coreRouteWithView = Route.withComponent(coreTypedRoute, coreRouteView);
 const coreRouteViewCarrier: RouteWithComponent<typeof coreRouteView> = coreRouteWithView;
@@ -936,7 +910,7 @@ void coreInternalProgram;
 // Durable submissions: `durable` requires an input schema and adds
 // `ActionQueued` to the Action's error type; non-durable Actions are unchanged.
 const DurableAdvanceInput = Schema.Struct({ id: Schema.String });
-const durablePolicy: ActionDurablePolicy = { maxAge: "1 day" };
+const durablePolicy: Action.DurablePolicy = { maxAge: "1 day" };
 const DurableAdvance = Action.define({
   name: "type-tests/durable-advance",
   input: DurableAdvanceInput,
@@ -945,7 +919,7 @@ const DurableAdvance = Action.define({
   run: ({ id }): Effect.Effect<number, "Rejected"> =>
     id.length > 0 ? Effect.succeed(1) : Effect.fail("Rejected"),
 });
-const durableAdvanceDefinition: ActionDefinition<
+const durableAdvanceDefinition: Action.Definition<
   { readonly id: string },
   number,
   "Rejected" | ActionQueued
@@ -956,17 +930,17 @@ const DurableNoOutput = Action.define({
   durable: { maxAge: "5 minutes" },
   run: () => Effect.succeed("ok"),
 });
-const durableNoOutputDefinition: ActionDefinition<{ readonly id: string }, string, ActionQueued> =
+const durableNoOutputDefinition: Action.Definition<{ readonly id: string }, string, ActionQueued> =
   DurableNoOutput;
 const PlainAdvance = Action.define({
   name: "type-tests/plain-advance",
   input: DurableAdvanceInput,
   run: () => Effect.succeed(1),
 });
-const plainAdvanceDefinition: ActionDefinition<{ readonly id: string }, number, never> =
+const plainAdvanceDefinition: Action.Definition<{ readonly id: string }, number, never> =
   PlainAdvance;
 // @ts-expect-error -- a durable Action's error type includes ActionQueued.
-const durableAdvanceWithoutQueued: ActionDefinition<{ readonly id: string }, number, "Rejected"> =
+const durableAdvanceWithoutQueued: Action.Definition<{ readonly id: string }, number, "Rejected"> =
   DurableAdvance;
 const durableWithoutSchema = Action.define({
   name: "type-tests/durable-without-schema",
@@ -991,7 +965,7 @@ type ActionInterruptedError =
   Effect.Error<ReturnType<typeof durableInstance.submit>> extends infer E
     ? Extract<E, { readonly _tag: "ActionInterrupted" }>
     : never;
-const outboxView: Effect.Effect<ActionOutboxView> = Action.outbox;
+const outboxView: Effect.Effect<Action.Outbox> = Action.outbox;
 const outboxPendingCount: Effect.Effect<number> = Effect.map(
   Action.outbox,
   (outbox) => outbox.pending.get().length,

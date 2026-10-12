@@ -217,8 +217,6 @@ export const publicHoverDocGroups = [
       "ProgramHandlerMap",
       "ProgramSubscription",
       "ProgramSubscriptionInput",
-      "ProgramSubscriptionError",
-      "ProgramSubscriptionRequirements",
       "ProgramDefinition",
       "ProgramRuntimeError",
       "ProgramInstance",

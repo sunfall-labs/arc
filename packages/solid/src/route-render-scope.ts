@@ -1,8 +1,8 @@
 import {
   Route,
   type AnySunfallArcRuntime,
-  type WritableSignal,
   type BrowserRouterState,
+  type Signal,
 } from "@sunfall/arc-core";
 import {
   browserRouteRenderIdentity,
@@ -218,9 +218,9 @@ export const makeSolidRouteRenderScopeController = <
   /** Solid owner route roots render under; usually the outlet's. */
   readonly owner: Owner | null;
   /** Rendered route node; Arc owns outlet state and Solid renders it. */
-  readonly node: WritableSignal<JSX.Element>;
+  readonly node: Signal.Writable<JSX.Element>;
   /** Route render failure surfaced to the host `<Errored>` boundary. */
-  readonly renderError: WritableSignal<unknown>;
+  readonly renderError: Signal.Writable<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
   let renderedState = options.initialInput.state;
   let renderedIdentity = browserRouteRenderIdentity({
@@ -239,8 +239,8 @@ export const makeSolidRouteRenderScopeController = <
    */
   const show = (node: JSX.Element, renderError: unknown): void =>
     writeUntracedSignals(() => {
-      options.renderError.set(() => renderError);
-      options.node.set(() => node);
+      options.renderError.set(renderError);
+      options.node.set(node);
     });
 
   const disposeStaleRenderedRoute = (rendered: RenderedRouteScope): void => {
