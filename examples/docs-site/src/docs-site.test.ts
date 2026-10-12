@@ -70,7 +70,7 @@ describe("docs site", () => {
         expect(response.status).toBe(200);
         expect(html).toContain("Built with Arc");
         expect(html).toContain("Sunfall Arc docs and cookbook.");
-        expect(html).toContain("Capability-backed Resource");
+        expect(html).toContain("service-backed Resource");
         expect(html).not.toContain("Dogfooded");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
@@ -153,7 +153,7 @@ describe("docs site", () => {
         expect(html).toContain('href="#the-hero-slice-route-resource-action-graph"');
         expect(html).toContain("The running demo is an issue tracker");
         expect(visibleText).toContain("export const IssueId");
-        expect(visibleText).toContain("const IssueApiTest = IssueApi.layer");
+        expect(visibleText).toContain("const IssueApiTest = Layer.succeed(IssueApi");
         expect(html).toContain("Built by an agent, verified in public");
         expect(html).toContain("For durable app behavior");
         expect(html).toContain('class="shiki github-dark-default"');
@@ -281,7 +281,7 @@ describe("docs site", () => {
             "/docs/getting-started",
             "/docs/troubleshooting",
             "/cookbook/route-preload-hydration",
-            "/cookbook/capability-mocks",
+            "/cookbook/service-mocks",
           ]),
         );
         expect(

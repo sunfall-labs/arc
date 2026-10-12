@@ -23,7 +23,6 @@ export {
 } from "./browser-router-host-controller.js";
 export { RouterRouteNotRegistered, type BrowserNavigateArgs } from "./browser-router-kernel.js";
 export type { BrowserRouterError, BrowserRouterState } from "./browser-router-state.js";
-export { Capability, CapabilityTypeId, isCapability } from "./capability.js";
 export {
   EffectInputCallbackError,
   EffectInputPromiseRejected,

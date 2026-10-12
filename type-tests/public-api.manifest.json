@@ -17,7 +17,6 @@
         "browser-router-host-controller",
         "browser-router-kernel",
         "browser-router-state",
-        "capability",
         "effect-like",
         "form",
         "program",

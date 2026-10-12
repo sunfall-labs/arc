@@ -1,6 +1,6 @@
-import { Capability, Resource } from "@sunfall/arc-core";
+import { Resource } from "@sunfall/arc-core";
 import type { Server } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 import {
   RecipeSchema,
   RecipeSlug,
@@ -36,7 +36,7 @@ export interface DocsContentApi {
   ) => Effect.Effect<Recipe, RecipeContentError | Server.ClientError>;
 }
 
-export const DocsContentApi = Capability.define<DocsContentApi>(
+export const DocsContentApi = Context.Service<DocsContentApi>(
   "@sunfall/arc-example-docs-site/DocsContentApi",
 );
 
@@ -47,7 +47,7 @@ const staticContentUnavailable = (operation: string): Effect.Effect<never, never
     ),
   );
 
-export const DocsContentApiStaticClient = DocsContentApi.layer({
+export const DocsContentApiStaticClient = Layer.succeed(DocsContentApi, {
   listRecipes: () => staticContentUnavailable("load the recipe index"),
   getRecipe: (slug) => staticContentUnavailable(`load recipe ${slug}`),
 });

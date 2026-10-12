@@ -1,6 +1,6 @@
-import { Action, ActionResult, Capability, Resource, Server } from "@sunfall/arc-core";
+import { Action, ActionResult, Resource, Server } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
-import { Effect, Schedule, Schema, Stream } from "effect";
+import { Context, Effect, Layer, Schedule, Schema, Stream } from "effect";
 import {
   AdvanceProjectInput,
   ProjectSchema,
@@ -98,7 +98,7 @@ export interface ProjectApi {
   ) => Effect.Effect<ProjectWorkItem, ProjectRemoteError>;
 }
 
-export const ProjectApi = Capability.define<ProjectApi>(
+export const ProjectApi = Context.Service<ProjectApi>(
   "@sunfall/arc-example-project-console/ProjectApi",
 );
 
@@ -124,7 +124,7 @@ export const normalizeProjectNameSubmissionResult = (
   }
 };
 
-export const ProjectApiLive = ProjectApi.layer({
+export const ProjectApiLive = Layer.succeed(ProjectApi, {
   list: () => listProjects.effect("all"),
   listWorkItems: () => listProjectWorkItems.effect("all"),
   get: (id) => getProject.effect({ id }),

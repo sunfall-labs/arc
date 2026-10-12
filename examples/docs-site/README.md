@@ -2,7 +2,7 @@
 
 This example uses Sunfall Arc as a cookbook/docs app. Recipes are content data
 loaded through Start server functions, exposed through a `DocsContentApi`
-Capability, read by typed Resources, and declared by file-route preload.
+Effect service, read by typed Resources, and declared by file-route preload.
 
 Run it locally:
 

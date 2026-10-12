@@ -7,7 +7,6 @@ import {
   ActionTransport,
   ActionTypeId,
   ActionResult,
-  Capability,
   Form,
   Program,
   RequestContext,
@@ -121,6 +120,8 @@ import {
 type ResourceCollectorIsInternal = typeof import("@sunfall/arc-core").ResourceCollector;
 // @ts-expect-error ResourceCollected is exposed as Resource.Collected, not as a root export.
 type ResourceCollectedIsNamespaced = import("@sunfall/arc-core").ResourceCollected;
+// @ts-expect-error Capability was removed; app services are Effect services (`Context.Service`).
+type CapabilityIsRemoved = typeof import("@sunfall/arc-core").Capability;
 
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
@@ -320,7 +321,6 @@ const coreExports: Array<unknown> = [
   Action,
   ActionTypeId,
   ActionResult,
-  Capability,
   Form,
   Program,
   RequestContext,

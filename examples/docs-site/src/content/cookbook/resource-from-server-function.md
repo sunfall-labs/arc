@@ -2,9 +2,9 @@
 {
   "title": "Resource from a server function",
   "category": "resources",
-  "summary": "Define a browser-safe contract, place the handler in a server-only module, and expose the read through a Capability-backed Resource.",
+  "summary": "Define a browser-safe contract, place the handler in a server-only module, and expose the read through a service-backed Resource.",
   "order": 1,
-  "related": ["route-preload-hydration", "capability-mocks"],
+  "related": ["route-preload-hydration", "service-mocks"],
 }
 ---
 
@@ -36,12 +36,12 @@ export const getProject = Server.implement(GetProjectContract, ({ id }) =>
 );
 ```
 
-## Expose a Capability
+## Expose an Effect service
 
-Expose the contract through a named Capability. Resources and Actions depend on the Capability, not on a transport detail.
+Expose the contract through a named Effect service (`Context.Service`). Resources and Actions depend on the service, not on a transport detail; a `Layer` provides the live implementation.
 
 ```ts
-export const ProjectApiLive = ProjectApi.layer({
+export const ProjectApiLive = Layer.succeed(ProjectApi, {
   get: (id) => getProjectClient.effect({ id }),
 });
 ```

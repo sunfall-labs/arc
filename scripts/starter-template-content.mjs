@@ -62,7 +62,7 @@ export const projectConsoleStarterReadme = `# Sunfall Arc Project Console Starte
 
 This is the larger checked starter path for Sunfall Arc. It exercises branded
 routes, file-route generation, Resources with keyed rows, Start server functions,
-Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
+Start actions, no-JS form fallback, SSR, hydration, service-Layer mocking,
 and a production server-only leak scan.
 
 ## Commands

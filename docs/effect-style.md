@@ -10,7 +10,7 @@ edge.
 
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
-- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, query callbacks, capabilities, and form validators.
+- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, query callbacks, and form validators; an Effect service's `use` callback must return an Effect.
 - Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. `Program.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
@@ -23,7 +23,7 @@ edge.
 - `createRequestHandler(app, { server })` is the server-side dependency provider for SSR/request work, and the app's `client` Layer is the browser's (`App.define({ client })`). Prefer Effect `Layer`s there; each must provide everything the app's root needs.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
-- Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Capability services, schemas, retries, or invalidation.
+- Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Effect services, schemas, retries, or invalidation.
 - Run application work through `SunfallArcRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
@@ -32,7 +32,7 @@ edge.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
-- Prefer named `Capability` services for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are layers behind that capability.
+- Prefer named Effect services (`Context.Service`) for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are Layers behind that service.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
 - Add type tests for API rules that should fail at compile time. A passing runtime test is not enough when the framework can reject the mistake earlier.
@@ -43,8 +43,7 @@ edge.
 Framework code should optimize for the caller being able to see the Effect
 shape:
 
-- services are named `Context.Service` / `Capability` values, then provided with
-  `Layer`;
+- services are named `Context.Service` values, then provided with `Layer`;
 - recoverable failures are tagged errors with schemas when they cross the wire;
 - retries are `Schedule` values in policy objects, not custom retry flags;
 - cancellation is fiber interruption, not boolean flags;
@@ -121,10 +120,10 @@ const UserById = Resource.define({
 ```
 
 Use this for route preloads and server-function-backed resources when the
-transport or capability layer can answer a batch. Direct server-function RPC
+transport or service Layer can answer a batch. Direct server-function RPC
 batching is a larger transport concern; until that lands, keep server contracts
-as the capability boundary and put the batched resolver behind the resource or
-capability implementation.
+as the service boundary and put the batched resolver behind the resource or
+service implementation.
 
 Resources can also publish typed tags into the dependency graph:
 
@@ -329,14 +328,14 @@ interface ProjectApi {
   readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
 }
 
-const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
-const ProjectApiLive = ProjectApi.layer({
+const ProjectApiLive = Layer.succeed(ProjectApi, {
   get: (id) => getProject.effect({ id }),
   rename: renameProject.effect,
 });
 
-const ProjectApiTest = ProjectApi.layer({
+const ProjectApiTest = Layer.succeed(ProjectApi, {
   get: (id) => Effect.succeed({ id, name: "Mock Project" }),
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });

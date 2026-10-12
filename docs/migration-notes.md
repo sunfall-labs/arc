@@ -5,6 +5,22 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Capability
+
+`Capability` is gone: Arc's wrapper added nothing over Effect's own services.
+Define an app service with `Context.Service` and provide it with `Layer`.
+Resources, Actions, route preload, and Components keep calling
+`ProjectApi.use(...)`; the service still joins their `R`.
+
+| Before                                                                        | After                                                             |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `Capability.define<ProjectApi>("ProjectApi")`                                 | `Context.Service<ProjectApi>("ProjectApi")` (from `effect`)       |
+| `ProjectApi.layer({ ... })`                                                   | `Layer.succeed(ProjectApi, { ... })`                              |
+| `ProjectApi.use((api) => api.get(id))` (Effect callback)                      | unchanged                                                         |
+| `ProjectApi.use((api) => api.cached)` (plain-value callback)                  | `ProjectApi.useSync((api) => api.cached)`                         |
+| `ProjectApi.tag`                                                              | `ProjectApi` (the service is its own key)                         |
+| `isCapability`, `CapabilityTypeId`, `Capability.Any` / `Shape` / `Identifier` | removed; the shape is the interface the service was declared with |
+
 ## From Collection
 
 Collections are gone: a Resource is the one server-data model. Every
@@ -84,7 +100,7 @@ services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 | `Server.stub(name, schemas)`                                                                          | `Server.client(Server.contract(name, schemas))`                                                                     |
 | `Server.provideMocks(effect, ...mocks)` / `Server.mockClient(...mocks)`                               | `Effect.provide(effect, Server.mockLayer(...mocks))`                                                                |
 | `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
-| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `capability.layer(service)` / `Effect.provide(effect, capability.layer(service))`                                   |
+| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `Layer.succeed(Service, service)` / `Effect.provide(effect, Layer.succeed(Service, service))`                       |
 | `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
 | `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action, { action: url })`                                                                         |
 | prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
@@ -161,7 +177,7 @@ This alpha applies three naming rules across every package:
 
 1. Definition constructors are `define`, namespaced: `Resource.define`,
    `Route.define`, `App.define`, `Component.define`,
-   beside `Action.define`, `Program.define`, and `Capability.define`.
+   beside `Action.define` and `Program.define`.
 2. Operations that return Effects carry no `Effect` suffix, and each has one
    form: where a synchronous twin existed it is gone. Hosts without an Effect
    context run the Effect (`Effect.runFork(...)` from a cleanup hook starts
@@ -211,7 +227,7 @@ Effect.runFork(App.launch(app));
 | `ActionResult.successEffect` / `failureEffect` / `failEffect` / `redirectEffect` / `validationEffect`                        | return `ActionResult.success(...)` etc. (or `Effect.succeed(...)` of it)                                                                      |
 | `ActionResult.fail`                                                                                                          | `ActionResult.failure`                                                                                                                        |
 | `ActionResult.validateFormEffect` / `requireSuccessEffect`                                                                   | `ActionResult.validateForm` / `requireSuccess`                                                                                                |
-| `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                               | `Capability.use(f)` (Effect or plain-value callback)                                                                                          |
+| `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                               | Effect service `use(f)` / `useSync(f)` (see [From Capability](#from-capability))                                                              |
 | `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                  | `form.validate()`, `Form.validate`, `Form.decodeFormData`                                                                                     |
 | root `decodeFormDataEffect`, `formDataToObject`                                                                              | `Form.decodeFormData`, `Form.data`                                                                                                            |
 | `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                        | `Server.handleRoute`, `Signal.fromStream`                                                                                                     |
@@ -331,7 +347,7 @@ behind Resource families and Actions:
 
 - Query keys become `Resource.define({ name, input, load })` refs.
 - Query functions become Effect loaders, usually calling a server contract or
-  Capability.
+  Effect service.
 - `invalidateQueries(...)` becomes `Resource.invalidate(...)` or an
   Action invalidation plan.
 - Mutation callbacks become `Action.define(...)` definitions with retry,
@@ -394,16 +410,17 @@ Resource invalidation.
 
 Ad hoc mocks usually replace imports directly, which makes SSR, client tests,
 and route preloads disagree about the service graph. Sunfall Arc uses
-Capabilities and Layers instead:
+Effect services and Layers instead:
 
-- Define a `Capability` for each service interface the app owns.
+- Define an Effect service (`Context.Service`) for each service interface the
+  app owns.
 - Provide production behavior through the server Layer passed to
   `createRequestHandler(app, { server })`, the client Layer in
   `App.define({ client })`, or `makeRuntime(...)`.
-- Provide test behavior through `Server.mock(...)`, Capability test Layers, or
+- Provide test behavior through `Server.mock(...)`, test Layers for the service, or
   a runtime created for the test.
 - Keep server-only implementations in `.server.ts` modules and prove they stay
   out of browser bundles with a leak scan.
 
-Prefer mocking the interface at the Capability or contract level. Avoid mocking
+Prefer mocking the interface at the service or contract level. Avoid mocking
 deep modules that callers should not know exist.

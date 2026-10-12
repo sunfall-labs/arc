@@ -14,18 +14,16 @@ const Todo = Schema.Struct({
 });
 type Todo = typeof Todo.Type;
 
-class TodoApi extends Context.Service<
-  TodoApi,
-  { readonly list: (owner: string) => Effect.Effect<ReadonlyArray<Todo>, "offline"> }
->()("type-tests/TodoApi") {}
-class TodoFeed extends Context.Service<
-  TodoFeed,
-  {
-    readonly changes: (
-      owner: string,
-    ) => Stream.Stream<ReadonlyArray<Resource.RowChange<Todo, number>>, "dropped">;
-  }
->()("type-tests/TodoFeed") {}
+interface TodoApi {
+  readonly list: (owner: string) => Effect.Effect<ReadonlyArray<Todo>, "offline">;
+}
+const TodoApi = Context.Service<TodoApi>("type-tests/TodoApi");
+interface TodoFeed {
+  readonly changes: (
+    owner: string,
+  ) => Stream.Stream<ReadonlyArray<Resource.RowChange<Todo, number>>, "dropped">;
+}
+const TodoFeed = Context.Service<TodoFeed>("type-tests/TodoFeed");
 
 // `rows` callbacks are typed by the output's element; the key type is inferred.
 const Todos = Resource.define({

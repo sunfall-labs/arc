@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { ProjectApi, ProjectId, ProjectNotFound, type Project } from "./projects.js";
 
 // An in-memory implementation, enough to run everything in this guide.
@@ -12,7 +12,7 @@ const find = (id: ProjectId): Effect.Effect<Project, ProjectNotFound> => {
   return project === undefined ? Effect.fail(new ProjectNotFound({ id })) : Effect.succeed(project);
 };
 
-export const ProjectApiMemory = ProjectApi.layer({
+export const ProjectApiMemory = Layer.succeed(ProjectApi, {
   list: () => Effect.sync(() => [...rows.values()]),
   get: find,
   rename: ({ id, name }) =>

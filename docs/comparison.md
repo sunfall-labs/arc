@@ -352,7 +352,7 @@ Sunfall Arc already has a few unusually useful proof points:
 - The app graph can drive diagnostics and agent-readable repair reports.
 - The example app proves SSR, streamed hydration, branded route params,
   progressive form posts, validation, redirects, indexed rows, optimistic
-  mutation, mocking through capabilities, and server-only leak scanning.
+  mutation, mocking through Effect service Layers, and server-only leak scanning.
 
 ## Where The Incumbents Still Deserve Respect
 

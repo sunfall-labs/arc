@@ -5,9 +5,10 @@ import { Context, Effect, Layer } from "effect";
 import type { JSX } from "@solidjs/web";
 import { Component } from "../src/index.js";
 
-class Greeter extends Context.Service<Greeter, { readonly greet: (name: string) => string }>()(
-  "@sunfall/arc-solid/test/ComponentSsr/Greeter",
-) {}
+interface Greeter {
+  readonly greet: (name: string) => string;
+}
+const Greeter = Context.Service<Greeter>("@sunfall/arc-solid/test/ComponentSsr/Greeter");
 
 /** A reactive text child, as JSX compiles `{read()}`. */
 export const reactive = (read: () => string): JSX.Element => read as unknown as JSX.Element;

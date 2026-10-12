@@ -1,8 +1,9 @@
 import {
   Cause,
+  Context,
   Effect,
   Fiber,
-  type Layer,
+  Layer,
   Metric,
   Request as EffectRequest,
   RequestResolver,
@@ -18,7 +19,6 @@ import {
   ActionInterrupted,
   ActionResult,
   type ActionTransport,
-  Capability,
   EffectInputCallbackError,
   Form,
   Program,
@@ -1737,37 +1737,37 @@ hydrationRuntime.runSync(hydrateFromDocument(hydrationDocument));
 interface RuntimeDocumentService {
   readonly readDocument: () => string;
 }
-const RuntimeDocumentService = Capability.define<RuntimeDocumentService>("RuntimeDocumentService");
+const RuntimeDocumentService = Context.Service<RuntimeDocumentService>("RuntimeDocumentService");
 interface RuntimeMissingService {
   readonly readMissing: () => string;
 }
-const RuntimeMissingService = Capability.define<RuntimeMissingService>("RuntimeMissingService");
+const RuntimeMissingService = Context.Service<RuntimeMissingService>("RuntimeMissingService");
 const typedRuntime = makeRuntime(
-  RuntimeDocumentService.layer({
+  Layer.succeed(RuntimeDocumentService, {
     readDocument: () => "ok",
   }),
 );
 const runtimeProvidedEffect: Effect.Effect<string> = typedRuntime.provide(
-  RuntimeDocumentService.use((service) => service.readDocument()),
+  RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
 const runtimeMissingRequirementEffect: Effect.Effect<string, never, RuntimeMissingService> =
-  typedRuntime.provide(RuntimeMissingService.use((service) => service.readMissing()));
+  typedRuntime.provide(RuntimeMissingService.useSync((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine provide preserves services that are not in the runtime
 const runtimeMissingRequirementErased: Effect.Effect<string> = typedRuntime.provide(
-  RuntimeMissingService.use((service) => service.readMissing()),
+  RuntimeMissingService.useSync((service) => service.readMissing()),
 );
 const typedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = typedRuntime.dispose;
-typedRuntime.runSync(RuntimeDocumentService.use((service) => service.readDocument()));
+typedRuntime.runSync(RuntimeDocumentService.useSync((service) => service.readDocument()));
 // @ts-expect-error Runtime Spine cannot run an effect with services it does not provide
-typedRuntime.runSync(RuntimeMissingService.use((service) => service.readMissing()));
+typedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine cannot fork an effect with services it does not provide
-typedRuntime.runFork(RuntimeMissingService.use((service) => service.readMissing()));
+typedRuntime.runFork(RuntimeMissingService.useSync((service) => service.readMissing()));
 declare const erasedRuntime: AnySunfallArcRuntime<never>;
 const erasedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = erasedRuntime.dispose;
 const erasedRuntimeProvidedEffect: Effect.Effect<string> = erasedRuntime.provide(
-  RuntimeMissingService.use((service) => service.readMissing()),
+  RuntimeMissingService.useSync((service) => service.readMissing()),
 );
-erasedRuntime.runSync(RuntimeMissingService.use((service) => service.readMissing()));
+erasedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 const runtimeUiScope: UiScope = makeRuntimeUiScope(erasedRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(erasedRuntime);
 void runtimeProvidedEffect;
@@ -1786,10 +1786,10 @@ const viteDevSsrEffect: Effect.Effect<Response, StartHandlerNotFound | StartDevS
   handleSsrDevRequest(viteDevServer, new Request("https://example.com/"));
 const servicefulDevServer: StartDevServer<RuntimeMissingService> = {
   ssrLoadModule: () =>
-    RuntimeMissingService.use(() => ({
+    RuntimeMissingService.useSync(() => ({
       default: () => new Response("ok"),
     })),
-  transformIndexHtml: (_url, html) => RuntimeMissingService.use(() => html),
+  transformIndexHtml: (_url, html) => RuntimeMissingService.useSync(() => html),
 };
 const servicefulDevSsrEffect: Effect.Effect<
   Response,
@@ -2192,31 +2192,26 @@ interface ProjectApi {
   }) => Effect.Effect<Project, ProjectError | Server.ClientError>;
 }
 
-const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
-ProjectApi.layer({
+Layer.succeed(ProjectApi, {
   get: (id) => getProject.effect({ id }),
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
 
-// @ts-expect-error Capability.mock was removed; test doubles use layer(...)
-ProjectApi.mock;
-// @ts-expect-error Capability.provide was removed; provide layer(...) instead
-ProjectApi.provide;
-
-// @ts-expect-error capability implementation must include all service methods
-ProjectApi.layer({
+// @ts-expect-error service implementation must include all service methods
+Layer.succeed(ProjectApi, {
   get: (id) => Effect.succeed({ id, name: "Incomplete" }),
 });
 
 ProjectApi.use((api) => api.get("atlas"));
-ProjectApi.use(() => ({ id: "atlas", name: "Pure Project" }));
-const capabilityEffectReturn: Effect.Effect<number> = ProjectApi.use(() => effectNumberValue).pipe(
-  Effect.provide(ProjectApi.layer({} as never)),
+ProjectApi.useSync(() => ({ id: "atlas", name: "Pure Project" }));
+const serviceEffectReturn: Effect.Effect<number> = ProjectApi.use(() => effectNumberValue).pipe(
+  Effect.provide(Layer.succeed(ProjectApi, {} as never)),
 );
-void capabilityEffectReturn;
+void serviceEffectReturn;
 const projectProgramRuntime = makeRuntime(
-  ProjectApi.layer({
+  Layer.succeed(ProjectApi, {
     get: (id) => Effect.succeed({ id, name: "Runtime Project" }),
     rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
   }),
@@ -2365,7 +2360,7 @@ const ProjectProgramWithMissingService = Program.define<
       Program.next(
         model,
         Program.emit(
-          RuntimeMissingService.use((service) => service.readMissing()).pipe(Effect.asVoid),
+          RuntimeMissingService.useSync((service) => service.readMissing()).pipe(Effect.asVoid),
         ),
       ),
     Loaded: (model) => model,
@@ -2484,7 +2479,7 @@ Program.define<number, BadMessage>({ initial: 0, update: (model: number) => mode
 // @ts-expect-error service method input remains typed
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
 
-// @ts-expect-error capability callbacks must return Effect or a pure value, not Promise
+// @ts-expect-error service use callbacks must return an Effect, not a Promise
 ProjectApi.use(() => promisedProject);
 
 Resource.define<string, Project>({
@@ -2520,7 +2515,7 @@ interface RoutePreloadApi {
   readonly warm: (id: string) => Effect.Effect<void>;
 }
 
-const RoutePreloadApi = Capability.define<RoutePreloadApi>("RoutePreloadApi");
+const RoutePreloadApi = Context.Service<RoutePreloadApi>("RoutePreloadApi");
 const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
@@ -2644,7 +2639,7 @@ toFetchHandler<StartRequestHandlerError>(routePreloadMissingHandler);
 // @ts-expect-error effect-first Node adapters cannot hide requirements through partial generics
 createNodeHandler<StartRequestHandlerError>(routePreloadMissingHandler);
 const routePreloadRuntime = makeRuntime(
-  RoutePreloadApi.layer({
+  Layer.succeed(RoutePreloadApi, {
     warm: () => Effect.void,
   }),
 );
@@ -2679,11 +2674,11 @@ const routePreloadNodeFacade = createNodeServerHandler(routePreloadMissingHandle
 });
 const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.registryAction",
-  run: () => RuntimeDocumentService.use((service) => service.readDocument()),
+  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 });
 const RegistryReadDocumentRpc = Server.implement(
   Server.contract<void, string, never>("RuntimeDocument.registryRpc"),
-  () => RuntimeDocumentService.use((service) => service.readDocument()),
+  () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
 // The app's Actions and the handler's server functions add their services to
 // the handler's requirements unless the server runtime provides them.
@@ -2891,7 +2886,7 @@ void resultWithServicefulInvalidationRequirement;
 void fieldErrorWithServicefulInvalidationRequirement;
 const ReadDocumentAction = Action.define<void, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.readAction",
-  run: () => RuntimeDocumentService.use((service) => service.readDocument()),
+  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 });
 const readDocumentAction = Action.use(ReadDocumentAction, { runtime: emptyActionRuntime });
 const readDocumentActionSubmit: Effect.Effect<
@@ -2915,8 +2910,8 @@ const ReadDocumentAndMissingAction = Action.define<
   name: "RuntimeDocument.readAndMissingAction",
   run: () =>
     Effect.zipWith(
-      RuntimeDocumentService.use((service) => service.readDocument()),
-      RuntimeMissingService.use((service) => service.readMissing()),
+      RuntimeDocumentService.useSync((service) => service.readDocument()),
+      RuntimeMissingService.useSync((service) => service.readMissing()),
       (document, missing) => `${document}:${missing}`,
     ),
 });

@@ -18,7 +18,7 @@ type-checks it and fails if a snippet on this page no longer matches its file
 | run a state machine with many messages               | **Program**: `Program.define`, bound with `Component.program`                 | one or two independent values: use Signals                                         |
 | build a screen or feature that reads or writes state | **Component**: `Component.define`                                             | it only renders props: write a plain Solid function                                |
 | map a URL to a screen and its data                   | **Route**: `Route.define`                                                     | the state is not addressable (a modal, a tab): use a Signal                        |
-| call a backend or service                            | **Capability**: `Capability.define` plus a Layer per host                     | it is pure computation: write a function                                           |
+| call a backend or service                            | an **Effect service** (`Context.Service`) plus a Layer per host               | it is pure computation: write a function                                           |
 | wire and start the app                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client)  | never skip it: this is where missing services and unhandled failures become errors |
 | answer "how did the UI get into this state?"         | **Timeline**: `Timeline.record`, then `travel`                                | production telemetry: use [devtools](devtools.md) summaries                        |
 
@@ -45,7 +45,7 @@ Two defaults settle most arguments:
 ## How The Pieces Fit
 
 ```text
-  Layer ──provides──► Capability (ProjectApi)
+  Layer ──provides──► Effect service (ProjectApi)
                         ▲               ▲
                    load │               │ run
                      Resource ◄──tags── Action
@@ -80,8 +80,8 @@ Actions refresh it by meaning instead of by cache key.
 <!-- snippet: type-tests/golden-path/projects.step-1.ts -->
 
 ```ts
-import { Capability, Resource } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
+import { Resource } from "@sunfall/arc-core";
+import { Context, Effect, Schema } from "effect";
 
 export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
 export type ProjectId = typeof ProjectId.Type;
@@ -106,7 +106,7 @@ export interface ProjectApi {
     readonly name: string;
   }) => Effect.Effect<Project, ProjectNotFound>;
 }
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
 // Semantic tags: Resources provide them, Actions invalidate them.
 export const ProjectsTag = Resource.tag("Projects");
@@ -134,10 +134,10 @@ export const ProjectById = Resource.define({
 });
 ```
 
-- `ProjectApi` is a Capability: the boundary every Resource and Action depends
-  on. Layers implement it: the fixture's `ProjectApiMemory` is
-  `ProjectApi.layer({ list, get, rename })` over a `Map`; a real app's client
-  Layer calls server functions (see the
+- `ProjectApi` is an Effect service (`Context.Service`): the boundary every
+  Resource and Action depends on. Layers implement it: the fixture's
+  `ProjectApiMemory` is `Layer.succeed(ProjectApi, { list, get, rename })`
+  over a `Map`; a real app's client Layer calls server functions (see the
   [Resource from a server function](../examples/docs-site/src/content/cookbook/resource-from-server-function.md)
   recipe).
 - `ProjectById` loads one project and can fail with `ProjectNotFound`.

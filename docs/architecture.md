@@ -14,7 +14,8 @@ target. The public API is owned by Sunfall Arc:
   Resources.
 - `Action` for every change to server data: optimistic Signal, Resource entry,
   and Resource row patches, the Effect that writes, and invalidation.
-- `Capability` for named app services and test layers.
+- Effect services (`Context.Service`) for named app services, provided by a
+  Layer per host or test.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
 - `Server.contract` / `Server.client` / `Server.implement` for schema-described server calls.
@@ -32,7 +33,7 @@ app graph.
 The end-state architecture has four layers that intentionally share the same
 domain vocabulary.
 
-1. Definition layer: schemas, branded ids, capabilities, server contracts,
+1. Definition layer: schemas, branded ids, Effect services, server contracts,
    programs, resources, actions, forms, and routes are stable typed
    definitions. Definitions are safe to import broadly when they do not include
    server handlers.
@@ -352,11 +353,11 @@ That means services, tagged errors, request context, scopes, retries, and
 fibers all flow through one Effect-native execution model instead of being
 hand-wired per feature.
 
-## Capability Services
+## Effect Services
 
-Application features should depend on capabilities, not directly on transport
-details. A capability is a thin Sunfall Arc convention over `Context.Service` plus
-layer helpers:
+Application features should depend on Effect services, not directly on transport
+details. Arc adds no wrapper: a service is a plain `Context.Service`, and each
+host or test provides it with a `Layer`:
 
 ```ts
 export interface ProjectApi {
@@ -364,17 +365,17 @@ export interface ProjectApi {
   readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
 }
 
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
-export const ProjectApiLive = ProjectApi.layer({
+export const ProjectApiLive = Layer.succeed(ProjectApi, {
   get: (id) => getProject.effect({ id }),
   rename: renameProject.effect,
 });
 ```
 
 Resources, actions, and route preload depend on `ProjectApi.use(...)`. Server
-functions are one live implementation; tests can swap `ProjectApi.layer(...)`
-without importing server modules or replacing app code.
+functions are one live implementation; tests can provide
+`Layer.succeed(ProjectApi, ...)` without importing server modules or replacing app code.
 
 ## Progressive Actions
 
@@ -440,7 +441,7 @@ such as `id` and `redirectTo` while the user edits fields like `name`.
 This is the progressive enhancement seam: with JavaScript, the Solid handler
 intercepts the submit and calls the Component's action handle (which the
 transport routes to the server); without JavaScript, the same form posts to
-Start and runs the same Action Definition, Capability services, schemas,
+Start and runs the same Action Definition, Effect services, schemas,
 retries, and invalidation policy.
 
 ### Optimistic Patches
