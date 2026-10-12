@@ -3,12 +3,11 @@ import type { Query } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
   AdvanceProjectInput,
-  ProjectApi,
   ProjectById,
+  ProjectErrorSchema,
   ProjectSchema,
   ProjectWorkItemSchema,
   ProjectsRef,
-  SubmitProjectName,
   UpdateWorkItemStatusInput,
   WorkItemsRef,
   WorkItemsTag,
@@ -32,6 +31,7 @@ export const AdvanceProject = Action.define({
   name: "Project.advance",
   input: AdvanceProjectInput,
   output: ProjectSchema,
+  error: ProjectErrorSchema,
   policy: {
     concurrency: "exhaust",
   },
@@ -47,24 +47,16 @@ export const AdvanceProject = Action.define({
         progress: Math.min(100, project.progress + 8),
       })),
     ]),
-  run: (input) => ProjectApi.use((api) => api.advance(input)),
   invalidates: (project) => projectResourceInvalidations(project.id),
 });
-
-/**
- * Actions the Start server serves. The server registers them, and the client
- * runtime's action transport submits them over the network; every other
- * Action (like `MoveWorkItem`) runs locally through the same binding.
- */
-export const projectConsoleActions = [SubmitProjectName, AdvanceProject] as const;
 
 /** Moves a work item to `status`, optimistically, then reloads the work items. */
 export const MoveWorkItem = Action.define({
   name: "Project.workItem.move",
   input: UpdateWorkItemStatusInput,
   output: ProjectWorkItemSchema,
+  error: ProjectErrorSchema,
   optimistic: ({ id, status }, transaction) => transaction.update(WorkItemsRef, id, { status }),
-  run: (input) => ProjectApi.use((api) => api.updateWorkItemStatus(input)),
   invalidates: () => [WorkItemsTag],
 });
 

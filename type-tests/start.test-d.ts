@@ -153,7 +153,7 @@ const startActionFormEncodeError = new StartActionFormEncodeError({
 });
 declare const startActionBrowserFormData: FormData;
 const decodedStartActionFormDataEffect = StartAction.decodeFormData(
-  Schema.Struct({ id: Schema.String }),
+  startActionDefinition,
   startActionBrowserFormData,
 );
 // @ts-expect-error StartAction no longer creates stateful client instances; use Component.action

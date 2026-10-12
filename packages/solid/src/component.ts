@@ -25,6 +25,8 @@ import {
   appStateOnRuntime,
   startStateOnRuntime,
   withSignalTransition,
+  PostedActions,
+  type PostedFormValues,
   type ResourceStoreModule,
 } from "@sunfall/arc-core/internal";
 import { Cause, Context, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect";
@@ -742,6 +744,14 @@ export namespace Component {
     /** Input of the latest submission (`Option.none()` while idle). */
     readonly input: Accessor<Option.Option<I>>;
     /**
+     * The fields of the form post this render answers: a submission posted
+     * without JavaScript that the server rendered the page again for (its
+     * Action answered a validation failure or a failure, which `result()`
+     * holds). Render them as the fields' values so the form keeps what was
+     * typed; `undefined` otherwise.
+     */
+    readonly formValues: Accessor<PostedFormValues | undefined>;
+    /**
      * Submits `input` with the instance's context; the outcome also lands in
      * `result()`. Bridge it to an event handler with `Component.callback`,
      * handling (or ignoring) its failures there.
@@ -921,7 +931,14 @@ export namespace Component {
   ): Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResult.InvalidationRequirements<A>> =>
     Effect.gen(function* () {
       const current = yield* instance;
-      const instanceAction = makeActionInstance(definition, current.runtime);
+      // A no-JavaScript post of this Action that the page renders again
+      // (its validation failure): start from its outcome and its fields.
+      const posted = Option.flatMap(yield* Effect.serviceOption(PostedActions), (actions) =>
+        actions.current?.action === definition.name ? Option.some(actions.current) : Option.none(),
+      );
+      const initial = Option.isSome(posted) ? yield* posted.value.state(definition) : undefined;
+      const formValues = Option.isSome(posted) ? posted.value.values : undefined;
+      const instanceAction = makeActionInstance(definition, current.runtime, "client", initial);
       yield* Effect.addFinalizer(() => instanceAction.reset());
       const result = () => instanceAction.state.get().result;
       const handle: ActionHandle<I, A, E> = {
@@ -932,6 +949,7 @@ export namespace Component {
         },
         result,
         input: () => instanceAction.state.get().input,
+        formValues: () => formValues,
         submit: instanceAction.submit,
         reset: instanceAction.reset,
       };

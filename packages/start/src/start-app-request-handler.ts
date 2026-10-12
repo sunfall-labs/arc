@@ -1,4 +1,12 @@
-import { Resource, type Route, type RuntimeSource, type Server } from "@sunfall/arc-core";
+import {
+  isActionDefinition,
+  isServerFunction,
+  Resource,
+  type Action,
+  type Route,
+  type RuntimeSource,
+  type Server,
+} from "@sunfall/arc-core";
 import {
   storeResourceRefs,
   type ActionDefinitionRequirements,
@@ -9,8 +17,8 @@ import { Component } from "@sunfall/arc-solid";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
 import { Effect, Stream } from "effect";
 import type { RequestRuntimeProvidedRequirements } from "./request-runtime.js";
-import type { App, AppDefinition } from "./start-app.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
+import type { App, AppDefinition } from "./start-app.js";
 import {
   renderStartDocumentShell,
   type StartDocument,
@@ -30,29 +38,45 @@ import { createStartHydrationPayload, type StartHydrationPayload } from "./hydra
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 type AnyServerFunction = Server.Fn<any, any, any, any>;
+type AnyAction = Action.Definition<any, any, any, any>;
+
+/**
+ * One server implementation Start serves: a served Action's
+ * `Action.implement(...)`, a served Resource's `Resource.implement(...)`, or
+ * a `Server.implement(...)` server function.
+ */
+export type StartImplementation = AnyAction | AnyServerFunction;
 
 /** Options for `createRequestHandler(app, options)`: the server half of a Start app. */
 export interface CreateRequestHandlerOptions<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
   ServerServices = never,
   ServerError = never,
-  ServerFunctions extends AnyServerFunction = never,
+  Implementations extends StartImplementation = never,
 > {
   /**
    * Server services: a Layer, ManagedRuntime, or SunfallArcRuntime. Each
-   * request runs route preloads, the root render, server functions, and
-   * Actions on a request runtime derived from it.
+   * request runs route preloads, the root render, and the implementations
+   * on a request runtime derived from it.
    */
   readonly server?: RuntimeSource<ServerServices, ServerError>;
-  /** Server-function implementations served over RPC (`Server.implement(...)` values). */
-  readonly serverFunctions?: ReadonlyArray<ServerFunctions>;
+  /**
+   * What the server runs for the app's served Actions and Resources
+   * (`Action.implement(...)`, `Resource.implement(...)`) and its other
+   * server functions (`Server.implement(...)`). They live in `*.server.ts`
+   * modules, which never reach the browser bundle.
+   */
+  readonly implementations?: ReadonlyArray<Implementations>;
   /** The page's head and response headers, per request. */
   readonly document?: (context: StartDocumentContext<Routes>) => StartDocument;
 }
 
-type ServerRegistry<Actions extends StartActionDefinition, ServerFunctions> = AppDefinitionRegistry<
-  [Actions] extends [never] ? never : Actions,
-  ServerFunctions extends AnyServerFunction ? ServerFunctions : never
+type ImplementedActions<Implementations> = Extract<Implementations, AnyAction>;
+type ImplementedServerFunctions<Implementations> = Extract<Implementations, AnyServerFunction>;
+
+type ServerRegistry<Implementations> = AppDefinitionRegistry<
+  ImplementedActions<Implementations>,
+  ImplementedServerFunctions<Implementations>
 >;
 
 /**
@@ -74,7 +98,7 @@ type ServerServicesCheck<RootServices, ServerServices> = [
     };
 
 const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServices, ServerError>(
-  app: AppDefinition<Routes, any, any, any, any>,
+  app: AppDefinition<Routes, any, any, any>,
   document: ((context: StartDocumentContext<Routes>) => StartDocument) | undefined,
   context: StartRenderContext<Routes, ServerServices, ServerError, any>,
 ): Effect.Effect<Response> =>
@@ -148,15 +172,14 @@ const renderedResourcesChunk = <Routes extends readonly AnyRoute[], ServerServic
 /** The handler `createRequestHandler` returns for an app and its server options. */
 type AppRequestHandler<
   Routes extends readonly AnyRoute[],
-  Actions extends StartActionDefinition,
   ServerServices,
-  ServerFunctions extends AnyServerFunction,
+  Implementations,
 > = StartRequestHandler<
   StartRequestRequirements<
     Routes,
     ServerServices,
-    ServerRegistry<Actions, ServerFunctions>,
-    Actions
+    ServerRegistry<Implementations>,
+    ImplementedActions<Implementations>
   >
 >;
 
@@ -174,7 +197,8 @@ type ServerlessApp<RootServices> = [
 
 /**
  * Builds the Start request handler for an app: server-side rendering of the
- * app's root into Start's document, server-function RPC, and Action requests.
+ * app's root into Start's document, and the served Actions, Resources, and
+ * server functions (`implementations`) over the action and RPC endpoints.
  *
  * Each page request preloads the matched route on a request runtime built from
  * `server`, renders `app.root` with `Component.embed`, and streams the
@@ -186,7 +210,7 @@ type ServerlessApp<RootServices> = [
  * ```ts
  * export const handleRequest = createRequestHandler(app, {
  *   server: AppServerLive,
- *   serverFunctions: [getProject],
+ *   implementations: [renameProject, projectById],
  *   document: () => ({ title: "Projects" }),
  * });
  * ```
@@ -194,61 +218,62 @@ type ServerlessApp<RootServices> = [
 export function createRequestHandler<
   const Routes extends readonly AnyRoute[],
   RootServices,
-  Actions extends StartActionDefinition,
   ClientServices,
   ClientError,
 >(
-  app: AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError> &
+  app: AppDefinition<Routes, RootServices, ClientServices, ClientError> &
     ServerlessApp<RootServices>,
-): AppRequestHandler<Routes, Actions, never, never>;
+): AppRequestHandler<Routes, never, never>;
 export function createRequestHandler<
   const Routes extends readonly AnyRoute[],
   RootServices,
-  Actions extends StartActionDefinition,
   ClientServices,
   ClientError,
   ServerServices = never,
   ServerError = never,
-  ServerFunctions extends AnyServerFunction = never,
+  Implementations extends StartImplementation = never,
 >(
-  app: AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError>,
-  options: CreateRequestHandlerOptions<Routes, ServerServices, ServerError, ServerFunctions> &
+  app: AppDefinition<Routes, RootServices, ClientServices, ClientError>,
+  options: CreateRequestHandlerOptions<Routes, ServerServices, ServerError, Implementations> &
     ServerServicesCheck<
       | RootServices
-      | ServerFunctionRequirements<ServerFunctions>
-      | ActionDefinitionRequirements<Actions>,
+      | ServerFunctionRequirements<ImplementedServerFunctions<Implementations>>
+      | ActionDefinitionRequirements<ImplementedActions<Implementations>>,
       ServerServices
     >,
-): AppRequestHandler<Routes, Actions, ServerServices, ServerFunctions>;
+): AppRequestHandler<Routes, ServerServices, Implementations>;
 export function createRequestHandler<
   const Routes extends readonly AnyRoute[],
   RootServices,
-  Actions extends StartActionDefinition,
   ClientServices,
   ClientError,
   ServerServices,
   ServerError,
-  ServerFunctions extends AnyServerFunction,
+  Implementations extends StartImplementation,
 >(
-  app: AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError>,
-  options?: CreateRequestHandlerOptions<Routes, ServerServices, ServerError, ServerFunctions>,
-): AppRequestHandler<Routes, Actions, ServerServices, ServerFunctions> {
+  app: AppDefinition<Routes, RootServices, ClientServices, ClientError>,
+  options?: CreateRequestHandlerOptions<Routes, ServerServices, ServerError, Implementations>,
+): AppRequestHandler<Routes, ServerServices, Implementations> {
   const serverOptions: CreateRequestHandlerOptions<
     Routes,
     ServerServices,
     ServerError,
-    ServerFunctions
+    Implementations
   > = options ?? {};
+  const implementations: ReadonlyArray<StartImplementation> = serverOptions.implementations ?? [];
+  const actions = implementations.filter((implementation): implementation is AnyAction =>
+    isActionDefinition(implementation),
+  ) as ReadonlyArray<StartActionDefinition>;
   const serverApp = makeStartServerApp({
     routes: app.routes,
     ...(serverOptions.server === undefined ? {} : { server: serverOptions.server }),
     registry: {
-      actions: app.actions,
-      serverFunctions: serverOptions.serverFunctions ?? [],
+      actions,
+      serverFunctions: implementations.filter(isServerFunction),
     },
   });
   const handler = createStartRequestHandler(serverApp as never, {
-    actions: app.actions,
+    actions,
     render: (context) =>
       renderAppDocumentEffect(
         app,
@@ -259,8 +284,7 @@ export function createRequestHandler<
   // Vite dev SSR reads the routes to warn about undeclared preload resources.
   return attachStartHandlerRoutes(handler, app.routes) as AppRequestHandler<
     Routes,
-    Actions,
     ServerServices,
-    ServerFunctions
+    Implementations
   >;
 }

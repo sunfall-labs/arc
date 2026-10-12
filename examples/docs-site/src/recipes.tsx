@@ -9,7 +9,7 @@ import {
   type RecipeBlock,
   type RecipeSummary,
 } from "./content.js";
-import type { RecipeCategory } from "./content.contract.js";
+import type { RecipeCategory } from "./content.js";
 import {
   PageRail,
   createPageRailItems,

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Runs the production build (`node dist/server/index.js`) against an
 // in-memory database and checks that it serves the app: the sign-in redirect,
-// a server-rendered page that references the built client (not `/src`), and
-// the built assets that page links. Run `pnpm build` first.
+// a server-rendered page that references the built client (not `/src`), the
+// built assets that page links, and no-JavaScript form posts: a sign-in or a
+// new issue that fails validation renders its form again (422) with its error
+// and values, and a valid one redirects. Run `pnpm build` first.
 
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
@@ -15,10 +17,10 @@ const fail = (message, cause) => new ProductionSmokeError({ message, cause });
 
 const check = (condition, message) => (condition ? Effect.void : Effect.fail(fail(message)));
 
-const request = (origin, path) =>
+const request = (origin, path, init = {}) =>
   Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
-      try: () => fetch(`${origin}${path}`, { redirect: "manual" }),
+      try: () => fetch(`${origin}${path}`, { redirect: "manual", ...init }),
       catch: (cause) => fail(`GET ${path} failed.`, cause),
     });
     const body = yield* Effect.tryPromise({
@@ -65,6 +67,25 @@ const startServer = Effect.acquireRelease(
     }),
 );
 
+/** A form posted without JavaScript to the page it is on. */
+const formPost = (origin, path, fields, cookie) => {
+  const body = new URLSearchParams();
+  for (const [name, value] of Object.entries(fields)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      body.append(name, item);
+    }
+  }
+  return request(origin, path, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      accept: "text/html",
+      ...(cookie === undefined ? {} : { cookie }),
+    },
+    body,
+  });
+};
+
 const program = Effect.scoped(
   Effect.gen(function* () {
     const { origin } = yield* startServer;
@@ -95,7 +116,74 @@ const program = Effect.scoped(
 
     const missing = yield* request(origin, "/assets/missing.js");
     yield* check(missing.response.status !== 200, "A missing asset answered 200.");
-    console.log(`Production server OK: ${origin} served /signin and ${linked.length} assets.`);
+
+    // No-JavaScript sign-in that fails validation: the form again, with its error and values.
+    const signInFields = {
+      __sunfall_arc_action: "Tracker.signIn",
+      __sunfall_arc_input: JSON.stringify({ redirectTo: "/projects/TRK/new" }),
+      name: "Mara Chen",
+    };
+    const badSignIn = yield* formPost(origin, "/signin", {
+      ...signInFields,
+      email: "not an email",
+    });
+    yield* check(
+      badSignIn.response.status === 422 &&
+        (badSignIn.response.headers.get("content-type") ?? "").includes("text/html") &&
+        badSignIn.body.includes("Use a valid email address.") &&
+        /<input[^>]*name="email"[^>]*value="not an email"/.test(badSignIn.body),
+      `An invalid no-JS sign-in answered ${badSignIn.response.status} without its form, error, and values.`,
+    );
+    const goodSignIn = yield* formPost(origin, "/signin", {
+      ...signInFields,
+      email: "mara@tracker.test",
+    });
+    const cookie = goodSignIn.response.headers.get("set-cookie")?.split(";")[0];
+    yield* check(
+      goodSignIn.response.status === 303 &&
+        goodSignIn.response.headers.get("location") === "/projects/TRK/new" &&
+        cookie !== undefined,
+      `A valid no-JS sign-in answered ${goodSignIn.response.status}, expected a 303 with a session.`,
+    );
+
+    // No-JavaScript new issue: an invalid title renders the form again; a valid one redirects.
+    const issueFields = {
+      __sunfall_arc_action: "Tracker.createIssue",
+      __sunfall_arc_input: JSON.stringify({ projectKey: "TRK" }),
+      description: "From the production smoke test",
+      status: "todo",
+      priority: "high",
+      assigneeId: "",
+      labelIds: ["l_trk-bug"],
+    };
+    const badIssue = yield* formPost(
+      origin,
+      "/projects/TRK/new",
+      { ...issueFields, title: "x" },
+      cookie,
+    );
+    yield* check(
+      badIssue.response.status === 422 &&
+        badIssue.body.includes("Give the issue a title.") &&
+        /<input[^>]*name="title"[^>]*value="x"/.test(badIssue.body) &&
+        badIssue.body.includes("From the production smoke test"),
+      `An invalid no-JS issue answered ${badIssue.response.status} without its form, error, and values.`,
+    );
+    const goodIssue = yield* formPost(
+      origin,
+      "/projects/TRK/new",
+      { ...issueFields, title: "Production smoke issue" },
+      cookie,
+    );
+    yield* check(
+      goodIssue.response.status === 303 &&
+        /^\/issues\/TRK-\d+$/.test(goodIssue.response.headers.get("location") ?? ""),
+      `A valid no-JS issue answered ${goodIssue.response.status}, expected a 303 to the issue.`,
+    );
+
+    console.log(
+      `Production server OK: ${origin} served /signin, ${linked.length} assets, and no-JS form posts.`,
+    );
   }),
 );
 

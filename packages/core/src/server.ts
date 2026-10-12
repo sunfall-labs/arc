@@ -266,21 +266,33 @@ const makeServerClient = (call: ServerClient["call"]): ServerClient => ({
   call,
 });
 
-/** ServerClient that answers calls using the supplied mocks; backs `Server.mockLayer`. */
-const mockClient = (...mocks: readonly AnyServerFunctionMock[]): ServerClient => {
-  const byName = new Map<string, AnyServerFunctionMock>(mocks.map((mock) => [mock.name, mock]));
+/**
+ * ServerClient that answers calls using the supplied test doubles (mocks or
+ * implementations); backs `Server.mockLayer`.
+ */
+const mockClient = (
+  ...doubles: ReadonlyArray<AnyServerFunctionMock | AnyServerFunction>
+): ServerClient => {
+  const byName = new Map(doubles.map((double) => [double.name, double]));
 
   return makeServerClient(
     <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I,
     ): Effect.Effect<A, E | ServerClientError, R> => {
-      const mock = byName.get(fn.name) as ServerFunctionMock<I, A, E, R> | undefined;
-      return mock === undefined
-        ? Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }))
-        : callThroughWireSchemas(fn, input, (decoded) =>
-            invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decoded),
-          );
+      const double = byName.get(fn.name);
+      if (double === undefined) {
+        return Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
+      }
+      return callThroughWireSchemas(fn, input, (decoded) =>
+        isServerFunction(double)
+          ? (double as ServerFunction<I, A, E, R>).local(decoded)
+          : invokeEffectInput(
+              `Server.mock(${fn.name}).handler`,
+              (double as ServerFunctionMock<I, A, E, R>).handler,
+              decoded,
+            ),
+      );
     },
   );
 };
@@ -404,12 +416,14 @@ export namespace Server {
   });
 
   /**
-   * Builds a `ServerClient` Layer backed by local test mocks. Calls pass
-   * through the contract's wire schemas, as they would over HTTP.
+   * Builds a `ServerClient` Layer backed by test doubles: `Server.mock(...)`
+   * values, or implementations (`Server.implement(...)`,
+   * `Resource.implement(...)`) such as a served Resource's test load. Calls
+   * pass through the wire schemas, as they would over HTTP.
    */
   export const mockLayer = (
-    ...mocks: readonly AnyServerFunctionMock[]
-  ): Layer.Layer<ServerClient> => Layer.succeed(ServerClient)(mockClient(...mocks));
+    ...doubles: ReadonlyArray<AnyServerFunctionMock | AnyServerFunction>
+  ): Layer.Layer<ServerClient> => Layer.succeed(ServerClient)(mockClient(...doubles));
 
   /** Registered server functions keyed by function name. */
   export const functions = (): ReadonlyMap<string, AnyServerFunction> =>

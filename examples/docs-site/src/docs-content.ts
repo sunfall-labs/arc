@@ -79,7 +79,7 @@ export const docsPages = [
         items: [
           "Basic starter: the smallest checked full-stack app shell.",
           "Use the project console example when you want actions, Resource rows, live queries, mocks, and diagnostics together.",
-          "Use this docs site when you want to see server functions, Effect services, Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
+          "Use this docs site when you want to see served Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
         ],
       },
     ],
@@ -106,7 +106,7 @@ export const docsPages = [
         _tag: "List",
         items: [
           "Effect service: a named `Context.Service` boundary for live APIs, server clients, and test layers.",
-          "Server contract: a schema-described boundary between browser-safe clients and server-only handlers.",
+          "Served Resource or Action: a definition without `load` or `run` whose schemas are its wire contract; its server body (`Resource.implement`, `Action.implement`) lives in a `.server.ts` module.",
           "Resource: a named async data family with input/output schemas, cache state, retry policy, and semantic tags.",
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
           "Route: a typed URL definition that can declare the Resources it owns before render.",
@@ -134,7 +134,7 @@ export const docsPages = [
         _tag: "List",
         items: [
           "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, server contracts, and runtime helpers.",
-          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, prerendering, and the Vite plugin. Host adapters live at `@sunfall/arc-start/fetch` (Workers, edge runtimes, Bun) and `@sunfall/arc-start/node` (`IncomingMessage`/`ServerResponse`).",
+          "@sunfall/arc-start: SSR, hydration, served Resources and Actions, server functions, file routes, prerendering, and the Vite plugin. Host adapters live at `@sunfall/arc-start/fetch` (Workers, edge runtimes, Bun) and `@sunfall/arc-start/node` (`IncomingMessage`/`ServerResponse`).",
           "@sunfall/arc-db: the Query engine: incremental live queries over the rows of Resources.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
           "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, States, live queries, streams, and component scopes.",
@@ -155,7 +155,7 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc deployment centers on `createRequestHandler(app)`. The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup on a request runtime built from the server Layer.",
+        text: "Arc deployment centers on `createRequestHandler(app)`. The Start request handler runs route preload, rendering, the served Resources and Actions (`implementations`), response context, request tracing, and runtime cleanup on a request runtime built from the server Layer.",
       },
       {
         _tag: "Heading",
@@ -225,7 +225,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Move handlers into `.server.ts` modules, export only contracts and typed clients from browser-safe modules, and keep leak-scan sentinels in the production build gate.",
+        text: "Move server bodies (`Resource.implement`, `Action.implement`) into `.server.ts` modules, keep only definitions and schemas in browser-safe modules, and keep leak-scan sentinels in the production build gate.",
       },
       {
         _tag: "Heading",
@@ -233,7 +233,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Convert host Promise work with `Effect.tryPromise` at the adapter boundary. `Resource.load`, `Action.run`, `Server.implement` handlers, and route preload should stay Effect-first.",
+        text: "Convert host Promise work with `Effect.tryPromise` at the adapter boundary. Resource loads, Action runs, `Resource.implement` and `Action.implement` bodies, and route preload should stay Effect-first.",
       },
       {
         _tag: "Heading",
@@ -256,7 +256,7 @@ createServer(
         items: [
           "Basic starter: the smallest checked full-stack shell with SSR, hydration, route-owned Resource preload, and leak scanning.",
           "Project console: the larger golden path for actions, Resource rows, optimistic work, mocks, and diagnostics.",
-          "Docs site: the Arc app you are reading now: server functions, Resources, file-route preload, prerendering, and hydration.",
+          "Docs site: the Arc app you are reading now: served Resources, file-route preload, prerendering, and hydration.",
           "Devtools panel and extension examples: checked hosts for JSON-safe runtime summaries and inspected-window bridge contracts.",
         ],
       },

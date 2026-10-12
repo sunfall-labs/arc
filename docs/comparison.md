@@ -53,11 +53,11 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
   key: ({ id }) => id,
 });
 
-export const ProjectById = Resource.define<ProjectId, Project, ProjectError, ProjectApi>({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,
-  load: (id) => ProjectApi.use((api) => api.get(id)),
+  error: ProjectNotFound,
   provides: (project) => [ProjectTag({ id: project.id })],
 });
 
@@ -65,15 +65,24 @@ export const RenameProject = Action.define({
   name: "Project.rename",
   input: RenameProjectInput,
   output: ProjectSchema,
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
+  error: ProjectNotFound,
   invalidates: (project) => [ProjectTag({ id: project.id })],
 });
+
+// projects.server.ts: the server bodies, checked against the schemas above.
+export const projectById = Resource.implement(ProjectById, (id) =>
+  ProjectStore.use((store) => store.get(id)),
+);
+export const renameProject = Action.implement(RenameProject, (input) =>
+  ProjectStore.use((store) => store.rename(input)),
+);
 ```
 
 The difference is not just syntax. The resource owns schemas, retry policy,
-semantic tags, hydration state, status, and public lifecycle events. The action
-can expose an invalidation plan before refresh happens, so tests and devtools
-can explain what changed and why.
+semantic tags, hydration state, status, and public lifecycle events, and its
+schemas are the wire contract its server load answers. The action can expose
+an invalidation plan before refresh happens, so tests and devtools can explain
+what changed and why.
 
 ## Compared With Next And Remix
 
@@ -103,11 +112,14 @@ through one typed action definition:
 export const SubmitProjectName = Action.define({
   name: "Project.name.submit",
   input: SubmitProjectNameInput,
-  output: ProjectNameSubmissionResultSchema,
-  run: (input) => ProjectApi.use((api) => api.submitName(input)),
-  invalidates: (result, input) =>
-    result._tag === "ValidationFailure" ? [] : projectResourceInvalidations(input.id),
+  output: Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure]),
+  invalidates: (_result, input) => projectResourceInvalidations(input.id),
 });
+
+// project.server.ts
+export const submitProjectName = Action.implement(SubmitProjectName, (input) =>
+  ProjectStore.use((store) => store.submitName(input)),
+);
 
 export const projectNameActionTarget = (input: {
   readonly id: ProjectId;
@@ -115,10 +127,14 @@ export const projectNameActionTarget = (input: {
 }) => StartAction.form(SubmitProjectName, { input });
 ```
 
-With JavaScript, a component can submit through the Start action client. Without
-JavaScript, the same `Action.define` handles the form post. Validation,
-redirects, success, domain failures, invalidation, services, retries, and
-schemas stay in one path.
+With JavaScript, a component submits it through the Start action transport.
+Without JavaScript, the form posts to its own page and the same Action handles
+it: a redirect answers 303, a success redirects back to the page, and a
+validation failure renders the page again (422) with the field errors in the
+Action handle's `result()` and the posted fields in its `formValues()`, as a
+Remix route re-renders with its action data. Validation, redirects, success,
+domain failures, invalidation, services, retries, and schemas stay in one
+path.
 
 The competitive claim is narrow: Sunfall Arc should not win by merely having
 server actions or form posts. It wins only if the action contract, runtime
@@ -175,7 +191,6 @@ export const ProjectSummaries = Resource.define({
       owner: (project) => project.owner,
     },
   },
-  load: () => ProjectApi.use((api) => api.list()),
 });
 ```
 
@@ -322,8 +337,8 @@ compiler first.
 
 ```tsx
 const RenameForm = Component.define("RenameForm", function* (props: { readonly id: ProjectId }) {
-  const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
-  const rename = yield* Component.action(RenameProject); // local, or remote via ActionTransport
+  const project = yield* Component.resource(ProjectById); // E += ProjectNotFound
+  const rename = yield* Component.action(RenameProject); // served: submits via ActionTransport
   // The outcome lands in `rename.result()`, so the handler ignores failures.
   const save = yield* Component.callback("save", (name: string) =>
     rename.submit({ id: props.id, name }).pipe(Effect.ignore),
@@ -358,7 +373,8 @@ Sunfall Arc already has a few unusually useful proof points:
 - Start file routes produce a deterministic, validated route manifest and a
   typed `routeTree.gen.ts`.
 - The example app proves SSR, streamed hydration, branded route params,
-  progressive form posts, validation, redirects, indexed rows, optimistic
+  no-JS form posts (a validation failure renders the page again with its
+  errors and posted values), redirects, indexed rows, optimistic
   mutation, mocking through Effect service Layers, and server-only leak scanning.
 
 ## Where The Incumbents Still Deserve Respect

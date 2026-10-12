@@ -6,6 +6,87 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### No-JavaScript Forms Post To Their Page
+
+- `StartAction.form(action, { input })` returns `{ method, hiddenFields }`
+  without an `action`, so the `<form method="post">` posts to the page it is
+  on. Start runs a form-encoded POST to a page as the Action's submission:
+  the fields decode into its input (a schema failure is the form's
+  validation failure), a redirect answers with it, and a success answers 303
+  back to the page.
+- A validation failure renders the page again with status 422 (a failure
+  with 400), as HTML: the submitted Action's `Component.action` binding
+  starts from the outcome (`result()` holds the `ValidationFailure`), and its
+  new `formValues()` returns the posted fields so the inputs keep what was
+  typed. The root hydration payload carries the post (`postedAction`), so
+  the hydrating client renders the same form. A browser without JavaScript
+  sees its form with its errors instead of a JSON page.
+- The action endpoint (`POST /__sunfall-arc/action`) is JSON only: form
+  bodies, the `Accept`-negotiated redirect mode, and 422 validation answers
+  are gone from it.
+- The Vite dev server hands form POSTs to pages to the Start handler.
+
+### Forms Decode Into Domain Schemas
+
+- Form decoding reads the posted strings as the schema's encoded shape before
+  decoding: a `Schema.Boolean` field is a checkbox (absent is `false`), a
+  `Schema.Array` field takes none, one, or many values, an empty or absent
+  field is `null` for a `Schema.NullOr` field and left out of an optional
+  one, and a `Schema.Number` field reads its number. It applies to
+  `Form.decodeFormData`, `StartAction.decodeFormData`, and no-JavaScript form
+  posts to the action endpoint alike, so an Action's domain input schema
+  decodes its form and the form-shaped twin schema goes away.
+- `StartAction.decodeFormData(action, formData)` takes the Action (its input
+  schema) instead of a schema, so the enhanced submit decodes exactly what
+  the server decodes for the same form, defaults included.
+
+### Validation Results Are Answers, Not Transport Errors
+
+- The action endpoint answers a JSON submission whose Action returned
+  `ActionResult.validation(...)` with status 200 and the `ValidationFailure`
+  body; the action transport reads it like any 2xx answer and rejects a
+  validation body with another status as `BadStatus`. Browsers log every 4xx
+  fetch as a console error, so ordinary form validation no longer does.
+
+### Served Resources And Actions: Declared Once, Implemented On The Server
+
+Found by `examples/tracker`, where every write took four definitions (a
+`Server.contract`, its `Server.client`, its `Server.implement`, and an
+`Action` whose `run` called the client) and every read three.
+
+- `Action.define` without `run` declares a served Action: `input` (required),
+  `output` (default `Schema.Void`), and `error` are its wire contract, and
+  `optimistic`, `invalidates`, `durable`, and `policy` work as before.
+  `Action.implement(definition, run)` in a `*.server.ts` module is its server
+  body, typed against the schemas: `run` may succeed only with `output` and
+  fail only with `error`. `ActionDefinition.run` is optional; a served Action
+  submitted without a transport fails with `ActionNotFound`.
+- `Resource.define` with `input` and `output` schemas and no `load` declares
+  a served Resource. `Resource.implement(definition, load)` in a `*.server.ts`
+  module is its load: a server function over the family's schemas (Rpc tag =
+  the family name) that SSR calls in-process and the browser over RPC.
+- A served load's failures that the `error` schema does not declare
+  (`RpcClientError`, a wire `SchemaError`, `ServerFunctionNotFound`) are
+  defects, so a Resource's type says exactly what can render and no load
+  needs to strip `Server.ClientError` by hand.
+- `ActionResult.Redirect` and `ActionResult.ValidationFailure` are Schemas for
+  a served Action's `output` (a form-backed Action answers
+  `Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure])`).
+- `App.define` no longer takes `actions`: `App.launch`'s action transport
+  submits exactly the served (run-less) Actions, and an Action with `run` runs
+  where it is submitted. `createRequestHandler(app, { implementations })`
+  replaces `serverFunctions` and takes `Action.implement`, `Resource.implement`,
+  and `Server.implement` values (`StartImplementation`); the server Layer must
+  provide their services, or the call does not compile.
+- `Server.mockLayer` accepts implementations as well as `Server.mock` values,
+  so a test answers a served Resource's load with
+  `Server.mockLayer(Resource.implement(Board, () => Effect.succeed(rows)))`.
+- `Server.contract`, `Server.client`, and `Server.implement` remain for server
+  calls that are neither a load nor an Action (the tracker's change-feed poll).
+- The tracker, project console, docs site, and compare benchmark use served
+  definitions; `src/contracts.ts`, `domain.contract.ts`, `content.contract.ts`,
+  and every `domainOnly`-style helper are gone.
+
 ### Hydration Payloads Are Copied Once
 
 - Validating a Resource hydration payload checks its shape and no longer

@@ -1,10 +1,10 @@
 import { readFile, readdir } from "node:fs/promises";
-import { Server } from "@sunfall/arc-core";
+import { Resource } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import {
-  GetRecipeContract,
-  ListRecipeSummariesContract,
+  RecipeBySlug,
   RecipeCategory,
+  RecipeIndex,
   RecipeFrontmatterDecodeError,
   RecipeMarkdownParseError,
   RecipeNotFound,
@@ -15,7 +15,7 @@ import {
   type RecipeContentError,
   type RecipeSlug as RecipeSlugType,
   type RecipeSummary,
-} from "./content.contract.js";
+} from "./content.js";
 
 const cookbookContentUrl = new URL("./content/cookbook/", import.meta.url);
 
@@ -317,13 +317,9 @@ const getRecipeEffect = (slug: RecipeSlugType): Effect.Effect<Recipe, RecipeCont
     }),
   );
 
-export const listRecipeSummariesServer = Server.implement(
-  ListRecipeSummariesContract,
-  () => listRecipeSummariesEffect,
-);
+export const recipeIndex = Resource.implement(RecipeIndex, () => listRecipeSummariesEffect);
 
-export const getRecipeServer = Server.implement(GetRecipeContract, ({ slug }) =>
-  getRecipeEffect(slug),
-);
+export const recipeBySlug = Resource.implement(RecipeBySlug, getRecipeEffect);
 
-export const docsSiteServerFunctions = [listRecipeSummariesServer, getRecipeServer] as const;
+/** The served Resources' loads, for the Start handler. */
+export const implementations = [recipeIndex, recipeBySlug] as const;

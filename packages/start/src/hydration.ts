@@ -1,5 +1,6 @@
 import { type EffectInputCallbackError, Resource, Route } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, type Schema } from "effect";
+import type { StartPostedAction } from "./start-action-form-post.js";
 import {
   hydrationScriptId,
   markStartHydrationChunkElementConsumed,
@@ -104,6 +105,12 @@ export interface StartHydrationPayload extends Resource.HydrationPayload {
    * them without re-applying their optimistic patch.
    */
   readonly settledSubmissions?: ReadonlyArray<string>;
+  /**
+   * The no-JavaScript form post the server rendered the page again for (its
+   * Action answered a validation failure or a failure). `App.launch` starts
+   * the Action's bindings from it while the page hydrates.
+   */
+  readonly postedAction?: StartPostedAction;
 }
 
 /** One ordered hydration payload emitted during streamed HTML rendering. */
@@ -239,7 +246,12 @@ const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload
   (value.notFound === undefined || value.notFound === true) &&
   (value.settledSubmissions === undefined ||
     (Array.isArray(value.settledSubmissions) &&
-      value.settledSubmissions.every((id) => typeof id === "string")));
+      value.settledSubmissions.every((id) => typeof id === "string"))) &&
+  (value.postedAction === undefined ||
+    (isRecord(value.postedAction) &&
+      typeof value.postedAction.action === "string" &&
+      isRecord(value.postedAction.values) &&
+      isRecord(value.postedAction.outcome)));
 
 /** Narrow an unknown value to the current streamed hydration chunk wire format. */
 export const isStartHydrationChunk = (value: unknown): value is StartHydrationChunk =>
@@ -389,11 +401,13 @@ export const mergeStartHydrationPayloads = (
   const settledSubmissions = new Set<string>();
   let routeFailure: Route.PreloadFailureSnapshot | undefined;
   let notFound = false;
+  let postedAction: StartPostedAction | undefined;
 
   for (const payload of payloads) {
     resources.push(...payload.resources);
     routeFailure = payload.routeFailure ?? routeFailure;
     notFound ||= payload.notFound === true;
+    postedAction = payload.postedAction ?? postedAction;
     for (const id of payload.settledSubmissions ?? []) {
       settledSubmissions.add(id);
     }
@@ -404,6 +418,7 @@ export const mergeStartHydrationPayloads = (
     ...(routeFailure === undefined ? {} : { routeFailure }),
     ...(notFound ? { notFound: true } : {}),
     ...(settledSubmissions.size > 0 ? { settledSubmissions: [...settledSubmissions] } : {}),
+    ...(postedAction === undefined ? {} : { postedAction }),
   };
 };
 

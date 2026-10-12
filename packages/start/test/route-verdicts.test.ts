@@ -4,7 +4,7 @@ import { createRequestHandler, type StartHydrationPayload } from "../src/index.j
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
 import { verdictsApp, viewerServer } from "./route-verdicts-fixture.js";
 
-const handler = createRequestHandler(verdictsApp, { serverFunctions: [viewerServer] });
+const handler = createRequestHandler(verdictsApp, { implementations: [viewerServer] });
 
 const render = (url: string) =>
   Effect.runPromise(

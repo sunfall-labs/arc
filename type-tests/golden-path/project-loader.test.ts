@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { expect, test } from "vitest";
 import { ProjectLoader } from "./project-loader.js";
 import { ProjectId, type Project } from "./projects.js";
-import { ProjectApiMemory } from "./projects.memory.js";
+import { ProjectsServerMemory } from "./projects.memory.js";
 
 const atlas: Project = { id: ProjectId.make("atlas"), name: "Atlas", status: "active" };
 
@@ -16,7 +16,7 @@ test("Load starts loading and fetches the projects", () => {
   // A command is a description: run its Effect with test services to get the
   // message it emits.
   const emitted = Effect.runSync(
-    loading.commands[0]!.effect.pipe(Effect.provide(ProjectApiMemory)),
+    loading.commands[0]!.effect.pipe(Effect.provide(ProjectsServerMemory)),
   );
   expect(emitted).toMatchObject({ _tag: "Loaded", projects: [atlas, expect.anything()] });
 });

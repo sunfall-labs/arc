@@ -2,7 +2,15 @@ import { Cause, Effect, Exit, Layer, Schema, Tracer } from "effect";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import { describe, expect, it } from "vitest";
-import { ActionTransportError, RequestContext, Route, Server } from "@sunfall/arc-core";
+import {
+  ActionTransportError,
+  makeRuntime,
+  RequestContext,
+  Resource,
+  Route,
+  Server,
+} from "@sunfall/arc-core";
+import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { rpcClientLayer } from "../src/start-rpc-client.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
 import {
@@ -243,7 +251,7 @@ describe("Start action transport", () => {
             _tag: "ActionProtocolError",
             payload: { contentType: "text/plain" },
           });
-          expect(body.error.message).toContain("application/x-www-form-urlencoded");
+          expect(body.error.message).toContain("application/json");
         }),
       ),
     ));
@@ -281,7 +289,7 @@ describe("Start action transport", () => {
               method: "POST",
               headers: {
                 accept: startJsonMediaType,
-                "content-type": "application/x-www-form-urlencoded",
+                "content-type": startJsonMediaType,
               },
               body: erroringBodyStream(),
               duplex: "half",
@@ -302,7 +310,7 @@ describe("Start action transport", () => {
 
           expect(requestFailure.error).toMatchObject({
             _tag: "ActionProtocolError",
-            message: "Expected an action form body.",
+            message: "Expected a JSON action request body.",
           });
           const responseFailure = Exit.isFailure(responseExit)
             ? firstFailure(responseExit.cause)
@@ -386,5 +394,100 @@ describe("Start action transport", () => {
           });
         }),
       ),
+    ));
+});
+
+class ProjectMissing extends Schema.TaggedError<ProjectMissing>()("ProjectMissing", {
+  id: Schema.String,
+}) {}
+
+/** A served Resource: browser-safe schemas, no load. */
+const ProjectName = Resource.define({
+  name: "Start.rpc.served.ProjectName",
+  input: Schema.String,
+  output: Schema.String,
+  error: ProjectMissing,
+});
+
+const servedLoads: Array<string> = [];
+/** Its server load (what a `*.server.ts` module exports). */
+const projectName = Resource.implement(ProjectName, (id) =>
+  Effect.sync(() => servedLoads.push(id)).pipe(
+    Effect.andThen(
+      id === "atlas" ? Effect.succeed("Atlas") : Effect.fail(new ProjectMissing({ id })),
+    ),
+  ),
+);
+
+describe("served Resources", () => {
+  const servedApp = makeStartServerApp({
+    routes: [
+      Route.define("/", {
+        preloadResources: [ProjectName],
+        preload: () => Resource.preload(ProjectName("atlas")).pipe(Effect.orDie),
+      }),
+    ] as const,
+    registry: { serverFunctions: [projectName] },
+  });
+  const servedFetch: TestFetch = handlerFetch((request) =>
+    createServerRpcResponse(servedApp, request),
+  );
+  /** Runs `effect` on a browser-like runtime whose `Server.Client` is Start's RPC client. */
+  const inBrowser = <A, E>(effect: Effect.Effect<A, E>, fetch: TestFetch = servedFetch) => {
+    const runtime = makeRuntime(rpcClientLayer.pipe(Layer.provide(testHttpClientLayer(fetch))));
+    return runtime.provide(effect).pipe(Effect.ensuring(runtime.dispose.pipe(Effect.orDie)));
+  };
+
+  it("loads in-process on the server during SSR", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          servedLoads.length = 0;
+          const handler = createStartRequestHandler(servedApp, {
+            render: ({ hydrationPlan }) => `<main>${hydrationPlan.legacy.script}</main>`,
+          });
+          const response = yield* handler(new Request("https://example.com/"));
+          const payload = yield* Effect.promise(() => response.text());
+
+          expect(response.status).toBe(200);
+          expect(servedLoads).toEqual(["atlas"]);
+          expect(payload).toContain('"Atlas"');
+        }),
+      ),
+    ));
+
+  it("loads through the server over RPC with the family's schemas", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        servedLoads.length = 0;
+        const name = yield* inBrowser(Resource.preload(ProjectName("atlas")));
+
+        expect(name).toBe("Atlas");
+        expect(servedLoads).toEqual(["atlas"]);
+      }),
+    ));
+
+  it("delivers a failure the family's error schema declares as a typed failure", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(inBrowser(Resource.preload(ProjectName("nowhere"))));
+        const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+        expect(failure).toBeInstanceOf(ProjectMissing);
+        expect(failure).toMatchObject({ id: "nowhere" });
+      }),
+    ));
+
+  it("turns an RPC transport failure into a defect, never a typed failure", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const offline: TestFetch = () => Effect.fail(new TypeError("Failed to fetch"));
+        const exit = yield* Effect.exit(
+          inBrowser(Resource.preload(ProjectName("offline")), offline),
+        );
+
+        expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+        expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : "succeeded").toBeUndefined();
+      }),
     ));
 });

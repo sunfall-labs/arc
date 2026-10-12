@@ -5,6 +5,45 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Server-Function Resources And Listed Actions
+
+Server reads and writes are now declared once. A Resource with `input` and
+`output` schemas and no `load` is a served Resource, and an Action with an
+`input` schema and no `run` is a served Action: their schemas are the wire
+contract, and `Resource.implement` / `Action.implement` in a `*.server.ts`
+module are their server bodies. Start's action transport submits exactly the
+served Actions; an Action with `run` runs where it is submitted.
+
+| Before                                                                                                                                                                         | After                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a write as four definitions: `Server.contract`, `Server.client`, `Server.implement`, and `Action.define({ run: (input) => client.effect(input) })`                             | one served Action, `Action.define({ name, input, output?, error?, optimistic?, invalidates? })`, plus `Action.implement(Action, run)` in a `*.server.ts` module |
+| a read as `Server.contract` + `Server.client` + `Server.implement` + `Resource.define({ load: (input) => client.effect(input) })`                                              | one served Resource, `Resource.define({ name, input, output, error? })`, plus `Resource.implement(Resource, load)` in a `*.server.ts` module                    |
+| `run` mapping a server result to `ActionResult.redirect(...)` / `ActionResult.validation(...)` in the browser                                                                  | `output: Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure])`, and the server body returns the `ActionResult`                                 |
+| `App.define({ root, routes, actions: [RenameProject], client })`                                                                                                               | `App.define({ root, routes, client? })`: an Action without `run` is served                                                                                      |
+| `createRequestHandler(app, { server, serverFunctions: [getProject] })`                                                                                                         | `createRequestHandler(app, { server, implementations: [projectById, renameProject] })` (`StartImplementation`); `server` must provide their services            |
+| a client Layer whose service calls server functions (`ProjectApiLive = Layer.succeed(ProjectApi, { get: (id) => getProject.effect({ id }) })`)                                 | no client Layer for server data: the browser loads served Resources over RPC and submits served Actions over the action transport                               |
+| a `domainOnly(...)` helper that turned `Server.ClientError` (`RpcClientError`, `ServerFunctionNotFound`, `SchemaError`, `EffectInputCallbackError`) into defects inside `load` | nothing: a served Resource's failures outside its `error` schema are already defects                                                                            |
+| `Server.mockLayer(Server.mock(GetProjectContract, handler))` to test a Resource                                                                                                | `Server.mockLayer(Resource.implement(ProjectById, handler))`                                                                                                    |
+| `makeActionTransportLayer({ actions })`                                                                                                                                        | `actionTransportLayer` (internal, no options: `App.launch` provides it, serving the Actions defined without `run`)                                              |
+| a string-only form schema (`CreateIssueForm`) plus a function mapping it to the domain input                                                                                   | the domain input schema itself: form decoding reads checkboxes, repeated names, and empty fields as the schema's encoded shape                                  |
+| `StartAction.decodeFormData(schema, formData)`                                                                                                                                 | `StartAction.decodeFormData(action, formData)`: decodes into the Action's input, defaults included                                                              |
+
+`Server.contract` / `Server.client` / `Server.implement` remain for a server
+call that is neither a Resource load nor an Action, such as a change-feed
+poll; its `Server.implement` value goes in `implementations` too.
+
+## From No-JavaScript Posts To The Action Endpoint
+
+A form without JavaScript posts to the page it is on. Start runs the Action
+there: a redirect or success answers 303, and a validation failure or failure
+renders the page again with the outcome and the posted fields.
+
+| Before                                                                            | After                                                                                                                                                |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<form method={form.method} action={form.action}>`                                | `<form method={form.method}>`: `StartAction.form` has no `action`                                                                                    |
+| a no-JS form post to `POST /__sunfall-arc/action` (the endpoint took form bodies) | a form-encoded or multipart `POST` to the page; the action endpoint takes JSON only                                                                  |
+| a no-JS validation failure answered by a 422 JSON page                            | the page rendered again (422): `result()` holds the `ValidationFailure`, and the handle's `formValues()` the posted fields to render as input values |
+
 ## From Shared State Through Contexts
 
 A State the shell and the pages share is an app State: one instance per
@@ -68,7 +107,7 @@ schema-less wire path.
 | RPC response `{ _tag: "Success" \| "Failure" \| "ServerError" \| "Defect" }` with 400/404/500                                                                      | `effect/rpc` JSON messages, always `200` (`[{ _tag: "Exit", requestId, exit }]`)                                                 |
 | request failure kind `validation` for an RPC payload that fails its input schema                                                                                   | `protocol` (`RpcServer` rejects it before the handler runs)                                                                      |
 | `App.launch(app, { transport: { fetch, headers } })`, `StartFetch` / `StartFetchInit` / `StartFetchInput`                                                          | provide an `HttpClient` in the client Layer (`HttpClient.mapRequest(HttpClientRequest.setHeader(...))`, `FetchHttpClient.Fetch`) |
-| `makeActionTransportLayer({ fetch, headers, endpoint, transportRuntime, actions })`                                                                                | `makeActionTransportLayer({ actions })`, which requires `HttpClient`                                                             |
+| `makeActionTransportLayer({ fetch, headers, endpoint, transportRuntime, actions })`                                                                                | `App.launch`'s internal `actionTransportLayer`, which requires `HttpClient`                                                      |
 | `Server.ClientError` on Action submissions                                                                                                                         | `Action.ClientError`                                                                                                             |
 | `ServerTransportError` / `ServerRpcProtocolError` / `ServerFunctionNotFound` from the action transport                                                             | `ActionTransportError` / `ActionProtocolError` / `ActionNotFound` (body `{ _tag: "ActionNotFound", actionName }`)                |
 
@@ -237,7 +276,7 @@ services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 | `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
 | `capability.mock(service)` / `capability.provide(effect, service)`                                    | `Layer.succeed(Service, service)` / `Effect.provide(effect, Layer.succeed(Service, service))`                       |
 | `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
-| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to `/__sunfall-arc/action`)                                                       |
+| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to the page it is on)                                                             |
 | prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
 | prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
 | `StartPrerenderError` operation `"close-server"` / `"create-directory"`                               | a logged warning / `"write-page"`                                                                                   |
@@ -300,8 +339,9 @@ are removed with it.
 There is no pending-mutation queue to manage. A change that must survive
 going offline is a durable Action: give it an input schema and
 `durable: { maxAge }`, provide a `KeyValueStore` in the client Layer
-(`KeyValueStore.layerStorage(() => localStorage)`), and serve it from the Start
-app's `actions` so the server deduplicates replays. Treat `ActionQueued` from
+(`KeyValueStore.layerStorage(() => localStorage)`), and make it a served
+Action (no `run`, with its `Action.implement` in the Start server's
+`implementations`) so the server deduplicates replays. Treat `ActionQueued` from
 `submit` as "saved, waiting to sync", and render `Action.outbox` pending and
 failures for the global status.
 
@@ -504,8 +544,8 @@ only model:
   and render `reader(input)` under `<Loading>`; status UI reads
   `reader.waiting(input)` / `reader.failure(input)` instead of `result()`.
 - `useAction(Definition)` and `StartAction.use(Definition)` become
-  `yield* Component.action(Definition)`; a Start app lists the Actions the
-  server serves in `App.define({ actions })`.
+  `yield* Component.action(Definition)`; in a Start app, an Action defined
+  without `run` is served (its `Action.implement` runs on the server).
 - `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.state`,
   `Component.stream`, and `Component.callback`.
 - `useCollection` becomes `Component.resource` of a Resource with `rows`, and
@@ -524,17 +564,18 @@ TanStack Query usually spreads data behavior across query keys, query functions,
 mutation callbacks, and invalidation calls. In Sunfall Arc, move that behavior
 behind Resource families and Actions:
 
-- Query keys become `Resource.define({ name, input, load })` refs.
-- Query functions become Effect loaders, usually calling a server contract or
-  Effect service.
+- Query keys become `Resource.define({ name, input, output })` refs.
+- Query functions become server loads, `Resource.implement(Resource, load)`
+  over an Effect service; a Resource whose data never leaves the client keeps
+  a `load` of its own.
 - `invalidateQueries(...)` becomes `Resource.invalidate(...)` or an
   Action invalidation plan.
 - Mutation callbacks become `Action.define(...)` definitions with retry,
   concurrency, optimistic work, and invalidation metadata attached to the
-  definition. UI binds them with Solid's `Component.action(...)`; a Start app
-  lists served Actions in `App.define({ actions })` so they submit over the
-  network through the same handle, and `StartAction.form(...)` renders them
-  as progressive no-JS forms.
+  definition. UI binds them with Solid's `Component.action(...)`; an Action
+  defined without `run` is served (its `Action.implement` runs on the
+  server) and submits over the network through the same handle, and
+  `StartAction.form(...)` renders it as a progressive no-JS form.
 - Route loaders call `Resource.preload(...)` in `preload` and declare
   `preloadResources`; file routes export
   `route = Route.define(path, options)`, the same constructor as any route.
@@ -551,10 +592,12 @@ shape but makes route facts explicit:
 
 - File routes export `route = Route.define(path, options)`; Start generates
   the route maps and fails when the declared path differs from the file's.
-- Server functions use `Server.contract(...)`, `Server.implement(...)`, and
-  browser-safe contract imports.
-- Request handling starts at `createRequestHandler(app, { server })`; Promise
-  handlers are host convenience boundaries.
+- Server reads and writes become served Resources and Actions, implemented
+  with `Resource.implement(...)` and `Action.implement(...)` in `*.server.ts`
+  modules; other server functions use `Server.contract(...)`,
+  `Server.implement(...)`, and browser-safe contract imports.
+- Request handling starts at `createRequestHandler(app, { server,
+implementations })`; Promise handlers are host convenience boundaries.
 - Start renders the app root into its own streamed document; a route sets its
   head and headers through the handler's `document` function instead of
   hand-written HTML.
@@ -562,7 +605,7 @@ shape but makes route facts explicit:
   route that does not.
 
 When moving a route, migrate the route path, schemas, Resource preloads, and
-server contracts together. A route that compiles but hides preload ownership is
+served definitions together. A route that compiles but hides preload ownership is
 not migrated yet.
 
 ## From Remix-Style Forms
@@ -571,10 +614,13 @@ Remix-style actions commonly encode validation, redirects, and mutation side
 effects in one request function. In Sunfall Arc, split the contract from the UI
 transport:
 
-- Form input schemas live on the Action or Start action definition.
+- Form input schemas live on the Action definition, and its server body is
+  `Action.implement(...)`.
 - Validation failures return `ActionResult.validation(...)` with typed field and
-  form errors.
-- Redirects return `ActionResult.redirect(...)`.
+  form errors; a served Action declares `ActionResult.ValidationFailure` in
+  its `output`.
+- Redirects return `ActionResult.redirect(...)`, declared as
+  `ActionResult.Redirect`.
 - Browser forms use `StartAction.form(...)` for no-JS fallback and hydration
   metadata.
 - Client-side submits call the Component's action handle: `submit(input)`
@@ -596,7 +642,9 @@ Effect services and Layers instead:
 - Provide production behavior through the server Layer passed to
   `createRequestHandler(app, { server })`, the client Layer in
   `App.define({ client })`, or `makeRuntime(...)`.
-- Provide test behavior through `Server.mock(...)`, test Layers for the service, or
+- Provide test behavior through `Server.mockLayer(...)` (with `Server.mock(...)`
+  handlers or test implementations such as
+  `Resource.implement(definition, testLoad)`), test Layers for the service, or
   a runtime created for the test.
 - Keep server-only implementations in `.server.ts` modules and prove they stay
   out of browser bundles with a leak scan.

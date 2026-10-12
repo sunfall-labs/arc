@@ -163,13 +163,21 @@ documented as outside the current release bar.
   exact resource refs touched for a concrete href. Vite dev warns for every
   route whose preload has no `preloadResources` declaration.
 
-## Server Functions
+## Served Definitions And Server Functions
 
-- Shared code defines server contracts and browser-safe clients.
-- Server handler modules implement contracts and are excluded from browser
+- Shared code declares served Resources (no `load`) and served Actions (no
+  `run`), whose schemas are the wire contract, and server contracts with
+  browser-safe clients.
+- `*.server.ts` modules implement them (`Resource.implement`,
+  `Action.implement`, `Server.implement`) and are excluded from browser
   graphs.
-- Every server function is an `effect/rpc` `Rpc` with required input and
-  output schemas; there is no schema-less wire path.
+- An implementation may succeed only with its definition's `output` and fail
+  only with its `error`; the server Layer must provide its services, or
+  `createRequestHandler` does not compile.
+- A served Resource's undeclared failures (transport, wire schema, missing
+  implementation) are defects, never typed failures.
+- Every served Resource load and server function is an `effect/rpc` `Rpc`
+  with required input and output schemas; there is no schema-less wire path.
 - RPC separates typed (Schema-encoded) failures, transport errors
   (`RpcClientError`), defects, and interruption, as `effect/rpc` does.
 - Tests can replace server behavior through mocks and service Layers without
@@ -187,7 +195,11 @@ documented as outside the current release bar.
   exhaust submissions.
 - Optimistic updates commit on success and roll back on failure or interruption.
 - Progressive action results model success, validation failure, redirect, and
-  domain failure as typed data.
+  domain failure as typed data; a served Action declares the redirect and
+  validation shapes in its `output` (`ActionResult.Redirect`,
+  `ActionResult.ValidationFailure`).
+- Start's action transport submits exactly the served Actions; an Action with
+  `run` runs where it is submitted.
 - Forms derive field names and field values from schemas.
 
 ## Compile-Time Correctness

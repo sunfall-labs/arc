@@ -1,14 +1,12 @@
 import { ActionResult, type Route } from "@sunfall/arc-core";
 import { Component, useRouter } from "@sunfall/arc-solid";
 import { StartAction } from "@sunfall/arc-start";
-import { Cause, Effect, Schema } from "effect";
+import { Cause, Effect } from "effect";
 import { For, Show } from "solid-js";
 import { SignIn } from "../actions.js";
 import { describeError } from "../model.js";
 import { safeRedirect } from "../session.js";
 import type { route } from "./signin.js";
-
-const SignInFields = Schema.Struct({ name: Schema.String, email: Schema.String });
 
 /**
  * Sign in with a name and an email; there is no password. The form posts the
@@ -20,8 +18,8 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
   const signIn = yield* Component.action(SignIn);
   const next = () => safeRedirect(props.search.next);
   const submit = yield* Component.callback("submit", (form: HTMLFormElement) =>
-    StartAction.decodeFormData(SignInFields, new FormData(form)).pipe(
-      Effect.flatMap((fields) => signIn.submit({ ...fields, redirectTo: next() })),
+    StartAction.decodeFormData(SignIn, new FormData(form)).pipe(
+      Effect.flatMap((input) => signIn.submit(input)),
       Effect.flatMap((result) =>
         Effect.sync(() => {
           if (ActionResult.isRedirect(result)) {
@@ -33,6 +31,11 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
     ),
   );
   const form = () => StartAction.form(SignIn, { input: { redirectTo: next() } });
+  // A form post without JavaScript that failed comes back with what it sent.
+  const posted = (field: "name" | "email"): string => {
+    const value = signIn.formValues()?.[field];
+    return typeof value === "string" ? value : "";
+  };
   const fieldError = (field: "name" | "email") => {
     const result = signIn.result();
     const value = result._tag === "Success" ? result.value : undefined;
@@ -49,7 +52,6 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
         <p class="muted">No password: tell us who you are. New emails get a new account.</p>
         <form
           method={form().method}
-          action={form().action}
           onSubmit={(event) => {
             event.preventDefault();
             submit(event.currentTarget);
@@ -66,6 +68,7 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
               required
               minlength={2}
               placeholder="Ada Lovelace"
+              value={posted("name")}
               aria-invalid={fieldError("name") === undefined ? "false" : "true"}
             />
             <Show when={fieldError("name")}>
@@ -80,6 +83,7 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
               autocomplete="email"
               required
               placeholder="ada@example.com"
+              value={posted("email")}
               aria-invalid={fieldError("email") === undefined ? "false" : "true"}
             />
             <Show when={fieldError("email")}>

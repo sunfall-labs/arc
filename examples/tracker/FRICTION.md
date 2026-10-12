@@ -145,6 +145,87 @@ wrapping tagged errors had no message.
 - Fix: `StartDevServerError` and `StartRequestHandlerError` describe the
   operation and the wrapped failure.
 
+### 13. Every server write needed four definitions
+
+A write was a `Server.contract`, its `Server.client`, its `Server.implement`,
+and an `Action` whose `run` called the client; a read was a contract, a
+client, an implementation, and a Resource whose `load` called the client.
+
+- Fix: served definitions. `Action.define` without `run` and `Resource.define`
+  without `load` are declared once in shared code (their schemas are the wire
+  contract); `Action.implement` and `Resource.implement` in `src/api.server.ts`
+  are their bodies, given to `createRequestHandler(app, { implementations })`.
+  The browser's action transport submits exactly the served Actions, served
+  loads go over RPC (in-process during SSR), and `App.define` lost its
+  `actions` list (`packages/core/src/action.ts`, `packages/core/src/resource.ts`,
+  `packages/start/src/start-app-request-handler.ts`,
+  `packages/start/src/start-action-transport.ts`). `src/contracts.ts` is gone;
+  only the board's change-feed poll keeps a `Server.contract`.
+- Tests: `packages/start/test/start-app.test.ts`, `packages/start/test/rpc.test.ts`,
+  `packages/core/test/action.test.ts`, `type-tests/framework.test-d.ts`; app:
+  `src/domain.test.ts`.
+
+### 14. Declaring a Resource `error` schema meant wrapping every load
+
+A server-function call also fails with `Server.ClientError`, so every load
+went through `domainOnly` to turn transport failures into defects.
+
+- Fix: a served Resource's load treats every failure its `error` schema does
+  not declare (transport, wire schema, a missing implementation) as a defect
+  (`servedLoad` in `packages/core/src/resource.ts`). `domainOnly` is gone.
+
+### 15. No-JS validation errors were a JSON page
+
+A no-JS form post whose Action returned `ActionResult.validation(...)` was
+answered with 422 JSON, so the browser showed raw JSON instead of the form.
+
+- Fix: a no-JS form posts to its own page (`StartAction.form` has no
+  `action`). Start runs the Action there; a validation failure renders the
+  page again (422, HTML) with the Action's binding seeded from the outcome
+  and the posted fields (`Component.action(...).formValues()`), and the root
+  hydration payload carries the post so the hydrating client matches
+  (`packages/start/src/start-action-form-post.ts`,
+  `packages/core/src/action-posted.ts`, `packages/solid/src/component.ts`).
+  The new-issue and sign-in forms render `formValues()` back into their
+  fields. The action endpoint is JSON only.
+- Tests: `packages/start/test/start-app.test.ts` ("no-JavaScript form posts
+  to a page"); app: `src/server.test.ts` ("renders the form again with its
+  errors and values"), `scripts/production-smoke.mjs` (invalid and valid
+  form posts against the production server); the browser check posts an
+  invalid form with JavaScript off.
+
+### 16. Validation failures logged console errors
+
+The JSON action client received 422 for a validation result, and browsers log
+every 4xx fetch as a console error, so ordinary form validation polluted the
+console (the browser check filtered it).
+
+- Fix: a validation result is an answer, not a transport error. The action
+  endpoint answers JSON clients `ValidationFailure` with 200 (the body carries
+  the tag), and the client reads it as a 2xx answer
+  (`packages/start/src/start-action-response-codec.ts`). The browser check
+  no longer filters 422s.
+- Test: `packages/start/test/start.test.ts` ("reads Start action validation
+  bodies as 2xx answers").
+
+### 17. Forms needed a form-shaped Action input
+
+Checkbox groups post nothing, one value, or several; a select posts `""` for
+"none". The tracker declared a string-only `CreateIssueForm` and normalized it
+in the Action (`createIssueInputOf`).
+
+- Fix: form decoding reads posted strings as the schema's encoded shape
+  (`formValuesForSchema` in `packages/core/src/form.ts`): `Schema.Array`
+  fields take none, one, or many values, `Schema.Boolean` fields are
+  checkboxes, empty fields are `null` for `Schema.NullOr` and absent for
+  optional fields, `Schema.Number` fields read numbers. It runs for
+  `Form.decodeFormData`, `StartAction.decodeFormData(action, formData)` (which
+  now takes the Action), and no-JS posts to the action endpoint. `CreateIssue`
+  takes the domain `CreateIssueInput`; the form posts `assigneeId` and
+  `labelIds`, and `CreateIssueForm` and `createIssueInputOf` are gone.
+- Tests: `packages/start/test/start.test.ts` ("reads a posted form as the
+  domain input"); app: `src/actions.test.ts`.
+
 ### 20. No production SSR server
 
 Start's Vite plugin served the handler in dev and prerendered static sites,
@@ -164,62 +245,6 @@ ran in dev only.
   and runs `scripts/production-smoke.mjs` against the production server.
 
 ## Open
-
-### 13. Every server write needs four definitions
-
-A write is a `Server.contract`, its `Server.client`, its `Server.implement`,
-and an `Action` whose `run` calls the client (`src/contracts.ts`,
-`src/api.server.ts`, `src/actions.ts`). Served Actions only ever run `run` on
-the server, but `run` must stay browser-safe, so it hops through a server
-function even in-process.
-
-- Proposal: `Action.implement(definition, run)` in a `*.server.ts` module, like
-  `Server.implement`, so a served Action's server body is registered directly
-  and the shared definition carries only schemas, `optimistic`, and
-  `invalidates`.
-
-### 14. Declaring a Resource `error` schema means wrapping every load
-
-A Resource's `error` must cover what `load` fails with, but a server-function
-call also fails with `Server.ClientError` (transport). Every load goes through
-`domainOnly` (`src/resources.ts`) to turn transport failures into defects.
-
-- Proposal: Resource loads treat `Server.ClientError` as outside the declared
-  check (transport failures render as untyped failures, never as typed ones),
-  or `Server.client(...).effect` offers a variant without transport errors.
-
-### 15. No-JS validation errors are a JSON page
-
-A no-JS form post whose Action returns `ActionResult.validation(...)` answers
-422 JSON (`packages/start/src/start-action-response-codec.ts`). The browser
-shows raw JSON instead of the form with its errors. Redirect-mode success
-works; validation does not.
-
-- Proposal: in redirect mode, a `ValidationFailure` answers 303 back to the
-  referring page with the result in a short-lived, HttpOnly flash cookie that
-  the next document request hydrates into the Action's state, so
-  `Component.action(...).result()` shows it on both paths.
-
-### 16. Validation failures log console errors
-
-The JSON action client receives 422 for a validation result; browsers log
-every 4xx fetch as a console error, so ordinary form validation pollutes the
-console (`browser check` filters it).
-
-- Proposal: answer validation results 200 with `_tag: "ValidationFailure"` for
-  JSON clients (the body already carries the tag) and keep 422 for no-JS
-  posts.
-
-### 17. Forms need a form-shaped Action input
-
-Checkbox groups post nothing, one value, or several; a select posts `""` for
-"none". The Action's input schema doubles as the form decoder, so the tracker
-declares a string-only `CreateIssueForm` and normalizes it in `run`
-(`createIssueInputOf` in `src/actions.ts`).
-
-- Proposal: Start form decoding offers field coercions (`Form.many(schema)` for
-  absent/one/many, `Form.optional` for `""`) so a domain schema can decode a
-  posted form.
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
 

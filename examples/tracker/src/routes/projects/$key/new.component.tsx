@@ -3,7 +3,7 @@ import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect } from "effect";
 import { For, Show } from "solid-js";
-import { CreateIssue, CreateIssueForm } from "../../../actions.js";
+import { CreateIssue } from "../../../actions.js";
 import {
   describeError,
   issuePriorities,
@@ -30,7 +30,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
   const key = () => props.params.key;
 
   const submit = yield* Component.callback("submit", (form: HTMLFormElement) =>
-    StartAction.decodeFormData(CreateIssueForm, new FormData(form)).pipe(
+    StartAction.decodeFormData(CreateIssue, new FormData(form)).pipe(
       Effect.flatMap((input) => create.submit(input)),
       Effect.flatMap((result) =>
         Effect.sync(() => {
@@ -43,6 +43,20 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
     ),
   );
   const form = () => StartAction.form(CreateIssue, { input: { projectKey: key() } });
+  // What a form post without JavaScript sent, when the server renders the
+  // page again with its errors; the fields keep it.
+  const posted = (field: string): string | undefined => {
+    const value = create.formValues()?.[field];
+    return typeof value === "string" ? value : undefined;
+  };
+  const postedLabel = (id: string): boolean => {
+    const value = create.formValues()?.["labelIds"];
+    return value === undefined
+      ? false
+      : typeof value === "string"
+        ? value === id
+        : value.includes(id);
+  };
   const fieldError = (field: string) => {
     const result = create.result();
     const value = result._tag === "Success" ? result.value : undefined;
@@ -66,7 +80,6 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
       <form
         class="issueForm"
         method={form().method}
-        action={form().action}
         onSubmit={(event) => {
           event.preventDefault();
           submit(event.currentTarget);
@@ -82,6 +95,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
             required
             autofocus
             placeholder="What needs doing?"
+            value={posted("title") ?? ""}
             aria-invalid={fieldError("title") === undefined ? "false" : "true"}
             aria-describedby="title-error"
           />
@@ -99,12 +113,14 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
             name="description"
             rows={8}
             placeholder="Markdown works: **bold**, `code`, lists, and links."
-          />
+          >
+            {posted("description") ?? ""}
+          </textarea>
         </label>
         <div class="fieldRow">
           <label class="field">
             <span>Status</span>
-            <select name="status" value={props.search.status ?? "todo"}>
+            <select name="status" value={posted("status") ?? props.search.status ?? "todo"}>
               <For each={issueStatuses}>
                 {(status) => <option value={status}>{statusLabel(status)}</option>}
               </For>
@@ -112,7 +128,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
           </label>
           <label class="field">
             <span>Priority</span>
-            <select name="priority" value="medium">
+            <select name="priority" value={posted("priority") ?? "medium"}>
               <For each={issuePriorities}>
                 {(priority) => <option value={priority}>{priorityLabel(priority)}</option>}
               </For>
@@ -120,7 +136,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
           </label>
           <label class="field">
             <span>Assignee</span>
-            <select name="assignee" value={user("current")?.id ?? ""}>
+            <select name="assigneeId" value={posted("assigneeId") ?? user("current")?.id ?? ""}>
               <option value="">Unassigned</option>
               <For each={team("all")}>
                 {(member) => <option value={member.id}>{member.name}</option>}
@@ -133,7 +149,12 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
           <For each={labels(key())}>
             {(label) => (
               <label class="labelOption" style={{ "--label": label.color }}>
-                <input type="checkbox" name="labels" value={label.id} />
+                <input
+                  type="checkbox"
+                  name="labelIds"
+                  value={label.id}
+                  checked={postedLabel(label.id)}
+                />
                 {label.name}
               </label>
             )}

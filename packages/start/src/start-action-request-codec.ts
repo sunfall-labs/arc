@@ -1,6 +1,10 @@
 import { ActionProtocolError, Form, type Action, type Server } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
-import { hasContentType, serverActionPath, startJsonMediaType } from "./rpc.js";
+import {
+  hasContentType,
+  startFormUrlEncodedMediaType,
+  startMultipartFormDataMediaType,
+} from "./rpc.js";
 import {
   actionDefinitionRegistry,
   decodeFormValuesEffect,
@@ -51,12 +55,14 @@ export interface StartActionFormField {
 /**
  * Minimal HTML form description for progressive enhancement.
  *
- * Render `hiddenFields` into a POST form to submit through the action transport
- * without client JavaScript.
+ * Render `hiddenFields` into a `<form method="post">` without an `action`:
+ * the browser posts it to the page it is on, where Start runs the Action
+ * without client JavaScript. A redirect or success answers 303; a
+ * validation failure or failure renders the same page again with the
+ * Action's outcome and the posted fields.
  */
 export interface StartActionForm {
   readonly method: "post";
-  readonly action: string;
   readonly hiddenFields: readonly StartActionFormField[];
 }
 
@@ -118,29 +124,31 @@ const startActionFormDefaults = (formData: FormData): Record<string, unknown> =>
 };
 
 /**
- * Decodes a Start action form's `FormData` the way the server decodes the same
- * form when it posts without JavaScript: the visible fields merged over the
- * encoded default input (`StartAction.form(action, { input })`), with the
- * hidden action-name field left out.
+ * Decodes a Start action form's `FormData` into the Action's input the way the
+ * server decodes the same form when it posts without JavaScript: the visible
+ * fields merged over the encoded default input (`StartAction.form(action, {
+ * input })`), read as the input schema's encoded shape (checkboxes, repeated
+ * names, empty fields; see `Form.decodeFormData`), then decoded by it.
  *
- * So the enhanced submit and the no-JS post decode one form to one value:
- * defaults such as an `id` or `redirectTo` reach the schema either way.
+ * So the enhanced submit and the no-JS post decode one form to one value.
  */
-export const decodeStartActionFormData = <S extends Schema.Top>(
-  schema: S,
+export const decodeStartActionFormData = <I, A, E, R>(
+  definition: Action.Definition<I, A, E, R>,
   formData: FormData,
   options: Form.DataOptions = {},
-): Effect.Effect<
-  Form.SchemaValues<S>,
-  Form.ValidationError<Form.SchemaValues<S>, Schema.SchemaError>,
-  Form.SchemaServices<S>
-> =>
-  Effect.suspend(() =>
-    decodeFormValuesEffect(schema, {
+): Effect.Effect<I, Form.ValidationError<Record<string, unknown>, Schema.SchemaError>> =>
+  Effect.suspend(() => {
+    const values = {
       ...startActionFormDefaults(formData),
       ...Form.data(formData, startActionFormDataDecodeOptions(options)),
-    }),
-  );
+    };
+    return Schema.isSchema(definition.input)
+      ? (decodeFormValuesEffect(definition.input as Schema.Top, values) as unknown as Effect.Effect<
+          I,
+          Form.ValidationError<Record<string, unknown>, Schema.SchemaError>
+        >)
+      : Effect.succeed(values as I);
+  });
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{
@@ -253,7 +261,6 @@ export const startActionForm = <I, A, E, R>(
   options: StartActionFormOptions<I> = {},
 ): StartActionForm => ({
   method: "post",
-  action: serverActionPath,
   hiddenFields: [
     {
       name: startActionNameField,
@@ -289,34 +296,30 @@ const readActionJsonEffect = (
           ),
   );
 
-const formValue = (value: FormDataEntryValue): unknown =>
-  typeof value === "string" ? value : value.name;
-
-const formDataToObject = (formData: FormData): Record<string, unknown> => {
-  const input: Record<string, unknown> = {};
-
-  formData.forEach((value, key) => {
-    if (key === startActionNameField || key === startActionInputField) {
-      return;
-    }
-
-    const next = formValue(value);
-    const existing = input[key];
-    if (existing === undefined) {
-      input[key] = next;
-    } else if (Array.isArray(existing)) {
-      existing.push(next);
-    } else {
-      input[key] = [existing, next];
-    }
-  });
-
-  return input;
-};
-
-const readActionFormEffect = (
+/** Reads one JSON Start action request: `{ name, input, id? }`. */
+export const readStartActionRequest = (
   request: Request,
-): Effect.Effect<StartActionRequest, ActionProtocolError> =>
+): Effect.Effect<StartActionRequest, ActionProtocolError> => readActionJsonEffect(request);
+
+/** A no-JavaScript form post of a Start action, as read from its body. */
+export interface StartActionFormPost {
+  /** The posted Action's name (`startActionNameField`). */
+  readonly name: string;
+  /** The visible fields as posted: strings, a repeated name as an array, a file by its name. */
+  readonly values: Readonly<Record<string, string | ReadonlyArray<string>>>;
+  /** The encoded default input (`startActionInputField`), or `{}`. */
+  readonly defaults: Readonly<Record<string, unknown>>;
+}
+
+/** True when a request is a form post to a page (a no-JavaScript Action submission). */
+export const isStartActionFormPost = (request: Request): boolean =>
+  request.method === "POST" &&
+  hasContentType(request.headers, [startFormUrlEncodedMediaType, startMultipartFormDataMediaType]);
+
+/** Reads a no-JavaScript Action form post: the Action's name, its fields, and its defaults. */
+export const readStartActionFormPost = (
+  request: Request,
+): Effect.Effect<StartActionFormPost, ActionProtocolError> =>
   Effect.gen(function* () {
     const formData = yield* Effect.tryPromise({
       try: () => request.formData(),
@@ -328,49 +331,34 @@ const readActionFormEffect = (
         message: `Missing ${startActionNameField} form field.`,
       });
     }
-
-    const fieldInput = formDataToObject(formData);
-    const encodedInput = formData.get(startActionInputField);
-    if (typeof encodedInput !== "string" || encodedInput.length === 0) {
-      return {
-        name,
-        input: fieldInput,
-      };
-    }
-
-    const baseInput = yield* Effect.try({
-      try: () => JSON.parse(encodedInput) as unknown,
-      catch: (cause) =>
-        new ActionProtocolError({
-          message: `Could not parse ${startActionInputField} as JSON.`,
-          payload: serializeDefect(cause),
-        }),
-    });
-
     return {
       name,
-      input: isRecord(baseInput)
-        ? {
-            ...baseInput,
-            ...fieldInput,
-          }
-        : baseInput,
+      values: Form.data(formData, startActionFormDataDecodeOptions({ file: "name" })) as Record<
+        string,
+        string | ReadonlyArray<string>
+      >,
+      defaults: startActionFormDefaults(formData),
     };
   });
 
 /**
- * Reads one Start action request from JSON or progressive form data.
- *
- * JSON bodies must contain `{ name, input }`; form bodies use
- * `startActionNameField`, optional `startActionInputField`, and remaining
- * fields as user input.
+ * Decodes a no-JavaScript form post into the Action's input: its fields
+ * merged over its defaults, read as the input schema's encoded shape, then
+ * decoded. A schema failure is the form's validation failure.
  */
-export const readStartActionRequest = (
-  request: Request,
-): Effect.Effect<StartActionRequest, ActionProtocolError> =>
-  hasContentType(request.headers, [startJsonMediaType])
-    ? readActionJsonEffect(request)
-    : readActionFormEffect(request);
+export const decodeStartActionFormPost = <I, A, E, R>(
+  definition: Action.Definition<I, A, E, R>,
+  post: StartActionFormPost,
+): Effect.Effect<I, Form.ValidationError<Record<string, unknown>, Schema.SchemaError>> =>
+  Schema.isSchema(definition.input)
+    ? (decodeFormValuesEffect(definition.input as Schema.Top, {
+        ...post.defaults,
+        ...post.values,
+      }) as unknown as Effect.Effect<
+        I,
+        Form.ValidationError<Record<string, unknown>, Schema.SchemaError>
+      >)
+    : Effect.succeed({ ...post.defaults, ...post.values } as I);
 
 /** Error raised when multiple Start actions use the same public action name. */
 export class StartActionDuplicateName extends Data.TaggedError("StartActionDuplicateName")<{

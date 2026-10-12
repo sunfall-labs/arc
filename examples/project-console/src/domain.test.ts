@@ -1,9 +1,10 @@
 import {
+  ActionResult,
   ResourceFailure,
   Route,
   RoutePreloadError,
   provideRequest,
-  Server,
+  type Action,
 } from "@sunfall/arc-core";
 import { Cause, Effect } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -12,24 +13,31 @@ import {
   InvalidProjectName,
   ProjectNotFound,
   formatProjectError,
-  getProject,
-  listProjectWorkItems,
-  listProjects,
   makeProjectId,
   makeProjectReturnTo,
   makeWorkItemId,
   normalizeProjectError,
-  submitProjectName,
-  updateWorkItemStatus,
+  type Project,
 } from "./domain.js";
-import { ProjectDemoStoreLive } from "./domain.server.js";
+import {
+  ProjectDemoStoreLive,
+  getProject,
+  listProjectWorkItems,
+  listProjects,
+  moveWorkItem,
+  submitProjectName,
+} from "./domain.server.js";
 import { route as ProjectRoute } from "./routes/projects/$id.js";
 
-const withLocalServer = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  Effect.provideService(effect, Server.Client, Server.localClient());
+/** Runs a served Action's server implementation in-process. */
+const run = <I, A, E, R>(action: Action.Definition<I, A, E, R>, input: I) =>
+  Effect.suspend(() => action.run!(input) as Effect.Effect<A, E, R>);
 
 const provideProjectDemoStore = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.provide(effect, ProjectDemoStoreLive);
+
+const renamed = (result: unknown): Project | undefined =>
+  ActionResult.is(result) ? undefined : (result as Project);
 
 describe("project console domain", () => {
   it("brands route-safe project ids", () => {
@@ -93,18 +101,18 @@ describe("project console domain", () => {
     expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');
   });
 
-  it("loads projects through server functions", () =>
+  it("loads projects through the served Resource's implementation", () =>
     Effect.runPromise(
       provideProjectDemoStore(
         Effect.gen(function* () {
-          const projects = yield* withLocalServer(listProjects.effect("all"));
+          const projects = yield* listProjects.local("all");
 
           expect(projects.length).toBeGreaterThan(0);
         }),
       ),
     ));
 
-  it("loads and updates work items through server functions", () =>
+  it("loads and moves work items through the server implementations", () =>
     Effect.runPromise(
       provideProjectDemoStore(
         provideRequest(
@@ -115,13 +123,11 @@ describe("project console domain", () => {
           }),
         )(
           Effect.gen(function* () {
-            const workItems = yield* withLocalServer(listProjectWorkItems.effect("all"));
-            const updated = yield* withLocalServer(
-              updateWorkItemStatus.effect({
-                id: makeWorkItemId("atlas-retry"),
-                status: "done",
-              }),
-            );
+            const workItems = yield* listProjectWorkItems.local("all");
+            const updated = yield* run(moveWorkItem, {
+              id: makeWorkItemId("atlas-retry"),
+              status: "done",
+            });
 
             expect(workItems.map((item) => item.id)).toContain(makeWorkItemId("atlas-retry"));
             expect(updated).toMatchObject({
@@ -138,13 +144,27 @@ describe("project console domain", () => {
     Effect.runPromise(
       provideProjectDemoStore(
         Effect.gen(function* () {
-          const submitted = yield* withLocalServer(
-            submitProjectName.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
-          );
-          const loaded = yield* withLocalServer(getProject.effect({ id: makeProjectId("atlas") }));
+          const submitted = yield* run(submitProjectName, {
+            id: makeProjectId("atlas"),
+            name: "Atlas Revenue",
+          });
+          const loaded = yield* getProject.local(makeProjectId("atlas"));
 
-          expect(submitted._tag === "Success" && submitted.value.name).toBe("Atlas Revenue");
+          expect(renamed(submitted)?.name).toBe("Atlas Revenue");
           expect(loaded.name).toBe("Atlas Revenue");
+        }),
+      ),
+    ));
+
+  it("fails a rename of a missing project with its typed error", () =>
+    Effect.runPromise(
+      provideProjectDemoStore(
+        Effect.gen(function* () {
+          const failure = yield* Effect.flip(
+            run(submitProjectName, { id: makeProjectId("missing"), name: "Missing Project" }),
+          );
+
+          expect(failure).toMatchObject({ _tag: "ProjectNotFound", id: "missing" });
         }),
       ),
     ));
@@ -160,16 +180,14 @@ describe("project console domain", () => {
               },
             }),
           )(
-            withLocalServer(
-              submitProjectName.effect({
-                id: makeProjectId("meridian"),
-                name: "Meridian Insights",
-              }),
-            ),
+            run(submitProjectName, {
+              id: makeProjectId("meridian"),
+              name: "Meridian Insights",
+            }),
           ),
         );
 
-        expect(submitted._tag === "Success" && submitted.value.updatedAt).toBe("request scoped");
+        expect(renamed(submitted)?.updatedAt).toBe("request scoped");
       }),
     ));
 
@@ -177,14 +195,15 @@ describe("project console domain", () => {
     Effect.runPromise(
       provideProjectDemoStore(
         Effect.gen(function* () {
-          const result = yield* withLocalServer(
-            submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" }),
-          );
+          const result = yield* run(submitProjectName, {
+            id: makeProjectId("atlas"),
+            name: "At",
+          });
 
-          expect(result._tag).toBe("ValidationFailure");
-          if (result._tag === "ValidationFailure") {
-            expect(result.fieldErrors.name?.[0]).toContain("three meaningful characters");
-          }
+          expect(ActionResult.is(result) && ActionResult.isValidationFailure(result)).toBe(true);
+          expect(result).toMatchObject({
+            fieldErrors: { name: [expect.stringContaining("three meaningful characters")] },
+          });
         }),
       ),
     ));
@@ -193,14 +212,12 @@ describe("project console domain", () => {
     Effect.runPromise(
       provideProjectDemoStore(
         Effect.gen(function* () {
-          const result = yield* withLocalServer(
-            submitProjectName.effect({
-              id: makeProjectId("kepler"),
-              name: "Kepler Discovery",
-              redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity"),
-            }),
-          );
-          const loaded = yield* withLocalServer(getProject.effect({ id: makeProjectId("kepler") }));
+          const result = yield* run(submitProjectName, {
+            id: makeProjectId("kepler"),
+            name: "Kepler Discovery",
+            redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity"),
+          });
+          const loaded = yield* getProject.local(makeProjectId("kepler"));
 
           expect(result).toMatchObject({
             _tag: "Redirect",

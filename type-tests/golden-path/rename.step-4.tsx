@@ -2,19 +2,18 @@ import { Action } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Cause, Effect, Schema } from "effect";
 import { Show } from "solid-js";
-import { Project, ProjectApi, ProjectId, ProjectTag, ProjectsTag } from "./projects.js";
+import { Project, ProjectId, ProjectNotFound, ProjectTag, ProjectsTag } from "./projects.js";
 
+// No `run`: the server runs it (`rename.server.ts`). Its schemas are the wire
+// contract, so the typed failure arrives typed in the browser.
 export const RenameProject = Action.define({
   name: "Projects.rename",
   input: Schema.Struct({ id: ProjectId, name: Schema.String }),
   output: Project,
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
+  error: ProjectNotFound,
   // After a success, every Resource that provides these tags reloads.
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
-
-/** Actions the server serves; the client submits them over the network. */
-export const servedActions = [RenameProject] as const;
 
 export const RenameForm = Component.define(
   "RenameForm",

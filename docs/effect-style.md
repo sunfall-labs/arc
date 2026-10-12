@@ -20,19 +20,20 @@ edge.
 - Retry, cancellation, scheduling, and cleanup should delegate to Effect primitives such as `Schedule`, fiber interruption, and scopes.
 - Resource lifetime work, including GC, should use `Effect.sleep` and fibers rather than host timers.
 - Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and compatibility host adapters.
-- `createRequestHandler(app, { server })` is the server-side dependency provider for SSR/request work, and the app's `client` Layer is the browser's (`App.define({ client })`). Prefer Effect `Layer`s there; each must provide everything the app's root needs.
+- `createRequestHandler(app, { server, implementations })` is the server-side dependency provider for SSR/request work, and the app's `client` Layer is the browser's (`App.define({ client })`). Prefer Effect `Layer`s there; the server Layer must provide everything the root and the implementations need, the client Layer everything the root needs in the browser.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
-- Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Effect services, schemas, retries, or invalidation.
+- Start action requests run served Actions' `Action.implement` bodies through the Request Runtime; do not create separate mutation handlers that bypass Effect services, schemas, retries, or invalidation.
 - Run application work through `SunfallArcRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
 - Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `state`, `stream`, `callback`, `router`, and `LiveQuery.bind` from `@sunfall/arc-solid/live-query`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
-- Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values (each an `effect/rpc` `Rpc`, with required `input` and `output` schemas) and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
-- Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
-- Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
-- Prefer named Effect services (`Context.Service`) for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are Layers behind that service.
+- Server reads and writes are served definitions. Shared code declares a Resource without `load` (`input` and `output` schemas) or an Action without `run` (an `input` schema); `.server.ts` modules implement them with `Resource.implement(definition, load)` and `Action.implement(definition, run)` and are never imported by the browser graph.
+- A server call that is neither a Resource load nor an Action is a server function: shared code defines a `Server.contract` (an `effect/rpc` `Rpc`, with required `input` and `output` schemas) and exports `Server.client(contract)`; a `.server.ts` module calls `Server.implement(contract, handler)`.
+- Prefer `Schema.TaggedError` for the `error` schemas of served definitions and server functions because it is a yieldable Effect error and a wire schema at the same time.
+- Mock the wire with `Server.mockLayer(...)`, given `Server.mock(...)` handlers or test implementations (`Resource.implement(definition, testLoad)`); do not import `.server.ts` just to test shared resources and actions.
+- Prefer named Effect services (`Context.Service`) for app features. Server implementations should usually depend on `ProjectStore.use(...)`, which the server Layer provides; test doubles are Layers behind the same service.
 - Configure browser transport concerns (auth headers, retries, a custom fetch) on the `HttpClient` the client Layer provides; Start's `RpcClient` and action transport both post through it.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
@@ -121,11 +122,10 @@ const UserById = Resource.define({
 });
 ```
 
-Use this for route preloads and server-function-backed resources when the
-transport or service Layer can answer a batch. Start's server-function
-transport sends one `effect/rpc` request per HTTP POST; keep server contracts
-as the service boundary and put the batched resolver behind the resource or
-service implementation.
+Use this for route preloads and Resources whose service Layer can answer a
+batch. Start's RPC transport sends one `effect/rpc` request per HTTP POST, so
+for a served Resource put the batched resolver behind its server
+implementation's service.
 
 Resources can also publish typed tags into the dependency graph:
 
@@ -138,7 +138,7 @@ const UserTag = Resource.tag<{ readonly id: UserId }>("User", {
 const UserById = Resource.define({
   name: "User.byId",
   input: UserId,
-  load: (id: UserId) => getUser.effect({ id }),
+  output: User,
   provides: (user) => [UserTag({ id: user.id })],
 });
 ```
@@ -148,7 +148,8 @@ Actions invalidate those facts after a successful mutation:
 ```ts
 const RenameUser = Action.define({
   name: "User.rename",
-  run: (input: RenameUserInput) => renameUser.effect(input),
+  input: RenameUserInput,
+  output: User,
   invalidates: (user) => [UsersTag, UserTag({ id: user.id })],
 });
 ```
@@ -199,7 +200,8 @@ the prior settled result. Do not mirror `AsyncResult` into ad hoc flags; read
 const UserById = Resource.define({
   name: "User.byId",
   input: UserId,
-  load: (id: UserId) => getUser.effect({ id }),
+  output: User,
+  error: UserUnavailable,
   policy: {
     retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
   },
@@ -226,8 +228,9 @@ const SaveUser = Action.define({
   run: (input: UserInput) => saveUser(input),
 });
 
-// UI binds it in a Component setup; the handle submits locally, or through a
-// runtime-provided ActionTransport when the server serves it.
+// UI binds it in a Component setup. This Action has a `run`, so it runs where
+// it is submitted; a served Action (no `run`) submits through the runtime's
+// ActionTransport with the same handle.
 const save = yield* Component.action(SaveUser);
 
 yield* save.submit(input);
@@ -249,7 +252,7 @@ const form = StartAction.form(SubmitProjectName, {
 ```
 
 ```tsx
-<form method={form.method} action={form.action}>
+<form method={form.method}>
   <For each={form.hiddenFields}>
     {(field) => <input type="hidden" name={field.name} value={field.value} />}
   </For>
@@ -257,19 +260,21 @@ const form = StartAction.form(SubmitProjectName, {
 </form>
 ```
 
-The server receives a Start Action Request, decodes it with the action input
-schema, and maps `ActionResult.redirect` / `ActionResult.validation` to HTTP
-without throwing untyped control flow.
+Without JavaScript the form posts to the page it is on. Start decodes the
+fields with the action input schema and runs the Action: `ActionResult.redirect`
+answers with the redirect, a success with a 303 back to the page, and
+`ActionResult.validation` (or a decode failure) renders the page again (422)
+with the Action's `result()` and the posted fields in its handle's
+`formValues()`, without throwing untyped control flow.
 
-With JavaScript, the same Action submits through its Component binding. The
-runtime decides where it runs: listing it in the app's `actions` makes
-`App.launch` provide Core's `ActionTransport` for it, so the Actions the server
-serves go over the network and their responses update client Resources without
-a second fetch:
+With JavaScript, the same Action submits through its Component binding. A
+served Action (defined without `run`) runs on the server: `App.launch`
+provides Core's `ActionTransport`, which submits every served Action over the
+network, and their responses update client Resources without a second fetch:
 
 <!-- prettier-ignore -->
 ```ts
-export const app = App.define({ root: Root, routes, actions: [RenameUser], client: UserApiLive });
+export const app = App.define({ root: Root, routes });
 Effect.runFork(App.launch(app));
 
 // In a Component setup: the same handle, local or remote.
@@ -279,7 +284,7 @@ yield* rename.submit(input);
 
 Start action responses include a serializable invalidation plan and a hydration
 payload for refreshed resource refs when the action invalidates direct refs.
-Plain form posts still receive normal HTTP redirects for no-JS flows.
+No-JS form posts to a page receive normal HTTP redirects instead.
 
 Forms stay schema-backed and UI-runtime agnostic. `setField` is typed from the
 schema, validation is an `Effect`, and domain validation errors can be tagged
@@ -324,44 +329,43 @@ facade raises `StartActionFormEncodeError`; Effect-first code can use the
 encoding Effect directly.
 
 ```ts
-interface ProjectApi {
-  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>;
-  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
-}
-
-const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
-
-const ProjectApiLive = Layer.succeed(ProjectApi, {
-  get: (id) => getProject.effect({ id }),
-  rename: renameProject.effect,
-});
-
-const ProjectApiTest = Layer.succeed(ProjectApi, {
-  get: (id) => Effect.succeed({ id, name: "Mock Project" }),
-  rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
-});
-
+// projects.ts (shared): the served Resource's schemas are its wire contract.
 const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
-  load: (id: ProjectId) => ProjectApi.use((api) => api.get(id)),
-});
-```
-
-```ts
-export const GetProject = Server.contract("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
   output: Project,
   error: ProjectNotFound,
 });
-
-export const getProject = Server.client(GetProject);
 ```
 
 ```ts
-// project.server.ts
-export const getProject = Server.implement(GetProject, ({ id }) =>
-  Projects.use((projects) => projects.get(id)),
+// projects.server.ts
+interface ProjectStore {
+  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectNotFound>;
+}
+
+const ProjectStore = Context.Service<ProjectStore>("ProjectStore");
+
+export const projectById = Resource.implement(ProjectById, (id) =>
+  ProjectStore.use((store) => store.get(id)),
+);
+```
+
+A server call that is neither a load nor an Action is a server function:
+
+```ts
+export const ProjectChangesContract = Server.contract("Project.changes", {
+  input: Schema.Struct({ id: ProjectId, cursor: Schema.Number }),
+  output: ProjectChanges,
+});
+
+export const projectChanges = Server.client(ProjectChangesContract);
+```
+
+```ts
+// project-changes.server.ts
+export const projectChangesServer = Server.implement(ProjectChangesContract, (input) =>
+  ProjectStore.use((store) => store.changesSince(input)),
 );
 ```
 
@@ -369,20 +373,22 @@ export const getProject = Server.implement(GetProject, ({ id }) =>
 ```ts
 const testProject =
   yield* Effect.provide(
-  getProject.effect({ id: makeProjectId("atlas") }),
+  Resource.preload(ProjectById(makeProjectId("atlas"))),
   Server.mockLayer(
-    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Test Project" })),
+    Resource.implement(ProjectById, (id) => Effect.succeed({ id, name: "Test Project" })),
   ),
   );
 
 const TestServerLive = Server.mockLayer(
-  Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Layered Test Project" })),
+  Server.mock(ProjectChangesContract, ({ cursor }) =>
+    Effect.succeed({ cursor, upserts: [], deletes: [] }),
+  ),
 );
 ```
 
 <!-- prettier-ignore -->
 ```ts
-yield* getProject.effect({ id: makeProjectId("atlas") });
+yield* projectChanges.effect({ id: makeProjectId("atlas"), cursor: 0 });
 ```
 
 ```ts
@@ -419,7 +425,7 @@ const UsersLive = Layer.succeed(Users)({
 
 const app = App.define({ root: Root, routes, client: BrowserLive });
 
-const handler = createRequestHandler(app, { server: UsersLive }); // native Effect handler
+const handler = createRequestHandler(app, { server: UsersLive, implementations: [userById] }); // native Effect handler
 const fetchHandler = toFetchHandler(handler); // fetch-shaped Effect adapter
 ```
 

@@ -1,27 +1,27 @@
-import { ActionResult, RequestContext, Server } from "@sunfall/arc-core";
+import { Action, ActionResult, RequestContext, Resource } from "@sunfall/arc-core";
 import { Context, Effect, Layer, Option, Ref } from "effect";
+import { ProjectById, ProjectList, ProjectWorkItemList, SubmitProjectName } from "./domain.js";
 import {
-  AdvanceProjectContract,
-  GetProjectContract,
   InvalidProjectName,
-  ListProjectWorkItemsContract,
-  ListProjectsContract,
   makeProjectId,
   makeWorkItemId,
-  SubmitProjectNameContract,
   ProjectNotFound,
-  UpdateWorkItemStatusContract,
   WorkItemNotFound,
   type Project,
   type ProjectError,
   type ProjectId,
-  type ProjectNameSubmissionResult,
   type ProjectSummary,
   type ProjectWorkItem,
   type SubmitProjectNameInput,
   type WorkItemId,
   type WorkItemStatus,
-} from "./domain.contract.js";
+} from "./model.js";
+import { AdvanceProject, MoveWorkItem } from "./project-actions.js";
+
+/*
+ * Server-only: the demo store, its seed data, and the implementations of the
+ * served Resources (reads) and Actions (writes) the Start handler serves.
+ */
 
 const cloneProject = (project: Project): Project => ({
   ...project,
@@ -367,9 +367,7 @@ const renameProjectEffect = (input: {
     }),
   );
 
-const submitProjectNameEffect = (
-  input: SubmitProjectNameInput,
-): Effect.Effect<ProjectNameSubmissionResult, never, ProjectDemoStore> => {
+const submitProjectNameEffect = (input: SubmitProjectNameInput) => {
   const name = input.name.trim();
 
   if (name.length < 3) {
@@ -387,9 +385,8 @@ const submitProjectNameEffect = (
     Effect.map((project) =>
       input.redirectTo
         ? ActionResult.redirect(input.redirectTo, { status: 303, replace: true })
-        : ActionResult.success(project),
+        : project,
     ),
-    Effect.catch((error) => Effect.succeed(ActionResult.failure(error))),
   );
 };
 
@@ -416,33 +413,35 @@ const updateWorkItemStatusEffect = (input: {
     }),
   );
 
-export const listProjects = Server.implement(ListProjectsContract, () => listProjectsEffect);
+// --- Reads: the served Resources' implementations -----------------------------
 
-export const listProjectWorkItems = Server.implement(
-  ListProjectWorkItemsContract,
+export const listProjects = Resource.implement(ProjectList, () => listProjectsEffect);
+
+export const listProjectWorkItems = Resource.implement(
+  ProjectWorkItemList,
   () => listProjectWorkItemsEffect,
 );
 
-export const getProject = Server.implement(GetProjectContract, ({ id }) => getProjectEffect(id));
+export const getProject = Resource.implement(ProjectById, (id) => getProjectEffect(id));
 
-export const submitProjectName = Server.implement(
-  SubmitProjectNameContract,
-  submitProjectNameEffect,
-);
+// --- Writes: the served Actions' implementations -------------------------------
 
-export const advanceProject = Server.implement(AdvanceProjectContract, ({ id }) =>
+export const submitProjectName = Action.implement(SubmitProjectName, submitProjectNameEffect);
+
+export const advanceProject = Action.implement(AdvanceProject, ({ id }) =>
   advanceProjectEffect(id),
 );
 
-export const updateWorkItemStatus = Server.implement(UpdateWorkItemStatusContract, (input) =>
+export const moveWorkItem = Action.implement(MoveWorkItem, (input) =>
   updateWorkItemStatusEffect(input),
 );
 
-export const serverFunctions = [
+/** Everything the Start handler serves: the reads and the writes. */
+export const implementations = [
   listProjects,
   listProjectWorkItems,
   getProject,
   submitProjectName,
   advanceProject,
-  updateWorkItemStatus,
+  moveWorkItem,
 ] as const;

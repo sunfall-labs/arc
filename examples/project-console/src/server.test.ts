@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { StartAction, type StartHydrationPayload } from "@sunfall/arc-start";
 import {
   hydrationScriptId,
-  serverActionPath,
   streamHydrationAttribute,
   type StartHydrationChunk,
 } from "@sunfall/arc-start/testing";
@@ -12,9 +11,8 @@ import { Window } from "happy-dom";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
-import { app } from "./app-definition.js";
 import { handleRequest } from "./server.js";
-import { serverFunctions } from "./domain.server.js";
+import { implementations } from "./domain.server.js";
 import { projectConsoleStartGraphSummary } from "./start-graph.js";
 import { projectConsoleStartOptions } from "./start-options.js";
 
@@ -95,7 +93,7 @@ describe("project console SSR", () => {
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
     expect(response.headers.get("x-sunfall-arc-start-graph")).toBe(
-      "routes=3; server-functions=6; actions=2",
+      "routes=3; resources=3; actions=3",
     );
     expect(response.headers.get("x-sunfall-arc-start-routes")).toBe("/,/projects,/projects/:id");
     expect(chunks[0]).toContain("<!doctype html>");
@@ -124,22 +122,18 @@ describe("project console SSR", () => {
   });
 
   it("exposes the generated Start route graph used by the Vite preset", () => {
-    expect(app.actions.map((action) => action.name)).toEqual([
-      "Project.name.submit",
+    expect(implementations.map((implementation) => implementation.name).sort()).toEqual([
       "Project.advance",
-    ]);
-    expect(serverFunctions.map((fn) => fn.name).sort()).toEqual([
-      "Project.advance",
-      "Project.get",
-      "Project.list",
+      "Project.byId",
       "Project.name.submit",
-      "Project.workItem.status",
+      "Project.workItem.move",
       "Project.workItems.list",
+      "Projects.list",
     ]);
     expect(projectConsoleStartGraphSummary).toEqual({
       routes: ["/", "/projects", "/projects/:id"],
-      serverFunctions: serverFunctions.map((fn) => fn.name),
-      actions: ["Project.name.submit", "Project.advance"],
+      resources: ["Projects.list", "Project.workItems.list", "Project.byId"],
+      actions: ["Project.name.submit", "Project.advance", "Project.workItem.move"],
     });
     expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
   });
@@ -168,7 +162,7 @@ describe("project console SSR", () => {
 
     const response = await runRequest(
       handleRequest(
-        new Request(`https://example.com${serverActionPath}`, {
+        new Request("https://example.com/projects/lumen", {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body,
@@ -183,7 +177,7 @@ describe("project console SSR", () => {
     expect(html).toContain("Lumen Care");
   });
 
-  it("returns typed validation data from plain form posts", async () => {
+  it("renders the page again with the form's errors when a plain form post fails validation", async () => {
     const form = StartAction.form(SubmitProjectName, {
       input: {
         id: makeProjectId("atlas"),
@@ -194,7 +188,7 @@ describe("project console SSR", () => {
 
     const response = await runRequest(
       handleRequest(
-        new Request(`https://example.com${serverActionPath}`, {
+        new Request("https://example.com/projects/atlas", {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body,
@@ -203,12 +197,9 @@ describe("project console SSR", () => {
     );
 
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({
-      _tag: "ValidationFailure",
-      fieldErrors: {
-        name: ["Use at least three meaningful characters."],
-      },
-    });
+    expect(response.headers.get("content-type")).toContain("text/html");
+    const html = await response.text();
+    expect(html).toContain("Use at least three meaningful characters.");
   });
 
   it("rejects unsafe branded redirect targets from plain form posts", async () => {
@@ -223,7 +214,7 @@ describe("project console SSR", () => {
 
     const response = await runRequest(
       handleRequest(
-        new Request(`https://example.com${serverActionPath}`, {
+        new Request("https://example.com/projects/atlas", {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body,
@@ -231,10 +222,10 @@ describe("project console SSR", () => {
       ),
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      _tag: "ServerError",
-    });
+    // The redirect target fails its schema: the form's validation failure,
+    // rendered on the page; the Action never runs and nothing redirects.
+    expect(response.status).toBe(422);
+    expect(response.headers.get("location")).toBeNull();
   });
 
   it("keeps server-only seed data out of the client bundle and splits the project page", async () => {

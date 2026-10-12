@@ -1,6 +1,6 @@
-import { State } from "@sunfall/arc-core";
+import { Resource, State } from "@sunfall/arc-core";
 import { Effect } from "effect";
-import { ProjectApi, type Project } from "./projects.js";
+import { ProjectsRef, type Project } from "./projects.js";
 
 type Model = {
   readonly status: "idle" | "loading" | "ready";
@@ -20,7 +20,7 @@ export const ProjectLoader = State.define<Model, Message>()({
       State.next(
         { ...model, status: "loading" },
         State.emit(
-          ProjectApi.use((api) => api.list()).pipe(
+          Resource.preload(ProjectsRef).pipe(
             Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
           ),
         ),

@@ -7,15 +7,16 @@ import {
   type Resource,
   type Server,
 } from "@sunfall/arc-core";
+import { PostedActions } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 import { KeyValueStore } from "effect/persistence";
 import { hydrateFromDocument, type StartHydrationError } from "./hydration.js";
+import { postedActionSubmission } from "./start-action-form-post.js";
 import { startActionOutboxCookie } from "./start-action-outbox-cookie.js";
-import { makeActionTransportLayer } from "./start-action-transport.js";
-import type { StartActionDefinition } from "./start-action-request-codec.js";
+import { actionTransportLayer } from "./start-action-transport.js";
 import { startRootElementId } from "./start-document.js";
 import { rpcClientLayer } from "./start-rpc-client.js";
 
@@ -40,7 +41,6 @@ declare const __SUNFALL_ARC_BROWSER_RPC__: boolean | undefined;
 export interface AppDefinition<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
   RootServices = never,
-  Actions extends StartActionDefinition = StartActionDefinition,
   ClientServices = never,
   ClientError = never,
 > {
@@ -48,14 +48,12 @@ export interface AppDefinition<
   readonly root: Component<App.RootProps, never, RootServices>;
   /** Route definitions the server matches and preloads per request. */
   readonly routes: Routes;
-  /** Actions the server serves; the browser submits them over the action transport. */
-  readonly actions: ReadonlyArray<Actions>;
   /** Browser services; `App.launch` builds the browser runtime from it. */
   readonly client: Layer.Layer<ClientServices, ClientError>;
 }
 
 /** Any app definition, for APIs that accept every app. */
-export type AnyAppDefinition = AppDefinition<readonly AnyRoute[], any, any, any, any>;
+export type AnyAppDefinition = AppDefinition<readonly AnyRoute[], any, any, any>;
 
 /**
  * Services `App.launch` adds to the client Layer. `KeyValueStore` is the
@@ -131,10 +129,9 @@ export namespace App {
   export type Definition<
     Routes extends readonly AnyRoute[] = readonly AnyRoute[],
     RootServices = never,
-    Actions extends StartActionDefinition = StartActionDefinition,
     ClientServices = never,
     ClientError = never,
-  > = AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError>;
+  > = AppDefinition<Routes, RootServices, ClientServices, ClientError>;
   /** Any app definition, for APIs that accept every app. */
   export type Any = AnyAppDefinition;
   /** Services `App.launch` adds to the app's client Layer. */
@@ -172,20 +169,20 @@ export namespace App {
    * Defines a Start app.
    *
    * The server and the browser derive everything from it:
-   * `createRequestHandler(app, { server })` preloads `routes`, renders `root`
-   * into the document, and serves `actions`; `App.launch(app)` builds the
-   * browser runtime from `client` plus the action and RPC transports, restores
-   * the server's Resource snapshot, and hydrates `root`.
+   * `createRequestHandler(app, { server, implementations })` preloads
+   * `routes`, renders `root` into the document, and serves the served
+   * Actions and Resources; `App.launch(app)` builds the browser runtime from
+   * `client` plus the action and RPC transports, restores the server's
+   * Resource snapshot, and hydrates `root`.
    *
    * Keep it in a module both entries import: server-only code (`*.server.ts`
-   * Layers and server-function implementations) goes to `createRequestHandler`.
+   * Layers and implementations) goes to `createRequestHandler`.
    *
    * @example
    * ```ts
    * export const app = App.define({
    *   root: Root,
    *   routes,
-   *   actions: [RenameProject],
    *   client: ProjectApiLive,
    * });
    * ```
@@ -193,20 +190,17 @@ export namespace App {
   export const define = <
     const Routes extends readonly AnyRoute[],
     RootServices = never,
-    Actions extends StartActionDefinition = never,
     ClientServices = never,
     ClientError = never,
   >(
     config: {
       readonly root: Component<RootProps, never, RootServices>;
       readonly routes: Routes;
-      readonly actions?: ReadonlyArray<Actions>;
       readonly client?: Layer.Layer<ClientServices, ClientError>;
     } & ClientServicesCheck<RootServices, ClientServices>,
-  ): AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError> => ({
+  ): AppDefinition<Routes, RootServices, ClientServices, ClientError> => ({
     root: config.root,
     routes: config.routes,
-    actions: config.actions ?? [],
     client: (config.client ?? Layer.empty) as Layer.Layer<ClientServices, ClientError>,
   });
 
@@ -226,11 +220,10 @@ export namespace App {
   export const launch = <
     Routes extends readonly AnyRoute[],
     RootServices,
-    Actions extends StartActionDefinition,
     ClientServices,
     ClientError,
   >(
-    app: AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError>,
+    app: AppDefinition<Routes, RootServices, ClientServices, ClientError>,
     options: LaunchOptions = {},
   ): Effect.Effect<never, ClientError | AppLaunchError> =>
     Effect.scoped(
@@ -244,6 +237,9 @@ export namespace App {
         }
         const browserRpc =
           typeof __SUNFALL_ARC_BROWSER_RPC__ === "undefined" || __SUNFALL_ARC_BROWSER_RPC__;
+        // The no-JavaScript form post the server rendered this page for, while
+        // the page hydrates: its Action's bindings start from its outcome.
+        const postedActions: PostedActions = { current: undefined };
         const runtime = yield* Effect.acquireRelease(
           Effect.sync(() =>
             makeRuntime(
@@ -252,8 +248,9 @@ export namespace App {
                   clientKeyValueStore.pipe(
                     Layer.provideMerge(
                       Layer.mergeAll(
-                        makeActionTransportLayer({ actions: app.actions }),
+                        actionTransportLayer,
                         browserRpc ? rpcClientLayer : Layer.empty,
+                        Layer.succeed(PostedActions)(postedActions),
                       ).pipe(Layer.provideMerge(clientHttpClient), Layer.provideMerge(app.client)),
                     ),
                   ),
@@ -266,6 +263,9 @@ export namespace App {
         const hydration = yield* runtime.provide(
           hydrateFromDocument(globalThis.document, options.hydration),
         );
+        if (hydration?.postedAction !== undefined) {
+          postedActions.current = postedActionSubmission(hydration.postedAction);
+        }
         const href = options.href ?? `${location.pathname}${location.search}`;
         // A code-split route component must be loaded before hydrating, so the
         // first client pass renders the markup the server rendered. A failed
@@ -281,6 +281,8 @@ export namespace App {
           container,
           { runtime, props: { href }, hydrate: true },
         );
+        // Hydrated: a binding created later (another visit to the form) starts idle.
+        postedActions.current = undefined;
         // The outbox cookie tells the next document request which durable
         // submissions this page holds; the server reports back the ones it
         // already settled (`settledSubmissions`).

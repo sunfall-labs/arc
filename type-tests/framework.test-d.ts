@@ -112,7 +112,7 @@ import {
   type StartRequestHandler,
   type StartRequestHandlerError,
 } from "@sunfall/arc-start";
-import { makeActionTransportLayer } from "../packages/start/src/start-action-transport.js";
+import { actionTransportLayer } from "../packages/start/src/start-action-transport.js";
 import { rpcClientLayer } from "../packages/start/src/start-rpc-client.js";
 import { makeStartServerApp } from "../packages/start/src/start-server-app.js";
 import {
@@ -190,7 +190,7 @@ import {
 } from "@sunfall/arc-start/node";
 import { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 import type { PluginOption } from "vite";
-import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/domain.contract.js";
+import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/model.js";
 import "@sunfall/arc-start/virtual";
 import {
   layoutsById as virtualLayoutsById,
@@ -2458,35 +2458,58 @@ const routePreloadFetchFacade = createFetchHandler(routePreloadMissingHandler, {
 const routePreloadNodeFacade = createNodeServerHandler(routePreloadMissingHandler, {
   runtime: routePreloadRuntime,
 });
-const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocumentService>({
+// A served Action, a served Resource, and a server function, each implemented
+// with a service the server Layer provides.
+const RegistryReadDocumentAction = Action.define({
   name: "RuntimeDocument.registryAction",
-  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
+  input: Schema.Void,
+  output: Schema.String,
 });
+const registryReadDocumentAction = Action.implement(RegistryReadDocumentAction, () =>
+  RuntimeDocumentService.useSync((service) => service.readDocument()),
+);
+const RegistryReadDocumentResource = Resource.define({
+  name: "RuntimeDocument.registryResource",
+  input: Schema.Void,
+  output: Schema.String,
+});
+const registryReadDocumentResource = Resource.implement(RegistryReadDocumentResource, () =>
+  RuntimeDocumentService.useSync((service) => service.readDocument()),
+);
 const RegistryReadDocumentRpc = Server.implement(
   Server.contract("RuntimeDocument.registryRpc", { input: Schema.Void, output: Schema.String }),
   () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
-// The app's Actions and the handler's server functions run on the server, so
-// the server runtime must provide their services, like the root's.
+// Implementations run on the server, so the server runtime must provide their
+// services, like the root's.
 const startRegistryApp = App.define({
   root: StartRoot,
   routes: [] as const,
-  actions: [RegistryReadDocumentAction],
 });
-// @ts-expect-error the server Layer must provide what served functions and Actions need
-createRequestHandler(startRegistryApp, { serverFunctions: [RegistryReadDocumentRpc] });
+// @ts-expect-error the server Layer must provide what an implemented Action needs
+createRequestHandler(startRegistryApp, { implementations: [registryReadDocumentAction] });
+// @ts-expect-error the server Layer must provide what an implemented Resource load needs
+createRequestHandler(startRegistryApp, { implementations: [registryReadDocumentResource] });
+// @ts-expect-error the server Layer must provide what a server function needs
+createRequestHandler(startRegistryApp, { implementations: [RegistryReadDocumentRpc] });
 const startRegistryProvidedHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope
 > = createRequestHandler(startRegistryApp, {
   server: typedRuntime,
-  serverFunctions: [RegistryReadDocumentRpc],
+  implementations: [
+    registryReadDocumentAction,
+    registryReadDocumentResource,
+    RegistryReadDocumentRpc,
+  ],
 })(new Request("https://example.com/__sunfall-arc/rpc"));
+// @ts-expect-error implementations are Action.implement / Resource.implement / Server.implement values
+createRequestHandler(startRegistryApp, { server: typedRuntime, implementations: ["nope"] });
 const startOptionsActionHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
-  Scope.Scope | RuntimeDocumentService
+  Scope.Scope
 > = createRequestHandler(startRegistryApp)(new Request("https://example.com/__sunfall-arc/action"));
 void serviceRoutePreloadRequirements;
 void serviceRoutePreload;
@@ -2680,7 +2703,7 @@ const readDocumentRuntimeActionSubmit: Effect.Effect<
   Action.ClientError | ActionInterrupted
 > = readDocumentRuntimeAction.submit(undefined);
 const readDocumentRuntimeActionDefinitionRun: EffectInput<string, never, RuntimeDocumentService> =
-  readDocumentRuntimeAction.definition.run(undefined);
+  readDocumentRuntimeAction.definition.run!(undefined);
 const ReadDocumentAndMissingAction = Action.define<
   void,
   string,
@@ -2807,15 +2830,115 @@ Effect.runSync(
 // routes served Actions to the server, and the server-function client is an
 // `effect/rpc` `RpcClient`.
 const startActionTransport: Layer.Layer<ActionTransport, never, HttpClient.HttpClient> =
-  makeActionTransportLayer({ actions: [TouchProject] });
+  actionTransportLayer;
 const startRpcClient: Layer.Layer<Server.Client, never, HttpClient.HttpClient> = rpcClientLayer;
 // @ts-expect-error the Start transports need an HttpClient
-const startActionTransportWithoutHttp: Layer.Layer<ActionTransport> = makeActionTransportLayer({
-  actions: [TouchProject],
-});
+const startActionTransportWithoutHttp: Layer.Layer<ActionTransport> = actionTransportLayer;
 void startActionTransport;
 void startRpcClient;
 void startActionTransportWithoutHttp;
+
+// A served Action (no `run`) takes its types from its schemas; the server's
+// `Action.implement` may succeed only with `output` and fail only with `error`.
+class ServedNameTaken extends Schema.TaggedError<ServedNameTaken>()("ServedNameTaken", {
+  name: Schema.String,
+}) {}
+const ServedRename = Action.define({
+  name: "Served.rename",
+  input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  output: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  error: ServedNameTaken,
+});
+const servedRenameDefinition: Action.Definition<
+  { readonly id: string; readonly name: string },
+  { readonly id: string; readonly name: string },
+  ServedNameTaken
+> = ServedRename;
+// @ts-expect-error a served Action has no run of its own
+ServedRename.run({ id: "atlas", name: "Atlas" });
+const ServedVoid = Action.define({ name: "Served.void", input: Schema.String });
+// Without `output` the Action succeeds with void; without `error` it has no typed failure.
+const servedVoidDefinition: Action.Definition<string, void, never> = ServedVoid;
+const servedRename = Action.implement(ServedRename, ({ id, name }) =>
+  name === "taken" ? Effect.fail(new ServedNameTaken({ name })) : Effect.succeed({ id, name }),
+);
+const servedRenameImplementation: Action.Definition<
+  { readonly id: string; readonly name: string },
+  { readonly id: string; readonly name: string },
+  ServedNameTaken
+> = servedRename;
+// The implementation's services become the server's to provide.
+const servedRenameWithService = Action.implement(ServedRename, ({ id }) =>
+  RuntimeDocumentService.useSync((service) => ({ id, name: service.readDocument() })),
+);
+const servedRenameWithServiceDefinition: Action.Definition<
+  { readonly id: string; readonly name: string },
+  { readonly id: string; readonly name: string },
+  ServedNameTaken,
+  RuntimeDocumentService
+> = servedRenameWithService;
+// @ts-expect-error Action.implement's run must succeed with the output schema's type
+Action.implement(ServedRename, ({ id }) => Effect.succeed({ id }));
+// @ts-expect-error Action.implement's run must fail only with the error schema's type
+Action.implement(ServedRename, () => Effect.fail("rejected" as const));
+// @ts-expect-error Action.implement's run reads the definition's input
+Action.implement(ServedRename, (input: { readonly slug: string }) =>
+  Effect.succeed({ id: input.slug, name: input.slug }),
+);
+// @ts-expect-error a served Action without an error schema has no typed failure
+Action.implement(ServedVoid, () => Effect.fail(new ServedNameTaken({ name: "x" })));
+Action.implement(ServedVoid, () => Effect.void);
+void servedRenameDefinition;
+void servedVoidDefinition;
+void servedRenameImplementation;
+void servedRenameWithServiceDefinition;
+
+// A served Resource (no `load`): `Resource.implement` returns a server function
+// whose load may succeed only with `output` and fail only with `error`.
+const ServedProjectName = Resource.define({
+  name: "Served.projectName",
+  input: Schema.String,
+  output: Schema.String,
+  error: ServedNameTaken,
+});
+// Its load needs no client services in the types: the runtime's Server.Client
+// (in-process during SSR, RPC in the browser) is Start's to provide.
+const servedProjectNameRead: Effect.Effect<string, ServedNameTaken> = Resource.preload(
+  ServedProjectName("atlas"),
+);
+// @ts-expect-error a served Resource's typed failures are its error schema's
+const servedProjectNameUntyped: Effect.Effect<string, never> = Resource.preload(
+  ServedProjectName("atlas"),
+);
+const servedProjectName: Server.Fn<string, string, ServedNameTaken> = Resource.implement(
+  ServedProjectName,
+  (id) => (id === "taken" ? Effect.fail(new ServedNameTaken({ name: id })) : Effect.succeed(id)),
+);
+const servedProjectNameWithService: Server.Fn<
+  string,
+  string,
+  ServedNameTaken,
+  RuntimeDocumentService
+> = Resource.implement(ServedProjectName, () =>
+  RuntimeDocumentService.useSync((service) => service.readDocument()),
+);
+// @ts-expect-error Resource.implement's load must succeed with the output schema's type
+Resource.implement(ServedProjectName, () => Effect.succeed(1));
+// @ts-expect-error Resource.implement's load must fail only with the error schema's type
+Resource.implement(ServedProjectName, () => Effect.fail("rejected" as const));
+const ServedProjectCount = Resource.define({
+  name: "Served.projectCount",
+  input: Schema.Void,
+  output: Schema.Number,
+});
+// @ts-expect-error a served Resource without an error schema has no typed failure
+Resource.implement(ServedProjectCount, () => Effect.fail(new ServedNameTaken({ name: "x" })));
+// Server.mockLayer takes implementations as test doubles.
+const servedMockLayer: Layer.Layer<Server.Client> = Server.mockLayer(servedProjectName);
+void servedProjectNameRead;
+void servedProjectNameUntyped;
+void servedProjectNameWithService;
+void servedMockLayer;
 
 // The same Action handle submits locally or through the transport: the result
 // and error types are the Action's own (plus transport failures).

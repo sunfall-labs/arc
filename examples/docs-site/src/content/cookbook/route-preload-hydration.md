@@ -4,7 +4,7 @@
   "category": "routing",
   "summary": "Declare the Resources a route owns so SSR, streamed hydration, diagnostics, and agents share the same route-data contract.",
   "order": 2,
-  "related": ["resource-from-server-function"],
+  "related": ["served-resource"],
 }
 ---
 

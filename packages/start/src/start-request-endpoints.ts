@@ -48,7 +48,6 @@ import {
   actionFunctionNotFoundResponse,
   actionProtocolFailureResponse,
   actionResponseMeta,
-  actionResponseMode,
   actionRuntimeFailureResponse,
   actionTransportRequestFailureResponse,
 } from "./start-action-response-codec.js";
@@ -336,19 +335,14 @@ export const createServerActionResponseEffectWithRuntime = <
                 failureKind === "interruption" || metaInterrupted ? "interruption" : "defect";
               recordStartRequestFailure(facts, metaFailureKind);
               if (failureKind === "interruption") {
-                return yield* actionExitResponse(action, exit, {}, actionResponseMode(request));
+                return yield* actionExitResponse(action, exit, {});
               }
               if (metaInterrupted) {
                 return yield* Effect.failCause(metaExit.cause);
               }
               return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
             }
-            const response = yield* actionExitResponse(
-              action,
-              exit,
-              metaExit.value,
-              actionResponseMode(request),
-            );
+            const response = yield* actionExitResponse(action, exit, metaExit.value);
             const responseFailureKind =
               failureKind === "interruption" || response.status < 500 ? failureKind : "defect";
             if (responseFailureKind !== undefined) {

@@ -1,5 +1,10 @@
-import { Server, type ActionResult } from "@sunfall/arc-core";
 import { Schema } from "effect";
+
+/*
+ * The console's domain schemas and errors: browser-safe, shared by the served
+ * Resources and Actions (`domain.ts`, `project-actions.ts`) and their server
+ * implementations (`domain.server.ts`).
+ */
 
 export const ProjectStatus = Schema.Literals(["tracking", "watch", "blocked"]);
 export const ProjectHealth = Schema.Literals(["green", "amber", "red"]);
@@ -92,7 +97,6 @@ export class WorkItemNotFound extends Schema.TaggedError<WorkItemNotFound>()("Wo
 }) {}
 
 export type ProjectError = ProjectNotFound | InvalidProjectName | WorkItemNotFound;
-export type ProjectRemoteError = ProjectError | Server.ClientError;
 
 export const ProjectErrorSchema = Schema.Union([
   ProjectNotFound,
@@ -151,73 +155,3 @@ export const UpdateWorkItemStatusInput = Schema.Struct({
 });
 
 export type SubmitProjectNameInput = typeof SubmitProjectNameInput.Type;
-export type ProjectNameSubmissionResult = ActionResult<
-  Project,
-  SubmitProjectNameInput,
-  string,
-  ProjectError
->;
-
-export const ProjectNameSubmissionResultSchema = Schema.TaggedUnion({
-  Success: {
-    value: ProjectSchema,
-  },
-  ValidationFailure: {
-    fieldErrors: Schema.Struct({
-      name: Schema.optionalKey(Schema.Array(Schema.String)),
-    }),
-    formErrors: Schema.Array(Schema.String),
-    cause: Schema.optional(Schema.Unknown),
-  },
-  Redirect: {
-    location: Schema.String,
-    status: Schema.Literals([303, 307, 308]),
-    replace: Schema.optional(Schema.Boolean),
-  },
-  Failure: {
-    error: ProjectErrorSchema,
-  },
-});
-
-export const ListProjectsContract = Server.contract("Project.list", {
-  input: Schema.Literal("all"),
-  output: Schema.Array(ProjectSummarySchema),
-  error: Schema.Never,
-});
-
-export const GetProjectContract = Server.contract("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
-  output: ProjectSchema,
-  error: ProjectErrorSchema,
-});
-
-export const ListProjectWorkItemsContract = Server.contract("Project.workItems.list", {
-  input: Schema.Literal("all"),
-  output: Schema.Array(ProjectWorkItemSchema),
-  error: Schema.Never,
-});
-
-export const SubmitProjectNameContract = Server.contract("Project.name.submit", {
-  input: SubmitProjectNameInput,
-  output: ProjectNameSubmissionResultSchema,
-  error: Schema.Never,
-});
-
-export const AdvanceProjectContract = Server.contract("Project.advance", {
-  input: AdvanceProjectInput,
-  output: ProjectSchema,
-  error: ProjectErrorSchema,
-});
-
-export const UpdateWorkItemStatusContract = Server.contract("Project.workItem.status", {
-  input: UpdateWorkItemStatusInput,
-  output: ProjectWorkItemSchema,
-  error: ProjectErrorSchema,
-});
-
-export const listProjects = Server.client(ListProjectsContract);
-export const listProjectWorkItems = Server.client(ListProjectWorkItemsContract);
-export const getProject = Server.client(GetProjectContract);
-export const submitProjectName = Server.client(SubmitProjectNameContract);
-export const advanceProject = Server.client(AdvanceProjectContract);
-export const updateWorkItemStatus = Server.client(UpdateWorkItemStatusContract);

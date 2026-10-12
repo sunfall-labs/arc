@@ -1,4 +1,4 @@
-import { Data, Effect, Schema, type SchemaIssue } from "effect";
+import { Data, Effect, Schema, SchemaAST, type SchemaIssue } from "effect";
 import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
@@ -517,9 +517,104 @@ const formDataToObject = (
   return input;
 };
 
+const formTrue: ReadonlySet<unknown> = new Set(["on", "true", "1"]);
+const formFalse: ReadonlySet<unknown> = new Set(["off", "false", "0", ""]);
+
+const formFieldMembers = (ast: SchemaAST.AST): ReadonlyArray<SchemaAST.AST> =>
+  ast._tag === "Union" ? ast.types.flatMap(formFieldMembers) : [ast];
+
+/**
+ * One posted field read as the type the schema encodes it with: `undefined`
+ * leaves the key out. A browser posts strings only, omits an unchecked
+ * checkbox, and repeats a name for every checked box of a group.
+ */
+const formFieldValue = (ast: SchemaAST.AST, value: unknown, optional: boolean): unknown => {
+  const members = formFieldMembers(ast);
+  const has = (tag: SchemaAST.AST["_tag"]): boolean =>
+    members.some((member) => member._tag === tag);
+  const array = members.find((member): member is SchemaAST.Arrays => member._tag === "Arrays");
+  if (array !== undefined && !has("String")) {
+    // Absent, one, or many: always the array the schema expects.
+    const element = array.rest[0] ?? array.elements[0];
+    const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
+    return element === undefined
+      ? values
+      : values
+          .map((item) => formFieldValue(element, item, true))
+          .filter((item) => item !== undefined);
+  }
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (has("Boolean") && !has("String")) {
+    // A checkbox posts "on" when checked and nothing when not.
+    return value === undefined
+      ? false
+      : formTrue.has(value)
+        ? true
+        : formFalse.has(value)
+          ? false
+          : value;
+  }
+  if (value === undefined) {
+    // A field the form did not post is "nothing" where the schema can say so.
+    return has("Null") && !optional ? null : undefined;
+  }
+  if (value === "") {
+    // So is an empty one.
+    return has("Null") ? null : optional || has("Undefined") || !has("String") ? undefined : "";
+  }
+  if (
+    typeof value === "string" &&
+    has("Number") &&
+    !has("String") &&
+    value.trim() !== "" &&
+    Number.isFinite(Number(value))
+  ) {
+    return Number(value);
+  }
+  return value;
+};
+
+/**
+ * Reads posted form values (strings, repeated names as arrays) as the encoded
+ * shape of a struct schema: checkboxes become booleans (absent is `false`),
+ * an array field takes absent, one, or many values, an empty field becomes
+ * `null` for a nullable field and is left out of an optional one, and a
+ * numeric field reads its number. Other fields and non-struct schemas pass
+ * through unchanged.
+ */
+export const formValuesForSchema = (
+  schema: Schema.Top,
+  values: Record<string, unknown>,
+): Record<string, unknown> => {
+  const ast = SchemaAST.toEncoded(schema.ast);
+  if (ast._tag !== "Objects") {
+    return values;
+  }
+  const next: Record<string, unknown> = { ...values };
+  for (const property of ast.propertySignatures) {
+    if (typeof property.name !== "string") {
+      continue;
+    }
+    const value = formFieldValue(
+      property.type,
+      values[property.name],
+      SchemaAST.isOptional(property.type),
+    );
+    if (value === undefined) {
+      delete next[property.name];
+    } else {
+      next[property.name] = value;
+    }
+  }
+  return next;
+};
+
 /**
  * Decodes form values (already read out of a `FormData`) through an Effect
- * Schema and maps failures to form errors.
+ * Schema, reading them as the schema's encoded shape first
+ * (`formValuesForSchema`), and maps failures to form errors.
  */
 export const decodeFormValuesEffect = <
   S extends Schema.Top,
@@ -528,9 +623,10 @@ export const decodeFormValuesEffect = <
   schema: S,
   values: Record<string, unknown>,
 ): Effect.Effect<Values, FormValidationError<Values, Schema.SchemaError>, FormSchemaServices<S>> =>
-  Schema.decodeUnknownEffect(schema as Schema.Decoder<Values, FormSchemaServices<S>>)(values, {
-    errors: "all",
-  }).pipe(Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError)));
+  Schema.decodeUnknownEffect(schema as Schema.Decoder<Values, FormSchemaServices<S>>)(
+    formValuesForSchema(schema, values),
+    { errors: "all" },
+  ).pipe(Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError)));
 
 /** Decodes FormData through an Effect Schema and maps failures to form errors. */
 const decodeFormDataEffectImpl = <
@@ -752,6 +848,14 @@ export namespace Form {
   /** Converts FormData to a schema-friendly object, preserving repeated fields as arrays. */
   export const data = formDataToObject;
 
-  /** Decodes FormData through Effect Schema and returns typed values in the Effect channel. */
+  /**
+   * Decodes FormData through Effect Schema and returns typed values in the
+   * Effect channel. The posted strings are read as the schema's encoded shape
+   * first: a `Schema.Boolean` field is a checkbox (absent is `false`), a
+   * `Schema.Array` field takes absent, one, or many values, an empty field is
+   * `null` for a `Schema.NullOr` field and absent for an optional one, and a
+   * `Schema.Number` field reads its number. A domain schema decodes a form
+   * as posted; no form-shaped twin is needed.
+   */
   export const decodeFormData = decodeFormDataEffectImpl;
 }

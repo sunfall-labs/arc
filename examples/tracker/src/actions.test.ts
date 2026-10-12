@@ -1,30 +1,16 @@
-import { Action, ActionResult, Resource, Server, State } from "@sunfall/arc-core";
+import { Action, Resource, Server, State } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  CreateIssue,
-  DeleteIssue,
-  MoveIssue,
-  UpdateIssue,
-  createIssueInputOf,
-  type CreateIssueForm,
-} from "./actions.js";
-import { BoardContract, CreateIssueContract, IssueContract } from "./contracts.js";
+import { StartAction } from "@sunfall/arc-start";
+import { CreateIssue, DeleteIssue, MoveIssue, UpdateIssue } from "./actions.js";
 import { parseBlocks, parseInline } from "./markdown.js";
-import {
-  InvalidIssue,
-  type Issue,
-  type IssueId,
-  type IssueRow,
-  type ProjectKey,
-  type UserId,
-} from "./model.js";
+import { type Issue, type IssueId, type IssueRow, type ProjectKey, type UserId } from "./model.js";
 import { Board, IssueById } from "./resources.js";
 import { UndoToast } from "./shell.js";
 
 /*
- * Client-side logic with the server mocked at its contracts: optimistic
- * patches, Action results, form normalization, and the pure UI pieces.
+ * Client-side logic with the served Resources' loads mocked: optimistic
+ * patches, form normalization, and the pure UI pieces.
  */
 
 const TRK = "TRK" as ProjectKey;
@@ -47,13 +33,8 @@ const rows = [row("TRK-1", "todo", 1), row("TRK-2", "in_progress", 2)];
 const issue: Issue = { ...rows[0]!, description: "", reporterId: "u_mara0001" as UserId };
 
 const Mocks = Server.mockLayer(
-  Server.mock(BoardContract, () => Effect.succeed(rows)),
-  Server.mock(IssueContract, () => Effect.succeed(issue)),
-  Server.mock(CreateIssueContract, (input) =>
-    input.title.trim().length < 3
-      ? Effect.fail(new InvalidIssue({ field: "title", message: "Give the issue a title." }))
-      : Effect.succeed({ ...issue, id: "TRK-31" as IssueId, title: input.title }),
-  ),
+  Resource.implement(Board, () => Effect.succeed(rows)),
+  Resource.implement(IssueById, () => Effect.succeed(issue)),
 );
 
 describe("optimistic patches", () => {
@@ -104,35 +85,42 @@ describe("optimistic patches", () => {
 });
 
 describe("CreateIssue", () => {
-  const form = {
-    projectKey: TRK,
-    title: "Ship it",
-    status: "todo",
-    priority: "high",
-  } as const;
+  /** The new-issue form as a browser posts it. */
+  const posted = (entries: ReadonlyArray<readonly [string, string]>) => {
+    const formData = new FormData();
+    for (const [name, value] of [
+      ...StartAction.form(CreateIssue, { input: { projectKey: TRK } }).hiddenFields.map(
+        (field) => [field.name, field.value] as const,
+      ),
+      ["title", "Ship it"] as const,
+      ["description", ""] as const,
+      ["status", "todo"] as const,
+      ["priority", "high"] as const,
+      ...entries,
+    ]) {
+      formData.append(name, value);
+    }
+    return Effect.runSync(StartAction.decodeFormData(CreateIssue, formData));
+  };
 
-  it("turns the posted form into the domain input", () => {
+  it("decodes the posted form as the domain input", () => {
+    // "Unassigned" posts an empty value; unchecked labels post nothing.
+    expect(posted([["assigneeId", ""]])).toEqual({
+      projectKey: TRK,
+      title: "Ship it",
+      description: "",
+      status: "todo",
+      priority: "high",
+      assigneeId: null,
+      labelIds: [],
+    });
     expect(
-      createIssueInputOf({ ...form, assignee: "", labels: "l_trk-bug", description: undefined }),
-    ).toMatchObject({ assigneeId: null, labelIds: ["l_trk-bug"], description: "" });
-    expect(
-      createIssueInputOf({ ...form, assignee: "u_mara0001", labels: ["l_trk-bug", "bogus"] }),
-    ).toMatchObject({ assigneeId: "u_mara0001", labelIds: ["l_trk-bug"] });
-  });
-
-  it("redirects to the new issue, or reports a field error without failing", () => {
-    const run = (input: CreateIssueForm) =>
-      Effect.runSync(
-        (CreateIssue.run(input) as Effect.Effect<ActionResult.Any, unknown, Server.Client>).pipe(
-          Effect.provide(Mocks),
-        ),
-      );
-    const created = run(form);
-    expect(created).toMatchObject({ _tag: "Redirect", location: "/issues/TRK-31", status: 303 });
-
-    const invalid = run({ ...form, title: "x" });
-    expect(ActionResult.isValidationFailure(invalid)).toBe(true);
-    expect(invalid).toMatchObject({ fieldErrors: { title: ["Give the issue a title."] } });
+      posted([
+        ["assigneeId", "u_mara0001"],
+        ["labelIds", "l_trk-bug"],
+        ["labelIds", "l_trk-feature"],
+      ]),
+    ).toMatchObject({ assigneeId: "u_mara0001", labelIds: ["l_trk-bug", "l_trk-feature"] });
   });
 });
 

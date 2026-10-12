@@ -1,9 +1,13 @@
 import { createRequestHandler } from "@sunfall/arc-start";
 import { app } from "./app-definition.js";
-import { ProjectApiMemory } from "./projects.memory.js";
+import { ProjectStoreMemory } from "./projects.memory.js";
+import { projectById, projectList } from "./projects.server.js";
+import { renameProject } from "./rename.server.js";
 
 export const handleRequest = createRequestHandler(app, {
-  server: ProjectApiMemory,
+  // Provides what the implementations need (`ProjectStore`).
+  server: ProjectStoreMemory,
+  implementations: [projectList, projectById, renameProject],
   document: ({ match }) => ({
     title: match === undefined ? "Projects" : `Projects · ${match.href}`,
   }),

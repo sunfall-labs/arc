@@ -150,8 +150,10 @@ Golden-path public groups:
 - `ActionTransport` (with `Action.TransportResponse`): the Action counterpart of
   `Server.Client`. Every Action instance looks it up on submit; Actions it
   serves run remotely and the response applies to the submitting runtime,
-  every other Action runs locally. Start's `App.launch(app)` provides it for
-  the app's Actions. `Action.TransportSubmission` carries a durable
+  every other Action runs locally. Start's `App.launch(app)` provides one
+  that serves exactly the served Actions (defined without `run`); a served
+  Action submitted on a runtime without a transport fails with
+  `ActionNotFound`. `Action.TransportSubmission` carries a durable
   submission's id (its idempotency key). The transport's failures are its
   own error classes: `ActionTransportError` (delivery, status, malformed
   response), `ActionProtocolError` (the endpoint rejected the submission), and
@@ -176,7 +178,23 @@ retry? })` (`Action.OutboxOptions`) provides the `ActionOutbox` service over
   (`Route.ComponentOf<R>`) so adapters can check its requirements.
 - `Resource.define(...)` is the one Resource constructor: it loads through
   `load`, or, given `request` and `resolver`, through an Effect
-  `RequestResolver` that batches and dedupes sibling loads.
+  `RequestResolver` that batches and dedupes sibling loads. Given `input` and
+  `output` schemas and neither, it is a served Resource: its load runs on the
+  server. `Resource.implement(definition, load)` is that load, a `Server.Fn`
+  over the definition's schemas (Rpc tag = the family name) that may succeed
+  only with `output` and fail only with `error`, and throws for a family with
+  its own `load`. A served load's failures the `error` schema does not declare
+  (transport, wire schema, missing implementation) are defects.
+- `Action.define(...)` is the one Action constructor. With `run`, the Action
+  runs where it is submitted. Without `run`, it is a served Action: `input`
+  is required, `output` defaults to `Schema.Void` and `error` to no typed
+  failure, and its types come from those schemas.
+  `Action.implement(definition, run)` is its server body, an Action
+  Definition whose `run` may succeed only with `output` and fail only with
+  `error`; it throws for a definition that has its own `run`.
+  `ActionResult.Redirect` and `ActionResult.ValidationFailure` are the
+  Schemas a served Action's `output` declares to answer
+  `ActionResult.redirect(...)` or `ActionResult.validation(...)`.
 - `Resource.evict(ref)` for explicit Effect-first removal from the
   active Resource Store when tests, adapters, or cache policies need to drop a
   ref before GC.
@@ -419,6 +437,12 @@ commands)`, never an Effect. `State.emit(...)`
   function.
 - `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
+  It reads the posted strings as the schema's encoded shape first: a
+  `Schema.Boolean` field is a checkbox (absent is `false`), a `Schema.Array`
+  field takes none, one, or many values, an empty or absent field is `null`
+  for a `Schema.NullOr` field and left out of an optional one, and a
+  `Schema.Number` field reads its number, so a domain schema decodes a form
+  as posted.
   `Form.data(...)` is the explicit intermediate object conversion, preserving
   repeated field names as arrays and allowing framework hidden fields to be
   omitted before decoding.
@@ -426,7 +450,10 @@ commands)`, never an Effect. `State.emit(...)`
 output, error? })` requires `input` and `output` schemas (`error` defaults
   to `Schema.Never`), infers its types from them, and carries the `Rpc` as
   `contract.rpc` (tag = name); `Server.Fn` exposes the same `rpc`, `effect`,
-  and `local`. `Server.WireSchema` is the schema bound (no decoding or
+  and `local`. Contracts are for server calls that are neither a Resource
+  load nor an Action (served definitions carry their own schemas).
+  `Server.mockLayer(...)` accepts `Server.mock(...)` values and
+  implementations (`Server.implement(...)`, `Resource.implement(...)`). `Server.WireSchema` is the schema bound (no decoding or
   encoding services). `Server.client`, `Server.implement`, `Server.mock`,
   `Server.mockLayer`, `Server.localClient`, `Server.makeClient` (a branded
   `Server.Client` from its `call`), `Server.functions`,
@@ -505,7 +532,7 @@ includes:
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
   `start-document`, `start-request-handler`,
   `static-client-navigation`, and `streaming`.
-- the app: `App.define({ root, routes, actions?, client? })`
+- the app: `App.define({ root, routes, client? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
   client Layer must provide `R` (minus `App.LaunchServices`) or `App.define`
@@ -519,8 +546,10 @@ includes:
   Effect-returning `StartRequestHandler` (one name; there are no
   `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`
   holds the server half: `server` (the server Layer, which must provide the
-  root's services), `serverFunctions` (implementations served over RPC),
-  and `document`. Page requests render
+  root's services and every service the implementations need, checked at
+  compile time), `implementations` (`StartImplementation` values:
+  `Action.implement(...)`, `Resource.implement(...)`, and
+  `Server.implement(...)`), and `document`. Page requests render
   `app.root` into Start's document; there is no render callback and no
   hand-written HTML shell. Requests are traced as Effect spans
   (`sunfall-arc.start.request`); there is no request-trace callback.
@@ -544,7 +573,16 @@ includes:
   Layer's when it provides one (headers, retries, custom fetch), else
   `FetchHttpClient` (`App.LaunchServices` includes `HttpClient`). Start has no
   fetch hook of its own. The server answers `/__sunfall-arc/rpc` with
-  `RpcServer.toHttpEffect` over an `RpcGroup` of `serverFunctions`.
+  `RpcServer.toHttpEffect` over an `RpcGroup` of the `Resource.implement` and
+  `Server.implement` values in `implementations`, and `/__sunfall-arc/action`
+  (JSON only: content type and accept `application/json`, always answering
+  JSON) with the `Action.implement` values. A form-encoded or multipart `POST`
+  to a page is a no-JavaScript submission of a served Action: a redirect
+  answers with it (303 by default), a success with a 303 back to the page,
+  and a validation failure (422) or failure (400) renders the page again with
+  the outcome and posted fields (`postedAction` in the root hydration
+  payload, which `App.launch` seeds the Action's bindings from until
+  hydration finishes).
 - durable submissions: `App.launch` provides the Action Outbox over the
   browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
   shared with persisted Resources;
@@ -563,15 +601,21 @@ includes:
   and again when the tree loads. Static preload hints use core
   `preloadResources`, and runtime work lives in
   `preload`.
-- actions: the app's `actions` are the Actions the server serves; `App.launch`
-  routes their submissions from the single UI binding (Solid's
+- actions: served Actions (defined without `run`) run on the server;
+  `App.launch` routes their submissions from the single UI binding (Solid's
   `Component.action(...)`) over the network with the same result and error
   types, and responses hydrate and invalidate the submitting runtime. The
   `StartAction` namespace keeps only progressive (no-JS) form support:
   `StartAction.form`, `StartAction.decodeFormData`, and
   `StartAction.Form`; plus `StartAction.FormOptions`,
   `StartAction.InvalidationPlan`, `StartActionFormEncodeError`, and
-  `StartActionDuplicateName`.
+  `StartActionDuplicateName`. `StartAction.decodeFormData(action, formData)`
+  decodes a form into the Action's input exactly as the server decodes the
+  same form posted without JavaScript (defaults merged, read as the input
+  schema's encoded shape like `Form.decodeFormData`).
+  `StartAction.form(action, { input })` returns `{ method: "post",
+hiddenFields }` with no `action`: the `<form method="post">` posts to the
+  page it is on.
 - static sites: `makeStartStaticHistoryAdapter`, `currentStartStaticHref`,
   `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
   `stripStartStaticBasePath`, `StartStaticBasePathError`, and
@@ -815,9 +859,12 @@ value)` (`Component.ResourceRowsReader`), typed by `rows`.
   join `E` and their services join `R`. It replaces the deleted
   `@sunfall/arc-solid-db` package.
 - `Component.action(definition)` returns an `ActionHandle` (`waiting`,
-  `failure`, `result`, `input`, `submit`, `reset`); `waiting()` / `failure()`
-  use the Resource reader's status names, and `result()` keeps the full
-  `AsyncResult`. `submit(input)` and `reset()` return Effects, which event
+  `failure`, `result`, `input`, `formValues`, `submit`, `reset`); `waiting()` /
+  `failure()` use the Resource reader's status names, and `result()` keeps the
+  full `AsyncResult`. `formValues()` is the fields of the no-JavaScript form
+  post the page was rendered again for
+  (`Readonly<Record<string, string | ReadonlyArray<string>>>`, `undefined`
+  otherwise); the handle then starts from that post's settled `result()`. `submit(input)` and `reset()` return Effects, which event
   handlers run through `Component.callback` (handling failures there: a
   submission's failures belong to its caller, never to the Component's `E`). A
   runtime-provided `ActionTransport` (provided by Start's `App.launch` for the

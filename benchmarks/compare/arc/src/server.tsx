@@ -1,7 +1,7 @@
 import { Route } from "@sunfall/arc-core";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { app } from "./app-definition.js";
-import { ItemsApiServer, serverFunctions } from "./items.server.js";
+import { implementations } from "./items.server.js";
 import { routeById } from "./routeTree.gen.js";
 
 /**
@@ -10,8 +10,7 @@ import { routeById } from "./routeTree.gen.js";
  * client's entry, stylesheets, and route chunk preloads.
  */
 export default createRequestHandler(app, {
-  server: ItemsApiServer,
-  serverFunctions,
+  implementations,
   document: ({ match }) => ({
     title: Route.isMatch(routeById.route_items_$id, match) ? `Item ${match.params.id}` : "Items",
   }),

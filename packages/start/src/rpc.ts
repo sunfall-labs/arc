@@ -306,21 +306,14 @@ export const validateStartRpcRequest = (
 ): Effect.Effect<void, StartTransportRequestError> =>
   validateStartTransportMethod("rpc", request, "POST");
 
-/** Validates an action transport request, including progressive form media types. */
+/** Validates an action transport request: a JSON POST (forms post to their page instead). */
 export const validateStartActionRequest = (
   request: Request,
 ): Effect.Effect<void, StartTransportRequestError> =>
   Effect.gen(function* () {
     yield* validateStartTransportMethod("action", request, "POST");
-    yield* validateStartTransportAccept("action", request, [
-      startJsonMediaType,
-      startHtmlMediaType,
-    ]);
-    yield* validateStartTransportContentType("action", request, [
-      startJsonMediaType,
-      startFormUrlEncodedMediaType,
-      startMultipartFormDataMediaType,
-    ]);
+    yield* validateStartTransportAccept("action", request, [startJsonMediaType]);
+    yield* validateStartTransportContentType("action", request, [startJsonMediaType]);
   });
 
 /** True when a request targets the Start server-function RPC endpoint. */

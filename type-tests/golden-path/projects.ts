@@ -1,5 +1,5 @@
 import { Resource } from "@sunfall/arc-core";
-import { Context, Effect, Schema } from "effect";
+import { Schema } from "effect";
 
 export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
 export type ProjectId = typeof ProjectId.Type;
@@ -15,23 +15,14 @@ export class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("Proj
   id: ProjectId,
 }) {}
 
-// The service boundary. Resources and Actions depend on it; Layers implement it.
-export interface ProjectApi {
-  readonly list: () => Effect.Effect<ReadonlyArray<Project>>;
-  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectNotFound>;
-  readonly rename: (input: {
-    readonly id: ProjectId;
-    readonly name: string;
-  }) => Effect.Effect<Project, ProjectNotFound>;
-}
-export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
-
 // Semantic tags: Resources provide them, Actions invalidate them.
 export const ProjectsTag = Resource.tag("Projects");
 export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
   key: ({ id }) => id,
 });
 
+// No `load`: the server loads these (`projects.server.ts`). The schemas are
+// the wire contract between the two.
 export const ProjectList = Resource.define({
   name: "Projects.list",
   input: Schema.Literal("all"),
@@ -39,7 +30,6 @@ export const ProjectList = Resource.define({
   // The list's rows: keyed by id, indexed by status. Readers look rows up by
   // key or index, and an Action patches one row by key.
   rows: { key: (project) => project.id, indexes: { status: (project) => project.status } },
-  load: () => ProjectApi.use((api) => api.list()),
   provides: () => [ProjectsTag],
 });
 export const ProjectsRef = ProjectList("all");
@@ -50,6 +40,5 @@ export const ProjectById = Resource.define({
   output: Project,
   // The typed failure: a failed read renders it with its fields, also across SSR.
   error: ProjectNotFound,
-  load: (id) => ProjectApi.use((api) => api.get(id)),
   provides: (project) => [ProjectTag({ id: project.id })],
 });

@@ -9,6 +9,7 @@ import {
 } from "@sunfall/arc-core";
 import {
   invokeEffectInput,
+  type PostedActions,
   type AppDefinitionRegistry,
   type AppDefinitionRegistryRequirements,
   type ActionDefinitionRequirements,
@@ -33,10 +34,19 @@ import {
 } from "./render-hydration-plan.js";
 import { ClientAssets, type StartClientAssets } from "./start-client-assets.js";
 import { isServerActionRequest, isServerRpcRequest } from "./rpc.js";
-import { makeActionMap, type StartActionDefinition } from "./start-action-request-codec.js";
+import {
+  isStartActionFormPost,
+  makeActionMap,
+  type StartActionDefinition,
+} from "./start-action-request-codec.js";
 import { makeStartActionWorkflows, settledActionSubmissions } from "./start-action-workflow.js";
 import { readStartActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
+import {
+  postedActionSubmission,
+  runStartActionFormPost,
+  type StartActionFormPostResult,
+} from "./start-action-form-post.js";
 import {
   createServerActionResponseEffectWithRuntime,
   createServerRpcResponseEffectWithRuntime,
@@ -160,9 +170,18 @@ export const createStartRequestHandler = <
   > =>
     Effect.gen(function* () {
       const responseContext = makeResponseContext();
+      // A no-JavaScript form post the page renders again; Action bindings
+      // in the render start from its outcome.
+      const postedActions: PostedActions = { current: undefined };
       // Every fiber on the request runtime sees the request's services,
       // including those the render forks (a Resource read nobody preloaded).
-      const requestRuntime = makeServedRequestRuntime(app, request, responseContext, app.registry);
+      const requestRuntime = makeServedRequestRuntime(
+        app,
+        request,
+        responseContext,
+        app.registry,
+        postedActions,
+      );
       const facts = yield* startRequestFacts(request);
       const clientAssets = yield* ClientAssets;
       const responseEffect = Effect.gen(function* () {
@@ -186,6 +205,35 @@ export const createStartRequestHandler = <
             facts,
             workflows,
           );
+        }
+
+        // A form posted to a page without JavaScript runs its Action here: a
+        // redirect or success answers at once, a validation failure or a
+        // failure renders the page again with the outcome and the fields.
+        let posted: Extract<StartActionFormPostResult, { readonly _tag: "Render" }> | undefined;
+        if (isStartActionFormPost(request)) {
+          const actions = yield* Effect.try(() =>
+            makeActionMap(explicitActionMap, app.registry),
+          ).pipe(Effect.orElseSucceed(() => new Map()));
+          const result = yield* runStartActionFormPost({
+            request,
+            actions,
+            submit: (submission) =>
+              createServerActionResponseEffectWithRuntime(
+                app,
+                submission,
+                requestRuntime,
+                explicitActionMap,
+                responseContext,
+                facts,
+                workflows,
+              ) as Effect.Effect<Response>,
+          });
+          if (result._tag === "Respond") {
+            return result.response;
+          }
+          posted = result;
+          postedActions.current = postedActionSubmission(result.posted);
         }
 
         const preloaded = yield* preloadRequestEffectWithRuntime(
@@ -231,6 +279,7 @@ export const createStartRequestHandler = <
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
           notFound: preloaded.routePlan._tag === "NotFound",
           settledSubmissions,
+          ...(posted === undefined ? {} : { postedAction: posted.posted }),
         });
         if (preloaded.routeFailure !== undefined) {
           // The page renders the route's failure view; `render` may still set
@@ -240,6 +289,9 @@ export const createStartRequestHandler = <
         } else if (preloaded.routePlan._tag === "NotFound") {
           // No route matched: the page renders the app's not-found view.
           yield* responseContext.setStatus(404);
+        } else if (posted !== undefined) {
+          // The form post did not take: 422 for its validation failure.
+          yield* responseContext.setStatus(posted.status);
         }
         const context = {
           app,

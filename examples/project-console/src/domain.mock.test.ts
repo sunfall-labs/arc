@@ -1,23 +1,32 @@
-import { Action, ActionResult, makeRuntime, Resource } from "@sunfall/arc-core";
+import { Action, ActionResult, makeRuntime, Resource, Server } from "@sunfall/arc-core";
 import { Query } from "@sunfall/arc-db";
-import { Deferred, Effect, Fiber, Layer } from "effect";
+import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
-import { type Project, type ProjectWorkItem } from "./domain.contract.js";
 import {
   makeProjectId,
   makeProjectReturnTo,
   makeWorkItemId,
   preloadProjectRouteEffect,
   projectNameActionTarget,
-  ProjectApi,
   ProjectById,
+  ProjectList,
   ProjectsRef,
+  ProjectWorkItemList,
   SubmitProjectName,
-  SubmitProjectNameInput,
   WorkItemsRef,
+  type Project,
+  type ProjectId,
+  type ProjectWorkItem,
 } from "./domain.js";
 import { MoveWorkItem, projectWorkQueueQuery } from "./project-actions.js";
 import { defaultRuntime } from "@sunfall/arc-core/internal";
+
+/*
+ * Client-side logic without the server: the served Resources' loads are
+ * mocked with test implementations (`Server.mockLayer`), and the served
+ * Actions run local test implementations (`Action.implement`), so their
+ * optimistic patches and invalidations run as they do in the browser.
+ */
 
 const mockProject = (overrides: Partial<Project> = {}): Project => ({
   id: makeProjectId("mocked"),
@@ -56,14 +65,23 @@ const mockWorkItems = (): ProjectWorkItem[] => [
   }),
 ];
 
-describe("project console contract mocks", () => {
-  const ProjectApiTest = Layer.succeed(ProjectApi, {
-    list: () => Effect.succeed([]),
-    listWorkItems: () => Effect.succeed([]),
-    get: (id) => Effect.succeed(mockProject({ id, name: "Mocked Resource" })),
-    submitName: ({ id, name }) => Effect.succeed(ActionResult.success(mockProject({ id, name }))),
-    advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
-    updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
+/** The served Resources' loads, mocked: each reads its value when it loads. */
+const mockServer = (loads: {
+  readonly list?: () => ReadonlyArray<Project>;
+  readonly listWorkItems?: () => ReadonlyArray<ProjectWorkItem>;
+  readonly get?: (id: ProjectId) => Project;
+}) =>
+  Server.mockLayer(
+    Resource.implement(ProjectList, () => Effect.sync(() => loads.list?.() ?? [])),
+    Resource.implement(ProjectWorkItemList, () => Effect.sync(() => loads.listWorkItems?.() ?? [])),
+    Resource.implement(ProjectById, (id) =>
+      Effect.sync(() => loads.get?.(id) ?? mockProject({ id })),
+    ),
+  );
+
+describe("project console with the server mocked", () => {
+  const MockServer = mockServer({
+    get: (id) => mockProject({ id, name: "Mocked Resource" }),
   });
 
   it("loads resources without importing server handlers", () =>
@@ -71,7 +89,7 @@ describe("project console contract mocks", () => {
       Effect.gen(function* () {
         const value = yield* Effect.provide(
           Resource.refresh(ProjectById(makeProjectId("mocked"))),
-          ProjectApiTest,
+          MockServer,
         );
 
         expect(value.name).toBe("Mocked Resource");
@@ -85,14 +103,14 @@ describe("project console contract mocks", () => {
       Effect.gen(function* () {
         const collected = yield* Effect.provide(
           Resource.collect(preloadProjectRouteEffect({ id })),
-          ProjectApiTest,
+          MockServer,
         );
 
         expect(collected.refs.map((ref) => ref.key)).toEqual([
           ProjectsRef.key,
           ProjectById(id).key,
         ]);
-        expect((yield* Effect.provide(Resource.read(ProjectById(id)), ProjectApiTest)).name).toBe(
+        expect((yield* Effect.provide(Resource.read(ProjectById(id)), MockServer)).name).toBe(
           "Mocked Resource",
         );
       }),
@@ -106,10 +124,9 @@ describe("project console contract mocks", () => {
     });
     const input = target.hiddenFields.find((field) => field.name === "__sunfall_arc_input");
 
-    expect(target).toMatchObject({
-      method: "post",
-      action: "/__sunfall-arc/action",
-    });
+    // No `action`: the form posts to the page it is on.
+    expect(target.method).toBe("post");
+    expect("action" in target).toBe(false);
     expect(input).toBeDefined();
     expect(JSON.parse(input?.value ?? "{}")).toEqual({
       id: "mocked",
@@ -119,17 +136,12 @@ describe("project console contract mocks", () => {
 
   it("materializes an indexed live-query work queue without server handlers", () => {
     const id = makeProjectId("mocked");
-    const ProjectApiWorkQueue = Layer.succeed(ProjectApi, {
-      list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
-      listWorkItems: () => Effect.succeed(mockWorkItems()),
-      get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
-      submitName: ({ id: projectId, name }) =>
-        Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
-      advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
-      updateWorkItemStatus: ({ id: workItemId, status }) =>
-        Effect.succeed(mockWorkItem({ id: workItemId, status })),
-    });
-    const runtime = makeRuntime(ProjectApiWorkQueue);
+    const runtime = makeRuntime(
+      mockServer({
+        list: () => [mockProject({ id, name: "Mocked Project" })],
+        listWorkItems: mockWorkItems,
+      }),
+    );
 
     return Effect.runPromise(
       runtime.provide(Query.once(projectWorkQueueQuery(id))).pipe(
@@ -150,32 +162,28 @@ describe("project console contract mocks", () => {
   });
 
   it("keeps progressive validation in the success channel", () => {
-    const ProjectApiValidation = Layer.succeed(ProjectApi, {
-      list: () => Effect.succeed([]),
-      listWorkItems: () => Effect.succeed([]),
-      get: (id) => Effect.succeed(mockProject({ id })),
-      submitName: () =>
+    const action = Action.use(
+      Action.implement(SubmitProjectName, () =>
         Effect.succeed(
-          ActionResult.validation<typeof SubmitProjectNameInput.Type, string>({
+          ActionResult.validation<Record<string, unknown>, string>({
             fieldErrors: {
               name: ["Use at least three meaningful characters."],
             },
             formErrors: [],
           }),
         ),
-      advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
-      updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
-    });
-    const action = Action.use(SubmitProjectName, { runtime: defaultRuntime });
+      ),
+      { runtime: defaultRuntime },
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.provide(
           action.submit({ id: makeProjectId("mocked"), name: "At" }),
-          ProjectApiValidation,
+          mockServer({}),
         );
 
-        expect(result._tag).toBe("ValidationFailure");
+        expect(result).toMatchObject({ _tag: "ValidationFailure" });
         expect(action.state.get().result).toMatchObject({
           _tag: "Success",
           waiting: false,
@@ -189,20 +197,20 @@ describe("project console contract mocks", () => {
 
   it("invalidates project resources after progressive success", () => {
     let name = "Mocked Resource";
-    const ProjectApiStateful = Layer.succeed(ProjectApi, {
-      list: () => Effect.succeed([mockProject({ name })]),
-      listWorkItems: () => Effect.succeed(mockWorkItems()),
-      get: (id) => Effect.succeed(mockProject({ id, name })),
-      submitName: ({ id, name: nextName }) =>
-        Effect.sync(() => {
-          name = nextName;
-          return ActionResult.success(mockProject({ id, name }));
-        }),
-      advance: ({ id }) => Effect.succeed(mockProject({ id, name, progress: 51 })),
-      updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
+    const MockServerStateful = mockServer({
+      list: () => [mockProject({ name })],
+      get: (id) => mockProject({ id, name }),
     });
     const ref = ProjectById(makeProjectId("mocked"));
-    const action = Action.use(SubmitProjectName, { runtime: defaultRuntime });
+    const action = Action.use(
+      Action.implement(SubmitProjectName, ({ id, name: nextName }) =>
+        Effect.sync(() => {
+          name = nextName;
+          return mockProject({ id, name });
+        }),
+      ),
+      { runtime: defaultRuntime },
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -214,11 +222,11 @@ describe("project console contract mocks", () => {
               name: "Mocked Progressive",
             });
           }),
-          ProjectApiStateful,
+          MockServerStateful,
         );
 
-        expect(result._tag).toBe("Success");
-        expect((yield* Effect.provide(Resource.read(ref), ProjectApiStateful)).name).toBe(
+        expect(result).toMatchObject({ name: "Mocked Progressive" });
+        expect((yield* Effect.provide(Resource.read(ref), MockServerStateful)).name).toBe(
           "Mocked Progressive",
         );
         expect(action.invalidationPlan.get()?.entries.map((entry) => entry.ref.key)).toContain(
@@ -232,29 +240,27 @@ describe("project console contract mocks", () => {
     const id = makeProjectId("mocked");
     let name = "Mocked Resource";
     let lists = 0;
-    const ProjectApiStateful = Layer.succeed(ProjectApi, {
-      list: () =>
-        Effect.sync(() => {
+    const runtime = makeRuntime(
+      mockServer({
+        list: () => {
           lists++;
           return [mockProject({ id, name })];
-        }),
-      listWorkItems: () => Effect.succeed(mockWorkItems()),
-      get: (projectId) => Effect.succeed(mockProject({ id: projectId, name })),
-      submitName: ({ name: nextName, redirectTo }) =>
+        },
+        get: (projectId) => mockProject({ id: projectId, name }),
+      }),
+    );
+    const ref = ProjectById(id);
+    const action = Action.use(
+      Action.implement(SubmitProjectName, ({ name: nextName, redirectTo }) =>
         Effect.sync(() => {
           name = nextName;
           return redirectTo === undefined
-            ? ActionResult.success(mockProject({ id, name }))
+            ? mockProject({ id, name })
             : ActionResult.redirect(redirectTo, { status: 303, replace: true });
         }),
-      advance: ({ id: projectId }) =>
-        Effect.succeed(mockProject({ id: projectId, name, progress: 51 })),
-      updateWorkItemStatus: ({ id: workItemId, status }) =>
-        Effect.succeed(mockWorkItem({ id: workItemId, status })),
-    });
-    const runtime = makeRuntime(ProjectApiStateful);
-    const ref = ProjectById(id);
-    const action = Action.use(SubmitProjectName, { runtime });
+      ),
+      { runtime },
+    );
     const rowName = () =>
       runtime.runSync(Resource.read(ProjectsRef)).find((project) => project.id === id)?.name;
 
@@ -293,22 +299,20 @@ describe("project console contract mocks", () => {
     let status: ProjectWorkItem["status"] = "queued";
     let started = false;
     let submission: Fiber.Fiber<unknown, unknown> | undefined;
-    const ProjectApiWorkItemOptimistic = Layer.succeed(ProjectApi, {
-      list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
-      listWorkItems: () => Effect.succeed([mockWorkItem({ id: workItemId, status })]),
-      get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
-      submitName: ({ id: projectId, name }) =>
-        Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
-      advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
-      updateWorkItemStatus: ({ id: nextId, status: nextStatus }) =>
-        Effect.gen(function* () {
-          started = true;
-          yield* Deferred.await(release);
-          status = nextStatus;
-          return mockWorkItem({ id: nextId, status });
-        }),
-    });
-    const runtime = makeRuntime(ProjectApiWorkItemOptimistic);
+    const runtime = makeRuntime(
+      mockServer({
+        list: () => [mockProject({ id, name: "Mocked Project" })],
+        listWorkItems: () => [mockWorkItem({ id: workItemId, status })],
+      }),
+    );
+    const moveWorkItem = Action.implement(MoveWorkItem, ({ id: nextId, status: nextStatus }) =>
+      Effect.gen(function* () {
+        started = true;
+        yield* Deferred.await(release);
+        status = nextStatus;
+        return mockWorkItem({ id: nextId, status });
+      }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -316,7 +320,7 @@ describe("project console contract mocks", () => {
         const workItem = () =>
           runtime.runSync(Resource.read(WorkItemsRef)).find((item) => item.id === workItemId);
 
-        const move = Action.use(MoveWorkItem, { runtime });
+        const move = Action.use(moveWorkItem, { runtime });
         const running = runtime.runFork(move.submit({ id: workItemId, status: "running" }));
         submission = running;
         yield* Effect.sleep("10 millis");

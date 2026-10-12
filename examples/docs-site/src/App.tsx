@@ -18,7 +18,7 @@ import {
   type DocsBlock,
   type DocsPage,
 } from "./docs-content.js";
-import type { RecipeSlug } from "./content.contract.js";
+import type { RecipeSlug } from "./content.js";
 import { ArchitectureDiagram } from "./architecture-diagram.js";
 import { BlogPostView } from "./blog.js";
 import { HomeView } from "./home.js";

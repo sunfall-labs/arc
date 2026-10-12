@@ -7,7 +7,6 @@ import { App } from "./app.js";
 import { ProjectSidebar } from "./project-list.js";
 import { ProjectPage } from "./project-page.js";
 import {
-  ProjectApi,
   ProjectById,
   ProjectId,
   ProjectList,
@@ -15,8 +14,10 @@ import {
   ProjectsRef,
   Project,
 } from "./projects.js";
-import { ProjectApiMemory } from "./projects.memory.js";
+import { ProjectStoreMemory } from "./projects.memory.js";
+import { ProjectStore, projectById, projectList } from "./projects.server.js";
 import { RenameProject } from "./rename.js";
+import { renameProject } from "./rename.server.js";
 import { routes } from "./routes.js";
 import { TimelinePanel } from "./timeline-panel.js";
 
@@ -24,21 +25,33 @@ type Assert<T extends true> = T;
 type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Parts<C> = C extends Component<infer P, infer E, infer R> ? { P: P; E: E; R: R } : never;
 
-// catchTags removed ProjectNotFound; the Resource load and the Action need ProjectApi.
+// catchTags removed ProjectNotFound; the served loads and the served Action
+// need nothing in the browser.
 type _page = Assert<Eq<Parts<typeof ProjectPage>["E"], never>>;
-type _pageR = Assert<Eq<Parts<typeof ProjectPage>["R"], ProjectApi>>;
+type _pageR = Assert<Eq<Parts<typeof ProjectPage>["R"], never>>;
 type _app = Assert<Eq<Parts<typeof App>["E"], never>>;
-type _appR = Assert<Eq<Parts<typeof App>["R"], ProjectApi>>;
+type _appR = Assert<Eq<Parts<typeof App>["R"], never>>;
 type _panel = Assert<Eq<Parts<typeof TimelinePanel>["E"], never>>;
 
-// The app's client Layer must provide what the root needs, and so must the
-// server Layer given to the request handler.
-const app = Start.App.define({ root: App, routes, client: ProjectApiMemory });
-// @ts-expect-error a client Layer without ProjectApi cannot define the app
-Start.App.define({ root: App, routes, client: Layer.empty });
-Start.createRequestHandler(app, { server: ProjectApiMemory });
-// @ts-expect-error a server without ProjectApi cannot serve the app
-Start.createRequestHandler(app, {});
+// The server Layer must provide what the implementations need.
+const app = Start.App.define({ root: App, routes });
+const implementations = [projectList, projectById, renameProject];
+Start.createRequestHandler(app, { server: ProjectStoreMemory, implementations });
+// @ts-expect-error a server without ProjectStore cannot run the implementations
+Start.createRequestHandler(app, { server: Layer.empty, implementations });
+
+// An implementation answers with its definition's schemas: nothing else.
+Resource.implement(ProjectById, (id) =>
+  // @ts-expect-error a load may not succeed with something other than `output`
+  Effect.succeed({ id }),
+);
+Action.implement(RenameProject, () =>
+  // @ts-expect-error a run may not fail with something other than `error`
+  Effect.fail("nope" as const),
+);
+Action.implement(RenameProject, (input) =>
+  ProjectStore.use((store) => store.rename(input)).pipe(Effect.orDie),
+);
 
 declare const root: HTMLElement;
 
@@ -49,7 +62,7 @@ const Unhandled = Component.define("Unhandled", function* () {
 });
 type _unhandled = Assert<Eq<Parts<typeof Unhandled>["E"], ProjectNotFound>>;
 // @ts-expect-error ProjectNotFound is unhandled
-Component.launch(Unhandled, root, { runtime: makeRuntime(ProjectApiMemory) });
+Component.launch(Unhandled, root, { runtime: makeRuntime(Layer.empty) });
 
 // The list's load cannot fail, so the sidebar's E stays never.
 type _sidebar = Assert<Eq<Parts<typeof ProjectSidebar>["E"], never>>;
@@ -117,5 +130,4 @@ Resource.define({
   // @ts-expect-error a single Project has no rows
   output: Project,
   rows: { key: (project) => project.id },
-  load: (id) => ProjectApi.use((api) => api.get(id)),
 });

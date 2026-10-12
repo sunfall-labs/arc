@@ -1,5 +1,6 @@
 import type { Resource, Route } from "@sunfall/arc-core";
 import { Effect } from "effect";
+import type { StartPostedAction } from "./start-action-form-post.js";
 import {
   createHydrationScriptSync,
   createHydrationScript,
@@ -36,6 +37,8 @@ export interface CreateStartRenderHydrationPlanOptions {
   readonly notFound?: boolean;
   /** Pending durable submissions the server settled before rendering; carried by the root payload. */
   readonly settledSubmissions?: ReadonlyArray<string>;
+  /** The no-JavaScript form post the page renders again; carried by the root payload. */
+  readonly postedAction?: StartPostedAction;
 }
 
 const emptyResourceHydrationPayload: Resource.HydrationPayload = { resources: [] };
@@ -52,10 +55,12 @@ export const createStartRenderHydrationPlan = (
   options: CreateStartRenderHydrationPlanOptions,
 ): Effect.Effect<StartRenderHydrationPlan, StartHydrationPayloadSerializeError> =>
   Effect.gen(function* () {
-    const settled =
-      options.settledSubmissions === undefined || options.settledSubmissions.length === 0
+    const settled = {
+      ...(options.settledSubmissions === undefined || options.settledSubmissions.length === 0
         ? {}
-        : { settledSubmissions: options.settledSubmissions };
+        : { settledSubmissions: options.settledSubmissions }),
+      ...(options.postedAction === undefined ? {} : { postedAction: options.postedAction }),
+    };
     const rootPayload: StartHydrationPayload = {
       ...createStartHydrationPayload(emptyResourceHydrationPayload, options),
       ...settled,

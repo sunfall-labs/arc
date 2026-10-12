@@ -16,6 +16,7 @@ import type {
   EnsureEffectInput,
 } from "./effect-like.js";
 import { EffectInputPromiseRejected } from "./effect-like.js";
+import { Server, type ServerFunction, type ServerFunctionSchema } from "./server.js";
 import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
 import type { KeyValueStore } from "effect/persistence";
 import type { DurationInput } from "./resource-duration.js";
@@ -650,6 +651,45 @@ const makeResourceFamily = <I, A, E, R>(
   return makeRef;
 };
 
+/** Families defined without `load`: their loads run on the server (`Resource.implement`). */
+const servedFamilies = new WeakSet<object>();
+
+const servedContract = (options: ResourceFamilyOptions<any, any, any, any>) =>
+  Server.contract(options.name, {
+    input: options.input as ServerFunctionSchema,
+    output: options.output as ServerFunctionSchema,
+    ...(options.error === undefined ? {} : { error: options.error as ServerFunctionSchema }),
+  });
+
+/**
+ * The load of a served family: a call to its server implementation. A
+ * failure the family's `error` schema does not declare (a lost connection,
+ * a missing implementation, a wire schema mismatch) is a defect, so it never
+ * renders as a typed failure.
+ */
+const servedLoad = (
+  options: Omit<ResourceFamilyOptions<any, any, any, any>, "load">,
+): ((input: unknown) => Effect.Effect<unknown, unknown>) => {
+  const client = Server.client(
+    servedContract(options as ResourceFamilyOptions<any, any, any, any>),
+  );
+  const isDeclared =
+    options.error === undefined ? () => false : Schema.is(options.error as Schema.Top);
+  return (input) =>
+    client
+      .effect(input)
+      .pipe(Effect.catch((error) => (isDeclared(error) ? Effect.fail(error) : Effect.die(error))));
+};
+
+type ServedResourceLoadOutput<Out, A, E> =
+  EnsureEffectInput<Out> extends never
+    ? never
+    : [EffectInputValue<Out>] extends [A]
+      ? [EffectInputError<Out>] extends [E]
+        ? Out
+        : never
+      : never;
+
 const isRequestFamilyOptions = (
   options: unknown,
 ): options is ResourceRequestFamilyOptions<unknown, EffectRequest.Any, unknown, unknown> =>
@@ -820,6 +860,46 @@ export namespace Resource {
    * ```
    */
   export function define<
+    const Input extends Schema.Top,
+    const Output extends Schema.Top,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+    Key extends ResourceRowKey = never,
+    Indexes = {},
+    ChangesR = never,
+    Persist extends ResourcePersistOptions | undefined = undefined,
+  >(
+    options: ResourceFamilyCommonOptions<
+      Schema.Schema.Type<Input>,
+      Schema.Schema.Type<Output>,
+      ResourceDeclaredError<ErrorSchema, never>,
+      never
+    > & {
+      readonly input: Input;
+      readonly output: Output;
+      readonly load?: never;
+      readonly request?: never;
+      /**
+       * Schema of the typed failures the server's load reports. Every other
+       * failure of a served load (transport, wire schema) is a defect.
+       */
+      readonly error?: ErrorSchema;
+    } & ResourceRowsOption<
+        Schema.Schema.Type<Input>,
+        Schema.Schema.Type<Output>,
+        Key,
+        Indexes,
+        ChangesR
+      > &
+      ResourcePersistOption<Persist>,
+  ): ResourceRefFactory<
+    Schema.Schema.Type<Input>,
+    Schema.Schema.Type<Output>,
+    ResourceDeclaredError<ErrorSchema, never>,
+    ChangesR | ResourcePersistRequirements<Persist>,
+    ResourceRenderErrorFor<ErrorSchema, never>,
+    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
+  >;
+  export function define<
     I,
     Req extends EffectRequest.Any,
     EX = never,
@@ -983,6 +1063,15 @@ export namespace Resource {
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<ReturnType<Load>>>
   >;
   export function define(options: unknown): any {
+    const record = options as Record<string, unknown>;
+    if (!("load" in record) && !("request" in record)) {
+      const served = makeResourceFamily({
+        ...(options as Omit<ResourceFamilyOptions<unknown, unknown, unknown, unknown>, "load">),
+        load: servedLoad(options as ResourceFamilyOptions<unknown, unknown, unknown, unknown>),
+      } as ResourceFamilyOptions<unknown, unknown, unknown, unknown>);
+      servedFamilies.add(served.family);
+      return served;
+    }
     if (isRequestFamilyOptions(options)) {
       const { request, resolver, ...familyOptions } = options;
       return makeResourceFamily({
@@ -992,6 +1081,41 @@ export namespace Resource {
     }
     return makeResourceFamily(options as ResourceFamilyOptions<unknown, unknown, unknown, unknown>);
   }
+
+  /**
+   * The server's load for a served Resource (one defined without `load`):
+   * Start serves it, SSR calls it in-process, and the browser calls it over
+   * RPC with the family's schemas as the wire contract. Keep it in a
+   * `*.server.ts` module and give it to `createRequestHandler(app, {
+   * implementations })`. `load` may succeed only with the family's `output`
+   * and fail only with its `error`; its services become the server Layer's
+   * to provide.
+   *
+   * @example
+   * ```ts
+   * // resources.ts (browser-safe)
+   * export const ProjectById = Resource.define({
+   *   name: "ProjectById",
+   *   input: ProjectId,
+   *   output: Project,
+   *   error: ProjectNotFound,
+   * });
+   *
+   * // resources.server.ts
+   * export const projectById = Resource.implement(ProjectById, (id) => findProject(id));
+   * ```
+   */
+  export const implement = <I, A, E, Out>(
+    factory: { readonly family: ResourceFamily<I, A, E, any> },
+    load: (input: I) => ServedResourceLoadOutput<Out, A, E>,
+  ): ServerFunction<I, A, E, EffectInputRequirements<Out>> => {
+    if (!servedFamilies.has(factory.family)) {
+      throw new Error(
+        `Resource.implement(${factory.family.options.name}): the family has its own load. Define a served Resource (input and output schemas, no load) to implement it on the server.`,
+      );
+    }
+    return Server.implement(servedContract(factory.family.options), load as never) as never;
+  };
 
   const makeTagDefinition = <Input>(
     name: string,

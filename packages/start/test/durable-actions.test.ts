@@ -13,7 +13,7 @@ import {
   type AnySunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { testHttpClientLayer, type TestFetch } from "./test-http-client.js";
-import { makeActionTransportLayer } from "../src/start-action-transport.js";
+import { actionTransportLayer } from "../src/start-action-transport.js";
 import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
 import { serverActionPath } from "../src/rpc.js";
@@ -39,7 +39,10 @@ const stateCell = <A>(initial: A, options: { readonly name: string }) =>
 const AdvanceInput = Schema.Struct({ id: Schema.String });
 const AdvanceOutput = Schema.Struct({ id: Schema.String, progress: Schema.Number });
 
-/** A served durable Action whose `run` counts executions. */
+/**
+ * A served durable Action (the client's definition) and its server
+ * implementation, whose `run` counts executions.
+ */
 const defineAdvance = (name: string) => {
   const runs = { count: 0 };
   const progress = stateCell(0, { name: `${name}.progress` });
@@ -49,9 +52,11 @@ const defineAdvance = (name: string) => {
     output: AdvanceOutput,
     durable: { maxAge: "1 hour" },
     optimistic: (_input, transaction) => transaction.set(progress, (value) => value + 8),
-    run: ({ id }) => Effect.sync(() => ({ id, progress: ++runs.count * 8 })),
   });
-  return { Advance, runs, progress };
+  const serverAdvance = Action.implement(Advance, ({ id }) =>
+    Effect.sync(() => ({ id, progress: ++runs.count * 8 })),
+  );
+  return { Advance, serverAdvance, runs, progress };
 };
 
 const actionRequest = (body: unknown): Request =>
@@ -102,9 +107,9 @@ describe("durable Action submissions over Start", () => {
   it("sends the submission id and answers a duplicate POST without running the Action again", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const { Advance, runs } = defineAdvance("Start.durable.dedupe");
+        const { Advance, serverAdvance, runs } = defineAdvance("Start.durable.dedupe");
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
-        const handler = createStartRequestHandler(app, { actions: [Advance] });
+        const handler = createStartRequestHandler(app, { actions: [serverAdvance] });
         const browser = makeBrowser();
         const bodies: Array<{ readonly name: string; readonly id?: string }> = [];
         const fetcher: TestFetch = (input, init) =>
@@ -118,9 +123,7 @@ describe("durable Action submissions over Start", () => {
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
-            makeActionTransportLayer({ actions: [Advance] }).pipe(
-              Layer.provide(testHttpClientLayer(fetcher)),
-            ),
+            actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
             Action.outboxLayer().pipe(Layer.provide(KeyValueStore.layerMemory)),
           ),
         );
@@ -202,15 +205,16 @@ describe("durable Action submissions over Start", () => {
           input: AdvanceInput,
           output: AdvanceOutput,
           durable: { maxAge: "1 hour" },
-          run: ({ id }) =>
-            Effect.gen(function* () {
-              runs++;
-              yield* Deferred.await(gate);
-              return { id, progress: runs };
-            }),
         });
+        const slow = Action.implement(Slow, ({ id }) =>
+          Effect.gen(function* () {
+            runs++;
+            yield* Deferred.await(gate);
+            return { id, progress: runs };
+          }),
+        );
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
-        const handler = createStartRequestHandler(app, { actions: [Slow] });
+        const handler = createStartRequestHandler(app, { actions: [slow] });
         const body = { name: Slow.name, input: { id: "atlas" }, id: "submission-1" };
         const browser = makeBrowser();
         yield* browser.visit(handler);
@@ -233,7 +237,7 @@ describe("durable Action submissions over Start", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const { Advance, runs } = defineAdvance("Start.durable.engine");
+          const { Advance, serverAdvance, runs } = defineAdvance("Start.durable.engine");
           // One engine (a cluster or SQL-backed engine in production) serving
           // two server instances.
           const engine = Context.get(
@@ -248,7 +252,7 @@ describe("durable Action submissions over Start", () => {
 
           for (let instance = 0; instance < 2; instance++) {
             const app = makeStartServerApp({ routes: [Route.define("/", {})] as const, server });
-            const handler = createStartRequestHandler(app, { actions: [Advance] });
+            const handler = createStartRequestHandler(app, { actions: [serverAdvance] });
             const response = yield* browser.send(handler, actionRequest(body));
             expect(yield* readJson(response)).toEqual({
               _tag: "Success",
@@ -259,7 +263,7 @@ describe("durable Action submissions over Start", () => {
 
           // A submission without an id is not durable: it runs every time.
           const app = makeStartServerApp({ routes: [Route.define("/", {})] as const, server });
-          const handler = createStartRequestHandler(app, { actions: [Advance] });
+          const handler = createStartRequestHandler(app, { actions: [serverAdvance] });
           const plain = { name: Advance.name, input: { id: "atlas" } };
           yield* browser.send(handler, actionRequest(plain));
           yield* browser.send(handler, actionRequest(plain));
@@ -275,9 +279,11 @@ describe("durable Action submissions over Start", () => {
   it("syncs a submission whose response was lost exactly once", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const { Advance, runs, progress } = defineAdvance("Start.durable.lost-response");
+        const { Advance, serverAdvance, runs, progress } = defineAdvance(
+          "Start.durable.lost-response",
+        );
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
-        const handler = createStartRequestHandler(app, { actions: [Advance] });
+        const handler = createStartRequestHandler(app, { actions: [serverAdvance] });
         const browser = makeBrowser();
         // The page load gives the browser its submitter before it submits.
         const page = yield* browser.visit(handler);
@@ -299,9 +305,7 @@ describe("durable Action submissions over Start", () => {
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
-            makeActionTransportLayer({ actions: [Advance] }).pipe(
-              Layer.provide(testHttpClientLayer(fetcher)),
-            ),
+            actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
             Action.outboxLayer({ retry: Schedule.spaced("5 millis") }).pipe(
               Layer.provide(KeyValueStore.layerMemory),
             ),
@@ -330,10 +334,10 @@ describe("durable Action submissions over Start", () => {
   it("reports a lost-response submission as settled to the reloading page", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const { Advance, runs } = defineAdvance("Start.durable.settled-on-reload");
+        const { Advance, serverAdvance, runs } = defineAdvance("Start.durable.settled-on-reload");
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
         const handler = createStartRequestHandler(app, {
-          actions: [Advance],
+          actions: [serverAdvance],
           render: (context) => JSON.stringify(context.hydrationPlan.root.payload),
         });
         const browser = makeBrowser();
@@ -347,9 +351,7 @@ describe("durable Action submissions over Start", () => {
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
-            makeActionTransportLayer({ actions: [Advance] }).pipe(
-              Layer.provide(testHttpClientLayer(fetcher)),
-            ),
+            actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
             Action.outboxLayer({ retry: Schedule.recurs(0) }).pipe(
               Layer.provide(KeyValueStore.layerMemory),
             ),

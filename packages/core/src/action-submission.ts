@@ -95,15 +95,19 @@ export interface ActionSubmissionControllerOptions {
   readonly concurrency?: ActionConcurrency | undefined;
 }
 
+/** The state an instance starts in: idle, unless it continues a settled submission. */
+export type ActionInitialState<I, A, E> = ActionState<I, A, E> | undefined;
+
 /** Creates the shared submission controller used by Action and StartAction clients. */
 export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidationPlan>(
   options: ActionSubmissionControllerOptions,
+  initial?: ActionInitialState<I, A, E>,
 ): ActionSubmissionController<I, A, E, P> => {
   const idle: ActionState<I, A, E> = {
     result: AsyncResult.initial(),
     input: Option.none(),
   };
-  const state = SignalWrites.make<ActionState<I, A, E>>(idle, {
+  const state = SignalWrites.make<ActionState<I, A, E>>(initial ?? idle, {
     name: `${options.actionName}.state`,
   });
   const invalidationPlan = SignalWrites.make<P | undefined>(undefined, {
@@ -111,7 +115,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
   });
   // Last settled state and plan, restored when the latest submission is interrupted.
   let settled: { readonly state: ActionState<I, A, E>; readonly plan: P | undefined } = {
-    state: idle,
+    state: initial ?? idle,
     plan: undefined,
   };
   const commit = (

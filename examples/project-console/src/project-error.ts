@@ -1,6 +1,6 @@
 import { ResourceFailure, RouteNavigationError, RoutePreloadError } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Schema } from "effect";
-import { ProjectErrorSchema, type ProjectError } from "./domain.contract.js";
+import { ProjectErrorSchema, type ProjectError } from "./model.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -19,7 +19,7 @@ const unwrapFailure = (error: unknown): unknown => {
   return error;
 };
 
-/** Decodes class instances and plain transport objects into the ProjectError contract. */
+/** Decodes class instances and plain decoded objects into a `ProjectError`. */
 export const normalizeProjectError = (error: unknown): ProjectError | undefined => {
   const decoded = Effect.runSyncExit(
     Schema.decodeUnknownEffect(ProjectErrorSchema)(unwrapFailure(error)),

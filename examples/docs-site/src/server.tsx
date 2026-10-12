@@ -1,7 +1,6 @@
 import { createRequestHandler, type StartDocumentContext } from "@sunfall/arc-start";
 import { app } from "./app-definition.js";
-import { DocsContentApiLive } from "./content-live.js";
-import { docsSiteServerFunctions } from "./content.server.js";
+import { implementations } from "./content.server.js";
 import {
   blogPostMeta,
   cookbookMeta,
@@ -64,8 +63,7 @@ const pageMeta = (match: StartDocumentContext<typeof routes>["match"]): PageMeta
 };
 
 export const handleRequest = createRequestHandler(app, {
-  server: DocsContentApiLive,
-  serverFunctions: docsSiteServerFunctions,
+  implementations,
   document: ({ match }) => {
     const meta = pageMeta(match);
     const title = documentTitle(meta === homeMeta ? undefined : meta.title);
