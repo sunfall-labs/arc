@@ -2,11 +2,8 @@ import { Signal, SignalTypeId } from "@sunfall/arc-core";
 import { Cause, Effect, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { makeLiveQueryRuntime, type LiveQueryRuntime } from "./live-query-runtime.js";
-import {
-  currentCollectionStore,
-  runWithCollectionStore,
-  type RuntimeCollectionStore,
-} from "./runtime-collection-store.js";
+import type { MutableResourceStore } from "@sunfall/arc-core/internal";
+import { currentQueryStore, runWithQueryStore } from "./query-source-adapter.js";
 import type { AnyQueryBuilder, LiveQuery } from "./query-builder.js";
 import {
   compileQueryStagePlan,
@@ -23,7 +20,7 @@ type LiveQueryResult<T, E> = AsyncResult.AsyncResult<ReadonlyArray<T>, E | Query
  *
  * Query Builder owns immutable query descriptions. This Module owns the
  * reactive state Adapter around a Live Query Runtime: last-good data retention,
- * evaluation failures, source collection load-state folding, and source
+ * evaluation failures, source Resource load-state folding, and source
  * preload/refresh effects.
  */
 export const makeLiveQueryState = <T, E = never, R = never>(
@@ -39,11 +36,11 @@ export const makeLiveQueryState = <T, E = never, R = never>(
   const stagePlan = initialStagePlan.stagePlan as QueryStagePlan<any> | undefined;
   const stagePlanError = initialStagePlan.error;
   const sourceAdapters = stagePlan?.sourceAdapters ?? [];
-  const sources = sourceAdapters.map((source) => source.collection);
+  const sources = sourceAdapters.map((source) => source.source);
   interface StoreEvaluationState {
     engine: LiveQueryRuntime<T> | undefined;
     latestData: ReadonlyArray<T>;
-    latestEvaluationVersion: ReadonlyArray<number> | undefined;
+    latestEvaluationVersion: ReadonlyArray<unknown> | undefined;
     latestEvaluation:
       | {
           readonly data: ReadonlyArray<T>;
@@ -61,10 +58,8 @@ export const makeLiveQueryState = <T, E = never, R = never>(
         }
       | undefined;
   }
-  const storeStates = new WeakMap<RuntimeCollectionStore, StoreEvaluationState>();
-  const currentRuntimeCollectionStore = (): RuntimeCollectionStore =>
-    currentCollectionStore() as RuntimeCollectionStore;
-  const storeState = (store: RuntimeCollectionStore): StoreEvaluationState => {
+  const storeStates = new WeakMap<MutableResourceStore, StoreEvaluationState>();
+  const storeState = (store: MutableResourceStore): StoreEvaluationState => {
     const existing = storeStates.get(store);
     if (existing) {
       return existing;
@@ -81,17 +76,18 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     return state;
   };
 
-  const sourceVersions = (): ReadonlyArray<number> =>
-    sourceAdapters.map((source) => source.version().get());
-  const sameVersions = (left: ReadonlyArray<number>, right: ReadonlyArray<number>): boolean =>
+  // A source's rows array changes identity whenever one of its rows does.
+  const sourceVersions = (): ReadonlyArray<unknown> =>
+    sourceAdapters.map((source) => source.rows());
+  const sameVersions = (left: ReadonlyArray<unknown>, right: ReadonlyArray<unknown>): boolean =>
     left.length === right.length &&
     left.every((version, index) => Object.is(version, right[index]));
 
-  const withStore = <A>(store: RuntimeCollectionStore, evaluate: () => A): A =>
-    runWithCollectionStore(store, evaluate);
+  const withStore = <A>(store: MutableResourceStore, evaluate: () => A): A =>
+    runWithQueryStore(store, evaluate);
 
   const storeSignals = (
-    store: RuntimeCollectionStore,
+    store: MutableResourceStore,
   ): NonNullable<StoreEvaluationState["signals"]> => {
     const storeEvaluation = storeState(store);
     if (storeEvaluation.signals) {
@@ -142,7 +138,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
         let timestamp = 0;
         let sourceFailure: Cause.Cause<E> | undefined;
         for (const source of sourceAdapters) {
-          const sourceState = source.state().get();
+          const sourceState = source.result();
           waiting ||= sourceState.waiting;
           const lastSuccess =
             sourceState._tag === "Success"
@@ -185,9 +181,8 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     select: (signals: NonNullable<StoreEvaluationState["signals"]>) => Signal.Readable<A>,
   ): Signal.Readable<A> => ({
     [SignalTypeId]: SignalTypeId,
-    get: () => select(storeSignals(currentRuntimeCollectionStore())).get(),
-    subscribe: (listener) =>
-      select(storeSignals(currentRuntimeCollectionStore())).subscribe(listener),
+    get: () => select(storeSignals(currentQueryStore())).get(),
+    subscribe: (listener) => select(storeSignals(currentQueryStore())).subscribe(listener),
   });
 
   const data = currentStoreSignal((signals) => signals.data);

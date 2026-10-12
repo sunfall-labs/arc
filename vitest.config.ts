@@ -14,7 +14,6 @@ const sharedAlias = {
   "@sunfall/arc-db/internal": new URL("./packages/db/src/internal.ts", import.meta.url).pathname,
   "@sunfall/arc-db": new URL("./packages/db/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-solid": new URL("./packages/solid/src/index.ts", import.meta.url).pathname,
-  "@sunfall/arc-solid-db": new URL("./packages/solid-db/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-tsrx": new URL("./packages/tsrx/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-start/fetch": new URL("./packages/start/src/fetch.ts", import.meta.url).pathname,
   "@sunfall/arc-start/node": new URL("./packages/start/src/node.ts", import.meta.url).pathname,
@@ -27,12 +26,9 @@ const sharedAlias = {
 };
 
 // Solid adapter tests exercise client reactivity, so they run Solid's browser build.
-const solidClientTestIncludes = ["packages/solid/**/*.test.ts", "packages/solid-db/**/*.test.ts"];
+const solidClientTestIncludes = ["packages/solid/**/*.test.ts"];
 // Solid adapter `*.server.test.ts` files render with Solid's server build (solid-core).
-const solidServerTestIncludes = [
-  "packages/solid/**/*.server.test.ts",
-  "packages/solid-db/**/*.server.test.ts",
-];
+const solidServerTestIncludes = ["packages/solid/**/*.server.test.ts"];
 
 export default defineConfig({
   test: {
@@ -100,7 +96,6 @@ export default defineConfig({
           exclude: [
             ...configDefaults.exclude,
             "packages/solid/**/!(*.server).test.ts",
-            "packages/solid-db/**/!(*.server).test.ts",
           ],
           benchmark: {
             include: ["benchmarks/**/*.bench.ts"],

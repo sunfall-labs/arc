@@ -1,16 +1,15 @@
-import { isEffectLike, isPromiseLikeValue, type PlainValue } from "@sunfall/arc-core";
+import {
+  isEffectLike,
+  isPromiseLikeValue,
+  type PlainValue,
+  type Resource,
+} from "@sunfall/arc-core";
 import { stableStringify } from "@sunfall/arc-core/internal";
 import { Data } from "effect";
-import type {
-  AnyCollection,
-  CollectionError,
-  CollectionRequirements,
-  CollectionRow,
-  CollectionRowValue,
-} from "./collection-contract.js";
 import {
   makeQuerySourceAdapter,
-  type QueryCollectionSourceAdapter,
+  type QuerySource,
+  type QuerySourceAdapter,
 } from "./query-source-adapter.js";
 
 /**
@@ -60,40 +59,54 @@ type NormalizedQuerySortValue = string | number | boolean | null | undefined;
 /** Scalar join key before stable string normalization. */
 export type QueryJoinKey = string | number | boolean | Date | null | undefined;
 /** Execution strategy selected for one Query join. */
-export type QueryJoinStrategy = "collection-scan" | "collection-index";
+export type QueryJoinStrategy = "scan" | "index";
 
-/** Named collection source map supplied to Query execution. */
-export type SourceRecord = Record<string, AnyCollection>;
+/** Named sources supplied to Query execution: refs of Resources with `rows`. */
+export type SourceRecord = Record<string, QuerySource>;
 /** Erased row context carried through query filter/join/project stages. */
 export type AnyQueryContext = Record<string, any>;
-/** Erased Collection row used by query joins. */
-export type AnyCollectionRow = CollectionRow<any, any>;
+/** Erased source row used by query joins. */
+export type AnyQueryRow = any;
+
+/** The row type of a rows Resource ref. */
+export type QuerySourceRow<S> = S extends Resource.RowsRef<infer Row, any> ? Row : never;
+/** The declared load error of a rows Resource ref. */
+export type QuerySourceError<S> = S extends Resource.Ref<any, any, infer E, any> ? E : never;
+/** The load services of a rows Resource ref. */
+export type QuerySourceRequirements<S> = S extends Resource.Ref<any, any, any, infer R> ? R : never;
+/** The index names a rows Resource ref declares. */
+export type QuerySourceIndex<S> =
+  S extends Resource.RowsRef<any, any>
+    ? S extends { readonly [key: symbol]: Resource.RowsSpec<any, any, infer Indexes> }
+      ? keyof Indexes & string
+      : string
+    : never;
 
 /**
- * Union of the source collections' declared load errors for a query source
- * map (their contract violations are defects).
+ * Union of the sources' declared load errors for a query source map (their
+ * contract violations are defects).
  */
-export type QuerySourcesError<Sources extends SourceRecord> = CollectionError<
+export type QuerySourcesError<Sources extends SourceRecord> = QuerySourceError<
   Sources[keyof Sources]
 >;
 
-/** Union of source collection service requirements for a query source map. */
-export type QuerySourcesRequirements<Sources extends SourceRecord> = CollectionRequirements<
+/** Union of source service requirements for a query source map. */
+export type QuerySourcesRequirements<Sources extends SourceRecord> = QuerySourceRequirements<
   Sources[keyof Sources]
 >;
 
 /** Row context produced from the source alias map. */
 export type QueryContext<Sources extends SourceRecord> = {
-  readonly [Key in keyof Sources]: CollectionRowValue<Sources[Key]>;
+  readonly [Key in keyof Sources]: QuerySourceRow<Sources[Key]>;
 };
 
-/** Row context after joining collection `C` under alias `Alias`. */
+/** Row context after joining source `S` under alias `Alias`. */
 export type QueryJoinedContext<
   TContext extends AnyQueryContext,
   Alias extends string,
-  C extends AnyCollection,
+  S extends QuerySource,
 > = TContext & {
-  readonly [Key in Alias]: CollectionRowValue<C>;
+  readonly [Key in Alias]: QuerySourceRow<S>;
 };
 
 /** Result context chosen after a join projection. */
@@ -112,23 +125,25 @@ export interface QueryOrder<TContext> {
 /** Compiled join clause used by the query execution plan. */
 export interface QueryJoin {
   readonly alias: string;
-  readonly collection: AnyCollection;
+  readonly source: QuerySource;
   readonly leftKey: (row: AnyQueryContext) => QueryJoinKey;
-  readonly rightKeys: (row: AnyCollectionRow) => ReadonlyArray<QueryJoinKey>;
+  readonly rightKeys: (row: AnyQueryRow) => ReadonlyArray<QueryJoinKey>;
   readonly rightIndex?: string;
 }
 
-/** Runtime diagnostics for one source collection in a query plan. */
+/** Runtime diagnostics for one source in a query plan. */
 export interface QueryPlanSourceDiagnostics {
   readonly alias: string;
-  readonly collection: string;
+  /** The source Resource's name. */
+  readonly resource: string;
   readonly rows: number;
 }
 
 /** Runtime diagnostics for one join stage in a query plan. */
 export interface QueryPlanJoinDiagnostics {
   readonly alias: string;
-  readonly collection: string;
+  /** The joined Resource's name. */
+  readonly resource: string;
   readonly strategy: QueryJoinStrategy;
   readonly index?: string;
   readonly leftRows: number;
@@ -158,11 +173,11 @@ export interface QueryExecution<TContext> {
 /** Source role selected by the compiled Query Stage Plan. */
 export type QueryStageSourceRole = "base" | "join";
 
-/** Source collection and adapter facts used by snapshot and live query stages. */
+/** Source and adapter facts used by snapshot and live query stages. */
 export interface QueryStageSource {
   readonly alias: string;
-  readonly collection: AnyCollection;
-  readonly adapter: QueryCollectionSourceAdapter;
+  readonly source: QuerySource;
+  readonly adapter: QuerySourceAdapter;
   readonly role: QueryStageSourceRole;
 }
 
@@ -183,7 +198,7 @@ export interface QueryStageWindow {
 export interface QueryStagePlan<TContext extends AnyQueryContext> {
   readonly sources: ReadonlyArray<QueryStageSource>;
   readonly baseSources: ReadonlyArray<QueryStageSource>;
-  readonly sourceAdapters: ReadonlyArray<QueryCollectionSourceAdapter>;
+  readonly sourceAdapters: ReadonlyArray<QuerySourceAdapter>;
   readonly sourceByAlias: ReadonlyMap<string, QueryStageSource>;
   readonly identityAliases: ReadonlyArray<string>;
   readonly joins: ReadonlyArray<QueryJoin>;
@@ -254,7 +269,7 @@ export interface QueryProjectOptions {
 }
 
 export interface QueryPlanBuilder<TContext extends AnyQueryContext> {
-  readonly sources: ReadonlyArray<readonly [string, AnyCollection]>;
+  readonly sources: ReadonlyArray<readonly [string, QuerySource]>;
   readonly filters: ReadonlyArray<(row: TContext) => boolean>;
   readonly orders: ReadonlyArray<QueryOrder<TContext>>;
   readonly offsetCount: number;
@@ -463,7 +478,7 @@ const promiseShapedQueryCallbackError = (
     operation,
     cause: new QueryCallbackPromiseRejected({
       guidance:
-        "Query callbacks are synchronous. Move async work into collection load/refresh/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation.",
+        "Query callbacks are synchronous. Move async work into the source Resource's load, or wrap host Promise work in an Effect before it reaches Query evaluation.",
     }),
     message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values at ${path}.`,
   });
@@ -476,7 +491,7 @@ const effectShapedQueryCallbackError = (
     operation,
     cause: new QueryCallbackEffectRejected({
       guidance:
-        "Query callbacks are synchronous data projections. Return Effect work from collection load/refresh/sync adapters before it reaches Query evaluation.",
+        "Query callbacks are synchronous data projections. Return Effect work from the source Resource's load before it reaches Query evaluation.",
     }),
     message: `Query ${operation} callbacks must return plain data, not Effect-shaped values at ${path}.`,
   });
@@ -603,7 +618,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
 ): void => {
   if (builder.sources.length === 0) {
     throw new UnsupportedLiveQuery({
-      reason: "Live queries require at least one source collection.",
+      reason: "Queries require at least one source.",
     });
   }
   if (!Number.isSafeInteger(builder.offsetCount) || builder.offsetCount < 0) {
@@ -620,8 +635,8 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
     });
   }
 
-  const aliases = new Map<string, AnyCollection>();
-  for (const [alias, collection] of builder.sources) {
+  const aliases = new Map<string, QuerySource>();
+  for (const [alias, source] of builder.sources) {
     validateQuerySourceAlias(alias);
     const existing = aliases.get(alias);
     if (existing) {
@@ -629,7 +644,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
         reason: `Query source alias "${alias}" is registered more than once.`,
       });
     }
-    aliases.set(alias, collection);
+    aliases.set(alias, source);
   }
 
   for (const join of builder.joins) {
@@ -639,17 +654,17 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
         reason: `Join source "${join.alias}" is not registered.`,
       });
     }
-    if (source !== join.collection) {
+    if (source !== join.source) {
       throw new UnsupportedLiveQuery({
-        reason: `Join source "${join.alias}" is registered for collection "${source.name}" but the join uses "${join.collection.name}".`,
+        reason: `Join source "${join.alias}" is registered for Resource "${source.family.options.name}" but the join uses "${join.source.family.options.name}".`,
       });
     }
     if (
       join.rightIndex !== undefined &&
-      !makeQuerySourceAdapter(join.collection).hasIndex(join.rightIndex)
+      !makeQuerySourceAdapter(join.source).hasIndex(join.rightIndex)
     ) {
       throw new UnsupportedLiveQuery({
-        reason: `Join source "${join.alias}" uses unknown index "${join.rightIndex}" on collection "${join.collection.name}".`,
+        reason: `Join source "${join.alias}" uses unknown index "${join.rightIndex}" on Resource "${join.source.family.options.name}".`,
       });
     }
   }
@@ -659,7 +674,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
     const hasBaseSource = builder.sources.some(([alias]) => !joinAliases.has(alias));
     if (!hasBaseSource) {
       throw new UnsupportedLiveQuery({
-        reason: "Live queries with joins require at least one non-join source collection.",
+        reason: "Queries with joins require at least one non-join source.",
       });
     }
   }
@@ -671,22 +686,22 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
 ): QueryStagePlan<TContext> => {
   validateQueryPlan(builder);
   const joinAliases = new Set(builder.joins.map((join) => join.alias));
-  const adapterByCollection = new Map<AnyCollection, QueryCollectionSourceAdapter>();
-  const sourceAdapter = (collection: AnyCollection): QueryCollectionSourceAdapter => {
-    const existing = adapterByCollection.get(collection);
+  const adapterBySource = new Map<string, QuerySourceAdapter>();
+  const sourceAdapter = (source: QuerySource): QuerySourceAdapter => {
+    const existing = adapterBySource.get(source.key);
     if (existing !== undefined) {
       return existing;
     }
 
-    const adapter = makeQuerySourceAdapter(collection);
-    adapterByCollection.set(collection, adapter);
+    const adapter = makeQuerySourceAdapter(source);
+    adapterBySource.set(source.key, adapter);
     return adapter;
   };
   const sources = builder.sources.map(
-    ([alias, collection]): QueryStageSource => ({
+    ([alias, source]): QueryStageSource => ({
       alias,
-      collection,
-      adapter: sourceAdapter(collection),
+      source,
+      adapter: sourceAdapter(source),
       role: joinAliases.has(alias) ? "join" : "base",
     }),
   );
@@ -695,7 +710,7 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
   return {
     sources,
     baseSources,
-    sourceAdapters: Array.from(adapterByCollection.values()),
+    sourceAdapters: Array.from(adapterBySource.values()),
     sourceByAlias,
     identityAliases: [
       ...baseSources.map((source) => source.alias),
@@ -717,7 +732,7 @@ const buildStageSourceContexts = <TContext extends AnyQueryContext>(
 ): Array<TContext> => {
   if (sources.length === 0) {
     throw new UnsupportedLiveQuery({
-      reason: "Live queries require at least one source collection.",
+      reason: "Queries require at least one source.",
     });
   }
 
@@ -733,7 +748,7 @@ const buildStageSourceContexts = <TContext extends AnyQueryContext>(
       return;
     }
 
-    for (const row of source.adapter.rows()) {
+    for (const { row } of source.adapter.entries()) {
       current[source.alias] = row;
       visit(index + 1, current);
     }
@@ -750,7 +765,7 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
   const sourceDiagnostics = stagePlan.sources.map((source): QueryPlanSourceDiagnostics => {
     return {
       alias: source.alias,
-      collection: source.adapter.name,
+      resource: source.adapter.name,
       rows: source.adapter.rowCount(),
     };
   });
@@ -783,8 +798,8 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
     }
     joins.push({
       alias: join.alias,
-      collection: source.name,
-      strategy: join.rightIndex ? "collection-index" : "collection-scan",
+      resource: source.name,
+      strategy: join.rightIndex ? "index" : "scan",
       ...(join.rightIndex === undefined ? {} : { index: join.rightIndex }),
       leftRows,
       rightRows,

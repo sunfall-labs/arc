@@ -384,7 +384,6 @@ describe("route", () => {
     });
     const ProjectRoute = Route.define("/projects/:id", {
       preloadResources: [Project, Project("atlas"), "Route.Project.extra"],
-      preloadCollections: [{ name: "Route.Project.collection" }, "Route.Project.collection.extra"],
       preload: () =>
         Effect.sync(() => {
           ran = true;
@@ -399,33 +398,17 @@ describe("route", () => {
       "Route.Project.extra",
       "Route.Project.preload-diagnostics",
     ]);
-    expect(Route.preloadCollectionNames(ProjectRoute)).toEqual([
-      "Route.Project.collection",
-      "Route.Project.collection.extra",
-    ]);
     expect(Route.describePreloadResources(ProjectRoute)).toEqual({
       status: "declared",
       families: ["Route.Project.extra", "Route.Project.preload-diagnostics"],
-    });
-    expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
-      status: "declared",
-      collections: ["Route.Project.collection", "Route.Project.collection.extra"],
     });
     expect(Route.describePreloadResources(UnknownRoute)).toEqual({
       status: "unknown",
       families: [],
     });
-    expect(Route.describePreloadCollections(UnknownRoute)).toEqual({
-      status: "unknown",
-      collections: [],
-    });
     expect(Route.describePreloadResources(PlainRoute)).toEqual({
       status: "none",
       families: [],
-    });
-    expect(Route.describePreloadCollections(PlainRoute)).toEqual({
-      status: "none",
-      collections: [],
     });
     expect(ran).toBe(false);
   });

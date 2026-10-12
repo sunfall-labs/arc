@@ -43,6 +43,7 @@
   "dependencies": {
     "@solidjs/web": "2.0.0-rc.14",
     "@sunfall/arc-core": "workspace:*",
+    "@sunfall/arc-db": "workspace:*",
     "effect": "4.0.3",
     "solid-js": "2.0.0-rc.14"
   }

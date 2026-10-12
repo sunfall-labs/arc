@@ -1,3 +1,4 @@
+import type { Resource } from "@sunfall/arc-core";
 import { stableStringify } from "@sunfall/arc-core/internal";
 import {
   D2,
@@ -22,7 +23,7 @@ import {
   evaluateQueryJoinKey,
   evaluateQueryOperation,
   evaluateQueryStructuredOperation,
-  type AnyCollectionRow,
+  type AnyQueryRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
   type AnyQueryGrouping,
@@ -36,12 +37,12 @@ import {
 } from "./query-execution-plan.js";
 import {
   mergeQueryContextRecords,
-  queryCollectionRowIdentity,
+  queryRowIdentity,
   queryContextIdentityOf,
   querySourceContext,
   type QueryContextIdentityRecord,
 } from "./query-context-identity.js";
-import type { QueryCollectionSourceAdapter } from "./query-source-adapter.js";
+import type { QuerySourceAdapter } from "./query-source-adapter.js";
 
 export type LiveQueryRuntimeBuilder<
   TContext extends AnyQueryContext,
@@ -137,9 +138,14 @@ type IvmContext = AnyQueryContext & QueryContextIdentityRecord;
 
 interface IvmSource {
   readonly alias: string;
-  readonly source: QueryCollectionSourceAdapter;
+  readonly source: QuerySourceAdapter;
   readonly input: RootStreamBuilder<KeyValue<string, IvmContext>>;
-  readonly previous: Map<string, { readonly row: AnyCollectionRow; readonly hash: string }>;
+  /** The rows array last fed to the graph. */
+  synced: ReadonlyArray<unknown> | undefined;
+  readonly previous: Map<
+    string,
+    { readonly row: AnyQueryRow; readonly key: Resource.RowKey; readonly hash: string }
+  >;
 }
 
 interface IvmOutputRow<TContext> {
@@ -168,6 +174,7 @@ class IvmLiveQueryRuntime<
       alias: source.alias,
       source: source.adapter,
       input: this.#graph.newInput<KeyValue<string, IvmContext>>(),
+      synced: undefined,
       previous: new Map(),
     }));
 
@@ -180,7 +187,6 @@ class IvmLiveQueryRuntime<
 
   evaluate(): ReadonlyArray<TResult> {
     for (const source of this.#sources) {
-      source.source.version().get();
       this.#syncSource(source);
     }
 
@@ -245,7 +251,7 @@ class IvmLiveQueryRuntime<
       );
       const keyedRight = source.input.pipe(
         ivmFlatMap(([_, context]) => {
-          const row = context[join.alias] as AnyCollectionRow;
+          const row = context[join.alias] as AnyQueryRow;
           return evaluateQueryStructuredOperation("join", () => join.rightKeys(row)).map(
             (rightKey) =>
               [evaluateQueryJoinKey(rightKey), context] satisfies KeyValue<string, IvmContext>,
@@ -360,29 +366,42 @@ class IvmLiveQueryRuntime<
   }
 
   #syncSource(source: IvmSource): void {
-    const current = new Map<string, { readonly row: AnyCollectionRow; readonly hash: string }>();
+    const rows = source.source.rows();
+    if (rows === source.synced) {
+      return;
+    }
+    source.synced = rows;
+    const current = new Map<
+      string,
+      { readonly row: AnyQueryRow; readonly key: Resource.RowKey; readonly hash: string }
+    >();
     const deltas: Array<[KeyValue<string, IvmContext>, number]> = [];
 
-    for (const row of source.source.rows()) {
-      const key = queryCollectionRowIdentity(row.$key);
-      const hash = evaluateQueryOperation("source", () => stableStringify(row));
+    for (const { key: rowKey, row } of source.source.entries()) {
+      const key = queryRowIdentity(rowKey);
       const previous = source.previous.get(key);
-      current.set(key, { row, hash });
+      // Rows keep their identity while unchanged, so only a new object is hashed.
+      if (previous !== undefined && previous.row === row) {
+        current.set(key, previous);
+        continue;
+      }
+      const hash = evaluateQueryOperation("source", () => stableStringify(row));
+      current.set(key, { row, key: rowKey, hash });
 
       if (!previous) {
-        deltas.push([sourceContext(source.alias, row), 1]);
+        deltas.push([sourceContext(source.alias, row, rowKey), 1]);
         continue;
       }
 
       if (previous.hash !== hash) {
-        deltas.push([sourceContext(source.alias, previous.row), -1]);
-        deltas.push([sourceContext(source.alias, row), 1]);
+        deltas.push([sourceContext(source.alias, previous.row, previous.key), -1]);
+        deltas.push([sourceContext(source.alias, row, rowKey), 1]);
       }
     }
 
     for (const [key, previous] of source.previous) {
       if (!current.has(key)) {
-        deltas.push([sourceContext(source.alias, previous.row), -1]);
+        deltas.push([sourceContext(source.alias, previous.row, previous.key), -1]);
       }
     }
 
@@ -397,10 +416,11 @@ class IvmLiveQueryRuntime<
   }
 }
 
-const sourceContext = (alias: string, row: AnyCollectionRow): KeyValue<string, IvmContext> => [
-  crossJoinKey,
-  querySourceContext(alias, row),
-];
+const sourceContext = (
+  alias: string,
+  row: AnyQueryRow,
+  key: Resource.RowKey,
+): KeyValue<string, IvmContext> => [crossJoinKey, querySourceContext(alias, row, key)];
 
 const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmContext =>
   mergeQueryContextRecords(left, right);

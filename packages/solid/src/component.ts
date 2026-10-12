@@ -43,6 +43,13 @@ import {
 } from "solid-js";
 import { hydrate as hydrateSolid, render as renderSolid, type JSX } from "@solidjs/web";
 import { setupRenderFailure, typedRenderFailure } from "./render-failure.js";
+import {
+  bindLiveQuery,
+  type LiveQueryHandle as LiveQueryBindingHandle,
+  type LiveQueryInput as LiveQueryBindingInput,
+  type LiveQueryOptions as LiveQueryBindingOptions,
+  type LiveQueryRenderError,
+} from "./live-query.js";
 import { createResourceSuspense, type ResourceSuspense } from "./resource-binding.js";
 import { createBrowserRouter, type BrowserRouter, type RouterOptions } from "./router.js";
 
@@ -593,10 +600,17 @@ export namespace Component {
     readonly hydrate?: boolean;
   }
 
+  /** Instance-bound live query handle from `Component.liveQuery`. */
+  export type LiveQueryHandle<T, E = never> = LiveQueryBindingHandle<T, E>;
+  /** A query factory, or a prebuilt `Query.Live`, for `Component.liveQuery`. */
+  export type LiveQueryInput<T, E, R> = LiveQueryBindingInput<T, E, R>;
+  /** Options for `Component.liveQuery`. */
+  export type LiveQueryOptions = LiveQueryBindingOptions;
+
   /**
-   * The instance a setup runs for, for writing setup-time bindings (like
-   * `@sunfall/arc-solid-db`'s): its runtime (whose effects see the setup's
-   * context, including `Component.provide` services), Solid owner, and Scope.
+   * The instance a setup runs for, for writing setup-time bindings: its
+   * runtime (whose effects see the setup's context, including
+   * `Component.provide` services), Solid owner, and Scope.
    */
   export interface Instance {
     /** The component's name, which prefixes its named transitions (`<name>.<callback>`). */
@@ -834,6 +848,34 @@ export namespace Component {
       yield* Effect.addFinalizer(() => Effect.sync(dispose));
       return reader;
     }) as unknown as Effect.Effect<Reader<I, A, RenderError, Rows>, never, R>;
+
+  /**
+   * Binds a live query over the rows of Resources (`Query` from
+   * `@sunfall/arc-db`) and returns its handle. Pass a query factory or a
+   * prebuilt `Query.Live`; the sources' declared load errors join the
+   * component's `E` and their services join `R`. The factory runs tracked: a
+   * signal or prop it reads rebuilds the query. Sources preload on mount
+   * unless `preload` is false.
+   *
+   * @example
+   * ```tsx
+   * const open = yield* Component.liveQuery((query) =>
+   *   query
+   *     .from({ project: ProjectsRef })
+   *     .where(({ project }) => project.status === "active")
+   *     .select(({ project }) => project),
+   * );
+   * ```
+   */
+  export const liveQuery = <T, E = never, R = never>(
+    input: LiveQueryBindingInput<T, E, R>,
+    options: LiveQueryBindingOptions = {},
+  ): Effect.Effect<LiveQueryBindingHandle<T, E>, LiveQueryRenderError<E>, R> =>
+    Effect.map(instance, (current) => bindLiveQuery(current, input, options)) as Effect.Effect<
+      LiveQueryBindingHandle<T, E>,
+      LiveQueryRenderError<E>,
+      R
+    >;
 
   /**
    * Binds an Action to this instance and returns its handle.
