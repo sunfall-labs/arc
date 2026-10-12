@@ -302,18 +302,23 @@ describe("Program and Action commits", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        type Message = "increment" | "fail";
+        type Message = { readonly _tag: "Increment" } | { readonly _tag: "Fail" };
         const program = Program.start(
-          Program.define<number, Message, string>({
+          Program.define<number, Message>({
             name: "Counter",
             initial: 0,
-            update: (model, message) => (message === "fail" ? Effect.fail("boom") : model + 1),
+            on: {
+              Increment: (model) => model + 1,
+              Fail: () => {
+                throw new Error("boom");
+              },
+            },
           }),
           { runtime: defaultRuntime },
         );
 
-        yield* program.dispatch("increment");
-        yield* Effect.flip(program.dispatch("fail"));
+        yield* program.dispatch({ _tag: "Increment" });
+        yield* Effect.flip(program.dispatch({ _tag: "Fail" }));
 
         expect(
           Signal.peek(recording.entries).map((entry) => ({
@@ -321,7 +326,7 @@ describe("Program and Action commits", () => {
             changed: entry.changes.map((change) => change.name),
           })),
         ).toEqual([
-          { cause: 'Program "Counter" message increment', changed: ["Counter.model"] },
+          { cause: 'Program "Counter" message Increment', changed: ["Counter.model"] },
           { cause: 'Program "Counter" failure', changed: ["Counter.failures"] },
         ]);
         yield* program.dispose;

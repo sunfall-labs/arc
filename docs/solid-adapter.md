@@ -272,6 +272,12 @@ Because setup runs per instance, a Program can close over the instance's other
 bindings: a form Program that submits `rename.submit(...)` from a command
 gets its own Action and Program per mounted form.
 
+None of this is needed to test the logic. Program handlers are pure, so a
+transition is tested with `Program.step(program, model, message)` and an
+Action's `optimistic` patch with `Action.planOptimistic(definition, input)`:
+no Solid root, DOM, runtime, or timers (see
+[Testing](golden-path.md#testing)).
+
 ### Streams and callbacks
 
 `Component.stream(stream, initial)` runs a `Stream<A, never, R>` for the

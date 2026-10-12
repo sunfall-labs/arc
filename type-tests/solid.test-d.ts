@@ -87,19 +87,20 @@ const solidReadSignalValue: number = solidCountSignal.get();
 const solidEffectRuntime = makeRuntime();
 const solidSignalValue = (): number => solidCountSignal.get();
 const solidStreamValue = Component.stream(Stream.succeed("ready"), "idle");
-const SolidProgram = Program.define<number, "tick">({
+type SolidTick = { readonly _tag: "Tick" };
+const SolidProgram = Program.define<number, SolidTick>({
   initial: 0,
-  update: (model) => Program.next(model + 1),
+  on: { Tick: (model) => Program.next(model + 1) },
 });
-declare const solidProgramHandle: Component.ProgramHandle<number, "tick", never>;
-const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, "tick", never>> =
+declare const solidProgramHandle: Component.ProgramHandle<number, SolidTick, never>;
+const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, SolidTick, never>> =
   Component.program(SolidProgram);
 // @ts-expect-error Program history lives on the app Timeline, not on the Program handle.
 solidProgramHandle.clearTimeline();
 const solidProgramDispatch: Effect.Effect<
   void,
-  ProgramFailure<"tick", EffectInputCallbackError | Program.Disposed>
-> = solidProgramHandle.dispatch("tick");
+  ProgramFailure<SolidTick, EffectInputCallbackError | Program.Disposed>
+> = solidProgramHandle.dispatch({ _tag: "Tick" });
 declare const solidUnknownProgramHandle: Component.ProgramHandle<number, unknown, never>;
 const solidProgramCount: number = solidProgramHandle.model();
 void solidProgramCount;

@@ -164,11 +164,11 @@ Reducer loops often split model transitions, async work queues, and component
 effects across several files. In Sunfall Arc, move that loop into a Program:
 
 - The reducer state becomes `initial`.
-- The action union becomes a Program message union, preferably tagged with
-  `_tag`.
-- The reducer switch becomes `Program.define({ initial, on })` for tagged
-  messages, or `Program.update(handlers)` when an existing definition still
-  wants an `update(model, message)` callback.
+- The action union becomes a Program message union tagged with `_tag`
+  (`"increment"` becomes `{ _tag: "Increment" }`).
+- The reducer switch becomes the `on` map of `Program.define({ initial, on })`,
+  one pure handler per `_tag`. There is no `update(model, message)` callback,
+  and a handler never returns an Effect.
 - A handler returns the next model directly, or `Program.next(model, commands)`
   when work should run after the model commits.
 - Follow-up work is a command from `Program.emit(...)`: `Program.emit(message)`,
@@ -179,7 +179,14 @@ effects across several files. In Sunfall Arc, move that loop into a Program:
 
 The migration is done when models and messages are plain values, Promise work is
 wrapped at the Effect edge before a follow-up message is emitted, and
-`Program.story(...)` can exercise the transitions without mounting a UI.
+`Program.step(program, model, message)` tests each transition as a pure
+function call without mounting a UI.
+
+Earlier alphas accepted an `update` callback (which could return an Effect),
+`Program.update(handlers)`, and the `Program.story(...)` harness. Move every
+`update` into `on`, move Effect work in handlers into `Program.emit(effect)`
+commands, and replace stories with `Program.step(...)` plus running a
+command's `effect`.
 
 ## From Solid Hooks To Components
 

@@ -710,6 +710,121 @@ shows `sidebar.status` because the Signal was named. In tests, record inside the
 test's Scope and assert on the DOM after `travel`
 ([example](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
 
+## Testing
+
+UI logic is tested as plain functions: no runtime, DOM, or timers.
+
+A Program's handlers are pure, so `Program.step(program, model, message)` is
+the whole test harness. It returns `{ model, commands }` without running the
+commands; each command is a description whose `effect` you run, with test
+services, to get the message it emits. Here is a Program that loads the
+project list:
+
+<!-- snippet: type-tests/golden-path/project-loader.ts -->
+
+```ts
+import { Program } from "@sunfall/arc-core";
+import { Effect } from "effect";
+import { ProjectApi, type Project } from "./projects.js";
+
+type Model = {
+  readonly status: "idle" | "loading" | "ready";
+  readonly projects: ReadonlyArray<Project>;
+};
+type Message =
+  | { readonly _tag: "Load" }
+  | { readonly _tag: "Loaded"; readonly projects: ReadonlyArray<Project> };
+
+// Handlers are pure: they return the next model, and Effect work leaves them
+// as commands that run after the model commits.
+export const ProjectLoader = Program.define<Model, Message, never, ProjectApi>({
+  name: "ProjectLoader",
+  initial: { status: "idle", projects: [] },
+  on: {
+    Load: (model) =>
+      Program.next(
+        { ...model, status: "loading" },
+        Program.emit(
+          ProjectApi.use((api) => api.list()).pipe(
+            Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
+          ),
+        ),
+      ),
+    Loaded: (_model, message) => ({ status: "ready", projects: message.projects }),
+  },
+});
+```
+
+and its tests:
+
+<!-- snippet: type-tests/golden-path/project-loader.test.ts -->
+
+```ts
+import { Program } from "@sunfall/arc-core";
+import { Effect } from "effect";
+import { expect, test } from "vitest";
+import { ProjectLoader } from "./project-loader.js";
+import { ProjectId, type Project } from "./projects.js";
+import { ProjectApiMemory } from "./projects.memory.js";
+
+const atlas: Project = { id: ProjectId.make("atlas"), name: "Atlas", status: "active" };
+
+test("Load starts loading and fetches the projects", () => {
+  // One transition is one function call: no runtime, DOM, or timers.
+  const loading = Program.step(ProjectLoader, ProjectLoader.initial, { _tag: "Load" });
+  expect(loading.model.status).toBe("loading");
+  expect(loading.commands).toHaveLength(1);
+
+  // A command is a description: run its Effect with test services to get the
+  // message it emits.
+  const emitted = Effect.runSync(
+    loading.commands[0]!.effect.pipe(Effect.provide(ProjectApiMemory)),
+  );
+  expect(emitted).toMatchObject({ _tag: "Loaded", projects: [atlas, expect.anything()] });
+});
+
+test("Loaded shows the projects", () => {
+  const loading = { status: "loading", projects: [] } as const;
+  const ready = Program.step(ProjectLoader, loading, { _tag: "Loaded", projects: [atlas] });
+  expect(ready.model).toEqual({ status: "ready", projects: [atlas] });
+  expect(ready.commands).toEqual([]);
+});
+```
+
+An Action's `optimistic` patch is tested with `Action.planOptimistic(definition,
+input)`. It runs the patch against a recording transaction and returns what it
+would change, applying nothing: a Signal patch reports the value the signal
+would read, and a row patch reports the collection and the change.
+
+<!-- snippet: type-tests/golden-path/rename.test.ts -->
+
+```ts
+import { Action } from "@sunfall/arc-core";
+import { Effect } from "effect";
+import { expect, test } from "vitest";
+import { Projects } from "./collection.js";
+import { ProjectId } from "./projects.js";
+import { ProjectApiMemory } from "./projects.memory.js";
+import { RenameProject } from "./rename.js";
+
+test("renaming patches the sidebar row at once", () => {
+  const id = ProjectId.make("atlas");
+  // Plans the patch without applying it: no runtime, store, or backend.
+  // `ProjectApiMemory` satisfies the Action's types; the plan never calls it.
+  const changes = Effect.runSync(
+    Action.planOptimistic(RenameProject, { id, name: "Atlas 2" }).pipe(
+      Effect.provide(ProjectApiMemory),
+    ),
+  );
+  expect(changes).toEqual([
+    { _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } },
+  ]);
+});
+```
+
+To test what the screen shows, render the Component (see
+[Solid adapter](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
+
 ## Rules Of Thumb
 
 - **Render content from the reader.** `reader(input)` is the only way Resource

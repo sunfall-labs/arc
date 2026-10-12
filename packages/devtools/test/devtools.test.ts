@@ -715,7 +715,7 @@ describe("devtools invalidation plans", () => {
       Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
         name: "Counter.program-track",
         initial: { count: 0 },
-        update: (model) => Effect.succeed({ count: model.count + 1 }),
+        on: { Increment: (model) => ({ count: model.count + 1 }) },
       }),
       { runtime: defaultRuntime },
     );

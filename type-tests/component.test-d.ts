@@ -266,7 +266,7 @@ void renameSubmit;
 // Programs: the definition's services join R.
 const Counter = Program.define<number, { readonly _tag: "Load" }, never, ProjectApi>({
   initial: 0,
-  update: (model) => model + 1,
+  on: { Load: (model) => model + 1 },
 });
 const counterBinding = Component.program(Counter);
 type _counterBinding = Assert<
