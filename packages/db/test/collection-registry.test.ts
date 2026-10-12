@@ -1,4 +1,5 @@
 import { Collection } from "@sunfall/arc-db";
+import type { KeyValueStore } from "effect/persistence";
 import {
   defaultCollectionDefinitionRegistry,
   defineCollection,
@@ -87,12 +88,15 @@ describe("Collection registry", () => {
 
   it("reports effective persistence defaults in diagnostics", () => {
     const registry = makeCollectionDefinitionRegistry();
-    defineCollection<Project>(
+    defineCollection<
+      Project,
+      string,
+      KeyValueStore.KeyValueStoreError,
+      KeyValueStore.KeyValueStore
+    >(
       {
         ...projectOptions("Projects.registry.persistence-defaults"),
-        persistence: {
-          storage: Collection.memoryStorage(),
-        },
+        persistence: {},
       },
       registry,
     );

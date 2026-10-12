@@ -210,7 +210,7 @@ describe("Action outbox (durable submissions)", () => {
             ),
           );
           const recording = yield* Timeline.record();
-          yield* second.provide(Action.restoreOutbox);
+          yield* second.provide(Action.restoreOutbox());
           expect(Signal.peek(after.total)).toBe(18);
           const outbox = yield* second.provide(Action.outbox);
           expect(Signal.peek(outbox.pending).map((entry) => entry.id)).toEqual(ids);
@@ -241,6 +241,51 @@ describe("Action outbox (durable submissions)", () => {
           yield* second.dispose;
         }),
       ),
+    ));
+
+  it("does not re-apply the patch of a submission the hydrated state already reflects", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { values, storage } = memoryStorage();
+        const server = fakeServer(values);
+
+        const before = defineApp("Outbox.settled");
+        const first = makeRuntime(
+          Layer.mergeAll(
+            server.layer,
+            Action.outboxLayer({ retry: fastRetry }).pipe(Layer.provide(storage)),
+          ),
+        );
+        const advance = Action.use(before.AdvanceAction, { runtime: first });
+        yield* Effect.flip(advance.submit({ id: "atlas", by: 3 }));
+        yield* Effect.flip(advance.submit({ id: "atlas", by: 5 }));
+        const ids = storedIds(values);
+        yield* first.dispose;
+
+        // Reload: the server applied the first submission (its response was
+        // lost) before rendering, so the hydrated value 13 already includes it.
+        const after = defineApp("Outbox.settled");
+        after.total.set(13);
+        const second = makeRuntime(
+          Layer.mergeAll(
+            server.layer,
+            Action.outboxLayer({ retry: fastRetry }).pipe(Layer.provide(storage)),
+          ),
+        );
+        yield* second.provide(Action.restoreOutbox({ settled: [ids[0]!] }));
+        expect(Signal.peek(after.total)).toBe(18);
+        const outbox = yield* second.provide(Action.outbox);
+        expect(Signal.peek(outbox.pending).map((entry) => entry.id)).toEqual(ids);
+
+        // The replay still settles both, in order.
+        const sentBefore = server.state.sent.length;
+        server.state.online = true;
+        yield* waitFor(() => Signal.peek(outbox.pending).length === 0);
+        expect(server.state.sent.slice(sentBefore).map((sent) => sent.id)).toEqual(ids);
+        expect(Signal.peek(after.total)).toBe(18);
+        expect(Signal.peek(outbox.failures)).toEqual([]);
+        yield* second.dispose;
+      }),
     ));
 
   it("rolls back and reports a final failure of a queued submission", () =>
@@ -330,7 +375,7 @@ describe("Action outbox (durable submissions)", () => {
         );
         const sentBefore = server.state.sent.length;
         server.state.online = true;
-        yield* second.provide(Action.restoreOutbox);
+        yield* second.provide(Action.restoreOutbox());
         const outbox = yield* second.provide(Action.outbox);
 
         expect(Signal.peek(after.total)).toBe(0);

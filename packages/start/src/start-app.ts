@@ -2,6 +2,7 @@ import {
   Action,
   makeRuntime,
   Route,
+  Signal,
   type ActionTransport,
   type Resource,
   type ServerClient,
@@ -11,6 +12,7 @@ import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import { hydrateFromDocument, type StartHydrationError } from "./hydration.js";
+import { startActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { makeActionTransportLayer } from "./start-action-transport.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import { startRootElementId } from "./start-document.js";
@@ -246,7 +248,7 @@ export namespace App {
           ),
           (owned) => owned.dispose.pipe(Effect.ignore({ log: true })),
         );
-        yield* runtime.provide(
+        const hydration = yield* runtime.provide(
           hydrateFromDocument(globalThis.document, {
             ...options.hydration,
             collections: app.collections,
@@ -267,10 +269,28 @@ export namespace App {
           container,
           { runtime, props: { href }, hydrate: true },
         );
+        // The outbox cookie tells the next document request which durable
+        // submissions this page holds; the server reports back the ones it
+        // already settled (`settledSubmissions`).
+        const outbox = yield* runtime.provide(Action.outbox);
+        yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            outbox.pending.subscribe(() => {
+              globalThis.document.cookie = startActionOutboxCookie(
+                Signal.peek(outbox.pending),
+                location.protocol === "https:",
+              );
+            }),
+          ),
+          (unsubscribe) => Effect.sync(unsubscribe),
+        );
         // Pending durable submissions re-apply their optimistic patches after
         // hydration (so the first client render matches the server's), then
-        // replay.
-        yield* runtime.provide(Action.restoreOutbox);
+        // replay. Those the server settled before rendering are already in
+        // the hydrated state, so their patches stay off.
+        yield* runtime.provide(
+          Action.restoreOutbox({ settled: hydration?.settledSubmissions ?? [] }),
+        );
         return yield* Effect.never;
       }),
     );

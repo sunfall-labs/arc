@@ -44,9 +44,8 @@ export const resourceFailureApp = () => {
   const ProjectById = Resource.define({
     name: "ResourceFailureSsr.ProjectById",
     error: ProjectNotFound,
-    // Explicit success types: a never-succeeding load would infer `A = never`.
     load: (id: string) =>
-      Effect.suspend((): Effect.Effect<string, ProjectNotFound> => {
+      Effect.suspend(() => {
         events.loads++;
         // Fields outside the schema stay on the server.
         return Effect.fail(Object.assign(new ProjectNotFound({ id }), { secret }));
@@ -55,7 +54,7 @@ export const resourceFailureApp = () => {
   const Stats = Resource.define({
     name: "ResourceFailureSsr.Stats",
     load: (_: "all") =>
-      Effect.suspend((): Effect.Effect<string, DatabaseDown> => {
+      Effect.suspend(() => {
         events.loads++;
         return Effect.fail(new DatabaseDown({ secret }));
       }),

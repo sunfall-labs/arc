@@ -1,9 +1,9 @@
 import { Effect, Schema, Stream } from "effect";
+import type { KeyValueStore } from "effect/persistence";
 import type { AsyncResult } from "effect/reactivity";
 import {
   Resource,
   Server,
-  type EffectInput,
   type EffectInputCallbackError,
   type ServerClientError,
 } from "@sunfall/arc-core";
@@ -12,15 +12,9 @@ import {
   CollectionRowKeyChanged,
   CollectionRowNotFound,
   CollectionSnapshotCodecError,
-  CollectionStorageError,
   Query,
   QueryEvaluationError,
   ReadonlyCollectionMutation,
-  SQLitePersistence,
-  SQLitePersistenceInvalidRow,
-  SQLitePersistenceInvalidStatementParams,
-  SQLitePersistenceInvalidTableName,
-  SQLitePersistenceUnsupportedStatement,
   UnknownCollectionIndex,
   UnsupportedLiveQuery,
 } from "@sunfall/arc-db";
@@ -116,21 +110,18 @@ const ResourceProjects = Collection.define({
 });
 const resourceProjects: Collection.Definition<Project, string, "resource-load"> = ResourceProjects;
 
-// Persistence storage channels are inferred without a helper.
-const sqliteStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver(SQLitePersistence.memoryStatementDatabase()),
-);
+// Persistence adds the runtime KeyValueStore channels without a helper.
 const PersistedProjects = Collection.define({
   name: "type-tests/persisted-projects",
   output: ProjectSchema,
   getKey: (project) => project.id,
-  persistence: { storage: sqliteStorage },
+  persistence: { key: "projects", version: 2 },
 });
 type PersistedProjectsError = Collection.Error<typeof PersistedProjects>;
-const persistedProjectsError: PersistedProjectsError = null as never as
-  | EffectInputCallbackError
-  | SQLitePersistenceInvalidRow
-  | SQLitePersistenceInvalidTableName;
+const persistedProjectsError: KeyValueStore.KeyValueStoreError =
+  null as never as PersistedProjectsError;
+const persistedProjectsRequirements: KeyValueStore.KeyValueStore =
+  null as never as Collection.Requirements<typeof PersistedProjects>;
 
 declare const promiseRows: Promise<ReadonlyArray<Project>>;
 Collection.define({
@@ -172,8 +163,10 @@ Collection.rows;
 Collection.subscribeChangesEffect;
 // @ts-expect-error the sync adapter is passed to Collection.define directly.
 Collection.syncOptions;
-// @ts-expect-error SQLite helpers live on SQLitePersistence only.
-Collection.sqliteStorage;
+// @ts-expect-error persistence goes through the runtime KeyValueStore, not storage adapters.
+Collection.memoryStorage;
+// @ts-expect-error persistence goes through the runtime KeyValueStore, not storage adapters.
+Collection.storage;
 
 // --- Collection namespace types ---
 
@@ -199,14 +192,7 @@ const options: Collection.Options<Project, string, "load", DbRuntimeService> = {
   sync: syncSource,
 };
 const writeOptions: Collection.WriteOptions = { origin: "remote" };
-const collectionMemoryStorage: Collection.MemoryStorage = Collection.memoryStorage();
-const collectionStorage: Collection.PersistenceStorage<CollectionStorageError> = Collection.storage(
-  {
-    getItem: () => null,
-    setItem: () => undefined,
-    removeItem: () => undefined,
-  },
-);
+const persistOptions: Collection.PersistOptions = { key: "projects", version: 1 };
 const liveQueryCollection = Collection.liveQuery<Project, string, unknown>({
   name: "type-tests/live-query-projects",
   getKey: (project) => project.id,
@@ -220,12 +206,8 @@ const concreteCollectionErrorPin: "load" = null as never as Collection.Error<
 >;
 const concreteCollectionRequirementsPin: DbRuntimeService =
   null as never as Collection.Requirements<typeof dbProjectsCollection>;
-const servicefulErasedPersistencePin: Collection.PersistenceConfig<"persist", DbAdapterService> =
-  servicefulErasedPersistence;
-const servicefulErasedPersistenceRead: EffectInput<string | null, "persist", DbAdapterService> =
-  servicefulErasedPersistence.storage.getItem("projects");
-const bareErasedPersistencePin: Collection.PersistenceConfig<unknown, unknown> =
-  bareErasedPersistence;
+const servicefulErasedPersistencePin: Collection.PersistenceConfig = servicefulErasedPersistence;
+const bareErasedPersistencePin: Collection.PersistenceConfig = bareErasedPersistence;
 // @ts-expect-error erased collection errors default to unknown, not an arbitrary string.
 const erasedCollectionErrorString: string = erasedCollectionError;
 // @ts-expect-error erased collection requirements default to unknown, not an arbitrary service.
@@ -306,29 +288,6 @@ declare const publicQueryAggregateResult: Query.AggregateResult<
 const publicQueryAggregateCount: number = publicQueryAggregateResult.count;
 publicQueryRoot.from({ project: dbStaticProjectsCollection });
 
-// --- SQLite persistence ---
-
-declare const sqliteStatementDatabase: SQLitePersistence.StatementDatabase<SQLitePersistenceInvalidRow>;
-declare const sqlitePreparedStatementDatabase: SQLitePersistence.PreparedStatementDatabase;
-const sqliteStatementStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver(sqliteStatementDatabase),
-);
-const sqlitePreparedAdapter = SQLitePersistence.preparedStatementDatabase(
-  sqlitePreparedStatementDatabase,
-);
-const sqliteMemoryStatementDatabase: SQLitePersistence.MemoryStatementDatabase =
-  SQLitePersistence.memoryStatementDatabase();
-const sqliteDefaultTable: "sunfall_arc_collection_persistence" = SQLitePersistence.defaultTable;
-const sqliteDefaultNamespace: "sunfall-arc:collections" = SQLitePersistence.defaultNamespace;
-const sqliteDefaultSchemaVersion: 1 = SQLitePersistence.defaultSchemaVersion;
-const sqliteRow: SQLitePersistence.Row = {
-  namespace: "workspace",
-  key: "projects",
-  schemaVersion: 1,
-  value: "{}",
-  updatedAt: 1,
-};
-
 // --- Root error classes ---
 
 const unknownCollectionIndex = new UnknownCollectionIndex({
@@ -356,13 +315,7 @@ const collectionSnapshotCodecError = new CollectionSnapshotCodecError({
 });
 // @ts-expect-error error classes have one name each, at the package root.
 Collection.RowNotFound;
-type DbErrors =
-  | CollectionStorageError
-  | QueryEvaluationError
-  | SQLitePersistenceInvalidRow
-  | SQLitePersistenceInvalidStatementParams
-  | SQLitePersistenceInvalidTableName
-  | SQLitePersistenceUnsupportedStatement;
+type DbErrors = QueryEvaluationError;
 
 const dbExports: Array<unknown> = [
   inferredProjects,
@@ -371,6 +324,7 @@ const dbExports: Array<unknown> = [
   writableSyncAdapter,
   resourceProjects,
   persistedProjectsError,
+  persistedProjectsRequirements,
   projectState,
   applyChanges,
   liveQueryOptions,
@@ -378,13 +332,11 @@ const dbExports: Array<unknown> = [
   projectRowValue,
   options,
   writeOptions,
-  collectionMemoryStorage,
-  collectionStorage,
+  persistOptions,
   liveQueryCollectionWrite,
   concreteCollectionErrorPin,
   concreteCollectionRequirementsPin,
   servicefulErasedPersistencePin,
-  servicefulErasedPersistenceRead,
   bareErasedPersistencePin,
   publicQueryRows,
   publicQueryLive,
@@ -399,13 +351,6 @@ const dbExports: Array<unknown> = [
   publicQuerySortValue,
   publicQueryAggregate,
   publicQueryAggregateCount,
-  sqliteStatementStorage,
-  sqlitePreparedAdapter,
-  sqliteMemoryStatementDatabase,
-  sqliteDefaultTable,
-  sqliteDefaultNamespace,
-  sqliteDefaultSchemaVersion,
-  sqliteRow,
   unknownCollectionIndex,
   collectionRowKeyChanged,
   collectionRowNotFound,

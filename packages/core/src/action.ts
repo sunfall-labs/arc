@@ -6,6 +6,7 @@ import {
   emptyActionOutboxView,
   type ActionDurablePolicy,
   type ActionOutboxOptions,
+  type ActionOutboxRestoreOptions,
   type ActionOutboxView,
   type ActionQueued,
 } from "./action-outbox.js";
@@ -264,6 +265,8 @@ export namespace Action {
   export type DurablePolicy = ActionDurablePolicy;
   /** Public namespace alias for `Action.outboxLayer` options. */
   export type OutboxOptions = ActionOutboxOptions;
+  /** Public namespace alias for `Action.restoreOutbox` options. */
+  export type RestoreOutboxOptions = ActionOutboxRestoreOptions;
   /** Public namespace alias for the Action Outbox read side. */
   export type Outbox = ActionOutboxView;
 
@@ -308,13 +311,16 @@ export namespace Action {
   /**
    * Restores the runtime's persisted durable submissions (once): re-applies
    * their optimistic patches in order on top of the current state, then
-   * replays them. Run it after hydration; `App.launch` does. A no-op without
-   * an outbox.
+   * replays them. Submissions in `settled` were already settled by the server
+   * that rendered the current state, so their patch is not re-applied; their
+   * replay only settles them. Run it after hydration; `App.launch` does. A
+   * no-op without an outbox.
    */
-  export const restoreOutbox: Effect.Effect<void> = Effect.flatMap(
-    Effect.serviceOption(ActionOutbox),
-    Option.match({ onNone: () => Effect.void, onSome: (outbox) => outbox.restore }),
-  );
+  export const restoreOutbox = (options: ActionOutboxRestoreOptions = {}): Effect.Effect<void> =>
+    Effect.flatMap(
+      Effect.serviceOption(ActionOutbox),
+      Option.match({ onNone: () => Effect.void, onSome: (outbox) => outbox.restore(options) }),
+    );
 
   /** Plans the invalidations a successful value triggers; a throwing `invalidates` is a defect. */
   export const planInvalidation = <I, A, E, R>(

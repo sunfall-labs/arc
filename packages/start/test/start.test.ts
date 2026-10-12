@@ -2388,6 +2388,56 @@ describe("Sunfall Arc Start", () => {
     expect(parent).toMatchObject({ _tag: "ExternalSpan", traceId, spanId: parentSpanId });
   });
 
+  it("continues the client's current span into the server request span over RPC", async () => {
+    const serverSpans: Array<Tracer.Span> = [];
+    const Traced = Server.contract<string, string>("Start.trace.client-propagation", {
+      input: Schema.String,
+      output: Schema.String,
+    });
+    Server.implement(Traced, (value) =>
+      Effect.orDie(
+        Effect.map(Effect.currentSpan, (span) => {
+          serverSpans.push(span);
+          return value;
+        }),
+      ),
+    );
+    const app = makeStartServerApp({
+      routes: [Route.define("/", {})] as const,
+    });
+    const handler = createStartRequestHandler(app);
+    const fetcher: StartFetch = (input, init) =>
+      Effect.orDie(
+        Effect.scoped(handler(new Request(new URL(String(input), "https://example.com"), init))),
+      );
+    const client = Layer.succeed(ServerClient)(makeRpcClient({ fetch: fetcher }));
+
+    const clientSpan = await Effect.runPromise(
+      Effect.gen(function* () {
+        const span = yield* Effect.currentSpan;
+        expect(yield* Server.client(Traced).effect("hello")).toBe("hello");
+        return span;
+      }).pipe(Effect.withSpan("client.operation"), Effect.provide(client)),
+    );
+
+    let requestSpan: Tracer.AnySpan | undefined = serverSpans[0];
+    while (requestSpan?._tag === "Span" && requestSpan.name !== "sunfall-arc.start.request") {
+      requestSpan = Option.getOrUndefined(requestSpan.parent);
+    }
+    expect(requestSpan).toMatchObject({
+      _tag: "Span",
+      name: "sunfall-arc.start.request",
+      traceId: clientSpan.traceId,
+    });
+    const parent =
+      requestSpan?._tag === "Span" ? Option.getOrUndefined(requestSpan.parent) : undefined;
+    expect(parent).toMatchObject({
+      _tag: "ExternalSpan",
+      traceId: clientSpan.traceId,
+      spanId: clientSpan.spanId,
+    });
+  });
+
   it("fails invalid response context status through the typed Start request error path", async () => {
     const traces: DevtoolsRequestTrace[] = [];
     const Home = Route.define("/", {});

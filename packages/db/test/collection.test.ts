@@ -6,14 +6,8 @@ import {
   runWithRuntime,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
-import { eraseRuntime, toEffect } from "@sunfall/arc-core/internal";
-import {
-  Collection,
-  CollectionStorageError,
-  Query,
-  QueryEvaluationError,
-  UnknownCollectionIndex,
-} from "@sunfall/arc-db";
+import { eraseRuntime } from "@sunfall/arc-core/internal";
+import { Collection, Query, QueryEvaluationError, UnknownCollectionIndex } from "@sunfall/arc-db";
 import {
   buildQuery,
   collectCollectionsEffect,
@@ -28,6 +22,7 @@ import {
   validateCollectionsHydrationEffect,
 } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -41,6 +36,14 @@ import {
 } from "../src/collection-snapshot-codec.js";
 import { QueryBuilder } from "../src/query-builder.js";
 import { exitContractDefect, flipContractDefect } from "./contract-defect.js";
+import {
+  collectionStoreKey,
+  keyValueStoreError,
+  makeTestKeyValueStore,
+} from "./key-value-store.js";
+
+type KVE = KeyValueStore.KeyValueStoreError;
+type KV = KeyValueStore.KeyValueStore;
 
 interface Project {
   readonly id: string;
@@ -90,7 +93,7 @@ interface OwnedProject {
 
 const runInRuntime = <A, E, Services, RuntimeError>(
   runtime: SunfallArcRuntime<Services, RuntimeError>,
-  effect: Effect.Effect<A, E>,
+  effect: Effect.Effect<A, E, Services>,
 ): Promise<A> => Effect.runPromise(runtime.provide(effect));
 
 const ProjectSchema = Schema.Struct({
@@ -572,31 +575,27 @@ describe("Collection", () => {
   });
 
   it("keeps prior rows and load state committed when interrupted during load persistence", async () => {
-    const runtime = makeRuntime();
     const key = "projects-load-persist-interrupt-cache";
-    const persisted = new Map<string, string>();
     const persistStarted = Effect.runSync(Deferred.make<void>());
     const releasePersist = Effect.runSync(Deferred.make<void>());
     let writes = 0;
     let refetches = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: (storageKey) => persisted.get(storageKey) ?? null,
-      setItem: (storageKey, value) =>
+    const storage = makeTestKeyValueStore({
+      beforeSet: () =>
         Effect.gen(function* () {
           writes++;
           if (writes === 1) {
             yield* Deferred.succeed(persistStarted, undefined).pipe(Effect.ignore);
             yield* Deferred.await(releasePersist);
           }
-          persisted.set(storageKey, value);
         }),
-    };
-    const Projects = Collection.define<Project>({
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.load-persist-interrupt",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Initial", status: "active", progress: 1 }],
       persistence: {
-        storage,
         key,
         persistOnLoad: true,
       },
@@ -651,17 +650,14 @@ describe("Collection", () => {
         expect.fail("Expected later refresh to retry after interrupted load persistence.");
       }
 
-      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
+      const snapshot = storage.snapshot<Project>(key);
       expect(refetches).toBe(2);
       expect(writes).toBe(2);
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         name: "Refetched 2",
         progress: 82,
       });
-      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
+      expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
     } finally {
       Effect.runSync(Deferred.succeed(releasePersist, undefined).pipe(Effect.ignore));
       if (refetch !== undefined) {
@@ -732,29 +728,25 @@ describe("Collection", () => {
   });
 
   it("serializes stale preload persistence behind a newer forced refresh", async () => {
-    const runtime = makeRuntime();
     const key = "projects-preload-refresh-durable-generation-cache";
-    const persisted = new Map<string, string>();
     const stalePersistStarted = Effect.runSync(Deferred.make<void>());
     const releaseStalePersist = Effect.runSync(Deferred.make<void>());
     let writes = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: (storageKey) => persisted.get(storageKey) ?? null,
-      setItem: (storageKey, value) =>
+    const storage = makeTestKeyValueStore({
+      beforeSet: () =>
         Effect.gen(function* () {
           writes++;
           if (writes === 1) {
             yield* Deferred.succeed(stalePersistStarted, undefined).pipe(Effect.ignore);
             yield* Deferred.await(releaseStalePersist);
           }
-          persisted.set(storageKey, value);
         }),
-    };
-    const Projects = Collection.define<Project>({
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.preload-refresh-durable-generation",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         persistOnLoad: true,
       },
@@ -783,12 +775,9 @@ describe("Collection", () => {
       await Effect.runPromise(Fiber.join(refetch));
       await Effect.runPromise(Fiber.join(preload));
 
-      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
+      const snapshot = storage.snapshot<Project>(key);
       expect(writes).toBe(2);
-      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Atlas Fresh"]);
+      expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Atlas Fresh"]);
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         name: "Atlas Fresh",
         progress: 90,
@@ -1131,7 +1120,7 @@ describe("Collection", () => {
   });
 
   it("describes collection definitions for app graph diagnostics", () => {
-    const Projects = Collection.define<Project, string, string>({
+    const Projects = Collection.define<Project, string, string | KVE, KV>({
       name: "Projects.collection-diagnostics",
       output: { _tag: "ProjectCollectionOutput" },
       getKey: (project) => project.id,
@@ -1147,7 +1136,6 @@ describe("Collection", () => {
         retry: Schedule.recurs(1),
       },
       persistence: {
-        storage: Collection.memoryStorage(),
         key: "projects.collection-diagnostics",
         hydrate: {
           replace: true,
@@ -1161,7 +1149,7 @@ describe("Collection", () => {
         load: () => Effect.succeed([]),
       },
     });
-    const ProjectCards = Collection.liveQuery<ProjectCard, string, string>({
+    const ProjectCards = Collection.liveQuery<ProjectCard, string, string | KVE, KV>({
       name: "ProjectCards.collection-diagnostics",
       getKey: (project) => project.id,
       query: (query) =>
@@ -1508,16 +1496,13 @@ describe("Collection", () => {
   });
 
   it("does not partially apply external change batches when persistence fails", async () => {
-    const runtime = makeRuntime();
-    const storage = {
-      getItem: () => Effect.succeed(null),
-      setItem: () => Effect.fail("disk-full"),
-    };
-    const Projects = Collection.define<Project, string, string, never>({
+    const diskFull = keyValueStoreError("set", "projects", "disk-full");
+    const storage = makeTestKeyValueStore({ beforeSet: () => Effect.fail(diskFull) });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.change-batch-atomic-persist",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         persistOnWrite: true,
       },
       initialData: [
@@ -1549,7 +1534,7 @@ describe("Collection", () => {
                 Effect.timeoutOption("20 millis"),
               );
 
-              expect(error).toBe("disk-full");
+              expect(error).toBe(diskFull);
               expect(Option.isNone(event)).toBe(true);
               expect(Projects.version().get()).toBe(beforeVersion);
               expect(Projects.rows().map((project) => project.id)).toEqual(["atlas", "lumen"]);
@@ -1563,16 +1548,13 @@ describe("Collection", () => {
   });
 
   it("does not publish or retain direct writes when persistence fails", async () => {
-    const runtime = makeRuntime();
-    const storage: Collection.PersistenceStorage<"disk-full"> = {
-      getItem: () => null,
-      setItem: () => Effect.fail("disk-full"),
-    };
-    const Projects = Collection.define<Project, string, "disk-full">({
+    const diskFull = keyValueStoreError("set", "projects", "disk-full");
+    const storage = makeTestKeyValueStore({ beforeSet: () => Effect.fail(diskFull) });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.direct-write-atomic-persist",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         persistOnWrite: true,
       },
     });
@@ -1601,7 +1583,7 @@ describe("Collection", () => {
                 Effect.timeoutOption("20 millis"),
               );
 
-              expect(error).toBe("disk-full");
+              expect(error).toBe(diskFull);
               expect(Option.isNone(event)).toBe(true);
               expect(Projects.version().get()).toBe(beforeVersion);
               expect(Projects.rows()).toEqual([]);
@@ -1615,17 +1597,13 @@ describe("Collection", () => {
   });
 
   it("does not persist, publish, or tick versions for empty and missing collection writes", async () => {
-    const runtime = makeRuntime();
     const setItem = vi.fn((_key: string, _value: string) => Effect.void);
-    const storage: Collection.PersistenceStorage = {
-      getItem: () => null,
-      setItem,
-    };
-    const Projects = Collection.define<Project>({
+    const storage = makeTestKeyValueStore({ beforeSet: setItem });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.no-op-writes",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         persistOnWrite: true,
       },
     });
@@ -2185,10 +2163,10 @@ describe("Collection", () => {
     );
   });
 
-  it("persists and restores collection snapshots through a storage adapter", async () => {
-    const first = makeRuntime();
-    const second = makeRuntime();
-    const storage = Collection.memoryStorage();
+  it("persists and restores collection snapshots through the runtime KeyValueStore", async () => {
+    const storage = makeTestKeyValueStore();
+    const first = makeRuntime(storage.layer);
+    const second = makeRuntime(storage.layer);
     const Projects = Collection.define<Project>({
       name: "Projects.persist-restore",
       getKey: (project) => project.id,
@@ -2205,11 +2183,11 @@ describe("Collection", () => {
           },
         ]),
       );
-      await runInRuntime(first, Projects.persist(storage, { key: "projects-cache" }));
+      await runInRuntime(first, Projects.persist({ key: "projects-cache" }));
 
-      expect(storage.values.has("projects-cache")).toBe(true);
+      expect(storage.values.has(collectionStoreKey("projects-cache"))).toBe(true);
 
-      await runInRuntime(second, Projects.restore(storage, { key: "projects-cache" }));
+      await runInRuntime(second, Projects.restore({ key: "projects-cache" }));
 
       expect(
         runWithRuntime(second, () =>
@@ -2225,32 +2203,34 @@ describe("Collection", () => {
   });
 
   it("loads after restoring over initial data and persists the refreshed snapshot", () => {
-    const runtime = makeRuntime();
     const key = "projects-restore-load-after-initial-cache";
-    const storage = Collection.memoryStorage([
-      [
-        key,
-        JSON.stringify({
-          name: "Projects.restore-load-after-initial",
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Restored", status: "active", progress: 10 },
-              synced: true,
-              origin: "remote",
-            },
-          ],
-          updatedAt: 1,
-        }),
-      ],
-    ]);
+    const storage = makeTestKeyValueStore(
+      {},
+      new Map([
+        [
+          collectionStoreKey(key),
+          JSON.stringify({
+            name: "Projects.restore-load-after-initial",
+            rows: [
+              {
+                key: "atlas",
+                value: { id: "atlas", name: "Restored", status: "active", progress: 10 },
+                synced: true,
+                origin: "remote",
+              },
+            ],
+            updatedAt: 1,
+          }),
+        ],
+      ]),
+    );
+    const runtime = makeRuntime(storage.layer);
     let loads = 0;
-    const Projects = Collection.define<Project>({
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.restore-load-after-initial",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Initial", status: "active", progress: 1 }],
       persistence: {
-        storage,
         key,
         restoreOnPreload: true,
         loadAfterRestore: true,
@@ -2269,58 +2249,46 @@ describe("Collection", () => {
       Effect.gen(function* () {
         yield* runtime.provide(Projects.preload());
 
-        const persisted = JSON.parse(storage.values.get(key) ?? "{}") as Collection.Snapshot<
-          Project,
-          string
-        >;
+        const persisted = storage.snapshot<Project>(key);
         expect(loads).toBe(1);
         expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
           name: "Loaded",
           progress: 99,
         });
-        expect(persisted.rows.map((row) => row.value.name)).toEqual(["Loaded"]);
+        expect(persisted?.rows.map((row) => row.value.name)).toEqual(["Loaded"]);
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
   it("skips restore-before-preload when persistence hydrate is disabled", () => {
-    const runtime = makeRuntime();
     const key = "projects-restore-hydrate-disabled-cache";
-    const persisted = new Map<string, string>([
-      [
-        key,
-        JSON.stringify({
-          name: "Projects.restore-hydrate-disabled",
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Restored", status: "active", progress: 10 },
-              synced: true,
-              origin: "remote",
-            },
-          ],
-          updatedAt: 1,
-        }),
-      ],
-    ]);
     let gets = 0;
+    const storage = makeTestKeyValueStore(
+      { beforeGet: () => Effect.sync(() => void gets++) },
+      new Map([
+        [
+          collectionStoreKey(key),
+          JSON.stringify({
+            name: "Projects.restore-hydrate-disabled",
+            rows: [
+              {
+                key: "atlas",
+                value: { id: "atlas", name: "Restored", status: "active", progress: 10 },
+                synced: true,
+                origin: "remote",
+              },
+            ],
+            updatedAt: 1,
+          }),
+        ],
+      ]),
+    );
+    const runtime = makeRuntime(storage.layer);
     let loads = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: (storageKey) =>
-        Effect.sync(() => {
-          gets++;
-          return persisted.get(storageKey) ?? null;
-        }),
-      setItem: (storageKey, value) =>
-        Effect.sync(() => {
-          persisted.set(storageKey, value);
-        }),
-    };
-    const Projects = Collection.define<Project>({
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.restore-hydrate-disabled",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         hydrate: false,
         restoreOnPreload: true,
@@ -2351,25 +2319,20 @@ describe("Collection", () => {
   });
 
   it("rolls back preload rows and lets later preload retry when persistOnLoad fails", () => {
-    const runtime = makeRuntime();
     const key = "projects-preload-persist-failure-cache";
     const persisted = new Map<string, string>();
     let writes = 0;
     let loads = 0;
-    const storage: Collection.PersistenceStorage<"disk-full"> = {
-      getItem: (storageKey) => persisted.get(storageKey) ?? null,
-      setItem: (storageKey, value) =>
-        writes++ === 0
-          ? Effect.fail("disk-full" as const)
-          : Effect.sync(() => {
-              persisted.set(storageKey, value);
-            }),
-    };
-    const Projects = Collection.define<Project, string, "disk-full">({
+    const diskFull = keyValueStoreError("set", collectionStoreKey(key), "disk-full");
+    const storage = makeTestKeyValueStore(
+      { beforeSet: () => (writes++ === 0 ? Effect.fail(diskFull) : Effect.void) },
+      persisted,
+    );
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.preload-persist-failure",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         persistOnLoad: true,
       },
@@ -2396,11 +2359,11 @@ describe("Collection", () => {
                 Effect.timeoutOption("20 millis"),
               );
 
-              expect(failure).toBe("disk-full");
+              expect(failure).toBe(diskFull);
               expect(failureEvent).toMatchObject({
                 _tag: "CollectionLoadFailure",
                 collection: "Projects.preload-persist-failure",
-                error: "disk-full",
+                error: diskFull,
               });
               expect(Option.isNone(nextEvent)).toBe(true);
             }),
@@ -2414,15 +2377,12 @@ describe("Collection", () => {
           asyncResultFacts(runWithRuntime(runtime, () => Projects.result().get())),
         ).toMatchObject({
           _tag: "Failure",
-          error: "disk-full",
+          error: diskFull,
         });
 
         yield* runtime.provide(Projects.preload());
 
-        const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-          Project,
-          string
-        >;
+        const snapshot = storage.snapshot<Project>(key);
         expect(loads).toBe(2);
         expect(writes).toBe(2);
         expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
@@ -2434,32 +2394,27 @@ describe("Collection", () => {
         ).toMatchObject({
           _tag: "Success",
         });
-        expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
+        expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
   it("rolls back forced refresh rows and lets later refresh retry when persistOnLoad fails", () => {
-    const runtime = makeRuntime();
     const key = "projects-refresh-persist-failure-cache";
     const persisted = new Map<string, string>();
     let writes = 0;
     let refetches = 0;
-    const storage: Collection.PersistenceStorage<"disk-full"> = {
-      getItem: (storageKey) => persisted.get(storageKey) ?? null,
-      setItem: (storageKey, value) =>
-        writes++ === 0
-          ? Effect.fail("disk-full" as const)
-          : Effect.sync(() => {
-              persisted.set(storageKey, value);
-            }),
-    };
-    const Projects = Collection.define<Project, string, "disk-full">({
+    const diskFull = keyValueStoreError("set", collectionStoreKey(key), "disk-full");
+    const storage = makeTestKeyValueStore(
+      { beforeSet: () => (writes++ === 0 ? Effect.fail(diskFull) : Effect.void) },
+      persisted,
+    );
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.refresh-persist-failure",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Initial", status: "active", progress: 1 }],
       persistence: {
-        storage,
         key,
         persistOnLoad: true,
       },
@@ -2491,11 +2446,11 @@ describe("Collection", () => {
                 Effect.timeoutOption("20 millis"),
               );
 
-              expect(failure).toBe("disk-full");
+              expect(failure).toBe(diskFull);
               expect(failureEvent).toMatchObject({
                 _tag: "CollectionLoadFailure",
                 collection: "Projects.refresh-persist-failure",
-                error: "disk-full",
+                error: diskFull,
               });
               expect(Option.isNone(nextEvent)).toBe(true);
             }),
@@ -2511,15 +2466,12 @@ describe("Collection", () => {
           asyncResultFacts(runWithRuntime(runtime, () => Projects.result().get())),
         ).toMatchObject({
           _tag: "Failure",
-          error: "disk-full",
+          error: diskFull,
         });
 
         yield* runtime.provide(Projects.refresh());
 
-        const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-          Project,
-          string
-        >;
+        const snapshot = storage.snapshot<Project>(key);
         expect(refetches).toBe(2);
         expect(writes).toBe(2);
         expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
@@ -2531,17 +2483,16 @@ describe("Collection", () => {
         ).toMatchObject({
           _tag: "Success",
         });
-        expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
+        expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
   it("retries persistedOptions loadAfterRestore after persistOnLoad fails", () => {
-    const runtime = makeRuntime();
     const key = "projects-persisted-options-load-after-restore-failure-cache";
     const persisted = new Map<string, string>([
       [
-        key,
+        collectionStoreKey(key),
         JSON.stringify({
           name: "Projects.persisted-options-load-after-restore-failure",
           rows: [
@@ -2558,16 +2509,13 @@ describe("Collection", () => {
     ]);
     let writes = 0;
     let loads = 0;
-    const storage: Collection.PersistenceStorage<"disk-full"> = {
-      getItem: (storageKey) => persisted.get(storageKey) ?? null,
-      setItem: (storageKey, value) =>
-        writes++ === 0
-          ? Effect.fail("disk-full" as const)
-          : Effect.sync(() => {
-              persisted.set(storageKey, value);
-            }),
-    };
-    const Projects = Collection.define<Project, string, "disk-full">({
+    const diskFull = keyValueStoreError("set", collectionStoreKey(key), "disk-full");
+    const storage = makeTestKeyValueStore(
+      { beforeSet: () => (writes++ === 0 ? Effect.fail(diskFull) : Effect.void) },
+      persisted,
+    );
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.persisted-options-load-after-restore-failure",
       getKey: (project) => project.id,
       sync: {
@@ -2580,7 +2528,6 @@ describe("Collection", () => {
           }),
       },
       persistence: {
-        storage,
         key,
         restoreOnPreload: true,
         loadAfterRestore: true,
@@ -2604,7 +2551,7 @@ describe("Collection", () => {
                 Effect.timeoutOption("20 millis"),
               );
 
-              expect(failure).toBe("disk-full");
+              expect(failure).toBe(diskFull);
               expect(events.map((event) => event._tag)).toEqual([
                 "CollectionHydrated",
                 "CollectionRestored",
@@ -2624,15 +2571,12 @@ describe("Collection", () => {
           asyncResultFacts(runWithRuntime(runtime, () => Projects.result().get())),
         ).toMatchObject({
           _tag: "Failure",
-          error: "disk-full",
+          error: diskFull,
         });
 
         yield* runtime.provide(Projects.preload());
 
-        const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-          Project,
-          string
-        >;
+        const snapshot = storage.snapshot<Project>(key);
         expect(loads).toBe(2);
         expect(writes).toBe(2);
         expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
@@ -2644,19 +2588,18 @@ describe("Collection", () => {
         ).toMatchObject({
           _tag: "Success",
         });
-        expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
+        expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
   it("does not let a stale preload restore overwrite a newer forced refresh", async () => {
-    const runtime = makeRuntime();
     const key = "projects-stale-restore-race-cache";
     const firstRestoreStarted = Effect.runSync(Deferred.make<void>());
     const releaseFirstRestore = Effect.runSync(Deferred.make<void>());
     const persisted = new Map<string, string>([
       [
-        key,
+        collectionStoreKey(key),
         JSON.stringify({
           name: "Projects.stale-restore-race",
           rows: [
@@ -2672,29 +2615,27 @@ describe("Collection", () => {
       ],
     ]);
     let gets = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: (storageKey) => {
-        gets++;
-        if (gets === 1) {
-          const encoded = persisted.get(storageKey) ?? null;
-          return Effect.gen(function* () {
-            yield* Deferred.succeed(firstRestoreStarted, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(releaseFirstRestore);
-            return encoded;
-          });
-        }
-        return null;
+    const storage = makeTestKeyValueStore(
+      {
+        get: (_storageKey, stored) => {
+          gets++;
+          if (gets === 1) {
+            return Effect.gen(function* () {
+              yield* Deferred.succeed(firstRestoreStarted, undefined).pipe(Effect.ignore);
+              yield* Deferred.await(releaseFirstRestore);
+              return stored;
+            });
+          }
+          return Effect.succeed(undefined);
+        },
       },
-      setItem: (storageKey, value) =>
-        Effect.sync(() => {
-          persisted.set(storageKey, value);
-        }),
-    };
-    const Projects = Collection.define<Project>({
+      persisted,
+    );
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.stale-restore-race",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         restoreOnPreload: true,
         persistOnLoad: true,
@@ -2720,15 +2661,12 @@ describe("Collection", () => {
       Effect.runSync(Deferred.succeed(releaseFirstRestore, undefined));
       await Effect.runPromise(Fiber.join(preload));
 
-      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
+      const snapshot = storage.snapshot<Project>(key);
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         name: "Refetched Fresh",
         progress: 99,
       });
-      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched Fresh"]);
+      expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Refetched Fresh"]);
     } finally {
       Effect.runSync(Deferred.succeed(releaseFirstRestore, undefined).pipe(Effect.ignore));
       if (preload !== undefined) {
@@ -2742,7 +2680,6 @@ describe("Collection", () => {
   });
 
   it("serializes restore-before-preload with direct writes", async () => {
-    const runtime = makeRuntime();
     const key = "projects-restore-write-serialization-cache";
     const restoreStarted = Effect.runSync(Deferred.make<void>());
     const releaseRestore = Effect.runSync(Deferred.make<void>());
@@ -2758,31 +2695,29 @@ describe("Collection", () => {
       ],
       updatedAt: 1,
     });
-    const persisted = new Map<string, string>([[key, oldSnapshot]]);
+    const persisted = new Map<string, string>([[collectionStoreKey(key), oldSnapshot]]);
     let gets = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: (storageKey) => {
-        gets++;
-        if (gets === 1) {
-          const encoded = persisted.get(storageKey) ?? null;
-          return Effect.gen(function* () {
-            yield* Deferred.succeed(restoreStarted, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(releaseRestore);
-            return encoded;
-          });
-        }
-        return persisted.get(storageKey) ?? null;
+    const storage = makeTestKeyValueStore(
+      {
+        get: (_storageKey, stored) => {
+          gets++;
+          if (gets === 1) {
+            return Effect.gen(function* () {
+              yield* Deferred.succeed(restoreStarted, undefined).pipe(Effect.ignore);
+              yield* Deferred.await(releaseRestore);
+              return stored;
+            });
+          }
+          return Effect.succeed(stored);
+        },
       },
-      setItem: (storageKey, value) =>
-        Effect.sync(() => {
-          persisted.set(storageKey, value);
-        }),
-    };
-    const Projects = Collection.define<Project>({
+      persisted,
+    );
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.restore-write-serialization",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         restoreOnPreload: true,
         persistOnWrite: true,
@@ -2812,15 +2747,12 @@ describe("Collection", () => {
       Effect.runSync(Deferred.succeed(releaseRestore, undefined));
       await Effect.runPromise(Fiber.join(preload));
 
-      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
+      const snapshot = storage.snapshot<Project>(key);
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         name: "Fresh Write",
         progress: 42,
       });
-      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Fresh Write"]);
+      expect(snapshot?.rows.map((row) => row.value.name)).toEqual(["Fresh Write"]);
     } finally {
       Effect.runSync(Deferred.succeed(releaseRestore, undefined).pipe(Effect.ignore));
       if (preload !== undefined) {
@@ -2834,33 +2766,26 @@ describe("Collection", () => {
   });
 
   it("serializes durable direct write commits so older storage writes cannot overwrite newer snapshots", async () => {
-    const runtime = makeRuntime();
     const key = "projects-direct-write-serialization-cache";
     const firstPersistStarted = Effect.runSync(Deferred.make<void>());
     const releaseFirstPersist = Effect.runSync(Deferred.make<void>());
-    const persisted = new Map<string, string>();
     let writes = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: () => persisted.get(key) ?? null,
-      setItem: (storageKey, value) => {
+    const storage = makeTestKeyValueStore({
+      beforeSet: () => {
         writes++;
-        if (writes === 1) {
-          return Effect.gen(function* () {
-            yield* Deferred.succeed(firstPersistStarted, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(releaseFirstPersist);
-            persisted.set(storageKey, value);
-          });
-        }
-        return Effect.sync(() => {
-          persisted.set(storageKey, value);
-        });
+        return writes === 1
+          ? Effect.gen(function* () {
+              yield* Deferred.succeed(firstPersistStarted, undefined).pipe(Effect.ignore);
+              yield* Deferred.await(releaseFirstPersist);
+            })
+          : Effect.void;
       },
-    };
-    const Projects = Collection.define<Project>({
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.direct-write-serialization",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         persistOnWrite: true,
       },
@@ -2892,11 +2817,8 @@ describe("Collection", () => {
       await Effect.runPromise(Fiber.join(first));
       await Effect.runPromise(Fiber.join(second));
 
-      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
-      expect(snapshot.rows.map((row) => row.value.progress)).toEqual([2]);
+      const snapshot = storage.snapshot<Project>(key);
+      expect(snapshot?.rows.map((row) => row.value.progress)).toEqual([2]);
     } finally {
       Effect.runSync(Deferred.succeed(releaseFirstPersist, undefined).pipe(Effect.ignore));
       if (first !== undefined) {
@@ -2910,14 +2832,13 @@ describe("Collection", () => {
   });
 
   it("does not mark missing preload storage as restored", () => {
-    const runtime = makeRuntime();
     const key = "projects-missing-restore-cache";
-    const storage = Collection.memoryStorage();
-    const Projects = Collection.define<Project>({
+    const storage = makeTestKeyValueStore();
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.missing-restore",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         restoreOnPreload: true,
       },
@@ -2928,9 +2849,9 @@ describe("Collection", () => {
         yield* runtime.provide(Projects.preload());
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
 
-        yield* toEffect(
-          storage.setItem(
-            key,
+        yield* Effect.sync(() =>
+          storage.values.set(
+            collectionStoreKey(key),
             JSON.stringify({
               name: "Projects.missing-restore",
               rows: [
@@ -2956,17 +2877,20 @@ describe("Collection", () => {
   });
 
   it("validates persisted snapshot shape before hydrating storage rows", () => {
-    const runtime = makeRuntime();
-    const storage = Collection.memoryStorage([
-      [
-        "invalid-projects-cache",
-        JSON.stringify({
-          name: "Projects.snapshot-codec-invalid",
-          rows: "not-rows",
-          updatedAt: 1,
-        }),
-      ],
-    ]);
+    const storage = makeTestKeyValueStore(
+      {},
+      new Map([
+        [
+          collectionStoreKey("invalid-projects-cache"),
+          JSON.stringify({
+            name: "Projects.snapshot-codec-invalid",
+            rows: "not-rows",
+            updatedAt: 1,
+          }),
+        ],
+      ]),
+    );
+    const runtime = makeRuntime(storage.layer);
     const Projects = Collection.define<Project>({
       name: "Projects.snapshot-codec-invalid",
       getKey: (project) => project.id,
@@ -2975,7 +2899,7 @@ describe("Collection", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const exit = yield* Effect.exit(
-          runtime.provide(Projects.restore(storage, { key: "invalid-projects-cache" })),
+          runtime.provide(Projects.restore({ key: "invalid-projects-cache" })),
         );
 
         yield* Effect.sync(() => {
@@ -3082,8 +3006,8 @@ describe("Collection", () => {
   });
 
   it("rejects non-finite numeric collection keys before persistence writes", () => {
-    const runtime = makeRuntime();
-    const storage = Collection.memoryStorage();
+    const storage = makeTestKeyValueStore();
+    const runtime = makeRuntime(storage.layer);
     const Projects = Collection.define<Project, number>({
       name: "Projects.snapshot-codec-non-finite-key",
       getKey: () => Number.NaN,
@@ -3113,7 +3037,7 @@ describe("Collection", () => {
           operation: "write",
           path: "$.collections[Projects.snapshot-codec-non-finite-key].changes[0].key",
         });
-        yield* runtime.provide(Projects.persist(storage));
+        yield* runtime.provide(Projects.persist());
         expect(storage.values.size).toBe(1);
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
@@ -3751,9 +3675,12 @@ describe("Collection", () => {
       updatedAt: 1,
     };
     const payload = { collections: [snapshot] };
-    const storage = Collection.memoryStorage([
-      ["sunfall-arc:collection:Projects.snapshot-codec-key-callback", JSON.stringify(snapshot)],
-    ]);
+    const storage = makeTestKeyValueStore(
+      {},
+      new Map([
+        [collectionStoreKey("Projects.snapshot-codec-key-callback"), JSON.stringify(snapshot)],
+      ]),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -3764,7 +3691,9 @@ describe("Collection", () => {
         const validateFailure = yield* Effect.flip(
           validateCollectionsHydrationEffect([Projects], payload),
         );
-        const restoreFailure = yield* Effect.flip(runtime.provide(Projects.restore(storage)));
+        const restoreFailure = yield* Effect.flip(
+          runtime.provide(Projects.restore()).pipe(Effect.provide(storage.layer)),
+        );
 
         for (const failure of [hydrateFailure, payloadFailure, validateFailure, restoreFailure]) {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
@@ -4007,23 +3936,26 @@ describe("Collection", () => {
       status: "active",
       progress: "bad",
     } as unknown as Project;
-    const storage = Collection.memoryStorage([
-      [
-        "projects-schema-validation",
-        JSON.stringify({
-          name: "Projects.schema-validation-persisted",
-          rows: [
-            {
-              key: "atlas",
-              value: invalidProject,
-              synced: true,
-              origin: "remote",
-            },
-          ],
-          updatedAt: 1,
-        }),
-      ],
-    ]);
+    const storage = makeTestKeyValueStore(
+      {},
+      new Map([
+        [
+          collectionStoreKey("projects-schema-validation"),
+          JSON.stringify({
+            name: "Projects.schema-validation-persisted",
+            rows: [
+              {
+                key: "atlas",
+                value: invalidProject,
+                synced: true,
+                origin: "remote",
+              },
+            ],
+            updatedAt: 1,
+          }),
+        ],
+      ]),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -4051,9 +3983,9 @@ describe("Collection", () => {
             ),
           ),
           Effect.flip(
-            runtime.provide(
-              PersistedProjects.restore(storage, { key: "projects-schema-validation" }),
-            ),
+            runtime
+              .provide(PersistedProjects.restore({ key: "projects-schema-validation" }))
+              .pipe(Effect.provide(storage.layer)),
           ),
           flipContractDefect(runtime.provide(LoadingProjects.preload())),
           flipContractDefect(runtime.provide(RefetchProjects.refresh())),
@@ -4097,7 +4029,8 @@ describe("Collection", () => {
             applyUpdateFailure,
           ]) {
             expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
-            expect((failure as CollectionSnapshotCodecError).reason).toContain("progress");
+            const { path, reason } = failure as CollectionSnapshotCodecError;
+            expect(`${path} ${reason}`).toContain("progress");
           }
           expect(
             asyncResultFacts(runWithRuntime(runtime, () => LoadingProjects.result().get())),
@@ -4162,21 +4095,17 @@ describe("Collection", () => {
   });
 
   it("rejects hostile direct-write update patches before persistence", () => {
-    const runtime = makeRuntime();
     const getterFailure = new Error("patch getter failed");
     let writes = 0;
-    const storage: Collection.PersistenceStorage = {
-      getItem: () => null,
-      setItem: () => {
-        writes += 1;
-      },
-    };
-    const Projects = Collection.define<Project>({
+    const storage = makeTestKeyValueStore({
+      beforeSet: () => Effect.sync(() => void (writes += 1)),
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.hostile-write-update-patch",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
       persistence: {
-        storage,
         persistOnWrite: true,
       },
     });
@@ -4211,34 +4140,29 @@ describe("Collection", () => {
   });
 
   it("serializes public persist snapshots behind failing durable writes", async () => {
-    const runtime = makeRuntime();
     const key = "projects-public-persist-serialization-cache";
     const writeStarted = Effect.runSync(Deferred.make<void>());
     const releaseWrite = Effect.runSync(Deferred.make<void>());
-    const persisted = new Map<string, string>();
+    const persistFailed = keyValueStoreError("set", collectionStoreKey(key), "persist-failed");
     let writes = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => persisted.get(key) ?? null,
-      setItem: (storageKey, value) => {
+    const storage = makeTestKeyValueStore({
+      beforeSet: () => {
         writes += 1;
-        if (writes === 1) {
-          return Effect.gen(function* () {
-            yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(releaseWrite);
-            return yield* Effect.fail("persist-failed" as const);
-          });
-        }
-        return Effect.sync(() => {
-          persisted.set(storageKey, value);
-        });
+        return writes === 1
+          ? Effect.gen(function* () {
+              yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
+              yield* Deferred.await(releaseWrite);
+              return yield* Effect.fail(persistFailed);
+            })
+          : Effect.void;
       },
-    };
-    const Projects = Collection.define<Project, string, "persist-failed">({
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.public-persist-serialization",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
       persistence: {
-        storage,
         key,
         persistOnWrite: true,
       },
@@ -4251,7 +4175,7 @@ describe("Collection", () => {
         Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: { progress: 90 } }]),
       );
       await Effect.runPromise(Deferred.await(writeStarted));
-      persist = runtime.runFork(Projects.persist(storage, { key }));
+      persist = runtime.runFork(Projects.persist());
       await Effect.runPromise(Effect.sleep("10 millis"));
 
       Effect.runSync(Deferred.succeed(releaseWrite, undefined));
@@ -4268,12 +4192,9 @@ describe("Collection", () => {
       const writeFailure = Exit.isFailure(writeExit.value)
         ? writeExit.value.cause.reasons.find(Cause.isFailReason)?.error
         : undefined;
-      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
-      expect(writeFailure).toBe("persist-failed");
-      expect(snapshot.rows.map((row) => row.value.progress)).toEqual([72]);
+      const snapshot = storage.snapshot<Project>(key);
+      expect(writeFailure).toBe(persistFailed);
+      expect(snapshot?.rows.map((row) => row.value.progress)).toEqual([72]);
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         progress: 72,
       });
@@ -4290,22 +4211,20 @@ describe("Collection", () => {
   });
 
   it("restores direct-write state when write persistence is interrupted", async () => {
-    const runtime = makeRuntime();
     const key = "projects-direct-write-interrupt-cache";
     const writeStarted = Effect.runSync(Deferred.make<void>());
-    const storage: Collection.PersistenceStorage = {
-      getItem: () => null,
-      setItem: () =>
+    const storage = makeTestKeyValueStore({
+      beforeSet: () =>
         Effect.gen(function* () {
           yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
           return yield* Effect.never;
         }),
-    };
-    const Projects = Collection.define<Project>({
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.direct-write-interrupt-rollback",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key,
         persistOnWrite: true,
       },
@@ -4343,27 +4262,26 @@ describe("Collection", () => {
   });
 
   it("serializes public hydrate behind failing durable writes", async () => {
-    const runtime = makeRuntime();
     const writeStarted = Effect.runSync(Deferred.make<void>());
     const releaseWrite = Effect.runSync(Deferred.make<void>());
+    const persistFailed = keyValueStoreError("set", "projects", "persist-failed");
     let writes = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => null,
-      setItem: () => {
+    const storage = makeTestKeyValueStore({
+      beforeSet: () => {
         writes += 1;
         return Effect.gen(function* () {
           yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
           yield* Deferred.await(releaseWrite);
-          return yield* Effect.fail("persist-failed" as const);
+          return yield* Effect.fail(persistFailed);
         });
       },
-    };
-    const Projects = Collection.define<Project, string, "persist-failed">({
+    });
+    const runtime = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.public-hydrate-serialization",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
       persistence: {
-        storage,
         persistOnWrite: true,
       },
     });
@@ -4404,7 +4322,7 @@ describe("Collection", () => {
       const writeFailure = Exit.isFailure(writeExit.value)
         ? writeExit.value.cause.reasons.find(Cause.isFailReason)?.error
         : undefined;
-      expect(writeFailure).toBe("persist-failed");
+      expect(writeFailure).toBe(persistFailed);
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         name: "Hydrated",
         progress: 11,
@@ -4421,97 +4339,36 @@ describe("Collection", () => {
     }
   });
 
-  it("reports sync storage adapter throws through the persistence error channel", () =>
+  it("surfaces KeyValueStore failures through the persistence error channel", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const Projects = Collection.define<Project>({
-          name: "Projects.sync-storage-error",
+          name: "Projects.key-value-store-error",
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const setStorage = Collection.storage({
-          getItem: () => null,
-          setItem: () => {
-            throw new Error("quota exceeded");
-          },
-        });
-        const getStorage = Collection.storage({
+        const blocked = {
           getItem: () => {
             throw new Error("blocked");
           },
-          setItem: () => undefined,
-        });
+          setItem: () => {
+            throw new Error("quota exceeded");
+          },
+        } as unknown as Storage;
+        const failing = KeyValueStore.layerStorage(() => blocked);
 
         const setFailure = yield* Effect.flip(
-          Projects.persist(setStorage, { key: "projects-cache" }),
+          Projects.persist({ key: "projects-cache" }).pipe(Effect.provide(failing)),
         );
         const getFailure = yield* Effect.flip(
-          Projects.restore(getStorage, { key: "projects-cache" }),
+          Projects.restore({ key: "projects-cache" }).pipe(Effect.provide(failing)),
         );
 
         yield* Effect.sync(() => {
-          expect(setFailure).toBeInstanceOf(CollectionStorageError);
-          expect(setFailure).toMatchObject({
-            operation: "setItem",
-            key: "projects-cache",
-          });
-          expect(getFailure).toBeInstanceOf(CollectionStorageError);
-          expect(getFailure).toMatchObject({
-            operation: "getItem",
-            key: "projects-cache",
-          });
-        });
-      }),
-    ));
-
-  it("preserves sync storage receivers for method-style removeItem callbacks", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        interface MethodStorage extends Collection.StorageLike {
-          readonly values: Map<string, string>;
-        }
-
-        const backing: MethodStorage = {
-          values: new Map([["projects-cache", "{}"]]),
-          getItem(this: MethodStorage, key) {
-            return this.values.get(key) ?? null;
-          },
-          setItem(this: MethodStorage, key, value) {
-            this.values.set(key, value);
-          },
-          removeItem(this: MethodStorage, key) {
-            this.values.delete(key);
-          },
-        };
-        const storage = Collection.storage(backing);
-
-        yield* toEffect(storage.removeItem!("projects-cache"));
-
-        expect(backing.values.has("projects-cache")).toBe(false);
-      }),
-    ));
-
-  it("reports direct persistence storage callback throws as EffectInput callback errors", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const thrown = new Error("storage callback exploded");
-        const Projects = Collection.define<Project>({
-          name: "Projects.direct-storage-callback-error",
-          getKey: (project) => project.id,
-          initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-        });
-        const storage: Collection.PersistenceStorage<never> = {
-          getItem: () => null,
-          setItem: () => {
-            throw thrown;
-          },
-        };
-
-        const failure = yield* Effect.flip(Projects.persist(storage, { key: "projects-cache" }));
-
-        yield* Effect.sync(() => {
-          expect(failure).toBeInstanceOf(EffectInputCallbackError);
-          expect((failure as EffectInputCallbackError).cause).toBe(thrown);
+          expect(setFailure).toBeInstanceOf(KeyValueStore.KeyValueStoreError);
+          expect(setFailure).toMatchObject({ key: collectionStoreKey("projects-cache") });
+          expect(getFailure).toBeInstanceOf(KeyValueStore.KeyValueStoreError);
+          expect(getFailure).toMatchObject({ key: collectionStoreKey("projects-cache") });
         });
       }),
     ));

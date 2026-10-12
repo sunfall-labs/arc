@@ -24,7 +24,6 @@ import {
   startTransportKindHeader,
   startTransportProtocolHeader,
   startTransportProtocolVersion,
-  startTransportRequestHeaders,
 } from "../src/rpc.js";
 import {
   encodeStartClientTransportRequestBodyEffect,
@@ -105,7 +104,8 @@ describe("Start RPC transport", () => {
           yield* Effect.sync(() => {
             expect(response.status).toBe(415);
             expect(response.headers.get(startRequestIdHeader)).toBe("req-rpc-content-type");
-            expect(response.headers.get(startTraceparentHeader)).toBe(traceparent);
+            // Trace context parents the server span; it is never echoed back.
+            expect(response.headers.get(startTraceparentHeader)).toBeNull();
             expect(response.headers.get(startTransportKindHeader)).toBe("rpc");
             expect(response.headers.get(startTransportProtocolHeader)).toBe(
               startTransportProtocolVersion,
@@ -394,7 +394,7 @@ describe("Start RPC transport", () => {
     );
   });
 
-  it("propagates request id and trace headers from the browser RPC client", () => {
+  it("propagates request id and the current span from the browser RPC client", () => {
     const Echo = Server.contract<string, string>("Start.transport.echo", {
       input: Schema.String,
       output: Schema.String,
@@ -412,20 +412,25 @@ describe("Start RPC transport", () => {
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         fetch: fetcher,
-        headers: startTransportRequestHeaders({
-          requestId: "req-client",
-          traceparent,
-        }),
+        headers: { [startRequestIdHeader]: "req-client" },
       }),
     );
 
     return Effect.runPromise(
-      Effect.provide(echo.effect("hello"), runtime).pipe(
-        Effect.tap((value) =>
+      Effect.gen(function* () {
+        const span = yield* Effect.currentSpan;
+        const value = yield* echo.effect("hello");
+        return { span, value };
+      }).pipe(
+        Effect.withSpan("client.echo"),
+        Effect.provide(runtime),
+        Effect.tap(({ span, value }) =>
           Effect.sync(() => {
             expect(value).toBe("ok");
             expect(observedHeaders?.get(startRequestIdHeader)).toBe("req-client");
-            expect(observedHeaders?.get(startTraceparentHeader)).toBe(traceparent);
+            expect(observedHeaders?.get(startTraceparentHeader)).toBe(
+              `00-${span.traceId}-${span.spanId}-01`,
+            );
             expect(observedHeaders?.get("accept")).toBe(startJsonMediaType);
             expect(observedHeaders?.get("content-type")).toBe(startJsonMediaType);
           }),

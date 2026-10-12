@@ -108,7 +108,7 @@ describe("durable Actions over Collections", () => {
         yield* after.provide(
           second.Projects.hydrate({ ...snapshot, name: second.Projects.name } as never),
         );
-        yield* after.provide(Action.restoreOutbox);
+        yield* after.provide(Action.restoreOutbox());
         expect(read(after, () => second.Projects.get("atlas"))).toMatchObject({
           progress: 80,
           $synced: false,

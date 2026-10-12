@@ -35,6 +35,8 @@ export interface CreateStartRenderHydrationPlanOptions {
   readonly collections: Collection.HydrationPayload;
   /** Route preload failure the request renders; carried by the root payload. */
   readonly routeFailure?: RoutePreloadFailureSnapshot;
+  /** Pending durable submissions the server settled before rendering; carried by the root payload. */
+  readonly settledSubmissions?: ReadonlyArray<string>;
 }
 
 const emptyResourceHydrationPayload: ResourceHydrationPayload = { resources: [] };
@@ -50,17 +52,23 @@ export const createStartRenderHydrationPlanEffect = (
   options: CreateStartRenderHydrationPlanOptions,
 ): Effect.Effect<StartRenderHydrationPlan, StartHydrationPayloadSerializeError> =>
   Effect.gen(function* () {
-    const rootPayload = createStartHydrationPayload(
-      emptyResourceHydrationPayload,
-      options.collections,
-      options.routeFailure,
-    );
+    const settled =
+      options.settledSubmissions === undefined || options.settledSubmissions.length === 0
+        ? {}
+        : { settledSubmissions: options.settledSubmissions };
+    const rootPayload: StartHydrationPayload = {
+      ...createStartHydrationPayload(
+        emptyResourceHydrationPayload,
+        options.collections,
+        options.routeFailure,
+      ),
+      ...settled,
+    };
     const rootScript = yield* createHydrationScriptEffect(rootPayload);
-    const legacyPayload = createStartHydrationPayload(
-      options.resources,
-      options.collections,
-      options.routeFailure,
-    );
+    const legacyPayload: StartHydrationPayload = {
+      ...createStartHydrationPayload(options.resources, options.collections, options.routeFailure),
+      ...settled,
+    };
     const streamedResourceChunks =
       options.resources.resources.length === 0
         ? []

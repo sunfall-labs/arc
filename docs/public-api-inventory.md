@@ -140,7 +140,8 @@ retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
   `arc/actions/v1/`); `Action.outbox`
   is its read side (`ActionOutboxView`: `pending`, `failures`, `dismiss`,
   with `ActionOutboxEntry` / `ActionOutboxFailure`), empty without an outbox;
-  `Action.restoreOutbox` restores pending submissions after hydration.
+  `Action.restoreOutbox(options?)` (`ActionOutboxRestoreOptions`:
+  `settled`) restores pending submissions after hydration.
   `ActionSubmissionExpired` and `ActionSubmissionUnrestorable` are the
   outbox's failure vocabulary;
   `isRetryableActionFailure` is the retry classification.
@@ -495,8 +496,12 @@ includes:
   `App.LaunchOptions.outbox` sets `retry`) and restores it after
   hydrating. The action endpoint runs a submission that carries an id as an
   `effect/workflow` Workflow keyed by that id, on the server Layer's
-  `WorkflowEngine` (a per-handler `WorkflowEngine.layerMemory` engine by
-  default). Start adds no exports for either.
+  `WorkflowEngine` (by default a per-handler `WorkflowEngine.layerMemory`
+  rotated per Action so records live about `durable.maxAge`). `App.launch`
+  mirrors pending submissions into the `sunfall-arc-outbox` cookie and
+  restores the ones the server reports settled (`settledSubmissions` in the
+  hydration payload) without re-patching them. Start adds no exports for
+  either.
 - file routes: `FileRoute.define(path)(options)` takes the same options as core
   `Route.define(path, options)`; Start checks `path` against the discovered file.
   Static preload hints use core `preloadResources` / `preloadCollections`, and
@@ -585,18 +590,16 @@ Release decisions:
 The root export includes:
 
 - Local source modules: `collection-errors`, `collection-index-materialization`,
-  `collection-persistence`, `collection-snapshot-codec`, `query-builder`,
-  `query-plan`, and `sqlite-persistence`.
+  `collection-snapshot-codec`, `query-builder`, and `query-plan`.
 - Namespace-backed source modules: `collection-contract`, `collection-runtime`,
   and `live-query-collection` back the Collection namespace
   types and functions; the root re-exports no flat aliases from them.
-- One path per concern: the root exports only the `Collection`, `Query`, and
-  `SQLitePersistence` namespaces plus tagged error classes
+- One path per concern: the root exports only the `Collection` and `Query`
+  namespaces plus tagged error classes
   (`CollectionRowNotFound`, `CollectionRowKeyChanged`,
   `ReadonlyCollectionMutation`,
   `UnknownCollectionIndex`, `CollectionSnapshotCodecError`,
-  `CollectionStorageError`, `QueryEvaluationError`, `UnsupportedLiveQuery`,
-  `SQLitePersistence*` errors).
+  `QueryEvaluationError`, `UnsupportedLiveQuery`).
 - `Collection.define({ ..., sync })` is the single way to back a collection;
   `sync` is an inline `Collection.SyncAdapter` (reads only) or a
   `Resource.Ref`. Remote rows arrive through `sync.changes` or the definition's
@@ -613,12 +616,12 @@ The root export includes:
 
 Release decisions:
 
-- SQLite helpers are expert public storage-adapter APIs under the
-  `SQLitePersistence` namespace (`storage`, `statementDriver`,
-  `preparedStatementDatabase`, `memoryStatementDatabase`, default constants).
-  Statement rows fail as `SQLitePersistenceInvalidRow` when SQLite clients
-  return malformed field types instead of being coerced at the Adapter
-  boundary.
+- Collection persistence has no storage adapter API: `persistence: { key?,
+version?, ... }`, `persist(options?)`, and `restore(options?)` use the
+  runtime's `effect/persistence` `KeyValueStore` at
+  `arc/collections/v<version>/<key>` and fail with `KeyValueStoreError`.
+  SQLite/Postgres hosts provide `KeyValueStore.layerSql` over their own
+  `SqlClient`.
 - Snapshot types are expert public for tests, persistence, and SSR. A
   snapshot carries the synced rows only; optimistic Action patches never cross
   it.

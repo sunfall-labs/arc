@@ -85,6 +85,18 @@ export const isRetryableActionFailure = (error: unknown): boolean => {
   );
 };
 
+/** Options for `Action.restoreOutbox`. */
+export interface ActionOutboxRestoreOptions {
+  /**
+   * Ids of persisted submissions the server already settled before rendering
+   * the hydrated state, so that state reflects their outcome: they restore
+   * without re-applying their optimistic patch, and their replay only settles
+   * them (the server returns the recorded response). Start's `App.launch`
+   * passes the ids its server reports in the hydration payload.
+   */
+  readonly settled?: Iterable<string>;
+}
+
 /** One pending durable submission, as the outbox reports it. */
 export interface ActionOutboxEntry {
   /** Submission id, sent with every attempt as its idempotency key. */
@@ -140,9 +152,10 @@ export interface ActionOutbox extends ActionOutboxView {
   ) => Effect.Effect<A, E | ServerClientError | ActionQueued>;
   /**
    * Restores persisted submissions once: re-applies their optimistic patches
-   * in order on top of the current (hydrated) state and starts replaying them.
+   * in order on top of the current (hydrated) state, except for submissions
+   * the hydrated state already reflects (`settled`), and starts replaying them.
    */
-  readonly restore: Effect.Effect<void>;
+  readonly restore: (options?: ActionOutboxRestoreOptions) => Effect.Effect<void>;
 }
 
 export const ActionOutbox = Context.Service<ActionOutbox>("@sunfall/arc-core/ActionOutbox");

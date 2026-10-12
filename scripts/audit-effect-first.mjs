@@ -391,16 +391,6 @@ const allowed = [
       ),
       seam(
         "type-tests/framework.test-d.ts",
-        "Promise negative fixture promisedStorageText",
-        /declare const promisedStorageText:\s*Promise<string\s*\|\s*null>;/,
-      ),
-      seam(
-        "type-tests/framework.test-d.ts",
-        "Promise negative fixture promisedSqliteRow",
-        /declare const promisedSqliteRow:\s*Promise<SQLitePersistence\.Row\s*\|\s*null>;/,
-      ),
-      seam(
-        "type-tests/framework.test-d.ts",
         "Promise negative fixture startResponsePromise",
         /declare const startResponsePromise:\s*Promise<Response>;/,
       ),

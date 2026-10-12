@@ -5,11 +5,7 @@ import type {
   ResourceRef,
 } from "@sunfall/arc-core";
 import type { Schema, Stream } from "effect";
-import {
-  collectionStorageFromSync,
-  makeCollectionMemoryStorage,
-  type CollectionStorageError,
-} from "./collection-persistence.js";
+import type { KeyValueStore } from "effect/persistence";
 import type { QueryEvaluationError } from "./query-plan.js";
 import {
   makeLiveQueryCollectionDefinition,
@@ -30,11 +26,9 @@ import type {
   CollectionIndexResult,
   CollectionIndexValue,
   CollectionKey,
-  CollectionMemoryStorage,
   CollectionOrigin,
   CollectionOptions,
   CollectionPersistenceConfig,
-  CollectionPersistenceStorage,
   CollectionPersistOptions,
   CollectionPolicy,
   CollectionRequirements,
@@ -42,7 +36,6 @@ import type {
   CollectionRowSnapshot,
   CollectionRowValue,
   CollectionSnapshot,
-  CollectionStorageLike,
   CollectionSync,
   CollectionSyncAdapter,
   CollectionValue,
@@ -98,16 +91,17 @@ type CollectionSyncRequirements<Sync> = [Sync] extends [never]
         | EffectInputRequirements<CollectionSyncEffectOutputs<Sync>>
         | CollectionStreamRequirements<CollectionSyncStreams<Sync>>;
 
+// A persisted collection reads and writes the runtime's `KeyValueStore`.
 type CollectionPersistenceError<Definition> = Definition extends {
-  readonly persistence: { readonly storage: CollectionPersistenceStorage<infer E, any> };
+  readonly persistence: CollectionPersistenceConfig;
 }
-  ? E
+  ? KeyValueStore.KeyValueStoreError
   : never;
 
 type CollectionPersistenceRequirements<Definition> = Definition extends {
-  readonly persistence: { readonly storage: CollectionPersistenceStorage<any, infer R> };
+  readonly persistence: CollectionPersistenceConfig;
 }
-  ? R
+  ? KeyValueStore.KeyValueStore
   : never;
 
 type CollectionErrorFromDefinition<Definition> =
@@ -135,16 +129,8 @@ export {
 } from "./collection-errors.js";
 export { UnknownCollectionIndex } from "./collection-index-materialization.js";
 export { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
-export { CollectionStorageError } from "./collection-persistence.js";
 export { QueryEvaluationError, UnsupportedLiveQuery } from "./query-plan.js";
 export { Query } from "./query-builder.js";
-export {
-  SQLitePersistence,
-  SQLitePersistenceInvalidRow,
-  SQLitePersistenceInvalidStatementParams,
-  SQLitePersistenceInvalidTableName,
-  SQLitePersistenceUnsupportedStatement,
-} from "./sqlite-persistence.js";
 
 /**
  * Main collection API namespace.
@@ -234,12 +220,10 @@ export namespace Collection {
   export type HydrationPayload = CollectionHydrationPayload;
   /** Options for applying collection hydration snapshots. */
   export type HydrateOptions = CollectionHydrateOptions;
-  /** Effect-aware key/value storage contract for collection persistence. */
-  export type PersistenceStorage<E = never, R = never> = CollectionPersistenceStorage<E, R>;
-  /** Options for writing a collection snapshot to persistence. */
+  /** Key and version a snapshot persists under in the runtime's `KeyValueStore`. */
   export type PersistOptions = CollectionPersistOptions;
   /** Persistence policy attached to a collection definition. */
-  export type PersistenceConfig<E = never, R = never> = CollectionPersistenceConfig<E, R>;
+  export type PersistenceConfig = CollectionPersistenceConfig;
   /** Options for materializing a read-only collection from a live query. */
   export type LiveQueryOptions<
     A extends object,
@@ -247,10 +231,6 @@ export namespace Collection {
     E = never,
     R = never,
   > = CollectionLiveQueryOptions<A, K, E, R>;
-  /** Synchronous Web Storage-like shape accepted by `Collection.storage(...)`. */
-  export type StorageLike = CollectionStorageLike;
-  /** In-memory persistence storage for tests, demos, and ephemeral state. */
-  export type MemoryStorage = CollectionMemoryStorage;
 
   /**
    * Define a local-first collection.
@@ -314,15 +294,4 @@ export namespace Collection {
     options: CollectionLiveQueryOptions<A, K, E, R>,
   ): CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> =>
     makeLiveQueryCollectionDefinition(options);
-
-  /** Create in-memory persistence storage for tests, demos, or ephemeral data. */
-  export const memoryStorage = (
-    initial?: Iterable<readonly [string, string]>,
-  ): CollectionMemoryStorage => makeCollectionMemoryStorage(initial);
-
-  /** Adapt synchronous Web Storage style APIs to Effect-aware persistence storage. */
-  export const storage = (
-    storage: CollectionStorageLike,
-  ): CollectionPersistenceStorage<CollectionStorageError, never> =>
-    collectionStorageFromSync(storage);
 }

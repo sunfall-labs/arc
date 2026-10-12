@@ -14,6 +14,7 @@ export {
   type ActionOutboxEntry,
   type ActionOutboxFailure,
   type ActionOutboxOptions,
+  type ActionOutboxRestoreOptions,
   type ActionOutboxView,
   isRetryableActionFailure,
 } from "./action-outbox.js";
@@ -39,6 +40,7 @@ export {
   EffectInputPromiseRejected,
   isEffectLike,
   isPromiseLikeValue,
+  type CheckedEffectInput,
   type EffectInput,
   type EffectInputError,
   type EffectInputRequirements,

@@ -1,7 +1,12 @@
 import { Action, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
+import type { KeyValueStore } from "effect/persistence";
 import { describe, expect, it, vi } from "vitest";
+import { collectionStoreKey, makeTestKeyValueStore } from "./key-value-store.js";
+
+type KVE = KeyValueStore.KeyValueStoreError;
+type KV = KeyValueStore.KeyValueStore;
 
 interface Project {
   readonly id: string;
@@ -11,17 +16,16 @@ interface Project {
 
 describe("Collection persistence options", () => {
   it("restores persisted rows during preload without loading remotely by default", () => {
-    const first = makeRuntime();
-    const second = makeRuntime();
-    const storage = Collection.memoryStorage();
+    const storage = makeTestKeyValueStore();
+    const first = makeRuntime(storage.layer);
+    const second = makeRuntime(storage.layer);
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([{ id: "remote", name: "Remote", progress: 1 }]),
     );
-    const Projects = Collection.define<Project>({
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.persisted.preload",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key: "projects-preload",
       },
       sync: {
@@ -46,7 +50,9 @@ describe("Collection persistence options", () => {
           ),
         );
 
-        yield* Effect.sync(() => expect(storage.values.has("projects-preload")).toBe(true));
+        yield* Effect.sync(() =>
+          expect(storage.values.has(collectionStoreKey("projects-preload"))).toBe(true),
+        );
 
         yield* Effect.scoped(second.provide(Projects.preload()));
 
@@ -64,14 +70,13 @@ describe("Collection persistence options", () => {
   });
 
   it("loads after restore when requested and persists the refreshed snapshot", () => {
-    const first = makeRuntime();
-    const second = makeRuntime();
-    const storage = Collection.memoryStorage();
-    const Projects = Collection.define<Project>({
+    const storage = makeTestKeyValueStore();
+    const first = makeRuntime(storage.layer);
+    const second = makeRuntime(storage.layer);
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.persisted.load-after-restore",
       getKey: (project) => project.id,
       persistence: {
-        storage,
         key: "projects-refresh",
         loadAfterRestore: true,
       },
@@ -105,26 +110,23 @@ describe("Collection persistence options", () => {
             runWithRuntime(second, () => Projects.rows().map((project) => project.id)),
           ).toEqual(["lumen"]);
 
-          const persisted = JSON.parse(
-            storage.values.get("projects-refresh") ?? "{}",
-          ) as Collection.Snapshot<Project>;
-          expect(persisted.rows.map((row) => row.key)).toEqual(["lumen"]);
+          const persisted = storage.snapshot<Project>("projects-refresh");
+          expect(persisted?.rows.map((row) => row.key)).toEqual(["lumen"]);
         });
       }).pipe(Effect.ensuring(Effect.orDie(Effect.andThen(first.dispose, second.dispose)))),
     );
   });
 
   it("never persists an Action's optimistic patch: storage keeps the synced rows", () => {
-    const runtime = makeRuntime();
+    const storage = makeTestKeyValueStore();
+    const runtime = makeRuntime(storage.layer);
     const started = Effect.runSync(Deferred.make<void>());
     const release = Effect.runSync(Deferred.make<void>());
-    const storage = Collection.memoryStorage();
-    const Projects = Collection.define<Project, string, never>({
+    const Projects = Collection.define<Project, string, KVE, KV>({
       name: "Projects.persisted.optimistic",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", progress: 72 }],
       persistence: {
-        storage,
         key: "projects-optimistic",
       },
     });
@@ -138,26 +140,25 @@ describe("Collection persistence options", () => {
           yield* Deferred.await(release);
         }),
     });
-    const persisted = () =>
-      JSON.parse(storage.values.get("projects-optimistic") ?? "{}") as Collection.Snapshot<Project>;
+    const persisted = () => storage.snapshot<Project>("projects-optimistic");
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.persist(storage, { key: "projects-optimistic" }));
+        yield* runtime.provide(Projects.persist());
         const submission = runtime.runFork(Action.use(Advance, { runtime }).submit(undefined));
         yield* Deferred.await(started);
-        yield* runtime.provide(Projects.persist(storage, { key: "projects-optimistic" }));
+        yield* runtime.provide(Projects.persist());
 
-        expect(persisted().rows).toMatchObject([
+        expect(persisted()?.rows).toMatchObject([
           { key: "atlas", value: { progress: 72 }, synced: true, origin: "remote" },
         ]);
         expect(persisted()).not.toHaveProperty("pendingMutations");
 
         yield* Deferred.succeed(release, undefined);
         yield* Fiber.join(submission);
-        yield* runtime.provide(Projects.persist(storage, { key: "projects-optimistic" }));
+        yield* runtime.provide(Projects.persist());
 
-        expect(persisted().rows).toMatchObject([
+        expect(persisted()?.rows).toMatchObject([
           { key: "atlas", value: { progress: 80 }, synced: true, origin: "local" },
         ]);
       }).pipe(

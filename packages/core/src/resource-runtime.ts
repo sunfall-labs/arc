@@ -13,7 +13,12 @@ import {
 } from "./resource-events.js";
 import { ResourceCollector, type ResourceCollected } from "./resource-collector.js";
 import { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
-import { EffectInputCallbackError, EffectInputPromiseRejected, toEffect } from "./effect-like.js";
+import {
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  toEffect,
+  type EffectInput,
+} from "./effect-like.js";
 import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
@@ -145,7 +150,9 @@ const resourceLoadEffect = <I, A, E, R>(
         "Resource load callbacks must return values or Effects. A synchronous throw is a defect; fail the returned Effect for a typed failure.",
       );
     }
-    const effect = toEffect<A, E, R>(output);
+    // `Resource.define` checked the callback as an EffectInput; `toEffect`
+    // still rejects a Promise-shaped value at run time.
+    const effect = toEffect<A, E, R>(output as EffectInput<A, E, R>);
     const retry = family.options.policy?.retry;
     return Effect.catchDefect(
       retry === undefined ? effect : Effect.retry(effect, retry),

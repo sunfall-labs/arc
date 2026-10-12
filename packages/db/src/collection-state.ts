@@ -1,5 +1,5 @@
 import { Signal, type TimelineCollectionCause, type WritableSignal } from "@sunfall/arc-core";
-import type { Deferred } from "effect";
+import { Semaphore, type Deferred } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type {
   CollectionDefinition,
@@ -61,6 +61,8 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   initialized: boolean;
   initialDataError: CollectionRuntimeError<E> | undefined;
   persistenceRestored: boolean;
+  /** Serializes durable commits (direct writes, hydrate, restore) against this state. */
+  readonly commitPermit: Semaphore.Semaphore;
   /** True while this store runs the definition's `follow` stream. */
   following: boolean;
   /** True while this store runs the definition's `sync.changes` stream. */
@@ -85,6 +87,7 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
   initialized: false,
   initialDataError: undefined,
   persistenceRestored: false,
+  commitPermit: Semaphore.makeUnsafe(1),
   following: false,
   followingChanges: false,
   syncedSource: undefined,

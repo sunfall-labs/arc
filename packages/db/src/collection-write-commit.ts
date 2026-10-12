@@ -47,23 +47,10 @@ interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey
   readonly publish: (event: CollectionStoreEvent) => Effect.Effect<void>;
 }
 
-const durableCommitSemaphores = new WeakMap<object, Semaphore.Semaphore>();
-
-const durableCommitSemaphore = (state: CollectionState<any, any, any>): Semaphore.Semaphore => {
-  const existing = durableCommitSemaphores.get(state);
-  if (existing) {
-    return existing;
-  }
-
-  const semaphore = Semaphore.makeUnsafe(1);
-  durableCommitSemaphores.set(state, semaphore);
-  return semaphore;
-};
-
 export const withCollectionDurableCommitPermit = <A, E, R>(
   state: CollectionState<any, any, any>,
   effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> => Semaphore.withPermit(durableCommitSemaphore(state), effect);
+): Effect.Effect<A, E, R> => Semaphore.withPermit(state.commitPermit, effect);
 
 /**
  * Atomically apply a direct collection write around persistence and event

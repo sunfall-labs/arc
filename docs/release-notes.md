@@ -6,6 +6,43 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Durable Submissions And Tracing Papercuts
+
+- `Action.restoreOutbox` is a function: `Action.restoreOutbox(options?)` takes
+  `ActionOutboxRestoreOptions` (`settled`: ids the hydrated state already
+  reflects, restored without re-applying their optimistic patch). Start's
+  `App.launch` passes the ids its server reports in the hydration payload
+  (`settledSubmissions`), read from the `sunfall-arc-outbox` cookie it keeps,
+  so a submission whose response was lost no longer shows its patch twice
+  after a reload.
+- Start's default in-memory `WorkflowEngine` rotates per Action and forgets
+  records once no client can replay them (`durable.maxAge` after they
+  settle), instead of growing for the life of the server. A submission id
+  sent for a non-durable Action runs directly.
+- Start's RPC and action clients send the current span as `traceparent`/`b3`
+  (`HttpTraceContext.toHeaders`, honoring
+  `HttpClient.TracerPropagationEnabled`), so the server's request span joins
+  the client's trace. Start transport responses no longer echo
+  `traceparent`/`baggage`.
+- `ResourceFamilyOptions.load` stores a `CheckedEffectInput` and `provides` is
+  a method, so a Resource whose load never succeeds (`A = never`) is always an
+  `AnyResourceRef`.
+
+## Collection Persistence On KeyValueStore
+
+- Collection persistence uses the runtime's `effect/persistence`
+  `KeyValueStore`, shared with the Action Outbox: snapshots live at
+  `arc/collections/v<version>/<key>` (key defaults to the collection name,
+  version to `1`), rows encoded through the `output` schema's JSON codec.
+  `persistence: { key?, version?, ... }` replaces `persistence: { storage }`,
+  and `persist(options?)` / `restore(options?)` no longer take a storage.
+- Removed `Collection.storage`, `Collection.memoryStorage`, the
+  `PersistenceStorage`/`StorageLike`/`MemoryStorage` types,
+  `CollectionStorageError`, and the `SQLitePersistence` namespace with its
+  errors; use `KeyValueStore.layerStorage`, `layerMemory`, or `layerSql`.
+  Snapshots under the old keys or SQLite table are not read (see migration
+  notes).
+
 ## Durable Action Submissions
 
 - `Action.define({ input, durable: { maxAge } })` makes an Action's

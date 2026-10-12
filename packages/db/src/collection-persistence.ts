@@ -1,6 +1,6 @@
-import { EffectInputCallbackError, type EffectInput } from "@sunfall/arc-core";
-import { invokeEffectInput } from "@sunfall/arc-core/internal";
-import { Clock, Data, Effect } from "effect";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
+import { Clock, Effect, Option } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { type CollectionState } from "./collection-state.js";
 import {
   hasStoreExplicitCollectionSnapshotMarker,
@@ -15,8 +15,9 @@ export type { CollectionPersistenceStore } from "./collection-definition-snapsho
 import {
   collectionSnapshotFromState,
   CollectionSnapshotCodecError,
-  decodeCollectionSnapshotEffect,
-  encodeCollectionSnapshotEffect,
+  collectionRowValueSchema,
+  collectionSnapshotCodecErrorFromSchema,
+  collectionSnapshotSchema,
   hydrateCollectionSnapshotStateEffect,
   validateCollectionHydrationPayload,
   validateCollectionSnapshotDefinitionEffect,
@@ -30,25 +31,10 @@ import type {
   CollectionHydrateOptions,
   CollectionHydrationPayload,
   CollectionKey,
-  CollectionMemoryStorage,
   CollectionPersistOptions,
   CollectionPersistenceConfig,
-  CollectionPersistenceStorage,
   CollectionSnapshot,
-  CollectionStorageLike,
 } from "./collection-contract.js";
-
-/** Error raised by the sync Web Storage Adapter when a host method throws. */
-export class CollectionStorageError extends Data.TaggedError("CollectionStorageError")<{
-  readonly operation: "getItem" | "setItem" | "removeItem";
-  readonly key: string;
-  readonly cause: unknown;
-}> {}
-
-const storageInputCallbackEffect = <A, E, R>(
-  callback: () => EffectInput<A, E, R>,
-): Effect.Effect<A, E | EffectInputCallbackError, R> =>
-  invokeEffectInput("collection persistence storage callback", callback);
 
 interface CollectionHydrationPlanEntry {
   readonly collection: AnyCollection;
@@ -268,170 +254,195 @@ export function hydrateCollectionEffect(
   });
 }
 
-export const collectionPersistenceKey = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  options: CollectionPersistOptions = {},
-): string => options.key ?? `sunfall-arc:collection:${definition.name}`;
+/** Persistence failures: the store's own, plus snapshots it cannot encode or decode. */
+type CollectionPersistError =
+  | KeyValueStore.KeyValueStoreError
+  | CollectionSnapshotCodecError
+  | EffectInputCallbackError;
 
-const persistCollectionEffectUnsafe = <A extends object, K extends CollectionKey, E, R, PE, PR>(
+interface CollectionPersistTarget {
+  /** Namespace in the runtime's `KeyValueStore`, e.g. `arc/collections/v1/`. */
+  readonly prefix: string;
+  /** Key under the prefix; defaults to the collection name. */
+  readonly key: string;
+}
+
+/**
+ * Explicit options win, then the definition's `persistence` config, then the
+ * defaults (`version: 1`, the collection name as key).
+ */
+const collectionPersistTarget = (
+  definition: AnyCollection,
+  options: CollectionPersistOptions,
+): CollectionPersistTarget => {
+  const config = definition.options.persistence;
+  const version = options.version ?? config?.version ?? 1;
+  return {
+    prefix: `arc/collections/v${version}/`,
+    key: options.key ?? config?.key ?? definition.name,
+  };
+};
+
+/** The full `KeyValueStore` key a collection snapshot is persisted under. */
+export const collectionPersistenceKey = (
+  definition: AnyCollection,
+  options: CollectionPersistOptions = {},
+): string => {
+  const target = collectionPersistTarget(definition, options);
+  return `${target.prefix}${target.key}`;
+};
+
+/** The definition's snapshots in the runtime's `KeyValueStore`, rows through their JSON codec. */
+const collectionSnapshotStore = (definition: AnyCollection, target: CollectionPersistTarget) =>
+  Effect.gen(function* () {
+    const store = yield* KeyValueStore.KeyValueStore;
+    return KeyValueStore.toSchemaStore(
+      KeyValueStore.prefix(store, target.prefix),
+      collectionSnapshotSchema(collectionRowValueSchema(definition.options.output)),
+    );
+  });
+
+const readPersistedSnapshotEffect = <A extends object, K extends CollectionKey>(
+  definition: AnyCollection,
+  target: CollectionPersistTarget,
+): Effect.Effect<
+  Option.Option<CollectionSnapshot<A, K>>,
+  KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError,
+  KeyValueStore.KeyValueStore
+> =>
+  Effect.flatMap(collectionSnapshotStore(definition, target), (store) =>
+    store.get(target.key).pipe(
+      Effect.map((snapshot) => snapshot as Option.Option<CollectionSnapshot<A, K>>),
+      Effect.catchTag("SchemaError", (error) =>
+        Effect.fail(collectionSnapshotCodecErrorFromSchema(error, "decode")),
+      ),
+    ),
+  );
+
+/**
+ * `Collection.define` adds `KeyValueStore` to `R` and `KeyValueStoreError` to
+ * `E` whenever `persistence` is configured, so a definition's own channels
+ * already cover its configured persistence.
+ */
+const withinCollectionChannels = <A, X, E, R>(
+  effect: Effect.Effect<A, X | KeyValueStore.KeyValueStoreError, KeyValueStore.KeyValueStore>,
+): Effect.Effect<A, X | E, R> => effect as Effect.Effect<A, X | E, R>;
+
+const persistCollectionEffectUnsafe = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore,
-): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
+): Effect.Effect<void, CollectionPersistError, KeyValueStore.KeyValueStore> =>
   Effect.gen(function* () {
     const dbStore = store ?? (yield* storeEffect);
     const updatedAt = yield* Clock.currentTimeMillis;
     yield* persistCollectionSnapshotEffect(
       definition,
       snapshotCollectionForEffectUnsafe(definition, dbStore, updatedAt),
-      storage,
       options,
       dbStore,
     );
   });
 
-export const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
+export const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore,
-): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
+): Effect.Effect<void, CollectionPersistError, KeyValueStore.KeyValueStore> =>
   Effect.gen(function* () {
     const dbStore = store ?? (yield* storeEffect);
     yield* withCollectionDurableSnapshotPermits(
       dbStore,
       [definition],
-      persistCollectionEffectUnsafe(definition, storage, options, storeEffect, dbStore),
+      persistCollectionEffectUnsafe(definition, options, storeEffect, dbStore),
     );
   });
 
-export const persistCollectionSnapshotEffect = <
-  A extends object,
-  K extends CollectionKey,
-  E,
-  R,
-  PE,
-  PR,
->(
+export const persistCollectionSnapshotEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   snapshotEffect: Effect.Effect<
     CollectionSnapshot<A, K>,
     CollectionSnapshotCodecError | EffectInputCallbackError
   >,
-  storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions = {},
   store?: CollectionPersistenceStore,
-): Effect.Effect<
-  CollectionSnapshot<A, K>,
-  PE | CollectionSnapshotCodecError | EffectInputCallbackError,
-  PR
-> =>
+): Effect.Effect<CollectionSnapshot<A, K>, CollectionPersistError, KeyValueStore.KeyValueStore> =>
   Effect.gen(function* () {
-    const key = collectionPersistenceKey(definition, options);
+    const target = collectionPersistTarget(definition, options);
     const snapshot = yield* snapshotEffect;
-    const encoded = yield* encodeCollectionSnapshotEffect(snapshot);
-    yield* storageInputCallbackEffect(() => storage.setItem(key, encoded));
+    const snapshots = yield* collectionSnapshotStore(definition, target);
+    yield* snapshots
+      .set(target.key, snapshot)
+      .pipe(
+        Effect.catchTag("SchemaError", (error) =>
+          Effect.fail(collectionSnapshotCodecErrorFromSchema(error, "encode")),
+        ),
+      );
     if (store) {
       yield* store.publish({
         _tag: "CollectionPersisted",
         collection: definition.name,
-        key,
+        key: `${target.prefix}${target.key}`,
         count: snapshot.rows.length,
       });
     }
     return snapshot;
   });
 
-const restoreCollectionSnapshotEffectUnsafe = <
-  A extends object,
-  K extends CollectionKey,
-  E,
-  R,
-  PE,
-  PR,
->(
+const restoreCollectionSnapshotEffectUnsafe = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions & CollectionHydrateOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore,
-): Effect.Effect<boolean, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
+): Effect.Effect<boolean, CollectionPersistError, KeyValueStore.KeyValueStore> =>
   Effect.gen(function* () {
     const dbStore = store ?? (yield* storeEffect);
-    const key = collectionPersistenceKey(definition, options);
-    const encoded = yield* storageInputCallbackEffect(() => storage.getItem(key));
-    if (encoded === null) {
+    const target = collectionPersistTarget(definition, options);
+    const persisted = yield* readPersistedSnapshotEffect<A, K>(definition, target);
+    if (Option.isNone(persisted)) {
       return false;
     }
 
-    const snapshot = yield* decodeCollectionSnapshotEffect<A, K>(encoded);
+    const snapshot = persisted.value;
     yield* hydrateCollectionEffectUnsafe(definition, snapshot, options, storeEffect, dbStore);
     yield* dbStore.publish({
       _tag: "CollectionRestored",
       collection: definition.name,
-      key,
+      key: `${target.prefix}${target.key}`,
       count: snapshot.rows.length,
     });
     return true;
   });
 
-const restoreCollectionSnapshotEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
+export const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions & CollectionHydrateOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore,
-): Effect.Effect<boolean, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
+): Effect.Effect<void, CollectionPersistError, KeyValueStore.KeyValueStore> =>
   Effect.gen(function* () {
     const dbStore = store ?? (yield* storeEffect);
-    if (hasStoreExplicitCollectionSnapshotMarker(definition)) {
-      return yield* restoreCollectionSnapshotEffectUnsafe(
-        definition,
-        storage,
-        options,
-        storeEffect,
-        dbStore,
-      );
-    }
-
-    return yield* withCollectionDurableCommitPermit(
-      dbStore.state(definition),
-      restoreCollectionSnapshotEffectUnsafe(definition, storage, options, storeEffect, dbStore),
+    const restore = restoreCollectionSnapshotEffectUnsafe(
+      definition,
+      options,
+      storeEffect,
+      dbStore,
     );
+    yield* hasStoreExplicitCollectionSnapshotMarker(definition)
+      ? restore
+      : withCollectionDurableCommitPermit(dbStore.state(definition), restore);
   });
 
-export const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
-  definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
-  options: CollectionPersistOptions & CollectionHydrateOptions = {},
-  storeEffect: Effect.Effect<CollectionPersistenceStore>,
-  store?: CollectionPersistenceStore,
-): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
-  Effect.asVoid(restoreCollectionSnapshotEffect(definition, storage, options, storeEffect, store));
+export const collectionPersistenceConfig = (
+  definition: AnyCollection,
+): CollectionPersistenceConfig | undefined => definition.options.persistence;
 
-export function collectionPersistenceConfig<A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-): CollectionPersistenceConfig<E, R> | undefined;
-export function collectionPersistenceConfig<E, R>(
-  definition: AnyCollection<E, R>,
-): CollectionPersistenceConfig<E, R> | undefined;
-export function collectionPersistenceConfig<E, R>(
-  definition: AnyCollection<E, R>,
-): CollectionPersistenceConfig<E, R> | undefined {
-  return definition.options.persistence;
-}
-
-export const collectionPersistencePersistOptions = <E, R>(
-  config: CollectionPersistenceConfig<E, R>,
-): CollectionPersistOptions => (config.key === undefined ? {} : { key: config.key });
-
-export const collectionPersistenceRestoreOptions = <E, R>(
-  config: CollectionPersistenceConfig<E, R>,
+const collectionPersistenceRestoreOptions = (
+  config: CollectionPersistenceConfig,
 ): CollectionPersistOptions & CollectionHydrateOptions => ({
-  ...collectionPersistencePersistOptions(config),
+  ...config,
   ...(config.hydrate === false ? {} : (config.hydrate ?? {})),
 });
 
@@ -453,12 +464,28 @@ export const persistCollectionForReasonEffect = <A extends object, K extends Col
     return Effect.succeed(undefined);
   }
 
-  return persistCollectionEffectUnsafe(
-    definition,
-    config.storage,
-    collectionPersistencePersistOptions(config),
-    storeEffect,
-    store,
+  return withinCollectionChannels(
+    persistCollectionEffectUnsafe(definition, {}, storeEffect, store),
+  );
+};
+
+/** Persists an already-staged load snapshot under the definition's configured key. */
+export const persistCollectionLoadSnapshotEffect = <
+  A extends object,
+  K extends CollectionKey,
+  E,
+  R,
+>(
+  definition: CollectionDefinition<A, K, E, R>,
+  store: CollectionPersistenceStore,
+  snapshot: CollectionSnapshot<A, K>,
+): Effect.Effect<void, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> => {
+  const config = collectionPersistenceConfig(definition);
+  if (config === undefined || config.persistOnLoad === false) {
+    return Effect.void;
+  }
+  return withinCollectionChannels(
+    Effect.asVoid(persistCollectionSnapshotEffect(definition, Effect.succeed(snapshot), {}, store)),
   );
 };
 
@@ -487,14 +514,18 @@ export const restoreCollectionBeforePreloadEffect = <
     }
 
     const restoreOptions = collectionPersistenceRestoreOptions(config);
-    const dbStore = store;
-    const key = collectionPersistenceKey(definition, restoreOptions);
-    const encoded = yield* storageInputCallbackEffect(() => config.storage.getItem(key));
-    if (encoded === null || !shouldRestore()) {
+    const target = collectionPersistTarget(definition, restoreOptions);
+    const persisted = yield* withinCollectionChannels<
+      Option.Option<CollectionSnapshot<A, K>>,
+      CollectionSnapshotCodecError,
+      E,
+      R
+    >(readPersistedSnapshotEffect<A, K>(definition, target));
+    if (Option.isNone(persisted) || !shouldRestore()) {
       return false;
     }
 
-    const snapshot = yield* decodeCollectionSnapshotEffect<A, K>(encoded);
+    const snapshot = persisted.value;
     const restored = yield* withCollectionDurableCommitPermit(
       state,
       Effect.gen(function* () {
@@ -506,12 +537,12 @@ export const restoreCollectionBeforePreloadEffect = <
           snapshot,
           restoreOptions,
           storeEffect,
-          dbStore,
+          store,
         );
-        yield* dbStore.publish({
+        yield* store.publish({
           _tag: "CollectionRestored",
           collection: definition.name,
-          key,
+          key: `${target.prefix}${target.key}`,
           count: snapshot.rows.length,
         });
         return true;
@@ -640,50 +671,3 @@ const planCollectionsHydrationEffect = (
     const store = yield* storeEffect;
     return { store, entries };
   });
-
-/** Creates in-memory key/value storage for collection persistence tests and demos. */
-export const makeCollectionMemoryStorage = (
-  initial?: Iterable<readonly [string, string]>,
-): CollectionMemoryStorage => {
-  const values = new Map(initial);
-  return {
-    values,
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => {
-      values.set(key, value);
-    },
-    removeItem: (key) => {
-      values.delete(key);
-    },
-    clear: () => {
-      values.clear();
-    },
-  };
-};
-
-/** Adapts synchronous Web Storage-like hosts into Effect-aware collection persistence storage. */
-export const collectionStorageFromSync = (
-  storage: CollectionStorageLike,
-): CollectionPersistenceStorage<CollectionStorageError, never> => {
-  return {
-    getItem: (key) =>
-      Effect.try({
-        try: () => storage.getItem(key),
-        catch: (cause) => new CollectionStorageError({ operation: "getItem", key, cause }),
-      }),
-    setItem: (key, value) =>
-      Effect.try({
-        try: () => storage.setItem(key, value),
-        catch: (cause) => new CollectionStorageError({ operation: "setItem", key, cause }),
-      }),
-    ...(storage.removeItem
-      ? {
-          removeItem: (key: string) =>
-            Effect.try({
-              try: () => storage.removeItem!(key),
-              catch: (cause) => new CollectionStorageError({ operation: "removeItem", key, cause }),
-            }),
-        }
-      : {}),
-  };
-};

@@ -5,6 +5,7 @@ import {
   type AppDefinitionRegistry,
   type AppDefinitionRegistryRequirements,
   type ActionDefinitionRequirements,
+  type AnySunfallArcRuntime,
   type EffectInput,
   type SunfallArcRuntime,
   type ResourceStore as ResourceStoreState,
@@ -42,7 +43,11 @@ import type {
   StartTransportEndpointManifestSource,
 } from "./start-transport-endpoints.js";
 import { resolveStartTransportEndpointsEffect } from "./start-transport-endpoints.js";
-import { makeStartActionWorkflows } from "./start-action-workflow.js";
+import {
+  makeStartActionWorkflows,
+  settledActionSubmissionsEffect,
+} from "./start-action-workflow.js";
+import { readStartActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import {
   createServerActionResponseEffectWithRuntime,
   createServerRpcResponseEffectWithRuntime,
@@ -226,10 +231,21 @@ export const createStartRequestHandler = <
           preloaded.routePlan,
           preloaded.collectionPreload,
         );
+        // Probed after preload, so a submission reported settled is one the
+        // preloaded state already reflects.
+        const settledSubmissions = yield* settledActionSubmissionsEffect(
+          workflows,
+          requestRuntime as unknown as AnySunfallArcRuntime<unknown>,
+          yield* Effect.try(() => makeActionMap(explicitActionMap, app.registry)).pipe(
+            Effect.orElseSucceed(() => new Map()),
+          ),
+          readStartActionOutboxCookie(request),
+        );
         const hydrationPlan = yield* createStartRenderHydrationPlanEffect({
           resources: preloaded.resources,
           collections: preloaded.collections,
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
+          settledSubmissions,
         });
         if (preloaded.routeFailure !== undefined) {
           // The page renders the route's failure view; `render` may still set

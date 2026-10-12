@@ -15,12 +15,17 @@ import {
   validateCollectionsHydrationEffect,
 } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
+import type { KeyValueStore } from "effect/persistence";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
+import { keyValueStoreError, makeTestKeyValueStore } from "./key-value-store.js";
 import {
   collectionDurableSnapshotPermitSources,
   markStoreExplicitCollectionSnapshotDefinition,
 } from "../src/collection-definition-snapshot.js";
+
+type KVE = KeyValueStore.KeyValueStoreError;
+type KV = KeyValueStore.KeyValueStore;
 
 interface Project {
   readonly id: string;
@@ -905,9 +910,9 @@ describe("Collection.liveQuery", () => {
   it("uses the provided runtime store when snapshotting, dehydrating, and persisting live query collections", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const firstRuntime = makeRuntime();
-        const secondRuntime = makeRuntime();
-        const storage = Collection.memoryStorage();
+        const storage = makeTestKeyValueStore();
+        const firstRuntime = makeRuntime(storage.layer);
+        const secondRuntime = makeRuntime(storage.layer);
         const firstKey = "live-query-collection-runtime-local-first";
         const secondKey = "live-query-collection-runtime-local-second";
         const Projects = Collection.define<Project>({
@@ -973,15 +978,11 @@ describe("Collection.liveQuery", () => {
             dehydrateCollectionsEffect([ActiveProjectCards]),
           );
 
-          yield* firstRuntime.provide(ActiveProjectCards.persist(storage, { key: firstKey }));
-          yield* secondRuntime.provide(ActiveProjectCards.persist(storage, { key: secondKey }));
+          yield* firstRuntime.provide(ActiveProjectCards.persist({ key: firstKey }));
+          yield* secondRuntime.provide(ActiveProjectCards.persist({ key: secondKey }));
 
-          const persistedFirst = JSON.parse(
-            storage.values.get(firstKey) ?? "{}",
-          ) as Collection.Snapshot<ProjectCard, string>;
-          const persistedSecond = JSON.parse(
-            storage.values.get(secondKey) ?? "{}",
-          ) as Collection.Snapshot<ProjectCard, string>;
+          const persistedFirst = storage.snapshot<ProjectCard>(firstKey) ?? { rows: [] };
+          const persistedSecond = storage.snapshot<ProjectCard>(secondKey) ?? { rows: [] };
 
           expect(firstSnapshot.rows.map((row) => row.key)).toEqual(["atlas"]);
           expect(secondSnapshot.rows.map((row) => row.key)).toEqual(["lumen"]);
@@ -999,33 +1000,27 @@ describe("Collection.liveQuery", () => {
   it("serializes live query collection snapshots behind source durable writes", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const runtime = makeRuntime();
         const writeStarted = yield* Deferred.make<void>();
         const releaseWrite = yield* Deferred.make<void>();
-        const storage = Collection.memoryStorage();
-        const failingStorage: Collection.PersistenceStorage<"persist-failed"> = {
-          getItem: () => storage.getItem("source-cache"),
-          setItem: (key, value) =>
+        const storage = makeTestKeyValueStore({
+          beforeSet: (key) =>
             Effect.gen(function* () {
               yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
               yield* Deferred.await(releaseWrite);
-              yield* Effect.sync(() => {
-                storage.setItem(key, value);
-              });
-              return yield* Effect.fail("persist-failed" as const);
+              return yield* Effect.fail(keyValueStoreError("set", key, "persist-failed"));
             }),
-        };
-        const Projects = Collection.define<Project, string, "persist-failed">({
+        });
+        const runtime = makeRuntime(storage.layer);
+        const Projects = Collection.define<Project, string, KVE, KV>({
           name: "Projects.live-query-snapshot-source-durable-write",
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
           persistence: {
-            storage: failingStorage,
             key: "source-cache",
             persistOnWrite: true,
           },
         });
-        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, "persist-failed">({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, KVE, KV>({
           name: "ProjectCards.live-query-snapshot-source-durable-write",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1040,7 +1035,7 @@ describe("Collection.liveQuery", () => {
         });
         let write:
           | Fiber.Fiber<
-              Exit.Exit<void, CollectionRowKeyChanged | CollectionRowNotFound | "persist-failed">,
+              Exit.Exit<void, CollectionRowKeyChanged | CollectionRowNotFound | KVE>,
               never
             >
           | undefined;
@@ -1087,33 +1082,27 @@ describe("Collection.liveQuery", () => {
   it("serializes nested live query collection snapshots behind transitive source durable writes", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const runtime = makeRuntime();
         const writeStarted = yield* Deferred.make<void>();
         const releaseWrite = yield* Deferred.make<void>();
-        const storage = Collection.memoryStorage();
-        const failingStorage: Collection.PersistenceStorage<"persist-failed"> = {
-          getItem: () => storage.getItem("source-cache"),
-          setItem: (key, value) =>
+        const storage = makeTestKeyValueStore({
+          beforeSet: (key) =>
             Effect.gen(function* () {
               yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
               yield* Deferred.await(releaseWrite);
-              yield* Effect.sync(() => {
-                storage.setItem(key, value);
-              });
-              return yield* Effect.fail("persist-failed" as const);
+              return yield* Effect.fail(keyValueStoreError("set", key, "persist-failed"));
             }),
-        };
-        const Projects = Collection.define<Project, string, "persist-failed">({
+        });
+        const runtime = makeRuntime(storage.layer);
+        const Projects = Collection.define<Project, string, KVE, KV>({
           name: "Projects.live-query-nested-snapshot-source-durable-write",
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
           persistence: {
-            storage: failingStorage,
             key: "source-cache",
             persistOnWrite: true,
           },
         });
-        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, "persist-failed">({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, KVE, KV>({
           name: "ProjectCards.live-query-nested-snapshot-source-durable-write",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1129,7 +1118,8 @@ describe("Collection.liveQuery", () => {
         const ProjectSummaries = Collection.liveQuery<
           ProjectCard,
           string,
-          "persist-failed" | QueryEvaluationError | ReadonlyCollectionMutation
+          KVE | QueryEvaluationError | ReadonlyCollectionMutation,
+          KV
         >({
           name: "ProjectSummaries.live-query-nested-snapshot-source-durable-write",
           getKey: (project) => project.id,
@@ -1142,7 +1132,7 @@ describe("Collection.liveQuery", () => {
         });
         let write:
           | Fiber.Fiber<
-              Exit.Exit<void, CollectionRowKeyChanged | CollectionRowNotFound | "persist-failed">,
+              Exit.Exit<void, CollectionRowKeyChanged | CollectionRowNotFound | KVE>,
               never
             >
           | undefined;
@@ -1305,7 +1295,7 @@ describe("Collection.liveQuery", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const storage = Collection.memoryStorage();
+          const storage = makeTestKeyValueStore();
           const key = "live-query-collection-persist-event-cache";
           const Projects = Collection.define<Project>({
             name: "Projects.live-query-collection.persist-event-source",
@@ -1330,18 +1320,15 @@ describe("Collection.liveQuery", () => {
           });
           const subscription = yield* subscribeCollectionEventsEffect();
 
-          yield* ActiveProjectCards.persist(storage, { key });
+          yield* ActiveProjectCards.persist({ key }).pipe(Effect.provide(storage.layer));
 
           const event = yield* PubSub.take(subscription);
-          const persisted = JSON.parse(storage.values.get(key) ?? "{}") as Collection.Snapshot<
-            ProjectCard,
-            string
-          >;
+          const persisted = storage.snapshot<ProjectCard>(key) ?? { rows: [] };
 
           expect(event).toMatchObject({
             _tag: "CollectionPersisted",
             collection: "ProjectCards.live-query-collection.persist-event",
-            key,
+            key: `arc/collections/v1/${key}`,
             count: 1,
           });
           expect(persisted.rows.map((row) => row.key)).toEqual(["atlas"]);
@@ -1349,10 +1336,11 @@ describe("Collection.liveQuery", () => {
       ),
     ));
 
-  it("reports live query collection persistence storage throws as EffectInput callback errors", () =>
+  it("surfaces live query collection KeyValueStore write failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const thrown = new Error("storage unavailable");
+        const thrown = keyValueStoreError("set", "unavailable", "storage unavailable");
+        const storage = makeTestKeyValueStore({ beforeSet: () => Effect.fail(thrown) });
         const Projects = Collection.define<Project>({
           name: "Projects.live-query-collection.persist-source",
           getKey: (project) => project.id,
@@ -1369,16 +1357,10 @@ describe("Collection.liveQuery", () => {
             })),
         });
         const error = yield* Effect.flip(
-          ActiveProjectCards.persist({
-            getItem: () => null,
-            setItem: () => {
-              throw thrown;
-            },
-          }),
+          ActiveProjectCards.persist().pipe(Effect.provide(storage.layer)),
         );
 
-        expect(error).toBeInstanceOf(EffectInputCallbackError);
-        expect((error as EffectInputCallbackError).cause).toBe(thrown);
+        expect(error).toBe(thrown);
       }),
     ));
 
@@ -1406,7 +1388,7 @@ describe("Collection.liveQuery", () => {
 
         const snapshotFailure = yield* Effect.flip(ActiveProjectCards.snapshot());
         const persistFailure = yield* Effect.flip(
-          ActiveProjectCards.persist(Collection.memoryStorage()),
+          ActiveProjectCards.persist().pipe(Effect.provide(makeTestKeyValueStore().layer)),
         );
 
         for (const failure of [snapshotFailure, persistFailure]) {
@@ -1451,7 +1433,7 @@ describe("Collection.liveQuery", () => {
 
         const snapshotFailure = yield* Effect.flip(ActiveProjectCards.snapshot());
         const persistFailure = yield* Effect.flip(
-          ActiveProjectCards.persist(Collection.memoryStorage()),
+          ActiveProjectCards.persist().pipe(Effect.provide(makeTestKeyValueStore().layer)),
         );
 
         for (const failure of [snapshotFailure, persistFailure]) {
@@ -1597,8 +1579,9 @@ describe("Collection.liveQuery", () => {
   it("does not snapshot or persist retained last-good live query rows while failed", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const storage = Collection.memoryStorage();
+        const storage = makeTestKeyValueStore();
         const key = "live-query-collection-failed-last-good";
+        const storeKey = `arc/collections/v1/${key}`;
         const Projects = Collection.define<Project>({
           name: "Projects.live-query-collection.failed-snapshot-source",
           getKey: (project) => project.id,
@@ -1620,8 +1603,8 @@ describe("Collection.liveQuery", () => {
             }),
         });
 
-        yield* ProjectCards.persist(storage, { key });
-        const firstPersisted = storage.values.get(key);
+        yield* ProjectCards.persist({ key }).pipe(Effect.provide(storage.layer));
+        const firstPersisted = storage.values.get(storeKey);
         expect(firstPersisted).toBeDefined();
 
         yield* Projects.applyChanges([
@@ -1634,7 +1617,9 @@ describe("Collection.liveQuery", () => {
         expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Atlas"]);
 
         const snapshotFailure = yield* Effect.flip(ProjectCards.snapshot());
-        const persistFailure = yield* Effect.flip(ProjectCards.persist(storage, { key }));
+        const persistFailure = yield* Effect.flip(
+          ProjectCards.persist({ key }).pipe(Effect.provide(storage.layer)),
+        );
 
         expect(snapshotFailure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(snapshotFailure).toMatchObject({
@@ -1643,7 +1628,7 @@ describe("Collection.liveQuery", () => {
           path: "$",
         });
         expect(persistFailure).toBeInstanceOf(CollectionSnapshotCodecError);
-        expect(storage.values.get(key)).toBe(firstPersisted);
+        expect(storage.values.get(storeKey)).toBe(firstPersisted);
       }),
     ));
 
@@ -1672,9 +1657,9 @@ describe("Collection.liveQuery", () => {
 
         const hydrateFailure = yield* Effect.flip(ActiveProjectCards.hydrate(snapshot));
         const restoreFailure = yield* Effect.flip(
-          ActiveProjectCards.restore(Collection.memoryStorage(), {
-            key: "readonly-hydrate-cache",
-          }),
+          ActiveProjectCards.restore({ key: "readonly-hydrate-cache" }).pipe(
+            Effect.provide(makeTestKeyValueStore().layer),
+          ),
         );
 
         expect(hydrateFailure).toBeInstanceOf(CollectionSnapshotCodecError);

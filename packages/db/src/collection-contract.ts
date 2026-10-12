@@ -7,6 +7,7 @@ import {
   type RetrySchedule,
 } from "@sunfall/arc-core";
 import { Effect, type PubSub, type Scope, type Stream } from "effect";
+import type { KeyValueStore } from "effect/persistence";
 import type { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 import type { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
@@ -157,8 +158,12 @@ export interface CollectionOptions<
   readonly output?: unknown;
   /** Load retry policy for this collection. */
   readonly policy?: CollectionPolicy<E>;
-  /** Persistence storage and restore settings for this collection. */
-  readonly persistence?: CollectionPersistenceConfig<E, R>;
+  /**
+   * Snapshot persistence (in the runtime's `KeyValueStore`) and restore
+   * settings. Available when `E` covers `KeyValueStoreError` and `R` covers
+   * `KeyValueStore`; `Collection.define` with an `output` schema adds both.
+   */
+  readonly persistence?: CollectionPersistenceOption<E, R>;
   /** Backing source: an inline sync adapter or a `Resource.Ref`. */
   readonly sync?: CollectionSync<A, K, E, R>;
   /** Secondary index definitions used by `index`, `firstByIndex`, and indexed joins. */
@@ -229,16 +234,25 @@ export interface CollectionDefinition<
     snapshot: CollectionSnapshot<A, K>,
     options?: CollectionHydrateOptions,
   ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
-  /** Persist the current snapshot to an Effect-aware string storage backend. */
-  persist<PE = never, PR = never>(
-    storage: CollectionPersistenceStorage<PE, PR>,
+  /**
+   * Persist the current snapshot to the runtime's `KeyValueStore`. The key
+   * and version default to the definition's `persistence` config.
+   */
+  persist(
     options?: CollectionPersistOptions,
-  ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR>;
-  /** Load a persisted snapshot from storage and hydrate it if present. */
-  restore<PE = never, PR = never>(
-    storage: CollectionPersistenceStorage<PE, PR>,
+  ): Effect.Effect<
+    void,
+    KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError | EffectInputCallbackError,
+    KeyValueStore.KeyValueStore
+  >;
+  /** Load a persisted snapshot from the runtime's `KeyValueStore` and hydrate it if present. */
+  restore(
     options?: CollectionPersistOptions & CollectionHydrateOptions,
-  ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR>;
+  ): Effect.Effect<
+    void,
+    KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError | EffectInputCallbackError,
+    KeyValueStore.KeyValueStore
+  >;
   /**
    * Write rows directly: remote change feeds and local-only collections.
    * Server data changes through Actions instead.
@@ -265,7 +279,7 @@ export type AnyCollection<E = unknown, R = unknown> = Omit<
 > & {
   readonly options: Omit<CollectionOptions<any, any, E, R>, "policy" | "persistence"> & {
     readonly policy?: { readonly retry?: unknown };
-    readonly persistence?: CollectionPersistenceConfig<E, R>;
+    readonly persistence?: CollectionPersistenceConfig;
   };
 };
 /** Extracts the domain value type from a Collection definition. */
@@ -337,51 +351,43 @@ export interface CollectionHydrateOptions {
 }
 
 /**
- * Effect-aware string storage used by collection persistence.
- *
- * Implement this over `localStorage`, IndexedDB, SQLite, or any other durable
- * store. Storage failures become the persistence error channel.
+ * Where a collection snapshot lives in the runtime's `KeyValueStore`
+ * (`effect/persistence`): `arc/collections/v<version>/<key>`.
  */
-export interface CollectionPersistenceStorage<E = never, R = never> {
-  readonly getItem: (key: string) => EffectInput<string | null, E, R>;
-  readonly setItem: (key: string, value: string) => EffectInput<void, E, R>;
-  readonly removeItem?: (key: string) => EffectInput<void, E, R>;
-}
-
-/** Shared key options for collection persistence, restore, and hydration. */
 export interface CollectionPersistOptions {
+  /** Store key under the collection prefix; defaults to the collection name. */
   readonly key?: string;
+  /**
+   * Snapshot format version folded into the prefix; defaults to `1`. Bump it
+   * when rows change shape: snapshots under the old prefix are never read.
+   */
+  readonly version?: number;
 }
 
 /**
- * Persistence policy attached to a collection definition.
+ * `persistence` for a definition whose channels carry what it needs:
+ * `KeyValueStoreError` in `E` and `KeyValueStore` in `R`; otherwise `never`.
+ */
+export type CollectionPersistenceOption<E, R> = [KeyValueStore.KeyValueStore] extends [R]
+  ? [KeyValueStore.KeyValueStoreError] extends [E]
+    ? CollectionPersistenceConfig
+    : never
+  : never;
+
+/**
+ * Persistence policy attached to a collection definition. Snapshots go to the
+ * runtime's `KeyValueStore`, so a persisted collection requires
+ * `KeyValueStore` and can fail with `KeyValueStoreError`.
  *
  * Restore can run before preload, then optional load can reconcile remote data.
  * Persist hooks default to enabled unless explicitly set to `false`.
  */
-export interface CollectionPersistenceConfig<
-  E = never,
-  R = never,
-> extends CollectionPersistOptions {
-  readonly storage: CollectionPersistenceStorage<E, R>;
+export interface CollectionPersistenceConfig extends CollectionPersistOptions {
   readonly hydrate?: CollectionHydrateOptions | false;
   readonly restoreOnPreload?: boolean;
   readonly loadAfterRestore?: boolean;
   readonly persistOnLoad?: boolean;
   readonly persistOnWrite?: boolean;
-}
-
-/** Synchronous storage shape adapted by `Collection.storage`. */
-export interface CollectionStorageLike {
-  readonly getItem: (key: string) => string | null;
-  readonly setItem: (key: string, value: string) => void;
-  readonly removeItem?: (key: string) => void;
-}
-
-/** In-memory persistence storage for tests, demos, and ephemeral sessions. */
-export interface CollectionMemoryStorage extends CollectionPersistenceStorage<never, never> {
-  readonly values: ReadonlyMap<string, string>;
-  clear(): void;
 }
 
 /**

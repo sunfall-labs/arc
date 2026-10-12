@@ -369,7 +369,8 @@ export const createServerActionResponseEffectWithRuntime = <
             });
             return response;
           });
-          if (decoded.id === undefined) {
+          const durable = action.durable;
+          if (decoded.id === undefined || durable === undefined) {
             return yield* produce;
           }
           // A durable submission runs as a Workflow execution keyed by its id:
@@ -378,7 +379,7 @@ export const createServerActionResponseEffectWithRuntime = <
           return yield* runActionSubmissionWorkflow(
             workflows,
             runtime as unknown as AnySunfallArcRuntime<unknown>,
-            action.name,
+            { name: action.name, durable },
             { id: decoded.id, input: decoded.input },
             produce,
           );

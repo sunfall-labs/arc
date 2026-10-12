@@ -1,5 +1,7 @@
 import { Server, ServerTransportError } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
+import * as HttpClient from "effect/http/HttpClient";
+import * as HttpTraceContext from "effect/http/HttpTraceContext";
 import {
   callStartFetchEffect,
   getStartTransportHeadersEffect,
@@ -170,6 +172,27 @@ const decodeStartClientTransportDomainBodyEffect = <Body extends StartClientTran
   return Effect.succeed(body as StartClientTransportDomainBody<Body>);
 };
 
+/**
+ * Continues the caller's current span across the Start transport request.
+ *
+ * The server parents its request span from these headers through
+ * `HttpTraceContext.fromHeaders`, so client and server spans share one trace.
+ * Honors Effect's `HttpClient.TracerPropagationEnabled` reference.
+ */
+const injectStartClientTraceContextEffect = (headers: Headers): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    if (!(yield* HttpClient.TracerPropagationEnabled)) {
+      return;
+    }
+    const span = yield* Effect.option(Effect.currentSpan);
+    if (Option.isNone(span)) {
+      return;
+    }
+    for (const [name, value] of Object.entries(HttpTraceContext.toHeaders(span.value))) {
+      headers.set(name, value);
+    }
+  });
+
 export const executeStartClientTransportEffect = <
   Body extends StartClientTransportBody,
   ParseError = never,
@@ -187,6 +210,7 @@ export const executeStartClientTransportEffect = <
     const fetcher = yield* resolveStartFetchEffect(options.fetch, messages.unavailable);
     const body = yield* encodeStartClientTransportRequestBodyEffect(options.kind, options.request);
     const headers = yield* getStartTransportHeadersEffect(options);
+    yield* injectStartClientTraceContextEffect(headers);
     const response = yield* callStartFetchEffect(
       fetcher,
       options.endpoint,
