@@ -48,10 +48,6 @@ describe("static export helpers", () => {
         origin: "https://docs.test",
         fromPath: "/cookbook/",
       }),
-    ).toEqual([
-      "/cookbook",
-      "/cookbook/served-resource",
-      "/cookbook/semantic-invalidation",
-    ]);
+    ).toEqual(["/cookbook", "/cookbook/served-resource", "/cookbook/semantic-invalidation"]);
   });
 });

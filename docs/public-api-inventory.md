@@ -598,9 +598,7 @@ includes:
 - file routes: a route module exports `route = Route.define(path, options)`;
   Start has no route constructor of its own. The generated route tree checks
   the declared `path` against the path derived from the file, as a type error
-  and again when the tree loads. Static preload hints use core
-  `preloadResources`, and runtime work lives in
-  `preload`.
+  and again when the tree loads. What a route loads is its `preload`.
 - actions: served Actions (defined without `run`) run on the server;
   `App.launch` routes their submissions from the single UI binding (Solid's
   `Component.action(...)`) over the network with the same result and error

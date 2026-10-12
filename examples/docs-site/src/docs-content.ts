@@ -217,7 +217,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resources it owns with `preloadResources` in `Route.define(path, options)`. In dev, Start logs a warning for each route whose preload declares none.",
+        text: "Make sure the route's `preload` loads every Resource the page reads before it renders: Start server renders and hydrates exactly what the preload loaded.",
       },
       {
         _tag: "Heading",

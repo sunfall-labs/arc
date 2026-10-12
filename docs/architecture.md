@@ -1064,7 +1064,6 @@ Routes are schema-typed values with href generation, matching, and preload:
 export const ProjectRoute = Route.define("/projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-  preloadResources: [ProjectById],
   preload: ({ params }) => Resource.preload(ProjectById(params.id)),
 });
 
@@ -1209,14 +1208,9 @@ SSR preload. If a touched resource cannot be serialized, planning fails through
 the typed `Resource.SnapshotCodecError` Effect error channel. Resources with
 `rows` are ordinary Resources here: their rows are the preloaded value.
 
-Routes can also declare the resource families their preload is expected to
-touch through `preloadResources`. `Route.describePreloadResources(route)`
-reports those declarations as static facts (`declared`, `none`, or `unknown`
-for a preload without a declaration) and keeps runtime
-`Route.planNavigation(...)` as the dynamic proof for a concrete href. In Vite
-dev, the Start SSR middleware logs a warning (`Effect.logWarning`) once per
-loaded server entry for each route whose preload declares no
-`preloadResources`.
+A route declares what it loads once, in `preload`. The plan's record of the
+Resources the preload touched is the hydration plan, so it cannot drift from
+the preload, and nothing else lists them.
 
 File routes are manifest-first. The Start Vite plugin is the filesystem
 boundary: when no explicit `fileRoutes` or `fileRouteManifest` is supplied, it
@@ -1255,7 +1249,6 @@ attached where the app builds its router, or in a sibling
 export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
-  preloadResources: [ProjectById, ProjectSummaries],
   preload: ({ params }) => Resource.preload([ProjectById(params.id), ProjectSummaries("all")]),
 });
 ```

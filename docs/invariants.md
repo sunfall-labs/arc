@@ -157,11 +157,9 @@ documented as outside the current release bar.
   search-by-id, and href-options-by-id type maps derived from
   the imported route modules, so generated route metadata preserves the same
   schema/branded param checks as `Route.href`.
-- Route preload resource facts distinguish `declared`, `none`, and `unknown`
-  (`Route.describePreloadResources`). Static facts come from route
-  `preloadResources` declarations; runtime route plans remain the proof of
-  exact resource refs touched for a concrete href. Vite dev warns for every
-  route whose preload has no `preloadResources` declaration.
+- A route declares what it loads once, in `preload`. The route plan
+  (`Route.planNavigation`) records the Resources the preload touched, and
+  that record is the hydration plan Start sends; nothing restates it.
 
 ## Served Definitions And Server Functions
 
@@ -217,7 +215,7 @@ documented as outside the current release bar.
 - Generated artifacts should be deterministic, machine-readable, and source
   attributable.
 - The generated route tree (`routeTree.gen.ts`) and the definitions
-  themselves (`Resource.diagnostics()`, `Route.describePreloadResources`) are
+  themselves (`Resource.diagnostics()`, `Route.planNavigation`) are
   the agent entrypoints for route and resource topology.
 - Error messages should say what happened, where it happened, why it matters, and
   how to fix it.

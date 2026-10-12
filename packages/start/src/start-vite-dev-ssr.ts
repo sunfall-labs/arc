@@ -14,7 +14,6 @@ import { describeStartFailure } from "./start-request-handler-error.js";
 import { responseWithScopeLifetime } from "./response-lifetime.js";
 import { suspendResponseStreamSuccessFinalizer } from "./streaming.js";
 import { acceptsMediaType, serverActionPath, serverRpcPath, startHtmlMediaType } from "./rpc.js";
-import { warnUndeclaredRoutePreloadResources } from "./start-route-preload-warnings.js";
 import {
   interruptStartHostFiberOnSignal,
   mergeStartAbortSignals,
@@ -497,7 +496,6 @@ export const handleSsrDevRequest = <R = never>(
   Effect.gen(function* () {
     const module = yield* server.ssrLoadModule(options.serverEntry ?? defaultServerEntry);
     const handler = yield* resolveStartHandler(module, options);
-    yield* warnUndeclaredRoutePreloadResources(handler);
     const response = yield* handlerResultEffect(handler, request);
 
     if (!isHtmlResponse(response)) {

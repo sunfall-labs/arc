@@ -3204,7 +3204,6 @@ describe("devtools invalidation plans", () => {
     const ProjectRoute = Route.define("/projects/:id", {
       params: ProjectId,
       search: Schema.Struct({ tab: Schema.optional(Schema.String) }),
-      preloadResources: [ProjectById],
       preload: ({ params }) => Resource.preload(ProjectById({ id: params.id })),
     });
     const ref = ProjectById({ id: "atlas" });

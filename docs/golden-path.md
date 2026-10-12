@@ -261,7 +261,6 @@ import { Schema } from "effect";
 import { ProjectById, ProjectId, ProjectList, ProjectNotFound, ProjectsRef } from "./projects.js";
 
 export const ProjectsRoute = Route.define("/", {
-  preloadResources: [ProjectList],
   preload: () => Resource.preload(ProjectsRef),
 });
 
@@ -270,7 +269,6 @@ export const ProjectRoute = Route.define("/projects/:id", {
   // The preload may fail only with this schema's type; Start encodes the
   // failure with it so the hydrating client renders the same failure view.
   error: ProjectNotFound,
-  preloadResources: [ProjectList, ProjectById],
   preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
 });
 
@@ -576,8 +574,8 @@ and keeps the filter in a State, changed only by its `Filter` message:
   `projects("all")` on the first load, then follows the rows: a reload, a
   patch, and a `Filter` message all re-run it. Index names and values are
   checked against `rows.indexes`.
-- The routes did not change: `preloadResources: [ProjectList]` already
-  preloads (and server renders) the rows.
+- The routes did not change: their `preload` already loads (and server
+  renders) the rows.
 
 Make the rename instant on the Action. `optimistic` runs in the browser and
 patches the sidebar row and the project page before the submission leaves.
@@ -926,8 +924,9 @@ implementations })`. Declare `output` and `error` schemas: they type the
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`
   them. Call `Resource.invalidate(ref)` yourself only for an explicit refresh
   button.
-- **Preload in the route.** Declare `preloadResources` with the preload, and
-  SSR, hydration, and navigation render without a fallback flash.
+- **Preload in the route.** What `preload` loads is what Start server renders
+  and hydrates, so SSR, hydration, and navigation render without a fallback
+  flash. Nothing else declares it.
 - **Refresh never disturbs what didn't change.** A reload, invalidation,
   hydration refetch, or optimistic patch shares structure with the value it
   replaces: unchanged objects keep their identity, and a binding re-runs only

@@ -37,7 +37,6 @@ export const ItemName = Resource.define({
 
 export const ItemRoute = Route.define("/items/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preloadResources: [ViewerName, ItemName],
   preload: ({ params }) =>
     Resource.preload(ViewerName("me")).pipe(
       Effect.andThen(Resource.preload(ItemName(params.id))),

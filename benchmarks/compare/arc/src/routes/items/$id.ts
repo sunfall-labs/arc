@@ -4,7 +4,6 @@ import { ItemById } from "../../items.js";
 
 export const route = Route.define("/items/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preloadResources: [ItemById],
   // A missing item is the preload's verdict, not a failure: Start answers 404
   // and the router (server and hydrating client) settles `NotFound`.
   preload: ({ params }) =>

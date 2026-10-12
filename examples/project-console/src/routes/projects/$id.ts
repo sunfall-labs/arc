@@ -1,12 +1,6 @@
 import { Resource, Route } from "@sunfall/arc-core";
 import { Effect, Filter } from "effect";
-import {
-  ProjectById,
-  ProjectList,
-  ProjectWorkItemList,
-  WorkItemsRef,
-  preloadProjectRouteEffect,
-} from "../../domain.js";
+import { WorkItemsRef, preloadProjectRouteEffect } from "../../domain.js";
 import { ProjectNotFound, ProjectRouteParams, ProjectRouteSearch } from "../../model.js";
 
 export const route = Route.define("/projects/:id", {
@@ -15,7 +9,6 @@ export const route = Route.define("/projects/:id", {
   // A missing project is this route's typed preload failure: Start encodes it
   // with this schema, so the hydrated failure view reads its `id`.
   error: ProjectNotFound,
-  preloadResources: [ProjectList, ProjectById, ProjectWorkItemList],
   preload: ({ params }) =>
     Effect.all([preloadProjectRouteEffect(params), Resource.preload(WorkItemsRef)], {
       discard: true,

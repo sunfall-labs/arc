@@ -268,6 +268,19 @@ plugin half of it took effect. Repository-only; copied apps are unaffected.
   from `dist` (the plugins' imports of `@sunfall/arc-core`, and the starter
   templates' plugins) is in `CONTRIBUTING.md`.
 
+### 22. `preloadResources` repeated the preload
+
+Every route listed its Resource families twice: in `preloadResources` and in
+`preload` (`src/routes/**`). They drifted silently; only a dev warning caught
+a missing list.
+
+- Fix: `preloadResources` is gone. It drove nothing but that warning: the
+  hydration plan Start sends was always the Resources the preload touched,
+  recorded by `Route.planNavigation` (`Resource.collect`). `preload` is now
+  the only declaration, so there is nothing to drift from and nothing to warn
+  about (`packages/core/src/route.ts`; `start-route-preload-warnings.ts` is
+  deleted).
+
 ## Open
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
@@ -307,12 +320,3 @@ Resources (`src/server.tsx`).
 
 - Proposal: pass `document` a synchronous `read(ref)` over the request's
   preloaded Resources.
-
-### 22. `preloadResources` repeats the preload
-
-Every route lists its Resource families twice: in `preloadResources` and in
-`preload` (`src/routes/**`). They drift silently; only a dev warning catches a
-missing list.
-
-- Proposal: derive the static list from the families `preload` touches in the
-  route plan at build time, or check them against each other in dev.

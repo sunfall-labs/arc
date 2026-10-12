@@ -1,10 +1,10 @@
 import { Action, ActionResult, makeRuntime, Resource, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
-import { Effect, Layer, Logger, Schema, Context } from "effect";
+import { Effect, Layer, Schema, Context } from "effect";
 import { describe, expect, it } from "vitest";
 import { App, createRequestHandler, StartAction } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
-import { StartDevServerError, handleSsrDevRequest } from "../src/start-vite-dev-ssr.js";
+import { StartDevServerError } from "../src/start-vite-dev-ssr.js";
 import { StartRequestHandlerError } from "../src/start-request-handler-error.js";
 import { actionTransportLayer } from "../src/start-action-transport.js";
 import { rpcClientLayer } from "../src/start-rpc-client.js";
@@ -25,7 +25,6 @@ const ProjectName = Resource.define({
 const ProjectRoute = Route.define("/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
   preload: ({ params }) => Resource.preload(ProjectName(params.id)),
-  preloadResources: [ProjectName],
 });
 
 const Root = Component.define("Root", function* (props: App.RootProps) {
@@ -140,46 +139,6 @@ describe("createRequestHandler(app)", () => {
         yield* browser.dispose;
       }),
     ));
-});
-
-describe("Vite dev SSR route preload warnings", () => {
-  it("warns once per loaded handler about routes that preload without preloadResources", async () => {
-    const UndeclaredRoute = Route.define("/undeclared", {
-      preload: () => Effect.void,
-    });
-    const handler = createRequestHandler(
-      App.define({
-        root: Root,
-        routes: [ProjectRoute, UndeclaredRoute] as const,
-        client: Layer.succeed(Greeting)({ text: "client" }),
-      }),
-      { server: Layer.succeed(Greeting)({ text: "server" }) },
-    );
-    const devServer = {
-      ssrLoadModule: () => Effect.succeed({ default: handler }),
-      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
-    };
-    const warnings: Array<string> = [];
-    const captureWarnings = Logger.layer([
-      Logger.make(({ logLevel, message }) => {
-        if (logLevel === "Warn") {
-          warnings.push(String(message));
-        }
-      }),
-    ]);
-    const request = () =>
-      handleSsrDevRequest(devServer, new Request("https://arc.test/projects/atlas")).pipe(
-        Effect.flatMap((response) => Effect.promise(() => response.text())),
-        Effect.provide(captureWarnings),
-      );
-
-    await Effect.runPromise(request());
-    await Effect.runPromise(request());
-
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('Route "/undeclared" has a preload but no preloadResources');
-    expect(warnings.join("\n")).not.toContain("/projects/:id");
-  });
 });
 
 describe("dev SSR failure messages", () => {

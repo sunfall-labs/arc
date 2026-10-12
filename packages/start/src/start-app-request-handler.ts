@@ -31,7 +31,6 @@ import {
   type StartRequestRequirements,
 } from "./start-request-handler.js";
 import { makeStartServerApp } from "./start-server-app.js";
-import { attachStartHandlerRoutes } from "./start-route-preload-warnings.js";
 import { createStartStreamedHtmlResponse, htmlChunk } from "./streaming.js";
 import { documentWithClientAssets } from "./start-client-assets.js";
 import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
@@ -281,10 +280,5 @@ export function createRequestHandler<
         context as StartRenderContext<Routes, ServerServices, ServerError, any>,
       ),
   });
-  // Vite dev SSR reads the routes to warn about undeclared preload resources.
-  return attachStartHandlerRoutes(handler, app.routes) as AppRequestHandler<
-    Routes,
-    ServerServices,
-    Implementations
-  >;
+  return handler as AppRequestHandler<Routes, ServerServices, Implementations>;
 }

@@ -58,7 +58,6 @@ const BenchTaggedProject = Resource.define({
 const BenchProjectRoute = Route.define("/bench/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
   preload: ({ params }) => Resource.preload(BenchProject(params.id)),
-  preloadResources: [BenchProject],
 });
 
 const benchStartApp = makeStartServerApp({
@@ -68,13 +67,11 @@ const benchStartApp = makeStartServerApp({
 const routerProjectRoute = Route.define("/bench/router/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
   preload: ({ params }) => Resource.preload(BenchProject(params.id)),
-  preloadResources: [BenchProject],
 });
 
 const routerIssueRoute = Route.define("/bench/router/issues/:id", {
   params: Schema.Struct({ id: Schema.String }),
   preload: ({ params }) => Resource.preload(BenchProject(params.id)),
-  preloadResources: [BenchProject],
 });
 
 const routerRoutes = [routerProjectRoute, routerIssueRoute] as const;

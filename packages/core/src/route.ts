@@ -6,8 +6,6 @@ import type {
 } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
-  isResourceRef,
-  type AnyResourceFamily,
   type AnyResourceRef,
   type ResourceErrorSchema,
   type ResourceHydrationPayload,
@@ -38,27 +36,6 @@ export type AnySchema<A = unknown> = {
 };
 
 type SchemaType<S> = S extends { readonly Type: infer A } ? A : unknown;
-
-/** Static resource hint accepted by route preload diagnostics. */
-export type RoutePreloadResourceInput =
-  | string
-  | AnyResourceFamily
-  | AnyResourceRef<any>
-  | {
-      readonly name: string;
-    }
-  | {
-      readonly family: AnyResourceFamily;
-    };
-
-/** Static preload resource declaration status for route diagnostics. */
-export type RoutePreloadResourceStatus = "declared" | "none" | "unknown";
-
-/** Resource families statically declared by a route preload hint. */
-export interface RoutePreloadResourceDiagnostics {
-  readonly status: RoutePreloadResourceStatus;
-  readonly families: readonly string[];
-}
 
 /**
  * Value accepted from a route preload callback.
@@ -323,8 +300,6 @@ export interface RouteOptions<Path extends string, Params, Search, PreloadRequir
   readonly preload?: (
     context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements, any>>,
   ) => RoutePreloadResult<PreloadRequirements, unknown>;
-  /** Static resource preload hints used by Start diagnostics and devtools. */
-  readonly preloadResources?: readonly RoutePreloadResourceInput[];
   /** Framework-owned component value attached by `Route.withComponent(...)`. */
   readonly component?: unknown;
   /** Maps the route's component props to the attached component's props. */
@@ -444,8 +419,6 @@ export type RouteDefineOptions<
       >
     >,
   ) => Out;
-  /** Static resource preload hints used by Start diagnostics and devtools. */
-  readonly preloadResources?: readonly RoutePreloadResourceInput[];
 } & RoutePreloadCheck<ErrorSchema, Out>;
 
 /**
@@ -776,56 +749,6 @@ const decode = <A>(schema: unknown, input: unknown): A => {
   return Schema.decodeUnknownSync(schema as Schema.Decoder<A>)(input);
 };
 
-const isObjectLike = (value: unknown): value is Record<string, unknown> =>
-  (typeof value === "object" && value !== null) || typeof value === "function";
-
-const resourceFamilyName = (value: RoutePreloadResourceInput): string | undefined => {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (isResourceRef(value)) {
-    return value.family.options.name;
-  }
-
-  if (!isObjectLike(value)) {
-    return undefined;
-  }
-
-  const object = value as {
-    readonly options?: unknown;
-    readonly family?: unknown;
-    readonly name?: unknown;
-  };
-  const directOptions = object.options;
-  if (isObjectLike(directOptions) && typeof directOptions.name === "string") {
-    return directOptions.name;
-  }
-
-  const family = object.family;
-  if (
-    isObjectLike(family) &&
-    isObjectLike(family.options) &&
-    typeof family.options.name === "string"
-  ) {
-    return family.options.name;
-  }
-
-  return typeof object.name === "string" ? object.name : undefined;
-};
-
-const uniqueSortedResourceFamilies = (
-  resources: readonly RoutePreloadResourceInput[],
-): readonly string[] =>
-  Array.from(
-    new Set(
-      resources.flatMap((resource) => {
-        const name = resourceFamilyName(resource);
-        return name === undefined ? [] : [name];
-      }),
-    ),
-  ).sort();
-
 const routePreloadError = <E>(match: RouteMatch, cause: E): RoutePreloadError<E> =>
   new RoutePreloadError({
     path: match.route.path,
@@ -1018,12 +941,6 @@ export namespace Route {
 
   export type HrefArgs<R extends Definition<string, unknown, unknown, any>> = RouteHrefArgs<R>;
 
-  /** Static resource preload hint accepted by Route and Start file-route APIs. */
-  export type PreloadResourceInput = RoutePreloadResourceInput;
-
-  /** Resource preload diagnostics consumed by Start manifests and devtools. */
-  export type PreloadResourceDiagnostics = RoutePreloadResourceDiagnostics;
-
   /**
    * Error union for running route preload and resource hydration planning,
    * including the preload's verdicts (`Route.notFound()`, `Route.redirect`),
@@ -1077,9 +994,6 @@ export namespace Route {
 
   /** Serializable route preload failure carried from the server render to the client. */
   export type PreloadFailureSnapshot = RoutePreloadFailureSnapshot;
-
-  /** Whether a route preload declares its Resource families statically. */
-  export type PreloadResourceStatus = RoutePreloadResourceStatus;
 
   /** Renderer component value taking props `P`. */
   export type View<P> = RouteView<P>;
@@ -1388,39 +1302,6 @@ export namespace Route {
           ),
       { concurrency: "unbounded", discard: true },
     );
-  };
-
-  /** Returns sorted resource family names statically declared by a route. */
-  export const preloadResourceFamilies = <R extends Definition<string, unknown, unknown, any>>(
-    definition: R,
-  ): readonly string[] => uniqueSortedResourceFamilies(definition.options.preloadResources ?? []);
-
-  /**
-   * Describes route resource preload metadata for manifests and devtools.
-   *
-   * `declared` means the route provided static resource hints, `none` means the
-   * route has no preload work, and `unknown` means custom preload work exists
-   * but no static resource hints were declared.
-   */
-  export const describePreloadResources = <R extends Definition<string, unknown, unknown, any>>(
-    definition: R,
-  ): RoutePreloadResourceDiagnostics => {
-    if (definition.options.preloadResources !== undefined) {
-      return {
-        status: "declared",
-        families: preloadResourceFamilies(definition),
-      };
-    }
-
-    return definition.options.preload === undefined
-      ? {
-          status: "none",
-          families: [],
-        }
-      : {
-          status: "unknown",
-          families: [],
-        };
   };
 
   /**

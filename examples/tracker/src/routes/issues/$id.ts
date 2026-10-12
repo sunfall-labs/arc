@@ -1,15 +1,7 @@
 import { Resource, Route } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import { IssueId, TrackerError, projectOf } from "../../model.js";
-import {
-  ActivityLog,
-  Comments,
-  CurrentUser,
-  IssueById,
-  Labels,
-  Projects,
-  Team,
-} from "../../resources.js";
+import { ActivityLog, Comments, IssueById, Labels } from "../../resources.js";
 import { preloadShell, routeVerdicts } from "../../session.js";
 
 /**
@@ -19,7 +11,6 @@ import { preloadShell, routeVerdicts } from "../../session.js";
 export const route = Route.define("/issues/:id", {
   params: Schema.Struct({ id: IssueId }),
   error: TrackerError,
-  preloadResources: [CurrentUser, Projects, Team, Labels, IssueById, Comments, ActivityLog],
   preload: ({ params, href }) =>
     preloadShell(href).pipe(
       Effect.andThen(

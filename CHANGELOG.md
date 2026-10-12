@@ -6,6 +6,19 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### A Route Declares What It Loads Once
+
+- `Route.define`'s `preloadResources` is gone, with
+  `Route.describePreloadResources`, `Route.preloadResourceFamilies`, and the
+  `Route.PreloadResourceInput` / `PreloadResourceDiagnostics` /
+  `PreloadResourceStatus` types. It restated the families `preload` loads and
+  drove nothing but a dev warning: the hydration plan Start sends was always
+  the Resources the preload touched, recorded by `Route.planNavigation`. Now
+  `preload` is the only declaration, so the two cannot drift.
+- Vite dev no longer warns about routes whose `preload` declares no
+  `preloadResources`. A static site hydrates a route on client navigation
+  when it has a `preload`.
+
 ### Build Chunks Have Meaningful Names
 
 - Start builds group the modules the entry loads into named chunks:

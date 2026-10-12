@@ -152,19 +152,18 @@ export const route = Route.define("/projects/:id", {
   search: Schema.Struct({
     tab: Schema.optional(Schema.Literals(["overview", "activity"])),
   }),
-  preloadResources: [ProjectById, ProjectSummaries],
   preload: ({ params }) => Resource.preload([ProjectById(params.id), ProjectSummaries("all")]),
 });
 ```
 
 The generated route file exposes the `routeById` map of route definitions
 (addressed with `Route.href(...)` like any definition), params-by-id,
-search-by-id, and href options, and `preloadResources` declares which
-Resource families the route's preload touches (`Route.describePreloadResources`
-reports it; Vite dev warns when a preload declares none).
+search-by-id, and href options. What a route loads is its `preload`:
+`Route.planNavigation(routes, href)` runs it and records every Resource it
+touched, which is also the hydration plan Start sends.
 
-That makes "what does this route touch?" a declared fact instead of an import
-hunt.
+That makes "what does this route touch?" an answer the framework computes
+instead of an import hunt.
 
 TanStack Start deserves particular respect here. `createServerFn` gives typed
 server functions with validators, serializable boundaries, FormData handling,

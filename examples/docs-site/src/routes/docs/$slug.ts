@@ -4,6 +4,5 @@ import { DocsRouteParams } from "../../docs-slugs.js";
 
 export const route = Route.define("/docs/:slug", {
   params: DocsRouteParams,
-  preloadResources: [RecipeIndex],
   preload: () => Resource.preload(RecipeIndex("all")),
 });

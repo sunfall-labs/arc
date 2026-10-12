@@ -2306,7 +2306,6 @@ const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
 const FileRoutePreloadHelperRoute = Route.define("/file-preload-helper/:id", {
-  preloadResources: [ProjectById, ProjectRows],
   preload: ({ params }) =>
     Effect.all(
       [
@@ -2329,7 +2328,6 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
 const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-  preloadResources: [BrandedProjectById, ProjectRows],
   preload: ({ params, search }) => {
     const id: ProjectId = params.id;
     const tab: "overview" | "activity" | undefined = search.tab;
