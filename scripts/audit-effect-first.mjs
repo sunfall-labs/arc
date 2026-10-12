@@ -320,11 +320,6 @@ const allowed = [
         /f:\s*\(\)\s*=>\s*Promise<A>/,
       ),
       seam(
-        "type-tests/docs/db/sync-tanstack-query.ts",
-        "TanStack Query host surface the db.md recipe wraps with Effect.tryPromise",
-        /type HostPromise<A> = Promise<A>;/,
-      ),
-      seam(
         "packages/start/src/vite.ts",
         "Vite plugin config hook contract",
         /\) => Promise<UserConfig>;/,
@@ -386,23 +381,8 @@ const allowed = [
       ),
       seam(
         "type-tests/framework.test-d.ts",
-        "Promise negative fixture projectRowsPromise",
-        /declare const projectRowsPromise:\s*Promise<readonly Project\[]>;/,
-      ),
-      seam(
-        "type-tests/framework.test-d.ts",
-        "Promise negative fixture promisedBoolean",
-        /declare const promisedBoolean:\s*Promise<boolean>;/,
-      ),
-      seam(
-        "type-tests/framework.test-d.ts",
         "Promise negative fixture startResponsePromise",
         /declare const startResponsePromise:\s*Promise<Response>;/,
-      ),
-      seam(
-        "type-tests/db.test-d.ts",
-        "DB sync adapter Promise negative fixture",
-        /declare const promiseRows:\s*Promise<ReadonlyArray<Project>>;/,
       ),
       seam(
         "type-tests/core.test-d.ts",
