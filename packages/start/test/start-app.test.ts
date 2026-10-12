@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 import { App, createRequestHandler } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
 
-class Greeting extends Context.Service<Greeting, { readonly text: string }>()(
-  "@sunfall/arc-start/test/StartApp/Greeting",
-) {}
+interface Greeting {
+  readonly text: string;
+}
+const Greeting = Context.Service<Greeting>("@sunfall/arc-start/test/StartApp/Greeting");
 
 const ProjectName = Resource.define({
   name: "StartApp.projectName",

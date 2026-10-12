@@ -70,18 +70,16 @@ export interface SignalCommitRecorder {
  * Internal Effect service carrying the active transaction. It is never part of
  * a public requirement type: `Signal.transaction` provides and removes it.
  */
-class SignalTransaction extends Context.Service<SignalTransaction, SignalTransactionState>()(
+const SignalTransaction = Context.Service<SignalTransactionState>(
   "@sunfall/arc-core/SignalTransaction",
-) {}
+);
 
 /**
  * Internal Effect service carrying the named transition a fiber runs in
  * (`Component.callback`). Writes outside a transaction commit under it, and
  * transactions opened without a cause inherit it; forked fibers inherit it too.
  */
-class SignalTransition extends Context.Service<SignalTransition, TimelineCause>()(
-  "@sunfall/arc-core/SignalTransition",
-) {}
+const SignalTransition = Context.Service<TimelineCause>("@sunfall/arc-core/SignalTransition");
 
 let currentBatch: SignalTransactionState | undefined;
 

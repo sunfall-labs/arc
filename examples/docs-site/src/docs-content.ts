@@ -72,7 +72,7 @@ export const docsPages = [
         items: [
           "Basic starter: the smallest checked full-stack app shell.",
           "Use the project console example when you want actions, Resource rows, live queries, mocks, and diagnostics together.",
-          "Use this docs site when you want to see server functions, Capabilities, Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
+          "Use this docs site when you want to see server functions, Effect services, Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
         ],
       },
     ],
@@ -98,7 +98,7 @@ export const docsPages = [
       {
         _tag: "List",
         items: [
-          "Capability: a named service boundary for live APIs, server clients, and test layers.",
+          "Effect service: a named `Context.Service` boundary for live APIs, server clients, and test layers.",
           "Server contract: a schema-described boundary between browser-safe clients and server-only handlers.",
           "Resource: a named async data family with input/output schemas, cache state, retry policy, and semantic tags.",
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
@@ -126,7 +126,7 @@ export const docsPages = [
       {
         _tag: "List",
         items: [
-          "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, Capabilities, server contracts, and runtime helpers.",
+          "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, server contracts, and runtime helpers.",
           "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
           "@sunfall/arc-db: the Query engine: incremental live queries over the rows of Resources.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, app graph summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",

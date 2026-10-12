@@ -71,7 +71,7 @@ or explicit namespace alias, and those declarations must keep JSDoc for LSP
 hovers. Together these checks keep hover/LSP docs from drifting away from
 package Interfaces rather than merely reachable implementation files.
 The curated hover declarations currently cover the Core Action, ActionResult,
-Capability, Form, Program, and Resource Interfaces,
+Form, Program, and Resource Interfaces,
 browser-router/router Adapter, Solid runtime and hook Adapter seams,
 Start request/hydration/action seams, fetch, and Node Adapter seams,
 Devtools DTO/panel contract seams, the Resource rows contract, and the DB
@@ -86,7 +86,7 @@ coverage.
 The root export re-exports these local modules:
 
 - `action`, `action-outbox`, `action-result`, `action-submission`,
-  `action-transport`, `capability`
+  `action-transport`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
   `program`, `request-context`
@@ -94,7 +94,7 @@ The root export re-exports these local modules:
 - `runtime`, `server`, `signal`, `timeline`
 
 Every module is selected by name: the root exports each namespace (`Action`,
-`ActionResult`, `Capability`, `Form`, `Program`, `Resource`, `Route`,
+`ActionResult`, `Form`, `Program`, `Resource`, `Route`,
 `Server`, `Signal`, `Timeline`) plus the error classes, Type IDs, guards,
 services, and runtime helpers that have no namespace home. Each type has
 exactly one public name: types a namespace owns are reachable only as
@@ -127,7 +127,8 @@ Golden-path public groups:
 - `Route`, `Resource`, `Action`, `ActionResult`, `Program` (the app
   definition, `App`, is Start's)
 - `Server`, `Server.Client`, request/response context services
-- `Signal`, `Form`, `Capability`
+- `Signal`, `Form`; app services are plain Effect services
+  (`Context.Service` plus a `Layer`), with no Arc wrapper
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
   `Timeline.Recording` (`entries`, `position`, `travel(sequence)`, `resume()`)
   over every committed change set; every `Timeline.Entry` has a `cause`, and
@@ -349,10 +350,6 @@ Release decisions:
   facade keeps runtime binding and requirement subtraction local, so LSP hovers
   still show the action requirements after any explicit Runtime Spine is
   applied.
-- `Capability.use(...)` is the one service accessor, with explicit
-  Effect-returning and plain-value overloads; Promise-returning callbacks are
-  rejected so host async work is routed through Effect primitives, and a
-  throwing callback is a defect (as with `Effect.sync`).
 - `Program` is the public facade for the headless frontend loop around
   centralized model/message state. `Program.define(...)` takes a plain initial
   model and an exhaustive `on` handler map keyed by every message `_tag`

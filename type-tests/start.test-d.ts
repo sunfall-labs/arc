@@ -99,7 +99,10 @@ type _StartTypes = StartTypes;
 
 // One app definition; the client and server Layers must each provide what the
 // root needs.
-class Greeting extends Context.Service<Greeting, { readonly text: string }>()("Greeting") {}
+interface Greeting {
+  readonly text: string;
+}
+const Greeting = Context.Service<Greeting>("Greeting");
 const GreetingLive = Layer.succeed(Greeting)({ text: "hi" });
 const GreetingRoot = Component.define("GreetingRoot", function* (props: App.RootProps) {
   const greeting = yield* Greeting;

@@ -72,7 +72,7 @@ shell.
 The docs site example lives at
 [`examples/docs-site`](../examples/docs-site). It dogfoods the framework as a
 cookbook: Markdown recipes are loaded through Start server functions, exposed
-through a `DocsContentApi` Capability, read through typed Resources, declared by
+through a `DocsContentApi` Effect service, read through typed Resources, declared by
 file-route preload, SSR-rendered, and hydrated before the UI mounts.
 
 Run it locally:

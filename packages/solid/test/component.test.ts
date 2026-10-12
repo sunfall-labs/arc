@@ -41,10 +41,10 @@ vi.mock("../src/resource-binding.js", async (importOriginal) => {
   };
 });
 
-class ProjectApi extends Context.Service<
-  ProjectApi,
-  { readonly get: (id: string) => Effect.Effect<string, ProjectNotFound | Forbidden> }
->()("@sunfall/arc-solid/test/Component/ProjectApi") {}
+interface ProjectApi {
+  readonly get: (id: string) => Effect.Effect<string, ProjectNotFound | Forbidden>;
+}
+const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-solid/test/Component/ProjectApi");
 class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
   id: Schema.String,
 }) {}

@@ -42,7 +42,7 @@ documented as outside the current release bar.
   host boundaries only.
 - Framework internals keep Effect forms for async work.
 - Framework callbacks, including programs, resources, actions, routes, server
-  functions, query callbacks, capabilities, and forms, reject `Promise` return
+  functions, query callbacks, and forms, reject `Promise` return
   values at type-check time; app code uses `Effect.tryPromise` explicitly at the
   host/library seam instead.
 - Request work uses a fresh Request Runtime with the app services and a
@@ -181,7 +181,7 @@ documented as outside the current release bar.
   ids, duplicate exports, schema flags, and unsafe client references.
 - RPC separates domain failures, protocol errors, transport errors, defects, and
   interruption.
-- Tests can replace server behavior through mocks and capabilities without
+- Tests can replace server behavior through mocks and service Layers without
   importing server-only modules.
 
 ## Actions And Forms

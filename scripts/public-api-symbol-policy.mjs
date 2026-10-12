@@ -56,14 +56,6 @@ export const publicHoverDocGroups = [
     allDeclarations: ["ActionResult"],
   },
   {
-    file: "packages/core/src/capability.ts",
-    declarations: ["CapabilityTypeId", "isCapability"],
-    allDeclarations: ["Capability"],
-    namespaceDeclarations: {
-      Capability: ["Any", "Shape", "Identifier", "define"],
-    },
-  },
-  {
     file: "packages/core/src/form.ts",
     declarations: [
       "FormTypeId",

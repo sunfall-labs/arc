@@ -258,7 +258,7 @@ const HomeView = Component.define("HomeView", function* () {
         <h1>Sunfall Arc docs and cookbook.</h1>
         <p>
           This site is a small Arc app: recipes load through server functions, pass through a
-          Capability-backed Resource, preload from file routes, and hydrate before the UI mounts.
+          service-backed Resource, preload from file routes, and hydrate before the UI mounts.
         </p>
         <RouterLink
           route={DocsPageUiRoute}
@@ -526,7 +526,7 @@ const blogContractExample = `export const GetIssue = Server.contract<
   error: IssueErrorSchema,
 });`;
 
-const blogResourceExample = `export const IssueApi = Capability.define<IssueApi>("IssueApi");
+const blogResourceExample = `export const IssueApi = Context.Service<IssueApi>("IssueApi");
 
 export const IssueById = Resource.define({
   name: "Issue.byId",
@@ -536,7 +536,7 @@ export const IssueById = Resource.define({
   provides: (issue) => [IssueTag({ id: issue.id })],
 });`;
 
-const blogEffectTestExample = `const IssueApiTest = IssueApi.layer({
+const blogEffectTestExample = `const IssueApiTest = Layer.succeed(IssueApi, {
   get: (id) =>
     Effect.succeed({
       id,
@@ -644,7 +644,7 @@ function BlogPostView() {
         <h1>Correctness by construction for agent-operated TypeScript apps.</h1>
         <p>
           Sunfall Arc is an agent-native, Effect-first framework for full-stack TypeScript. It turns
-          routes, resources, actions, forms, capabilities, and server contracts into typed
+          routes, resources, actions, forms, Effect services, and server contracts into typed
           definitions that can be checked at type time, verified at build time, and explained at
           runtime.
         </p>
@@ -701,8 +701,8 @@ function BlogPostView() {
         <p>
           Arc is agent-native because the app is made of named typed definitions. In Arc, a
           definition is a named typed declaration the framework can run and inspect: a Route,
-          Resource, Action, Form, Capability, Signal, or server contract. The app graph is the map
-          Arc builds from those definitions.
+          Resource, Action, Form, Signal, or server contract. The app graph is the map Arc builds
+          from those definitions, and the Effect services each one depends on show up in its type.
         </p>
         <p>
           The practical promise is simple: an agent can read what the app owns, change the stable
@@ -711,7 +711,7 @@ function BlogPostView() {
         </p>
         <ul>
           <li>Read: generated route trees, Start app graphs, diagnostics reports, and devtools.</li>
-          <li>Change: stable Resources, Actions, Forms, Routes, and Capabilities.</li>
+          <li>Change: stable Resources, Actions, Forms, Routes, and Effect services.</li>
           <li>
             Verify: TypeScript gates, schema checks, build policy, graph impact, and{" "}
             <code class="inlineCode">pnpm verify</code>.
@@ -751,17 +751,16 @@ function BlogPostView() {
 
         <h2 id={blogHeadingId(3)}>Effect gives Arc dependency injection and testability</h2>
         <p>
-          Arc's Capability definitions are the app-facing names for dependency injection. Effect
-          supplies the machinery underneath: services live in a typed Context, implementations are
-          assembled with Layers, request and component work runs in scoped runtimes, and tests can
-          replace live services without changing the Resource, Action, Route, or component under
-          test.
+          Arc's app services are plain Effect services: no wrapper, no separate container. Services
+          live in a typed Context, implementations are assembled with Layers, request and component
+          work runs in scoped runtimes, and tests can replace live services without changing the
+          Resource, Action, Route, or component under test.
         </p>
         <p>
           That gives Arc useful testability by construction. A test can provide an in-memory
           IssueApi layer, run the same Resource and Action definitions the browser uses, assert the
           typed values and invalidation plan, and never import the server-only handler. The mock is
-          not a parallel code path; it is another implementation of the same Capability.
+          not a parallel code path; it is another implementation of the same service.
         </p>
         <BlogCode code={blogEffectTestExample} />
         <p>
@@ -790,9 +789,9 @@ function BlogPostView() {
         <BlogCode code={blogContractExample} />
 
         <p>
-          Expose that contract through a Capability, then define a Resource around the Issue value
-          the UI needs. The Resource owns the input schema, output schema, loading Effect, cache
-          identity, and semantic tags it provides.
+          Expose that contract through an Effect service, then define a Resource around the Issue
+          value the UI needs. The Resource owns the input schema, output schema, loading Effect,
+          cache identity, and semantic tags it provides.
         </p>
         <BlogCode code={blogResourceExample} />
 
@@ -856,7 +855,7 @@ function BlogPostView() {
         <p>
           For durable app behavior - issues, sessions, local-first rows, pending writes, resource
           lifetimes, form submissions, permissioned server calls - Arc wants a typed Signal,
-          Resource, Action, Form, Route, or Capability instead of an opaque global store.
+          Resource, Action, Form, Route, or Effect service instead of an opaque global store.
         </p>
         <p>
           In practice, Arc replaces much of the glue where teams combine TanStack Query,

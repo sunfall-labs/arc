@@ -6,6 +6,16 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### App Services Are Effect Services (Breaking)
+
+- `Capability` is removed (`Capability.define`, `.layer`, `.tag`,
+  `isCapability`, `CapabilityTypeId`, and the `Capability.Any` / `Shape` /
+  `Identifier` types). Define an app service with Effect's
+  `Context.Service<ProjectApi>("ProjectApi")` and provide it with
+  `Layer.succeed(ProjectApi, { ... })`. `ProjectApi.use((api) => ...)` is
+  unchanged for Effect callbacks; a plain-value callback is
+  `ProjectApi.useSync(...)`. See the migration notes' "From Capability".
+
 ### Resource Is The One Server-Data Model (Breaking)
 
 - `Resource.define` takes `rows` when its `output` is an array:

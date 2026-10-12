@@ -1,6 +1,6 @@
 // The model db.md's snippets refer to. Type-checked, not shown.
-import { Capability, Resource } from "@sunfall/arc-core";
-import { Effect, Layer, Schema } from "effect";
+import { Resource } from "@sunfall/arc-core";
+import { Context, Effect, Layer, Schema } from "effect";
 
 export const ProjectId = Schema.String;
 export type ProjectId = typeof ProjectId.Type;
@@ -32,7 +32,7 @@ export interface ProjectApi {
   readonly archive: (id: ProjectId) => Effect.Effect<Project, ProjectsUnavailable>;
   readonly create: (name: string) => Effect.Effect<Project, ProjectsUnavailable>;
 }
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 export declare const ProjectApiLive: Layer.Layer<ProjectApi>;
 
 export const ProjectsTag = Resource.tag("Projects");
