@@ -60,7 +60,6 @@ import {
   resourceDefinitionRegistry,
   ResourceFamily,
 } from "@sunfall/arc-core/internal";
-import type { Devtools } from "@sunfall/arc-devtools";
 import {
   hydrateFromDocument,
   StartHydrationChunkParseError,
@@ -114,7 +113,6 @@ import {
 import { serializeFileRouteManifest } from "../src/file-routes.js";
 import { completeRequestRuntimeWithResponse, makeRequestRuntime } from "../src/request-runtime.js";
 import {
-  buildStartRequestTrace,
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
@@ -274,26 +272,31 @@ const submitViaActionTransport = <I, A, E, R>(
   );
 };
 
-describe("Sunfall Arc Start", () => {
-  it("ignores synchronous throws from request trace callbacks", async () => {
-    const Home = Route.define("/", {});
-    const app = makeStartServerApp({
-      routes: [Home] as const,
-    });
-    const handler = createStartRequestHandler(app, {
-      onRequestTrace: () => {
-        throw new Error("trace callback failed");
-      },
-      render: () => new Response(null, { status: 204 }),
-    });
-
-    const response = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/"))),
-    );
-
-    expect(response.status).toBe(204);
+/** Records spans; `requests()` reads ended Start request spans' attributes. */
+const spanRecorder = () => {
+  const spans: Array<Tracer.NativeSpan> = [];
+  const tracer = Tracer.make({
+    span(options) {
+      const span = new Tracer.NativeSpan(options);
+      spans.push(span);
+      return span;
+    },
   });
+  return {
+    spans,
+    trace: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.withTracer(effect, tracer),
+    run: <A, E>(effect: Effect.Effect<A, E>) =>
+      Effect.runPromise(Effect.withTracer(effect, tracer)),
+    runExit: <A, E>(effect: Effect.Effect<A, E>) =>
+      Effect.runPromiseExit(Effect.withTracer(effect, tracer)),
+    requests: () =>
+      spans
+        .filter((span) => span.name === "sunfall-arc.start.request" && span.status._tag === "Ended")
+        .map((span) => Object.fromEntries(span.attributes)),
+  };
+};
 
+describe("Sunfall Arc Start", () => {
   it("ignores synchronous throws from request runtime finalizers", async () => {
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
@@ -302,10 +305,8 @@ describe("Sunfall Arc Start", () => {
     const runtime = makeRequestRuntime(app);
 
     const response = await Effect.runPromise(
-      completeRequestRuntimeWithResponse(runtime, new Response(null, { status: 204 }), {
-        onFinalize: () => {
-          throw new Error("finalizer callback failed");
-        },
+      completeRequestRuntimeWithResponse(runtime, new Response(null, { status: 204 }), () => {
+        throw new Error("finalizer callback failed");
       }),
     );
 
@@ -329,10 +330,8 @@ describe("Sunfall Arc Start", () => {
             },
           }),
         ),
-        {
-          onFinalize: () => {
-            throw new Error("stream finalizer callback failed");
-          },
+        () => {
+          throw new Error("stream finalizer callback failed");
         },
       ),
     );
@@ -553,8 +552,8 @@ describe("Sunfall Arc Start", () => {
     expect(failure).toBeInstanceOf(StartHydrationPayloadSerializeError);
   });
 
-  it("emits Devtools-compatible request traces for SSR requests", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("records the route plan, response, and teardown on the SSR request span", async () => {
+    const recorder = spanRecorder();
     const Project = Resource.define({
       name: "Start.Project.trace",
       load: (id: string) => Effect.succeed({ id }),
@@ -567,113 +566,43 @@ describe("Sunfall Arc Start", () => {
       routes: [ProjectRoute] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: ({ match }) => `<html><body><main>${match?.href}</main></body></html>`,
     });
 
     const response = await Effect.runPromise(
-      Effect.scoped(
-        handler(
-          new Request("https://example.com/projects/atlas?tab=activity", {
-            headers: {
-              "x-sunfall-arc-request-id": "req-ssr-atlas",
-              authorization: "Bearer top-secret",
-              cookie: "session=s3cr3t",
-              "x-api-key": "key-secret",
-            },
-          }),
+      recorder.trace(
+        Effect.scoped(
+          handler(
+            new Request("https://example.com/projects/atlas?tab=activity", {
+              headers: { "x-sunfall-arc-request-id": "req-ssr-atlas" },
+            }),
+          ),
         ),
       ),
     );
 
-    expect(traces).toEqual([]);
+    // The request span stays open until the streamed body finishes.
+    expect(recorder.requests()).toEqual([]);
     await expect(response.text()).resolves.toContain("/projects/atlas?tab=activity");
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-ssr-atlas",
-          method: "GET",
-          path: "/projects/atlas",
-          transport: "ssr",
-          headers: expect.arrayContaining([
-            { name: "authorization", value: "<redacted>" },
-            { name: "cookie", value: "<redacted>" },
-            { name: "x-api-key", value: "<redacted>" },
-            { name: "x-sunfall-arc-request-id", value: "req-ssr-atlas" },
-          ]),
-          cookies: [
-            {
-              name: "session",
-              value: "<redacted>",
-            },
-          ],
-        }),
-        response: expect.objectContaining({
-          status: 200,
-        }),
-        services: ["RequestContext", "ResponseContext"],
-        routePlan: expect.objectContaining({
-          _tag: "Matched",
-          href: "/projects/atlas?tab=activity",
-          resources: [
-            {
-              key: Project("atlas").key,
-              family: "Start.Project.trace",
-              input: "atlas",
-            },
-          ],
-          hydration: {
-            resourceCount: 1,
-            resourceKeys: [Project("atlas").key],
-          },
-        }),
-        resources: [
-          {
-            key: Project("atlas").key,
-            family: "Start.Project.trace",
-            input: "atlas",
-          },
-        ],
-        serverFunctions: [],
-        actions: [],
-        fibers: [
-          {
-            name: "request-runtime",
-            status: "done",
-          },
-        ],
-        streams: [
-          expect.objectContaining({
-            name: "response",
-            state: "closed",
-          }),
-        ],
-        status: "success",
-        teardown: expect.objectContaining({
-          runtimeDisposed: true,
-          reason: "stream-close",
-          startedAt: expect.any(Number),
-          completedAt: expect.any(Number),
-          durationMillis: expect.any(Number),
-          beforeDispose: expect.objectContaining({
-            fiberCount: expect.any(Number),
-            familyCount: expect.any(Number),
-            moduleCount: expect.any(Number),
-            tagCount: expect.any(Number),
-          }),
-          afterDispose: expect.objectContaining({
-            fiberCount: 0,
-          }),
-        }),
+        "sunfall-arc.request.id": "req-ssr-atlas",
+        "sunfall-arc.request.transport": "ssr",
+        "http.request.method": "GET",
+        "url.path": "/projects/atlas",
+        "http.route": "/projects/:id",
+        "sunfall-arc.route.href": "/projects/atlas?tab=activity",
+        "sunfall-arc.route.resources": [Project("atlas").key],
+        "sunfall-arc.hydration.resources": [Project("atlas").key],
+        "http.response.status_code": 200,
+        "sunfall-arc.request.status": "success",
+        "sunfall-arc.stream.state": "closed",
+        "sunfall-arc.teardown.reason": "stream-close",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.fibers": 0,
       }),
     ]);
-    expect(JSON.stringify(traces[0])).not.toContain("top-secret");
-    expect(JSON.stringify(traces[0])).not.toContain("s3cr3t");
-    expect(JSON.stringify(traces[0])).not.toContain("key-secret");
   });
 
   it("uses a fresh resource store for each SSR request", async () => {
@@ -1025,18 +954,14 @@ describe("Sunfall Arc Start", () => {
     expect(interrupted).toBe(true);
   });
 
-  it("emits request traces when streamed responses are cancelled", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("records cancelled streamed responses on the request span", async () => {
+    const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     let cancelled: unknown;
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () =>
         new Response(
           new ReadableStream<Uint8Array>({
@@ -1056,15 +981,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      Effect.scoped(
-        handler(
-          new Request("https://example.com/", {
-            headers: {
-              "x-sunfall-arc-request-id": "req-cancel",
-            },
-          }),
-        ),
-      ),
+      recorder.trace(Effect.scoped(handler(new Request("https://example.com/")))),
     );
     const reader = response.body!.getReader();
 
@@ -1074,51 +991,24 @@ describe("Sunfall Arc Start", () => {
     await reader.cancel("client-disconnect");
 
     expect(cancelled).toBe("client-disconnect");
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-cancel",
-          transport: "ssr",
-        }),
-        status: "cancelled",
-        streams: [
-          expect.objectContaining({
-            name: "response",
-            state: "cancelled",
-          }),
-        ],
-        fibers: [
-          {
-            name: "request-runtime",
-            status: "interrupted",
-          },
-        ],
-        teardown: expect.objectContaining({
-          runtimeDisposed: true,
-          reason: "client-disconnect",
-          durationMillis: expect.any(Number),
-          beforeDispose: expect.objectContaining({
-            fiberCount: expect.any(Number),
-          }),
-          afterDispose: expect.objectContaining({
-            fiberCount: 0,
-          }),
-        }),
+        "sunfall-arc.request.status": "cancelled",
+        "sunfall-arc.stream.state": "cancelled",
+        "sunfall-arc.teardown.reason": "client-disconnect",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.fibers": 0,
       }),
     ]);
   });
 
-  it("records Start stream failure phases in request trace stream summaries", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("records Start stream failure phases on the request span", async () => {
+    const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () =>
         createHtmlResponse({
           shell: "<html>",
@@ -1127,43 +1017,18 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      Effect.scoped(
-        handler(
-          new Request("https://example.com/", {
-            headers: {
-              "x-sunfall-arc-request-id": "req-stream-failure",
-            },
-          }),
-        ),
-      ),
+      recorder.trace(Effect.scoped(handler(new Request("https://example.com/")))),
     );
     await expect(response.text()).rejects.toBeDefined();
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-stream-failure",
-          transport: "ssr",
-        }),
-        status: "failure",
-        failureKind: "domain",
-        streams: [
-          expect.objectContaining({
-            name: "response",
-            state: "errored",
-            failurePhase: "Chunk",
-          }),
-        ],
-        fibers: [
-          {
-            name: "request-runtime",
-            status: "failed",
-          },
-        ],
-        teardown: expect.objectContaining({
-          runtimeDisposed: true,
-          reason: "stream-error",
-        }),
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "domain",
+        "sunfall-arc.stream.state": "errored",
+        "sunfall-arc.stream.failure_phase": "Chunk",
+        "sunfall-arc.teardown.reason": "stream-error",
+        "sunfall-arc.teardown.runtime_disposed": true,
       }),
     ]);
   });
@@ -1350,79 +1215,46 @@ describe("Sunfall Arc Start", () => {
     );
   });
 
-  it("emits request traces when request handlers fail", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("ends the request span as a failure when request handlers fail", async () => {
+    const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       // Deliberately fails with a typed error the render contract does not admit, to test failure handling.
       render: () => Effect.fail("render-failed") as Effect.Effect<never>,
     });
 
     await expect(
       Effect.runPromise(
-        Effect.scoped(
-          handler(
-            new Request("https://example.com/", {
-              headers: {
-                "x-sunfall-arc-request-id": "req-failure",
-              },
-            }),
-          ),
-        ),
+        recorder.trace(Effect.scoped(handler(new Request("https://example.com/")))),
       ),
     ).rejects.toMatchObject({
       _tag: "StartRequestHandlerError",
       cause: "render-failed",
     });
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-failure",
-          transport: "ssr",
-        }),
-        status: "failure",
-        failureKind: "domain",
-        streams: [],
-        fibers: [
-          {
-            name: "request-runtime",
-            status: "failed",
-          },
-        ],
-        teardown: expect.objectContaining({
-          runtimeDisposed: true,
-          reason: "request-failure",
-          durationMillis: expect.any(Number),
-          beforeDispose: expect.objectContaining({
-            fiberCount: expect.any(Number),
-          }),
-          afterDispose: expect.objectContaining({
-            fiberCount: 0,
-          }),
-        }),
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "domain",
+        "sunfall-arc.teardown.reason": "request-failure",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.fibers": 0,
       }),
     ]);
+    const span = recorder.spans.find((span) => span.name === "sunfall-arc.start.request");
+    expect(span?.status._tag === "Ended" && Exit.isFailure(span.status.exit)).toBe(true);
   });
 
   it("preserves the original handler failure when request runtime cleanup fails", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+    const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       // Deliberately fails with a typed error the render contract does not admit, to test failure handling.
       render: ({ runtime }) =>
         Effect.gen(function* () {
@@ -1435,151 +1267,46 @@ describe("Sunfall Arc Start", () => {
 
     await expect(
       Effect.runPromise(
-        Effect.scoped(
-          handler(
-            new Request("https://example.com/", {
-              headers: {
-                "x-sunfall-arc-request-id": "req-cleanup-failure",
-              },
-            }),
-          ),
-        ),
+        recorder.trace(Effect.scoped(handler(new Request("https://example.com/")))),
       ),
     ).rejects.toMatchObject({
       _tag: "StartRequestHandlerError",
       cause: "render-failed",
     });
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-cleanup-failure",
-        }),
-        status: "failure",
-        teardown: expect.objectContaining({
-          runtimeDisposed: false,
-          cleanupFailure: expect.objectContaining({
-            _tag: "Failure",
-            message: "cleanup-failed",
-          }),
-        }),
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.teardown.runtime_disposed": false,
+        "sunfall-arc.teardown.cleanup_failure": "cleanup-failed",
       }),
     ]);
   });
 
-  it("emits cancelled request traces when handlers are interrupted before a response", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("records cancelled requests when handlers are interrupted before a response", async () => {
+    const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () => Effect.interrupt,
     });
 
     const exit = await Effect.runPromiseExit(
-      Effect.scoped(
-        handler(
-          new Request("https://example.com/", {
-            headers: {
-              "x-sunfall-arc-request-id": "req-interrupted",
-            },
-          }),
-        ),
-      ),
+      recorder.trace(Effect.scoped(handler(new Request("https://example.com/")))),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-interrupted",
-          transport: "ssr",
-        }),
-        status: "cancelled",
-        failureKind: "interruption",
-        streams: [],
-        fibers: [
-          {
-            name: "request-runtime",
-            status: "interrupted",
-          },
-        ],
-        teardown: expect.objectContaining({
-          runtimeDisposed: true,
-          reason: "interruption",
-          afterDispose: expect.objectContaining({
-            fiberCount: 0,
-          }),
-        }),
+        "sunfall-arc.request.status": "cancelled",
+        "sunfall-arc.failure.kind": "interruption",
+        "sunfall-arc.teardown.reason": "interruption",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.fibers": 0,
       }),
     ]);
-  });
-
-  it("projects malformed trace cookies without throwing", () => {
-    const trace = buildStartRequestTrace(
-      new Request("https://example.com/", {
-        headers: {
-          cookie: "%E0%A4%A=secret",
-        },
-      }),
-      {
-        requestId: "req-malformed-cookie",
-        transport: "ssr",
-        startedAt: 0,
-        serverFunctions: [],
-        actions: [],
-      },
-      "failure",
-      {
-        teardown: {
-          runtimeDisposed: true,
-        },
-      },
-    );
-
-    expect(trace.request.cookies).toEqual([
-      {
-        name: "%E0%A4%A",
-        value: "<redacted>",
-      },
-    ]);
-    expect(trace.status).toBe("failure");
-  });
-
-  it("projects trace Set-Cookie counts as zero when the host omits getSetCookie", () => {
-    const response = new Response("ok", {
-      headers: {
-        "set-cookie": "session=abc",
-      },
-    });
-    Object.defineProperty(response.headers, "getSetCookie", {
-      configurable: true,
-      value: undefined,
-    });
-    const trace = buildStartRequestTrace(
-      new Request("https://example.com/"),
-      {
-        requestId: "req-no-get-set-cookie",
-        transport: "ssr",
-        startedAt: 0,
-        serverFunctions: [],
-        actions: [],
-      },
-      "success",
-      {
-        response,
-        teardown: {
-          runtimeDisposed: true,
-        },
-      },
-    );
-
-    expect(trace.response?.setCookieCount).toBeUndefined();
   });
 
   it("reads request runtime teardown snapshots through ResourceStore diagnostics", async () => {
@@ -1766,16 +1493,12 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("fails invalid response context status through the typed Start request error path", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+    const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () =>
         Effect.orDie(
           ResponseContext.use((response) =>
@@ -1787,7 +1510,7 @@ describe("Sunfall Arc Start", () => {
         ),
     });
 
-    const failure = await Effect.runPromise(
+    const failure = await recorder.run(
       Effect.scoped(Effect.flip(handler(new Request("https://example.com/invalid-status")))),
     );
 
@@ -1801,16 +1524,12 @@ describe("Sunfall Arc Start", () => {
     });
     expect(failure.cause).toBeInstanceOf(EffectInputCallbackError);
     expect((failure.cause as EffectInputCallbackError).operation).toBe("ResponseContext.apply");
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        status: "failure",
-        teardown: expect.objectContaining({
-          runtimeDisposed: true,
-          reason: "request-failure",
-          afterDispose: expect.objectContaining({
-            fiberCount: 0,
-          }),
-        }),
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.teardown.reason": "request-failure",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.fibers": 0,
       }),
     ]);
   });
@@ -2042,8 +1761,8 @@ describe("Sunfall Arc Start", () => {
     });
   });
 
-  it("emits request traces for RPC and Start action transports", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("records RPC and Start action spans inside request spans", async () => {
+    const recorder = spanRecorder();
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
       "Start.echo.trace",
       {
@@ -2065,13 +1784,9 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createStartRequestHandler(app, {
       actions: [Ping],
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
     });
 
-    const rpcResponse = await Effect.runPromise(
+    const rpcResponse = await recorder.run(
       Effect.scoped(
         handler(
           new Request(`https://example.com${serverRpcPath}`, {
@@ -2094,7 +1809,7 @@ describe("Sunfall Arc Start", () => {
     });
     expect(rpcResponse.headers.get(startRequestIdHeader)).toBe("req-rpc-trace");
 
-    const actionResponse = await Effect.runPromise(
+    const actionResponse = await recorder.run(
       Effect.scoped(
         handler(
           new Request(`https://example.com${serverActionPath}`, {
@@ -2117,136 +1832,36 @@ describe("Sunfall Arc Start", () => {
     });
     expect(actionResponse.headers.get(startRequestIdHeader)).toBe("req-action-trace");
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-rpc-trace",
-          transport: "rpc",
-          path: serverRpcPath,
-        }),
-        serverFunctions: [
-          {
-            name: echo.name,
-            status: "success",
-          },
-        ],
-        actions: [],
-        status: "success",
+        "sunfall-arc.request.id": "req-rpc-trace",
+        "sunfall-arc.request.transport": "rpc",
+        "url.path": serverRpcPath,
+        "sunfall-arc.request.status": "success",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-action-trace",
-          transport: "action",
-          path: serverActionPath,
-        }),
-        serverFunctions: [],
-        actions: [
-          {
-            name: Ping.name,
-            state: "Success",
-          },
-        ],
-        status: "success",
+        "sunfall-arc.request.id": "req-action-trace",
+        "sunfall-arc.request.transport": "action",
+        "url.path": serverActionPath,
+        "sunfall-arc.request.status": "success",
       }),
     ]);
-  });
-
-  it("records Start action invalidation indexes in request traces", async () => {
-    const traces: Devtools.RequestTrace[] = [];
-    const ProjectSchema = Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-    });
-    let project = {
-      id: "atlas",
-      name: "Initial",
-    };
-    const Project = Resource.define({
-      name: "Start.action.trace.Project",
-      input: Schema.String,
-      output: ProjectSchema,
-      load: () => Effect.succeed(project),
-    });
-    const RenameProject = Action.define<
-      { readonly id: string; readonly name: string },
-      typeof ProjectSchema.Type
-    >({
-      name: "Start.action.trace.rename",
-      input: Schema.Struct({ id: Schema.String, name: Schema.String }),
-      output: ProjectSchema,
-      run: ({ id, name }) =>
-        Effect.sync(() => {
-          project = { id, name };
-          return project;
-        }),
-      invalidates: (_project, input) => [Project(input.id)],
-    });
-    const app = makeStartServerApp({
-      routes: [Route.define("/", {})] as const,
-    });
-    const handler = createStartRequestHandler(app, {
-      actions: [RenameProject],
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
-    });
-    const ref = Project("atlas");
-
-    const response = await Effect.runPromise(
-      Effect.scoped(
-        handler(
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-sunfall-arc-request-id": "req-action-invalidation-trace",
-            },
-            body: JSON.stringify({
-              name: RenameProject.name,
-              input: { id: "atlas", name: "Renamed" },
-            }),
-          }),
-        ),
-      ),
+    const requestSpans = recorder.spans.filter((span) => span.name === "sunfall-arc.start.request");
+    const child = (name: string) => recorder.spans.find((span) => span.name === name);
+    expect(child("sunfall-arc.start.rpc")?.attributes.get("sunfall-arc.rpc.name")).toBe(echo.name);
+    expect(Option.getOrUndefined(child("sunfall-arc.start.rpc")!.parent)?.spanId).toBe(
+      requestSpans[0]!.spanId,
     );
-
-    await expect(response.json()).resolves.toMatchObject({
-      _tag: "Success",
-      value: { id: "atlas", name: "Renamed" },
-      invalidation: {
-        entries: [
-          {
-            ref: {
-              key: ref.key,
-              family: "Start.action.trace.Project",
-              input: "atlas",
-            },
-          },
-        ],
-      },
-    });
-    expect(traces).toEqual([
-      expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-action-invalidation-trace",
-          transport: "action",
-          path: serverActionPath,
-        }),
-        actions: [
-          {
-            name: RenameProject.name,
-            state: "Success",
-            invalidationIndexes: [0],
-          },
-        ],
-        status: "success",
-      }),
-    ]);
+    expect(child("sunfall-arc.start.action")?.attributes.get("sunfall-arc.action.name")).toBe(
+      Ping.name,
+    );
+    expect(Option.getOrUndefined(child("sunfall-arc.start.action")!.parent)?.spanId).toBe(
+      requestSpans[1]!.spanId,
+    );
   });
 
-  it("uses one generated request id for transport diagnostics and request traces", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("uses one generated request id for transport diagnostics and the request span", async () => {
+    const recorder = spanRecorder();
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
       "Start.echo.trace.generated-id",
       {
@@ -2258,14 +1873,9 @@ describe("Sunfall Arc Start", () => {
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
-    const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
-    });
+    const handler = createStartRequestHandler(app, {});
 
-    const response = await Effect.runPromise(
+    const response = await recorder.run(
       Effect.scoped(
         handler(
           new Request(`https://example.com${serverRpcPath}`, {
@@ -2286,12 +1896,14 @@ describe("Sunfall Arc Start", () => {
       value: { value: "ada" },
     });
 
-    expect(traces).toHaveLength(1);
-    expect(response.headers.get(startRequestIdHeader)).toBe(traces[0]!.request.id);
+    expect(recorder.requests()).toHaveLength(1);
+    expect(response.headers.get(startRequestIdHeader)).toBe(
+      recorder.requests()[0]!["sunfall-arc.request.id"],
+    );
   });
 
-  it("classifies RPC and Start action request trace failures by layer", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("classifies RPC and Start action request failures by layer", async () => {
+    const recorder = spanRecorder();
     const FailsDomain = Server.contract<{ readonly value: string }, string, string>(
       "Start.trace.failure.domain",
       {
@@ -2316,10 +1928,6 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createStartRequestHandler(app, {
       actions: [ActionFailsDomain],
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
     });
     const rpcRequest = (id: string, body: unknown, init: RequestInit = {}) =>
       new Request(`https://example.com${serverRpcPath}`, {
@@ -2341,7 +1949,7 @@ describe("Sunfall Arc Start", () => {
         body: JSON.stringify(body),
       });
 
-    const rpcDomain = await Effect.runPromise(
+    const rpcDomain = await recorder.run(
       Effect.scoped(
         handler(
           rpcRequest("req-rpc-domain-failure", {
@@ -2356,7 +1964,7 @@ describe("Sunfall Arc Start", () => {
       error: "domain-failed",
     });
 
-    const rpcValidation = await Effect.runPromise(
+    const rpcValidation = await recorder.run(
       Effect.scoped(
         handler(
           rpcRequest("req-rpc-validation-failure", {
@@ -2369,7 +1977,7 @@ describe("Sunfall Arc Start", () => {
     expect(rpcValidation.status).toBe(400);
     await rpcValidation.text();
 
-    const rpcProtocol = await Effect.runPromise(
+    const rpcProtocol = await recorder.run(
       Effect.scoped(
         handler(
           rpcRequest("req-rpc-protocol-failure", {
@@ -2382,7 +1990,7 @@ describe("Sunfall Arc Start", () => {
     expect(rpcProtocol.status).toBe(404);
     await rpcProtocol.text();
 
-    const rpcTransport = await Effect.runPromise(
+    const rpcTransport = await recorder.run(
       Effect.scoped(
         handler(
           new Request(`https://example.com${serverRpcPath}`, {
@@ -2397,7 +2005,7 @@ describe("Sunfall Arc Start", () => {
     expect(rpcTransport.status).toBe(405);
     await rpcTransport.text();
 
-    const actionDomain = await Effect.runPromise(
+    const actionDomain = await recorder.run(
       Effect.scoped(
         handler(
           actionRequest("req-action-domain-failure", {
@@ -2412,7 +2020,7 @@ describe("Sunfall Arc Start", () => {
       error: "action-domain-failed",
     });
 
-    const actionValidation = await Effect.runPromise(
+    const actionValidation = await recorder.run(
       Effect.scoped(
         handler(
           actionRequest("req-action-validation-failure", {
@@ -2425,81 +2033,48 @@ describe("Sunfall Arc Start", () => {
     expect(actionValidation.status).toBe(400);
     await actionValidation.text();
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-rpc-domain-failure", transport: "rpc" }),
-        status: "failure",
-        failureKind: "domain",
-        serverFunctions: [
-          {
-            name: failsDomain.name,
-            status: "failure",
-            failureKind: "domain",
-          },
-        ],
+        "sunfall-arc.request.id": "req-rpc-domain-failure",
+        "sunfall-arc.request.transport": "rpc",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "domain",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-rpc-validation-failure", transport: "rpc" }),
-        status: "failure",
-        failureKind: "validation",
-        serverFunctions: [
-          {
-            name: failsDomain.name,
-            status: "failure",
-            failureKind: "validation",
-          },
-        ],
+        "sunfall-arc.request.id": "req-rpc-validation-failure",
+        "sunfall-arc.request.transport": "rpc",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "validation",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-rpc-protocol-failure", transport: "rpc" }),
-        status: "failure",
-        failureKind: "protocol",
-        serverFunctions: [
-          {
-            name: "Start.trace.missing",
-            status: "failure",
-            failureKind: "protocol",
-          },
-        ],
+        "sunfall-arc.request.id": "req-rpc-protocol-failure",
+        "sunfall-arc.request.transport": "rpc",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "protocol",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-rpc-transport-failure", transport: "rpc" }),
-        status: "failure",
-        failureKind: "transport",
-        serverFunctions: [],
+        "sunfall-arc.request.id": "req-rpc-transport-failure",
+        "sunfall-arc.request.transport": "rpc",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "transport",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-action-domain-failure", transport: "action" }),
-        status: "failure",
-        failureKind: "domain",
-        actions: [
-          {
-            name: ActionFailsDomain.name,
-            state: "Failure",
-            failureKind: "domain",
-          },
-        ],
+        "sunfall-arc.request.id": "req-action-domain-failure",
+        "sunfall-arc.request.transport": "action",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "domain",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({
-          id: "req-action-validation-failure",
-          transport: "action",
-        }),
-        status: "failure",
-        failureKind: "validation",
-        actions: [
-          {
-            name: ActionFailsDomain.name,
-            state: "Failure",
-            failureKind: "validation",
-          },
-        ],
+        "sunfall-arc.request.id": "req-action-validation-failure",
+        "sunfall-arc.request.transport": "action",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "validation",
       }),
     ]);
   });
 
-  it("classifies Start action response encoding and hydration metadata defects in request traces", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("classifies Start action response encoding and hydration metadata defects", async () => {
+    const recorder = spanRecorder();
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
       name: Schema.String,
@@ -2539,10 +2114,6 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createStartRequestHandler(app, {
       actions: [BadOutput, BadMeta],
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
     });
     const actionRequest = (id: string, name: string, input: unknown) =>
       new Request(`https://example.com${serverActionPath}`, {
@@ -2554,7 +2125,7 @@ describe("Sunfall Arc Start", () => {
         body: JSON.stringify({ name, input }),
       });
 
-    const outputResponse = await Effect.runPromise(
+    const outputResponse = await recorder.run(
       Effect.scoped(
         handler(actionRequest("req-action-output-defect", BadOutput.name, { value: "ok" })),
       ),
@@ -2564,7 +2135,7 @@ describe("Sunfall Arc Start", () => {
       _tag: "Defect",
     });
 
-    const metaResponse = await Effect.runPromise(
+    const metaResponse = await recorder.run(
       Effect.scoped(
         handler(actionRequest("req-action-meta-defect", BadMeta.name, { id: "atlas" })),
       ),
@@ -2574,30 +2145,18 @@ describe("Sunfall Arc Start", () => {
       _tag: "Defect",
     });
 
-    expect(traces).toEqual([
+    expect(recorder.requests()).toEqual([
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-action-output-defect", transport: "action" }),
-        status: "failure",
-        failureKind: "defect",
-        actions: [
-          {
-            name: BadOutput.name,
-            state: "Failure",
-            failureKind: "defect",
-          },
-        ],
+        "sunfall-arc.request.id": "req-action-output-defect",
+        "sunfall-arc.request.transport": "action",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "defect",
       }),
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-action-meta-defect", transport: "action" }),
-        status: "failure",
-        failureKind: "defect",
-        actions: [
-          {
-            name: BadMeta.name,
-            state: "Failure",
-            failureKind: "defect",
-          },
-        ],
+        "sunfall-arc.request.id": "req-action-meta-defect",
+        "sunfall-arc.request.transport": "action",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.failure.kind": "defect",
       }),
     ]);
   });
@@ -5836,16 +5395,12 @@ describe("Sunfall Arc Start", () => {
     ).resolves.toBeInstanceOf(Response);
   });
 
-  it("does not finalize dev SSR request traces as success before host transform failures", async () => {
-    const traces: Devtools.RequestTrace[] = [];
+  it("does not end dev SSR request spans as success before host transform failures", async () => {
+    const recorder = spanRecorder();
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () => "<html><body>home</body></html>",
     });
     const server = {
@@ -5862,40 +5417,31 @@ describe("Sunfall Arc Start", () => {
         ),
     };
 
-    const exit = await Effect.runPromiseExit(
+    const exit = await recorder.runExit(
       handleSsrDevRequest(server, new Request("https://example.com/")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
     expect(failure).toBeInstanceOf(StartDevServerError);
     expect(failure).toMatchObject({ operation: "transform-html" });
-    expect(traces.map((trace) => trace.status)).toEqual(["failure"]);
-    expect(traces[0]).toMatchObject({
-      streams: [
-        {
-          name: "response",
-          state: "errored",
-        },
-      ],
-      teardown: {
-        reason: "dev-ssr-host-transform",
-      },
-    });
+    expect(recorder.requests()).toEqual([
+      expect.objectContaining({
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.stream.state": "errored",
+        "sunfall-arc.teardown.reason": "dev-ssr-host-transform",
+      }),
+    ]);
   });
 
-  it("reports dev SSR request aborts as cancelled traces while reading HTML", async () => {
+  it("reports dev SSR request aborts as cancelled requests while reading HTML", async () => {
     const controller = new AbortController();
     const started = Effect.runSync(Deferred.make<void>());
     const cancelled = Effect.runSync(Deferred.make<unknown>());
-    const traces: Devtools.RequestTrace[] = [];
+    const recorder = spanRecorder();
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () =>
         new Response(
           new ReadableStream<Uint8Array>({
@@ -5921,47 +5467,40 @@ describe("Sunfall Arc Start", () => {
     };
 
     const fiber = Effect.runFork(
-      handleSsrDevRequest(
-        server,
-        new Request("https://example.com/", { signal: controller.signal }),
+      recorder.trace(
+        handleSsrDevRequest(
+          server,
+          new Request("https://example.com/", { signal: controller.signal }),
+        ),
       ),
     );
 
-    await Effect.runPromise(Deferred.await(started));
+    await recorder.run(Deferred.await(started));
     controller.abort("dev-client-disconnect");
     await expect(
-      Effect.runPromise(Deferred.await(cancelled).pipe(Effect.timeout("1 second"))),
+      recorder.run(Deferred.await(cancelled).pipe(Effect.timeout("1 second"))),
     ).resolves.toBe("dev-client-disconnect");
-    const exit = await Effect.runPromise(Fiber.await(fiber));
+    const exit = await recorder.run(Fiber.await(fiber));
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
     expect(failure).toBeInstanceOf(StartDevServerError);
     expect(failure).toMatchObject({ operation: "read-html" });
-    expect(traces.map((trace) => trace.status)).toEqual(["cancelled"]);
-    expect(traces[0]).toMatchObject({
-      streams: [
-        {
-          name: "response",
-          state: "cancelled",
-        },
-      ],
-      teardown: {
-        reason: "dev-client-disconnect",
-      },
-    });
+    expect(recorder.requests()).toEqual([
+      expect.objectContaining({
+        "sunfall-arc.request.status": "cancelled",
+        "sunfall-arc.stream.state": "cancelled",
+        "sunfall-arc.teardown.reason": "dev-client-disconnect",
+      }),
+    ]);
   });
 
   it("keeps dev SSR transform failures as failures when abort happens after HTML read", async () => {
     const controller = new AbortController();
-    const traces: Devtools.RequestTrace[] = [];
+    const recorder = spanRecorder();
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () => "<html><body>home</body></html>",
     });
     const server = {
@@ -5984,7 +5523,7 @@ describe("Sunfall Arc Start", () => {
         ),
     };
 
-    const exit = await Effect.runPromiseExit(
+    const exit = await recorder.runExit(
       handleSsrDevRequest(
         server,
         new Request("https://example.com/", { signal: controller.signal }),
@@ -5994,18 +5533,13 @@ describe("Sunfall Arc Start", () => {
 
     expect(failure).toBeInstanceOf(StartDevServerError);
     expect(failure).toMatchObject({ operation: "transform-html" });
-    expect(traces.map((trace) => trace.status)).toEqual(["failure"]);
-    expect(traces[0]).toMatchObject({
-      streams: [
-        {
-          name: "response",
-          state: "errored",
-        },
-      ],
-      teardown: {
-        reason: "dev-ssr-host-transform",
-      },
-    });
+    expect(recorder.requests()).toEqual([
+      expect.objectContaining({
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.stream.state": "errored",
+        "sunfall-arc.teardown.reason": "dev-ssr-host-transform",
+      }),
+    ]);
   });
 
   it("cancels dev SSR HTML body reads when the request aborts", async () => {

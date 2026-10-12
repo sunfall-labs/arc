@@ -43,7 +43,7 @@ domain vocabulary.
    server clients, response context, hydration, and event streams execute the
    graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
-   reports, the app Timeline, request traces, type tests, integration tests,
+   reports, the app Timeline, request spans, type tests, integration tests,
    and agent workflows consume public graph/runtime facts rather than private
    maps.
 
@@ -298,7 +298,7 @@ functions, hydration payload creation, and Resource reads during render all
 run through that request runtime, then the Resource Store is
 disposed at request completion to interrupt any lifetime fibers. Internally,
 the Request Runtime Lifecycle Module owns failure/interruption teardown,
-ResponseContext application, request trace emission, runtime disposal, and
+ResponseContext application, ending the request span, runtime disposal, and
 streamed response finalization after the request handler has selected the
 response Effect to run.
 
@@ -726,22 +726,18 @@ An Action instance exposes the latest `invalidationPlan` as a signal, and
 trace view. The intended debugging loop is “this mutation invalidated these
 domain facts, which matched these live resource refs, for these causes.”
 
-`Devtools.RequestTrace` is the request-level join point for the same public
-facts. A trace records request and response context, service names, route plans,
-resources, server functions, actions, streams, fibers, status, and
-teardown in JSON-safe data. Start request handlers expose an `onRequestTrace`
-hook that emits a structurally compatible payload for SSR, server RPC, Start
-actions, response stream close, stream cancellation, and request failure paths.
-Teardown facts include runtime disposal, reason, start/completion timestamps,
-duration, and before/after Resource Store snapshots.
-
-The same request boundary is also wrapped in Effect observability primitives.
-Start adds an `sunfall-arc.start.request` span with request annotations, child
-spans for server RPC and Start action execution, log annotations for request
-identity, and exported Effect metrics for request count, request duration, and
-request status. The JSON-safe `onRequestTrace` hook remains the devtools data
-contract, while Effect tracers, loggers, and metric exporters can consume the
-runtime-native signals.
+Requests are traced with Effect's own tracing. Start wraps each request in a
+`sunfall-arc.start.request` span (parented on an incoming W3C `traceparent` or
+B3 header), with child spans for server RPC and Start action execution, log
+annotations for request identity, and Effect metrics for request count,
+duration, and status. The request span carries the request's facts as
+attributes: the matched route (`http.route`), preloaded and hydrated Resource
+keys, the failure kind, the response status, the streamed body's final state,
+and request runtime teardown (whether disposal finished, fibers left behind,
+any cleanup failure). The span stays open until a streamed body closes, errors,
+or is cancelled, so its duration covers the whole response. Any Effect `Tracer`
+sees these spans: an OpenTelemetry exporter, or `Devtools.layerTracer(store)`,
+which records ended spans for the Requests panel.
 
 ## Components
 

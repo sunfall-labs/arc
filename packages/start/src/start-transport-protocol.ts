@@ -24,7 +24,7 @@ import {
   readStartTransportResponseText,
 } from "./start-transport-body.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
-import type { StartRequestTraceFailureKind } from "./request-trace.js";
+import type { StartRequestFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
 
 export {
@@ -238,7 +238,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 export const rpcFailureKind = <FnError>(
   fn: Server.Fn<unknown, unknown, FnError, unknown>,
   exit: Exit.Exit<unknown, FnError>,
-): Effect.Effect<StartRequestTraceFailureKind> => {
+): Effect.Effect<StartRequestFailureKind> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed("domain");
   }
@@ -259,7 +259,7 @@ export const rpcFailureKind = <FnError>(
   );
 };
 
-const actionResultFailureKind = (result: unknown): StartRequestTraceFailureKind | undefined => {
+const actionResultFailureKind = (result: unknown): StartRequestFailureKind | undefined => {
   if (!ActionResult.is(result)) {
     return undefined;
   }
@@ -275,7 +275,7 @@ const actionResultFailureKind = (result: unknown): StartRequestTraceFailureKind 
 export const actionFailureKind = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
-): Effect.Effect<StartRequestTraceFailureKind | undefined> => {
+): Effect.Effect<StartRequestFailureKind | undefined> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed(actionResultFailureKind(exit.value));
   }

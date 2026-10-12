@@ -31,8 +31,6 @@ import {
   type StartHydrationError,
   type StartHydrationPayload,
   type StartRequestHandler,
-  type StartRequestTrace,
-  type StartRequestTraceHandler,
   type StartStaticHistoryAdapterOptions,
   type StartStaticHistoryWindow,
 } from "@sunfall/arc-start";
@@ -84,8 +82,6 @@ type StartTypes =
   | StartHydrationError
   | StartHydrationPayload
   | StartRequestHandler
-  | StartRequestTrace
-  | StartRequestTraceHandler
   | StartStaticHistoryAdapterOptions
   | StartStaticHistoryWindow;
 void startExports;
@@ -171,12 +167,6 @@ StartAction.use(startActionDefinition);
 void startActionFormMethod;
 void startActionFormEncodeError;
 void decodedStartActionFormDataEffect;
-
-const traceHandler: StartRequestTraceHandler = (trace: StartRequestTrace) => {
-  const status: StartRequestTrace["status"] = trace.status;
-  void status;
-};
-void traceHandler;
 
 // Durable Action submissions: App.launch takes outbox options; the storage is
 // the client Layer's `KeyValueStore`, never an App.launch option.

@@ -17,7 +17,7 @@ import type {
   DevtoolsPanelsInput,
   DevtoolsSerializableValue,
   DevtoolsSummary,
-  DevtoolsSummaryRequestTrace,
+  DevtoolsSummaryRequest,
 } from "./devtools-contract.js";
 import { devtoolsPanelIds } from "./panel-contract.js";
 
@@ -63,29 +63,21 @@ const maxSeverity = (
     fallback,
   );
 
-const requestTraceSeverity = (trace: DevtoolsSummaryRequestTrace): DevtoolsPanelSeverity => {
-  if (trace.status === "failure") {
-    return "error";
-  }
-  if (trace.status === "cancelled" || trace.runtimeDisposed === false) {
-    return "warning";
-  }
-  return "ok";
-};
+const requestSeverity = (request: DevtoolsSummaryRequest): DevtoolsPanelSeverity =>
+  request.status === "failure"
+    ? "error"
+    : request.status === "cancelled" ||
+        request.runtimeDisposed === false ||
+        (request.fibersAfterDispose ?? 0) > 0
+      ? "warning"
+      : "ok";
 
-const requestTraceFailureOwners = (trace: DevtoolsSummaryRequestTrace): ReadonlyArray<string> => [
-  ...trace.serverFunctions.flatMap((entry) =>
-    entry.failureKind === null ? [] : [`server:${entry.name}:${entry.failureKind}`],
-  ),
-  ...trace.actions.flatMap((entry) =>
-    entry.failureKind === null ? [] : [`action:${entry.name}:${entry.failureKind}`],
-  ),
-];
-
-const requestTraceDetail = (trace: DevtoolsSummaryRequestTrace): string => {
-  const status = `${trace.transport} ${trace.status}${trace.failureKind === null ? "" : ` (${trace.failureKind})`}`;
-  const failureOwners = requestTraceFailureOwners(trace);
-  return failureOwners.length === 0 ? status : `${status} ${failureOwners.join(", ")}`;
+const requestDetail = (request: DevtoolsSummaryRequest): string => {
+  const status = `${request.transport} ${request.status}${request.failureKind === null ? "" : ` (${request.failureKind})`}`;
+  const failed = request.children.flatMap((child) =>
+    child.status === "success" ? [] : [`${child.name}:${child.status}`],
+  );
+  return failed.length === 0 ? status : `${status} ${failed.join(", ")}`;
 };
 
 const programEventSeverity = (event: string): DevtoolsPanelSeverity =>
@@ -125,24 +117,17 @@ const programEventMetrics = (
 
 export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): DevtoolsPanels => {
   const summary = input.summary ?? describeDevtoolsSummary(input);
-  const requestDurations = summary.requests.traces.flatMap((trace) =>
-    trace.durationMillis === null ? [] : [trace.durationMillis],
-  );
+  const requests = summary.requests;
   const requestAverageDuration =
-    requestDurations.length === 0
+    requests.length === 0
       ? 0
       : Number(
           (
-            requestDurations.reduce((total, duration) => total + duration, 0) /
-            requestDurations.length
+            requests.reduce((total, request) => total + request.durationMillis, 0) / requests.length
           ).toFixed(2),
         );
-  const failedRequestCount = summary.requests.traces.filter(
-    (trace) => trace.status === "failure",
-  ).length;
-  const cancelledRequestCount = summary.requests.traces.filter(
-    (trace) => trace.status === "cancelled",
-  ).length;
+  const failedRequestCount = requests.filter((request) => request.status === "failure").length;
+  const cancelledRequestCount = requests.filter((request) => request.status === "cancelled").length;
   const programRuntimeEvents = new Map<
     string,
     {
@@ -317,64 +302,26 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     requests: {
       id: "requests",
       title: "Requests",
-      summary: `${summary.overview.requestTraceCount} traces, ${failedRequestCount} failures, ${cancelledRequestCount} cancelled`,
-      severity: maxSeverity(
-        summary.requests.traces.map(requestTraceSeverity),
-        summary.overview.requestTraceCount === 0 ? "info" : "ok",
-      ),
+      summary: `${requests.length} requests, ${failedRequestCount} failures, ${cancelledRequestCount} cancelled`,
+      severity: maxSeverity(requests.map(requestSeverity), requests.length === 0 ? "info" : "ok"),
       metrics: [
-        panelMetric("traces", summary.overview.requestTraceCount),
+        panelMetric("requests", requests.length),
         panelMetric("failures", failedRequestCount),
         panelMetric("cancelled", cancelledRequestCount),
         panelMetric("average duration", requestAverageDuration, "ms"),
       ],
-      items: summary.requests.traces.map((trace) =>
+      items: requests.map((request) =>
         panelItem({
-          id: devtoolsRequestPanelItemId(trace),
-          label: `${trace.method} ${trace.path}`,
-          detail: requestTraceDetail(trace),
-          severity: requestTraceSeverity(trace),
+          id: devtoolsRequestPanelItemId(request),
+          label: `${request.method} ${request.path}`,
+          detail: requestDetail(request),
+          severity: requestSeverity(request),
           metrics: [
-            panelMetric("resources", trace.resourceCount),
-            panelMetric(
-              "server failures",
-              trace.serverFunctions.filter((entry) => entry.failureKind !== null).length,
-            ),
-            panelMetric(
-              "action failures",
-              trace.actions.filter((entry) => entry.failureKind !== null).length,
-            ),
-            panelMetric("actions", trace.actionCount),
-            panelMetric(
-              "duration",
-              trace.durationMillis ?? "unknown",
-              trace.durationMillis === null ? undefined : "ms",
-            ),
-            panelMetric("before fibers", trace.beforeDisposeFiberCount ?? "unknown"),
-            panelMetric("after fibers", trace.afterDisposeFiberCount ?? "unknown"),
-            panelMetric("before families", trace.beforeDispose?.familyCount ?? "unknown"),
-            panelMetric("after families", trace.afterDispose?.familyCount ?? "unknown"),
-            panelMetric("before modules", trace.beforeDispose?.moduleCount ?? "unknown"),
-            panelMetric("after modules", trace.afterDispose?.moduleCount ?? "unknown"),
-            panelMetric("before tags", trace.beforeDispose?.tagCount ?? "unknown"),
-            panelMetric("after tags", trace.afterDispose?.tagCount ?? "unknown"),
+            panelMetric("duration", request.durationMillis, "ms"),
+            panelMetric("calls", request.children.length),
+            panelMetric("fibers after dispose", request.fibersAfterDispose ?? "unknown"),
           ],
-          data: toDevtoolsSerializableValue({
-            id: trace.id,
-            failureKind: trace.failureKind,
-            routeHref: trace.routeHref,
-            teardownReason: trace.teardownReason,
-            runtimeDisposed: trace.runtimeDisposed,
-            teardownAt: trace.teardownAt,
-            teardownStartedAt: trace.teardownStartedAt,
-            teardownCompletedAt: trace.teardownCompletedAt,
-            durationMillis: trace.durationMillis,
-            beforeDispose: trace.beforeDispose,
-            afterDispose: trace.afterDispose,
-            cleanupFailure: trace.cleanupFailure,
-            serverFunctions: trace.serverFunctions,
-            actions: trace.actions,
-          }),
+          data: toDevtoolsSerializableValue(request),
         }),
       ),
     },

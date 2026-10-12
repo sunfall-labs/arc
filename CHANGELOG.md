@@ -6,6 +6,20 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Requests Are Traced As Effect Spans (Breaking)
+
+- `createRequestHandler`'s `onRequestTrace` option and the `StartRequestTrace`
+  DTO are removed. The `sunfall-arc.start.request` span now carries the route
+  plan (`http.route`, preloaded/hydrated Resource keys), failure kind, response
+  status, stream state, and request runtime teardown as attributes, and stays
+  open until a streamed body closes, errors, or is cancelled.
+- Devtools reads requests from spans: `Devtools.layerTracer(store)` records
+  every ended span (still forwarding to the current tracer), `Devtools.Span`
+  replaces `Devtools.RequestTrace`, and the Requests panel projects request
+  spans and their RPC/action child spans. `store.recordRequestTrace`,
+  `requestTraceLimit`, the `RequestTrace` runtime event, and the causal graph's
+  request-trace, endpoint, and server-function nodes are gone.
+
 ### Start Drops Its Diagnostics CLI, Agent Graph And App Graph (Breaking)
 
 - The `sunfall-arc-start` binary (`diagnostics`, `graph`, `impact`), the

@@ -8,7 +8,7 @@ import {
 } from "node:http";
 import { Socket, type AddressInfo } from "node:net";
 import { Readable } from "node:stream";
-import { Deferred, Effect, Option } from "effect";
+import { Deferred, Effect, Option, Tracer } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeRuntime, Route } from "@sunfall/arc-core";
 import { createFetchHandler, toFetchHandler } from "../src/fetch.js";
@@ -388,20 +388,20 @@ describe("Start deployment adapters", () => {
   });
 
   it("cancels HEAD response bodies so request runtime finalizers run", async () => {
-    const traces: Array<{
-      readonly status?: string;
-      readonly teardown?: { readonly runtimeDisposed?: boolean; readonly reason?: string };
-    }> = [];
+    const spans: Array<Tracer.NativeSpan> = [];
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options);
+        spans.push(span);
+        return span;
+      },
+    });
     let cancelled: unknown;
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
     });
     const startHandler = createStartRequestHandler(app, {
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
       render: () =>
         new Response(
           new ReadableStream<Uint8Array>({
@@ -421,7 +421,7 @@ describe("Start deployment adapters", () => {
     });
     const nodeHandler = createNodeHandler(startHandler);
     const server = createServer((request, response) => {
-      void Effect.runFork(Effect.scoped(nodeHandler(request, response)));
+      void Effect.runFork(Effect.withTracer(Effect.scoped(nodeHandler(request, response)), tracer));
     });
     const port = await listen(server);
 
@@ -433,15 +433,13 @@ describe("Start deployment adapters", () => {
       await Effect.runPromise(Effect.sleep("20 millis"));
 
       expect(cancelled).toBe("head-response");
-      expect(traces).toEqual([
-        expect.objectContaining({
-          status: "cancelled",
-          teardown: expect.objectContaining({
-            runtimeDisposed: true,
-            reason: "head-response",
-          }),
-        }),
-      ]);
+      const requestSpan = spans.find((span) => span.name === "sunfall-arc.start.request");
+      expect(requestSpan?.status._tag).toBe("Ended");
+      expect(Object.fromEntries(requestSpan!.attributes)).toMatchObject({
+        "sunfall-arc.request.status": "cancelled",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.reason": "head-response",
+      });
     } finally {
       await close(server);
     }

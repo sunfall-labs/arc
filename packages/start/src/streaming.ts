@@ -8,9 +8,9 @@ import {
 } from "./hydration.js";
 import type { StartRenderHydrationPlan } from "./render-hydration-plan.js";
 import type {
-  StartRequestTraceFailureKind,
-  StartRequestTraceStatus,
-  StartRequestTraceStream,
+  StartRequestFailureKind,
+  StartRequestStatus,
+  StartRequestStream,
 } from "./request-trace.js";
 
 export {
@@ -96,12 +96,12 @@ export type StartStreamPhase = "Shell" | "Chunk" | "Tail";
 
 /** Stream lifecycle event emitted while adapting a Web `Response` body. */
 export interface StartResponseStreamFinalizeEvent {
-  /** Stream fact recorded for request traces and host diagnostics. */
-  readonly stream: StartRequestTraceStream;
+  /** Stream fact recorded on the request span and for host diagnostics. */
+  readonly stream: StartRequestStream;
   /** Final request status implied by stream close, error, or cancellation. */
-  readonly status: StartRequestTraceStatus;
+  readonly status: StartRequestStatus;
   /** Failure category when the stream finalized because of an error. */
-  readonly failureKind?: StartRequestTraceFailureKind;
+  readonly failureKind?: StartRequestFailureKind;
   /** Stable teardown reason such as `stream-close`, `stream-error`, or a cancel reason. */
   readonly teardownReason: string;
   /** Failed Start stream phase when the underlying body error is a `StartStreamError`. */
@@ -162,7 +162,7 @@ const responseStreamFinalizerStates = new WeakMap<Response, StartResponseStreamF
  * Dev SSR uses this when it must fully read a Start HTML response before
  * applying host transforms. If the host work fails after the body has been
  * consumed, the held success finalizer is replaced with the supplied failure
- * event so request traces do not report premature success.
+ * event so request spans do not report premature success.
  */
 export const suspendResponseStreamSuccessFinalizer = <A, E, R>(
   response: Response,
@@ -199,7 +199,7 @@ const runResponseStreamEffect: StartResponseStreamRunner = (effect) => Effect.ru
 const startStreamFailurePhase = (cause: unknown): StartStreamPhase | undefined =>
   cause instanceof StartStreamError ? cause.reason : undefined;
 
-const startStreamFailureKind = (cause: unknown): StartRequestTraceFailureKind =>
+const startStreamFailureKind = (cause: unknown): StartRequestFailureKind =>
   cause instanceof StartStreamError ? "domain" : "transport";
 
 /** Creates a typed HTML text chunk. */

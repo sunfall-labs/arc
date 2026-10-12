@@ -5,121 +5,38 @@ import {
   type ResponseContext,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit } from "effect";
+import { completeRequestRuntimeWithResponse } from "./request-runtime-response.js";
 import {
-  completeRequestRuntimeWithResponse,
-  type RequestRuntimeFinalizeState,
-} from "./request-runtime-response.js";
-import {
-  buildStartRequestTrace,
-  emitStartRequestTrace,
-  finalizeStartRequestMetrics,
-  requestRuntimeDisposeTrace,
-  startRequestTraceTeardown,
+  disposeRequestRuntime,
+  finishStartRequest,
+  recordStartRequestFailure,
   withStartRequestObservability,
-  type StartRequestTraceFacts,
-  type StartRequestTraceFailureKind,
-  type StartRequestTraceHandler,
+  type StartRequestFacts,
 } from "./request-trace.js";
 
 export interface RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError> {
   readonly request: Request;
   readonly runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>;
   readonly responseContext: ResponseContext;
-  readonly traceFacts: StartRequestTraceFacts;
+  readonly facts: StartRequestFacts;
   readonly responseEffect: Effect.Effect<Response, E, R>;
-  readonly onRequestTrace?: StartRequestTraceHandler;
 }
-
-const emitRequestRuntimeFailureTraceEffect = <RuntimeServices, RuntimeError>(
-  options: Pick<
-    RequestRuntimeLifecycleOptions<unknown, unknown, RuntimeServices, RuntimeError>,
-    "request" | "runtime" | "traceFacts" | "onRequestTrace"
-  >,
-  interrupted: boolean,
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const teardown = yield* requestRuntimeDisposeTrace(options.runtime);
-    yield* finalizeStartRequestMetrics(options.request, options.traceFacts, {
-      status: interrupted ? "cancelled" : "failure",
-      completedAt: teardown.completedAt,
-    });
-    if (options.onRequestTrace !== undefined) {
-      yield* emitStartRequestTrace(
-        options.onRequestTrace,
-        buildStartRequestTrace(
-          options.request,
-          options.traceFacts,
-          interrupted ? "cancelled" : "failure",
-          {
-            teardown: startRequestTraceTeardown(options.traceFacts, {
-              reason: interrupted ? "interruption" : "request-failure",
-              ...teardown,
-            }),
-          },
-        ),
-      );
-    }
-  });
-
-const requestRuntimeFailureKind = (cause: Cause.Cause<unknown>): StartRequestTraceFailureKind =>
-  cause.reasons.some(Cause.isInterruptReason)
-    ? "interruption"
-    : cause.reasons.some(Cause.isDieReason)
-      ? "defect"
-      : "domain";
-
-const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
-  options: Pick<
-    RequestRuntimeLifecycleOptions<unknown, unknown, RuntimeServices, RuntimeError>,
-    "request" | "traceFacts" | "onRequestTrace"
-  >,
-  response: Response,
-) => ({
-  onFinalize: (state: RequestRuntimeFinalizeState) =>
-    Effect.gen(function* () {
-      yield* finalizeStartRequestMetrics(options.request, options.traceFacts, {
-        status: state.status,
-        completedAt: state.completedAt,
-      });
-      if (state.failureKind !== undefined) {
-        options.traceFacts.failureKind = state.failureKind;
-      }
-      if (options.onRequestTrace !== undefined) {
-        yield* emitStartRequestTrace(
-          options.onRequestTrace,
-          buildStartRequestTrace(options.request, options.traceFacts, state.status, {
-            response,
-            teardown: startRequestTraceTeardown(options.traceFacts, {
-              reason: state.teardownReason,
-              runtimeDisposed: state.runtimeDisposed,
-              beforeDispose: state.beforeDispose,
-              afterDispose: state.afterDispose,
-              completedAt: state.completedAt,
-              ...(state.cleanupFailure === undefined
-                ? {}
-                : { cleanupFailure: state.cleanupFailure }),
-            }),
-            ...(state.stream === undefined ? {} : { stream: state.stream }),
-          }),
-        );
-      }
-    }),
-});
 
 /**
  * Runs a selected Start response Effect through Request Runtime lifecycle.
  *
  * Start Request Handler owns endpoint/render selection. This Module owns the
- * lifecycle around that selected response: failure teardown, ResponseContext
- * application, Request Runtime disposal, request trace emission, and streamed
- * response finalization.
+ * lifecycle around that selected response: ResponseContext application,
+ * Request Runtime disposal (after a streamed body finishes), and ending the
+ * request span.
  */
 export const runRequestRuntimeLifecycle = <E, R, RuntimeServices, RuntimeError>(
   options: RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError>,
-): Effect.Effect<Response, E | EffectInputCallbackError, R> =>
-  withStartRequestObservability(
-    options.request,
-    options.traceFacts,
+): Effect.Effect<Response, E | EffectInputCallbackError, R> => {
+  const { request, facts } = options;
+  return withStartRequestObservability(
+    request,
+    facts,
     Effect.gen(function* () {
       const responseExit = yield* Effect.exit(
         Effect.flatMap(options.responseEffect, (response) =>
@@ -128,18 +45,31 @@ export const runRequestRuntimeLifecycle = <E, R, RuntimeServices, RuntimeError>(
       );
 
       if (Exit.isFailure(responseExit)) {
-        const failureKind = requestRuntimeFailureKind(responseExit.cause as Cause.Cause<unknown>);
-        const interrupted = failureKind === "interruption";
-        options.traceFacts.failureKind = failureKind;
-        yield* emitRequestRuntimeFailureTraceEffect(options, interrupted);
+        const interrupted = responseExit.cause.reasons.some(Cause.isInterruptReason);
+        recordStartRequestFailure(
+          facts,
+          interrupted
+            ? "interruption"
+            : responseExit.cause.reasons.some(Cause.isDieReason)
+              ? "defect"
+              : "domain",
+        );
+        yield* finishStartRequest(request, facts, {
+          status: interrupted ? "cancelled" : "failure",
+          teardownReason: interrupted ? "interruption" : "request-failure",
+          teardown: yield* disposeRequestRuntime(options.runtime),
+          cause: responseExit.cause,
+        });
         return yield* Effect.failCause(responseExit.cause);
       }
 
       const response = responseExit.value;
-      return yield* completeRequestRuntimeWithResponse(
-        options.runtime,
-        response,
-        requestRuntimeFinalizeOptions(options, response),
-      );
+      return yield* completeRequestRuntimeWithResponse(options.runtime, response, (state) => {
+        if (state.failureKind !== undefined) {
+          recordStartRequestFailure(facts, state.failureKind);
+        }
+        return finishStartRequest(request, facts, { ...state, response });
+      });
     }),
   );
+};

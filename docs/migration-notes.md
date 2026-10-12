@@ -84,7 +84,6 @@ name off the namespace:
 | `DevtoolsBridgePayloadContractResolution`                                    | `Devtools.BridgePayloadResolution`                                 |
 | `DevtoolsPanelItem`, `DevtoolsPanelMetric`, `DevtoolsPanelId`                | `Devtools.Panel["items"][number]`, `["metrics"][number]`, `["id"]` |
 | `DevtoolsCausalNodeKind` / `DevtoolsCausalEdgeKind`                          | `Devtools.CausalGraph["nodes"][number]["kind"]` / `["edges"]...`   |
-| `DevtoolsRequestTraceTeardown` and other `DevtoolsRequestTrace*` parts       | `NonNullable<Devtools.RequestTrace["teardown"]>`, ...              |
 | `describeInvalidationPlan(plan)` / `describeRoutePlan(plan)`                 | `store.recordInvalidation(plan)` / `store.recordRoutePlan(plan)`   |
 | `isDevtoolsSerializableValue`, `devtoolsPanelIds`, `devtoolsPanelSeverities` | removed; validate payloads with `Devtools.resolveBridgePayload`    |
 
@@ -325,6 +324,22 @@ Start no longer builds an app graph, so the tooling that read it is gone:
 
 The plugin also no longer loads the server entry through a second Vite server
 at startup to name server functions and Actions: nothing consumed those names.
+
+## From Request Trace Callbacks
+
+Start no longer builds a request-trace DTO. Each request is a
+`sunfall-arc.start.request` Effect span whose attributes carry the route plan,
+failure kind, response, stream state, and runtime teardown.
+
+| Before                                                         | Now                                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `createRequestHandler(app, { onRequestTrace })`                | removed; provide an Effect `Tracer` in the `server` Layer           |
+| `onRequestTrace: (trace) => store.recordRequestTrace(trace)`   | `server: Layer.mergeAll(AppServices, Devtools.layerTracer(store))`  |
+| `StartRequestTrace`, `StartRequestTraceHandler`                | removed; read the request span's attributes                         |
+| `Devtools.RequestTrace`, `RuntimeEvent` `_tag: "RequestTrace"` | `Devtools.Span` (`snapshot.spans`); requests are `summary.requests` |
+| `store.recordRequestTrace(trace)`, `requestTraceLimit`         | `store.recordSpan(span)`, `spanLimit`                               |
+| `summary.requests.traces`, `overview.requestTraceCount`        | `summary.requests`, `overview.requestCount`                         |
+| causal `RequestTrace` / `Endpoint` / `ServerFunction` nodes    | removed; follow the request span's child spans                      |
 
 ## From Reducers And Effect Queues
 

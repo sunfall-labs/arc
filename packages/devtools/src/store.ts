@@ -1,11 +1,10 @@
 import type { Route } from "@sunfall/arc-core";
 import { Timeline, type Action, type Resource } from "@sunfall/arc-core";
-import { Effect, Option } from "effect";
+import { Effect, Layer, Option, Tracer } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
   DevtoolsInvalidationPlan,
   DevtoolsRecordActionStateOptions,
-  DevtoolsRequestTrace,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSnapshot,
@@ -13,23 +12,20 @@ import type {
   DevtoolsStoreOptions,
 } from "./devtools-contract.js";
 import {
-  ensureRequestTraceId,
   findMatchingDevtoolsFactIndex,
-  normalizeRequestTraceFacts,
-  rebaseRequestTraceInvalidations,
   rebaseRuntimeEventInvalidations,
   rebaseRuntimeEventRoutePlans,
   rebaseSnapshotActionInvalidations,
-  requestTraceSequence,
 } from "./fact-identity.js";
 import {
   copyDevtoolsRoutePlan,
   copyDevtoolsRuntimeEvent,
   copyDevtoolsSnapshot,
+  copyDevtoolsSpan,
   copyInvalidationPlan,
-  copyRequestTrace,
   describeInvalidationPlan,
   describeRoutePlan,
+  describeSpan,
 } from "./serialization.js";
 import { describeDevtoolsPanels } from "./panels.js";
 import { describeDevtoolsCausalGraph, describeDevtoolsSummary } from "./summary.js";
@@ -53,11 +49,10 @@ const boundedHistory = <A>(entries: ReadonlyArray<A>, limit: number): ReadonlyAr
 export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsStore => {
   const invalidationLimit = normalizeHistoryLimit(options.invalidationLimit, 50);
   const routePlanLimit = normalizeHistoryLimit(options.routePlanLimit, 50);
-  const requestTraceLimit = normalizeHistoryLimit(options.requestTraceLimit, 50);
+  const spanLimit = normalizeHistoryLimit(options.spanLimit, 200);
   const eventLimit = normalizeHistoryLimit(options.eventLimit, 500);
   const serializationPolicy = options.serializationPolicy;
   let nextEventSequence = 0;
-  let nextRequestTraceSequence = 0;
   let snapshot: DevtoolsSnapshot = {
     resources: [],
     actions: [],
@@ -69,46 +64,21 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     events: ReadonlyArray<DevtoolsRuntimeEvent>,
   ): ReadonlyArray<DevtoolsRuntimeEvent> => boundedHistory(events, eventLimit);
 
-  const normalizeImportedSnapshot = (
-    next: DevtoolsSnapshot,
-  ): {
-    readonly snapshot: DevtoolsSnapshot;
-    readonly nextRequestTraceSequence: number;
-  } => {
+  const normalizeImportedSnapshot = (next: DevtoolsSnapshot): DevtoolsSnapshot => {
     const invalidationDropped = Math.max(0, next.invalidations.length - invalidationLimit);
     const routePlanDropped = Math.max(0, next.routePlans.length - routePlanLimit);
-    const normalizedRequestFacts = normalizeRequestTraceFacts(
-      next.requestTraces ?? [],
-      next.events ?? [],
-    );
-    const normalizedInput: DevtoolsSnapshot = {
-      ...next,
-      ...(next.requestTraces === undefined
-        ? {}
-        : { requestTraces: normalizedRequestFacts.requestTraces }),
-      ...(next.events === undefined ? {} : { events: normalizedRequestFacts.events }),
-    };
     const boundedInput: DevtoolsSnapshot = {
-      ...normalizedInput,
-      invalidations: boundedHistory(normalizedInput.invalidations, invalidationLimit),
-      routePlans: boundedHistory(normalizedInput.routePlans, routePlanLimit),
-      ...(normalizedInput.requestTraces === undefined
-        ? {}
-        : { requestTraces: boundedHistory(normalizedInput.requestTraces, requestTraceLimit) }),
-      ...(normalizedInput.events === undefined
-        ? {}
-        : { events: boundedEvents(normalizedInput.events) }),
+      ...next,
+      invalidations: boundedHistory(next.invalidations, invalidationLimit),
+      routePlans: boundedHistory(next.routePlans, routePlanLimit),
+      ...(next.spans === undefined ? {} : { spans: boundedHistory(next.spans, spanLimit) }),
+      ...(next.events === undefined ? {} : { events: boundedEvents(next.events) }),
     };
     const importedSnapshot = copyDevtoolsSnapshot(boundedInput, serializationPolicy);
-    const boundedRequestTraces = importedSnapshot.requestTraces;
     const actions =
       invalidationDropped === 0
         ? importedSnapshot.actions
         : rebaseSnapshotActionInvalidations(importedSnapshot.actions, invalidationDropped);
-    const requestTracesAfterInvalidation =
-      invalidationDropped === 0
-        ? boundedRequestTraces
-        : rebaseRequestTraceInvalidations(boundedRequestTraces, invalidationDropped);
     const eventsAfterInvalidation =
       invalidationDropped === 0
         ? importedSnapshot.events
@@ -122,17 +92,12 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     const events = normalizedEvents === undefined ? undefined : boundedEvents(normalizedEvents);
 
     return {
-      snapshot: {
-        resources: importedSnapshot.resources,
-        actions,
-        invalidations: importedSnapshot.invalidations,
-        routePlans: importedSnapshot.routePlans,
-        ...(requestTracesAfterInvalidation === undefined
-          ? {}
-          : { requestTraces: requestTracesAfterInvalidation }),
-        ...(events === undefined ? {} : { events }),
-      },
-      nextRequestTraceSequence: normalizedRequestFacts.nextRequestTraceSequence,
+      resources: importedSnapshot.resources,
+      actions,
+      invalidations: importedSnapshot.invalidations,
+      routePlans: importedSnapshot.routePlans,
+      ...(importedSnapshot.spans === undefined ? {} : { spans: importedSnapshot.spans }),
+      ...(events === undefined ? {} : { events }),
     };
   };
 
@@ -254,12 +219,10 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     }
 
     const rebasedEvents = rebaseRuntimeEventInvalidations(snapshot.events, dropped);
-    const rebasedRequestTraces = rebaseRequestTraceInvalidations(snapshot.requestTraces, dropped);
     snapshot = {
       ...snapshot,
       invalidations,
       actions: rebaseSnapshotActionInvalidations(snapshot.actions, dropped),
-      ...(rebasedRequestTraces === undefined ? {} : { requestTraces: rebasedRequestTraces }),
       ...(rebasedEvents === undefined ? {} : { events: rebasedEvents }),
     };
     return invalidations.length - 1;
@@ -318,29 +281,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
           }),
         )
       : Effect.void;
-
-  const recordRequestTrace = (trace: DevtoolsRequestTrace): void => {
-    const copiedInput = copyRequestTrace(trace, serializationPolicy);
-    const existingSequence = requestTraceSequence(copiedInput.request.id);
-    if (existingSequence !== undefined) {
-      nextRequestTraceSequence = Math.max(nextRequestTraceSequence, existingSequence + 1);
-    }
-
-    const fallbackId = `trace:${nextRequestTraceSequence}`;
-    const copied = ensureRequestTraceId(copiedInput, fallbackId);
-    if (copiedInput.request.id === undefined) {
-      nextRequestTraceSequence += 1;
-    }
-
-    snapshot = {
-      ...snapshot,
-      requestTraces: boundedHistory([...(snapshot.requestTraces ?? []), copied], requestTraceLimit),
-    };
-    recordRuntimeEvent({
-      _tag: "RequestTrace",
-      trace: copied,
-    });
-  };
 
   const recordActionState = (
     action: string,
@@ -401,9 +341,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     Effect.sync(() => copyDevtoolsSnapshot(snapshot, serializationPolicy));
   const setSnapshotEffect = (next: DevtoolsSnapshot) =>
     Effect.sync(() => {
-      const imported = normalizeImportedSnapshot(next);
-      snapshot = imported.snapshot;
-      nextRequestTraceSequence = imported.nextRequestTraceSequence;
+      snapshot = normalizeImportedSnapshot(next);
       nextEventSequence = nextRuntimeEventSequence(snapshot.events);
     });
   const recordInvalidationEffect = (plan: Resource.InvalidationPlan) =>
@@ -469,9 +407,15 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     Effect.sync(() => {
       recordRuntimeEvent(event);
     });
-  const recordRequestTraceEffect = (trace: DevtoolsRequestTrace) =>
+  const recordSpanEffect = (span: Tracer.Span) =>
     Effect.sync(() => {
-      recordRequestTrace(trace);
+      snapshot = {
+        ...snapshot,
+        spans: boundedHistory(
+          [...(snapshot.spans ?? []), copyDevtoolsSpan(describeSpan(span), serializationPolicy)],
+          spanLimit,
+        ),
+      };
     });
   const summaryInput = (): { readonly snapshot: DevtoolsSnapshot } => ({
     snapshot: copyDevtoolsSnapshot(snapshot, serializationPolicy),
@@ -494,7 +438,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     recordTimelineEntry: recordTimelineEntryEffect,
     trackTimeline: trackTimelineEffect,
     recordRuntimeEvent: recordRuntimeEventEffect,
-    recordRequestTrace: recordRequestTraceEffect,
+    recordSpan: recordSpanEffect,
     getSummary: getSummaryEffect,
     getPanels: getPanelsEffect,
     getCausalGraph: getCausalGraphEffect,
@@ -502,3 +446,26 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
 
   return store;
 };
+
+/**
+ * Wraps the current Effect `Tracer` so every span that ends is also recorded
+ * into the store. Spans still reach the wrapped tracer (OpenTelemetry etc.).
+ */
+export const devtoolsTracerLayer = (store: DevtoolsStore): Layer.Layer<never> =>
+  Layer.effect(
+    Tracer.Tracer,
+    Effect.map(Effect.tracer, (inner) =>
+      Tracer.make({
+        ...inner,
+        span(options) {
+          const span = inner.span(options);
+          const end = span.end;
+          span.end = (endTime, exit) => {
+            end.call(span, endTime, exit);
+            Effect.runSync(store.recordSpan(span));
+          };
+          return span;
+        },
+      }),
+    ),
+  );

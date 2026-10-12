@@ -16,7 +16,6 @@ import { KeyValueStore } from "effect/persistence";
 export {
   completeRequestRuntimeWithResponse,
   type RequestRuntimeFinalizeState,
-  type RequestRuntimeStreamFinalizeState,
 } from "./request-runtime-response.js";
 
 export const makeRequestRuntime = <

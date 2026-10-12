@@ -110,7 +110,6 @@ import {
   type StartHydrationError,
   type StartRequestHandler,
   type StartRequestHandlerError,
-  type StartRequestTrace,
 } from "@sunfall/arc-start";
 import { makeActionTransportLayer } from "../packages/start/src/start-action-transport.js";
 import { makeRpcClientLayer } from "../packages/start/src/start-rpc-client.js";
@@ -140,7 +139,6 @@ import {
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
-  type StartRequestTraceTeardown,
 } from "../packages/start/src/request-trace.js";
 import {
   startTransportEndpointEnvelope,
@@ -1400,45 +1398,7 @@ const StartApp = App.define({
 const StartServerApp = makeStartServerApp({ routes: [ProjectRoute] as const });
 const startLaunchEffect: Effect.Effect<never, App.LaunchError> = App.launch(StartApp);
 void startLaunchEffect;
-const requestTraceHandler = (trace: StartRequestTrace) => {
-  const devtoolsTrace: Devtools.RequestTrace = trace;
-  const teardownStartedAt: number | undefined = trace.teardown?.startedAt;
-  const teardownCompletedAt: number | undefined = trace.teardown?.completedAt;
-  const teardownDurationMillis: number | undefined = trace.teardown?.durationMillis;
-  const beforeDisposeFiberCount: number | undefined = trace.teardown?.beforeDispose?.fiberCount;
-  const afterDisposeModuleCount: number | undefined = trace.teardown?.afterDispose?.moduleCount;
-  void teardownStartedAt;
-  void teardownCompletedAt;
-  void teardownDurationMillis;
-  void beforeDisposeFiberCount;
-  void afterDisposeModuleCount;
-  void devtoolsTrace;
-  return Effect.void.pipe(Effect.asVoid);
-};
-const startRequestTraceTeardown: StartRequestTraceTeardown = {
-  runtimeDisposed: true,
-  reason: "response-end",
-  startedAt: 10,
-  completedAt: 17,
-  durationMillis: 7,
-  beforeDispose: {
-    fiberCount: 2,
-    familyCount: 1,
-    moduleCount: 1,
-    tagCount: 1,
-  },
-  afterDispose: {
-    fiberCount: 0,
-    familyCount: 1,
-    moduleCount: 0,
-    tagCount: 1,
-  },
-};
-const devtoolsRequestTraceTeardown: NonNullable<Devtools.RequestTrace["teardown"]> =
-  startRequestTraceTeardown;
-void devtoolsRequestTraceTeardown;
 createRequestHandler(StartApp, {
-  onRequestTrace: requestTraceHandler,
   document: ({ match, request }) => ({
     title: match?.href ?? request.url,
     meta: [{ name: "description", content: "Projects" }],
@@ -1449,10 +1409,6 @@ createRequestHandler(StartApp, {
 createRequestHandler(StartApp, {
   // @ts-expect-error Start document functions return a StartDocument, not a Promise
   document: () => promisedString,
-});
-createRequestHandler(StartApp, {
-  // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
-  onRequestTrace: () => promisedVoid,
 });
 declare const startResponsePromise: Promise<Response>;
 // @ts-expect-error Start host adapters reject request handlers that return Promise
@@ -2931,8 +2887,6 @@ const devtoolsTimelineCommit: Devtools.TimelineCommit = {
 Effect.runSync(devtoolsStore.recordTimelineEntry(projectProgramHistory[0]!));
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackTimeline(projectTimeline);
-declare const startRuntimeRequestTrace: StartRequestTrace;
-const devtoolsRuntimeRequestTrace: Devtools.RequestTrace = startRuntimeRequestTrace;
 const devtoolsResourceRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "ResourceStoreEvent",
   sequence: 1,
@@ -2948,14 +2902,9 @@ const devtoolsTimelineRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "TimelineCommit",
   commit: devtoolsTimelineCommit,
 };
-const devtoolsRequestRuntimeEvent: Devtools.RuntimeEvent = {
-  _tag: "RequestTrace",
-  trace: devtoolsRuntimeRequestTrace,
-};
 const devtoolsRuntimeEvents: ReadonlyArray<Devtools.RuntimeEvent> = [
   devtoolsResourceRuntimeEvent,
   devtoolsTimelineRuntimeEvent,
-  devtoolsRequestRuntimeEvent,
 ];
 const devtoolsRuntimeSnapshot: Devtools.Snapshot = {
   resources: [],

@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
+import { Cause, Context, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Tracer } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
 import { Devtools, DevtoolsActionInvalidationPlanConflict } from "../src/index.js";
@@ -20,6 +20,30 @@ import { devtoolsPanelStyles } from "../src/panel-renderer.js";
 import { defaultRuntime } from "@sunfall/arc-core/internal";
 
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
+
+const requestSpan = (
+  id: string,
+  path: string,
+  status: "success" | "failure",
+  attributes: Record<string, unknown> = {},
+): Devtools.Span => ({
+  traceId: "trace",
+  spanId: id,
+  name: "sunfall-arc.start.request",
+  kind: "server",
+  startTime: 0,
+  durationMillis: status === "success" ? 12 : 34,
+  status,
+  attributes: {
+    "http.request.method": "GET",
+    "url.path": path,
+    "sunfall-arc.request.transport": "rpc",
+    "sunfall-arc.request.status": status,
+    "http.response.status_code": status === "success" ? 200 : 500,
+    "sunfall-arc.teardown.runtime_disposed": status !== "failure",
+    ...attributes,
+  },
+});
 
 const installBridgeForTest = (
   ...args: Parameters<typeof Devtools.installBridge>
@@ -162,7 +186,7 @@ describe("devtools invalidation plans", () => {
     );
     const invalidationStore = Devtools.makeStore({ invalidationLimit: 0 });
     const routeStore = Devtools.makeStore({ routePlanLimit: -1 });
-    const traceStore = Devtools.makeStore({ requestTraceLimit: Number.NaN });
+    const spanStore = Devtools.makeStore({ spanLimit: Number.NaN });
     const eventStore = Devtools.makeStore({ eventLimit: Number.POSITIVE_INFINITY });
 
     for (let index = 0; index < 55; index++) {
@@ -173,24 +197,19 @@ describe("devtools invalidation plans", () => {
         }),
       );
       Effect.runSync(routeStore.recordRoutePlan(routePlan));
-      Effect.runSync(
-        traceStore.recordRequestTrace({
-          request: {
-            id: `req:${index}`,
-            method: "GET",
-            url: `https://example.test/history/${index}`,
-            path: `/history/${index}`,
-            transport: "ssr",
-          },
-          services: [],
-          resources: [],
-          serverFunctions: [],
-          actions: [],
-          fibers: [],
-          streams: [],
-          status: "success",
-        }),
-      );
+    }
+    for (let index = 0; index < 205; index++) {
+      const span = new Tracer.NativeSpan({
+        name: `span:${index}`,
+        parent: Option.none(),
+        annotations: Context.empty(),
+        links: [],
+        startTime: 0n,
+        kind: "internal",
+        sampled: true,
+      });
+      span.end(1_000_000n, Exit.void);
+      Effect.runSync(spanStore.recordSpan(span));
     }
     for (let index = 0; index < 505; index++) {
       Effect.runSync(
@@ -203,7 +222,7 @@ describe("devtools invalidation plans", () => {
 
     expect(Effect.runSync(invalidationStore.getSnapshot()).invalidations).toHaveLength(50);
     expect(Effect.runSync(routeStore.getSnapshot()).routePlans).toHaveLength(50);
-    expect(Effect.runSync(traceStore.getSnapshot()).requestTraces).toHaveLength(50);
+    expect(Effect.runSync(spanStore.getSnapshot()).spans).toHaveLength(200);
     expect(Effect.runSync(eventStore.getSnapshot()).events).toHaveLength(500);
   });
 
@@ -436,80 +455,6 @@ describe("devtools invalidation plans", () => {
         );
       }),
     );
-  });
-
-  it("rebases request trace action invalidation links after bounded history trimming", () => {
-    const firstPlan: Devtools.InvalidationPlan = {
-      targets: [{ _tag: "Tag", key: "Project.first", name: "Project.first" }],
-      entries: [],
-    };
-    const secondPlan: Devtools.InvalidationPlan = {
-      targets: [{ _tag: "Tag", key: "Project.second", name: "Project.second" }],
-      entries: [],
-    };
-    const thirdPlan: Devtools.InvalidationPlan = {
-      targets: [{ _tag: "Tag", key: "Project.third", name: "Project.third" }],
-      entries: [],
-    };
-    const store = Devtools.makeStore({ invalidationLimit: 2 });
-
-    Effect.runSync(store.recordSerializedInvalidation(firstPlan));
-    Effect.runSync(store.recordSerializedInvalidation(secondPlan));
-    Effect.runSync(
-      store.recordRequestTrace({
-        request: {
-          id: "req-project-action",
-          method: "POST",
-          url: "https://example.test/__sunfall-arc/action",
-          path: "/__sunfall-arc/action",
-          transport: "action",
-        },
-        services: [],
-        resources: [],
-        serverFunctions: [],
-        actions: [
-          {
-            name: "Project.rename",
-            state: "Success",
-            invalidationIndexes: [1],
-          },
-        ],
-        fibers: [],
-        streams: [],
-        status: "success",
-      }),
-    );
-    Effect.runSync(store.recordSerializedInvalidation(thirdPlan));
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    expect(snapshot.invalidations).toEqual([secondPlan, thirdPlan]);
-    expect(snapshot.requestTraces?.[0]?.actions).toEqual([
-      {
-        name: "Project.rename",
-        state: "Success",
-        invalidationIndexes: [0],
-      },
-    ]);
-    expect(snapshot.events?.find((event) => event._tag === "RequestTrace")).toMatchObject({
-      _tag: "RequestTrace",
-      trace: {
-        actions: [
-          {
-            name: "Project.rename",
-            state: "Success",
-            invalidationIndexes: [0],
-          },
-        ],
-      },
-    });
-    expect(Effect.runSync(store.getSummary()).requests.traces[0]?.actions).toEqual([
-      {
-        name: "Project.rename",
-        state: "Success",
-        failureKind: null,
-        invalidationIndexes: [0],
-      },
-    ]);
   });
 
   it("tracks action instances as scoped runtime facts", async () => {
@@ -878,38 +823,77 @@ describe("devtools invalidation plans", () => {
     expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
   });
 
-  it("renders deterministic browser panel HTML from the panel contract", async () => {
-    const requestTrace = (
-      id: string,
-      path: string,
-      status: Devtools.RequestTrace["status"],
-    ): Devtools.RequestTrace => ({
-      request: {
-        id,
-        method: "GET",
-        url: `https://example.test${path}`,
-        path,
+  it("records ended spans through the tracer layer and projects Start requests", () => {
+    const store = Devtools.makeStore();
+    const request = Effect.gen(function* () {
+      yield* Effect.exit(
+        Effect.fail("boom").pipe(
+          Effect.withSpan("sunfall-arc.start.rpc", {
+            attributes: { "sunfall-arc.rpc.name": "Project.load" },
+          }),
+        ),
+      );
+      yield* Effect.annotateCurrentSpan({
+        "sunfall-arc.failure.kind": "domain",
+        "sunfall-arc.request.status": "failure",
+        "sunfall-arc.route.href": "/projects/atlas?token=secret&tab=1",
+        "sunfall-arc.teardown.runtime_disposed": true,
+        "sunfall-arc.teardown.fibers": 0,
+      });
+    }).pipe(
+      Effect.withSpan("sunfall-arc.start.request", {
+        attributes: {
+          "http.request.method": "POST",
+          "url.path": "/_sunfall-arc/rpc",
+          "sunfall-arc.request.transport": "rpc",
+        },
+      }),
+    );
+
+    Effect.runSync(Effect.provide(request, Devtools.layerTracer(store)));
+
+    const snapshot = Effect.runSync(store.getSnapshot());
+    expect(snapshot.spans?.map((span) => span.name)).toEqual([
+      "sunfall-arc.start.rpc",
+      "sunfall-arc.start.request",
+    ]);
+    expect(snapshot.spans?.[1]?.attributes["sunfall-arc.route.href"]).toBe(
+      "/projects/atlas?[redacted]=[redacted]&tab=1",
+    );
+    const summary = Effect.runSync(store.getSummary());
+    expect(summary.overview).toMatchObject({ requestCount: 1, spanCount: 2 });
+    expect(summary.requests).toEqual([
+      expect.objectContaining({
+        method: "POST",
+        path: "/_sunfall-arc/rpc",
         transport: "rpc",
-      },
-      response: {
-        status: status === "success" ? 200 : 500,
-      },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status,
-      teardown: {
-        runtimeDisposed: status !== "failure",
-        durationMillis: status === "success" ? 12 : 34,
-      },
+        status: "failure",
+        failureKind: "domain",
+        runtimeDisposed: true,
+        fibersAfterDispose: 0,
+        children: [{ name: "Project.load", status: "failure" }],
+      }),
+    ]);
+    const requestsPanel = Effect.runSync(store.getPanels()).panels.find(
+      (panel) => panel.id === "requests",
+    );
+    expect(requestsPanel).toMatchObject({
+      severity: "error",
+      summary: "1 requests, 1 failures, 0 cancelled",
+      items: [
+        expect.objectContaining({
+          label: "POST /_sunfall-arc/rpc",
+          detail: "rpc failure (domain) Project.load:failure",
+        }),
+      ],
     });
+  });
+
+  it("renders deterministic browser panel HTML from the panel contract", async () => {
     const panels = Devtools.describePanels({
-      requestTraces: [
-        requestTrace("safe", "/projects/<atlas>", "success"),
-        requestTrace("failed", "/projects/failure", "failure"),
+      spans: [
+        requestSpan("safe", "/projects/<atlas>", "success"),
+        requestSpan("failed", "/projects/failure", "failure"),
       ],
     });
     const html = Devtools.renderPanelsHtml({
@@ -1970,151 +1954,6 @@ describe("devtools invalidation plans", () => {
     );
   });
 
-  it("links request-embedded route plans to matching recorded route-plan facts", async () => {
-    const OtherRoute = Route.define("/request-route-other/:id", {});
-    const RequestTargetRoute = Route.define("/request-route-targets/:a/:b", {});
-    const otherPlan = describeRoutePlan(
-      await Effect.runPromise(
-        Route.planNavigation([OtherRoute] as const, "/request-route-other/1"),
-      ),
-    );
-    const routePlan = describeRoutePlan(
-      await Effect.runPromise(
-        Route.planNavigation([RequestTargetRoute] as const, "/request-route-targets/1/2"),
-      ),
-    );
-    const requestRoutePlan: Devtools.RoutePlan =
-      routePlan._tag === "Matched" && routePlan.match !== undefined
-        ? {
-            ...routePlan,
-            match: {
-              ...routePlan.match,
-              params: { b: "2", a: "1" },
-            },
-          }
-        : routePlan;
-    const summary = Devtools.describeSummary({
-      snapshot: {
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [otherPlan, routePlan],
-        requestTraces: [
-          {
-            request: {
-              id: "req-route-target",
-              method: "GET",
-              url: "https://example.test/request-route-targets/1/2",
-              path: "/request-route-targets/1/2",
-              transport: "ssr",
-            },
-            response: { status: 200 },
-            services: [],
-            routePlan: requestRoutePlan,
-            resources: [],
-            serverFunctions: [],
-            actions: [],
-            fibers: [],
-            streams: [],
-            status: "success",
-          },
-        ],
-      },
-    });
-
-    expect(summary.causalGraph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Records",
-        source: "request-trace:req-route-target",
-        target: "route-plan:1:/request-route-targets/1/2",
-      }),
-    );
-    expect(summary.causalGraph.nodes).not.toContainEqual(
-      expect.objectContaining({ id: "route-plan:0:/request-route-targets/1/2" }),
-    );
-  });
-
-  it("keeps request-embedded route-plan identity disjoint from recorded plans with the same href", () => {
-    const recordedPlan: Devtools.RoutePlan = {
-      _tag: "Matched",
-      href: "/same-route",
-      match: {
-        path: "/same-route",
-        href: "/same-route",
-        params: {},
-        search: {},
-      },
-      resources: [
-        {
-          key: "Recorded:1",
-          family: "Recorded",
-          input: null,
-        },
-      ],
-      hydration: {
-        resourceCount: 0,
-      },
-    };
-    const embeddedPlan: Devtools.RoutePlan = {
-      ...recordedPlan,
-      resources: [
-        {
-          key: "Embedded:1",
-          family: "Embedded",
-          input: null,
-        },
-      ],
-    };
-    const summary = Devtools.describeSummary({
-      snapshot: {
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [recordedPlan],
-        requestTraces: [
-          {
-            request: {
-              id: "request-with-colliding-plan",
-              method: "GET",
-              url: "https://example.test/same-route",
-              path: "/same-route",
-              transport: "ssr",
-            },
-            services: [],
-            routePlan: embeddedPlan,
-            resources: [],
-            serverFunctions: [],
-            actions: [],
-            fibers: [],
-            streams: [],
-            status: "success",
-          },
-        ],
-      },
-    });
-
-    expect(summary.causalGraph.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "route-plan:0:/same-route" }),
-        expect.objectContaining({ id: "route-plan:1:/same-route" }),
-      ]),
-    );
-    expect(summary.causalGraph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Records",
-        source: "request-trace:request-with-colliding-plan",
-        target: "route-plan:1:/same-route",
-      }),
-    );
-    expect(summary.causalGraph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Preloads",
-        source: "route-plan:1:/same-route",
-        target: "resource:Embedded:1",
-      }),
-    );
-  });
-
   it("keeps causal edge ids stable when unrelated facts are inserted first", () => {
     const snapshot = {
       resources: [],
@@ -2162,50 +2001,6 @@ describe("devtools invalidation plans", () => {
 
     expect(baseId).toBeDefined();
     expect(graphWithUnrelatedFactsId).toBe(baseId);
-  });
-
-  it("frames causal edge id parts so source and target delimiters cannot collide", () => {
-    const requestTrace = (id: string, resourceKey: string): Devtools.RequestTrace => ({
-      request: {
-        id,
-        method: "GET",
-        url: `https://example.test/${id}`,
-        path: `/${id}`,
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [
-        {
-          key: resourceKey,
-          family: "Project",
-          state: "Success",
-        },
-      ],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    });
-    const graph = Devtools.describeCausalGraph({
-      snapshot: {
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        requestTraces: [requestTrace("a", "b->resource:c"), requestTrace("a->resource:b", "c")],
-      },
-    });
-    const collidingRecordsEdges = graph.edges.filter(
-      (edge) =>
-        edge.kind === "Records" &&
-        edge.source.startsWith("request-trace:") &&
-        edge.target.startsWith("resource:"),
-    );
-
-    expect(collidingRecordsEdges).toHaveLength(2);
-    expect(new Set(collidingRecordsEdges.map((edge) => edge.id)).size).toBe(2);
   });
 
   it("normalizes non-JSON values before they reach the summary", () => {
@@ -2695,1128 +2490,11 @@ describe("devtools invalidation plans", () => {
     });
   });
 
-  it("redacts sensitive request trace URL queries, headers, and cookies before storage and projection", () => {
-    const store = Devtools.makeStore({
-      serializationPolicy: {
-        redactKeys: ["tenantPrivate"],
-      },
-    });
-    const trace: Devtools.RequestTrace = {
-      request: {
-        id: "req-sensitive",
-        method: "POST",
-        url: "https://example.test/projects/secret?tab=activity&accessToken=raw-url-token&tenantPrivate=raw-url-tenant&api_key=raw-url-api-key",
-        path: "/projects/secret?tab=activity&password=raw-path-password&tenantPrivate=raw-path-tenant",
-        transport: "rpc",
-        headers: [
-          { name: "accept", value: "application/json" },
-          { name: "authorization", value: "Bearer raw-secret" },
-          { name: "cookie", value: "sid=raw-cookie; theme=dark" },
-          { name: "x-api-key", value: "raw-api-key" },
-        ],
-        cookies: [
-          { name: "theme", value: "dark" },
-          { name: "session", value: "raw-session" },
-          { name: "csrfToken", value: "raw-csrf" },
-        ],
-      },
-      response: {
-        status: 200,
-        headers: [
-          { name: "content-type", value: "application/json" },
-          { name: "set-cookie", value: "sid=raw-set-cookie; Path=/" },
-          { name: "x-api-key", value: "raw-response-key" },
-        ],
-      },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      routePlan: {
-        _tag: "Matched",
-        href: "/projects/secret?accessToken=raw-route-token&tenantPrivate=raw-route-tenant",
-        match: {
-          path: "/projects/:id",
-          href: "/projects/secret?password=raw-route-password&tenantPrivate=raw-route-tenant",
-          params: { id: "secret" },
-          search: {
-            accessToken: "raw-search-token",
-            tab: "activity",
-          },
-        },
-        resources: [],
-        hydration: {
-          resourceCount: 0,
-        },
-      },
-      status: "success",
-    };
-
-    Effect.runSync(store.recordRequestTrace(trace));
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    const storedTrace = snapshot.requestTraces?.[0];
-    expect(storedTrace?.request.url).toContain("tab=activity");
-    expect(storedTrace?.request.url).toContain("[redacted]=[redacted]");
-    expect(storedTrace?.request.path).toContain("tab=activity");
-    expect(storedTrace?.request.path).toContain("[redacted]=[redacted]");
-    expect(storedTrace?.request.headers).toEqual(
-      expect.arrayContaining([
-        { name: "accept", value: "application/json" },
-        { name: "[redacted]", value: "[redacted]" },
-      ]),
-    );
-    expect(
-      storedTrace?.request.headers?.filter((header) => header.name === "[redacted]"),
-    ).toHaveLength(3);
-    expect(storedTrace?.response?.headers).toEqual(
-      expect.arrayContaining([
-        { name: "content-type", value: "application/json" },
-        { name: "[redacted]", value: "[redacted]" },
-      ]),
-    );
-    expect(
-      storedTrace?.response?.headers?.filter((header) => header.name === "[redacted]"),
-    ).toHaveLength(2);
-    expect(storedTrace?.request.cookies).toEqual(
-      expect.arrayContaining([
-        { name: "theme", value: "[redacted]" },
-        { name: "[redacted]", value: "[redacted]" },
-      ]),
-    );
-    expect(storedTrace?.request.cookies?.every((cookie) => cookie.value === "[redacted]")).toBe(
-      true,
-    );
-    expect(
-      storedTrace?.request.cookies?.filter((cookie) => cookie.name === "[redacted]"),
-    ).toHaveLength(2);
-
-    const projections = [
-      snapshot,
-      Effect.runSync(store.getSummary()),
-      Effect.runSync(store.getPanels()),
-      Effect.runSync(store.getCausalGraph()),
-    ];
-    for (const projection of projections) {
-      const projected = JSON.stringify(projection).toLowerCase();
-      for (const raw of [
-        "authorization",
-        "bearer raw-secret",
-        "sid=raw-cookie",
-        "x-api-key",
-        "raw-api-key",
-        "set-cookie",
-        "raw-set-cookie",
-        "raw-response-key",
-        "raw-session",
-        "raw-csrf",
-        "raw-url-token",
-        "tenantprivate",
-        "raw-url-tenant",
-        "api_key",
-        "raw-url-api-key",
-        "password",
-        "raw-path-password",
-        "raw-path-tenant",
-        "raw-route-token",
-        "raw-route-password",
-        "raw-route-tenant",
-        "raw-search-token",
-      ]) {
-        expect(projected).not.toContain(raw);
-      }
-    }
-  });
-
-  it("records structured request traces and links them into the causal graph", async () => {
-    const store = Devtools.makeStore();
-    const trace: Devtools.RequestTrace = {
-      request: {
-        id: "req-project-atlas",
-        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-        method: "GET",
-        url: "https://example.test/projects/atlas?tab=activity",
-        path: "/projects/atlas",
-        transport: "rpc",
-        headers: [
-          { name: "accept", value: "application/json" },
-          { name: "x-sunfall-arc-request-id", value: "req-project-atlas" },
-        ],
-        cookies: [{ name: "[redacted]", value: "[redacted]" }],
-      },
-      response: {
-        status: 200,
-        statusText: "OK",
-        headers: [{ name: "content-type", value: "application/json" }],
-        setCookieCount: 1,
-      },
-      services: ["Clock", "ProjectApi"],
-      routePlan: {
-        _tag: "Matched",
-        href: "/projects/atlas?tab=activity",
-        match: {
-          path: "/projects/:id",
-          href: "/projects/atlas?tab=activity",
-          params: { id: "atlas" },
-          search: { tab: "activity" },
-        },
-        resources: [
-          {
-            key: "Project.byId:atlas",
-            family: "Project.byId",
-            input: { id: "atlas" },
-          },
-        ],
-        hydration: {
-          resourceCount: 1,
-          resourceKeys: ["Project.byId:atlas"],
-        },
-      },
-      resources: [
-        {
-          key: "Project.byId:atlas",
-          family: "Project.byId",
-          input: { id: "atlas" },
-          state: "Success",
-        },
-      ],
-      serverFunctions: [
-        {
-          name: "Project.load",
-          status: "success",
-        },
-      ],
-      actions: [
-        {
-          name: "Project.rename",
-          state: "Success",
-          invalidationIndexes: [0],
-        },
-      ],
-      fibers: [
-        {
-          name: "render",
-          status: "done",
-        },
-      ],
-      streams: [
-        {
-          name: "html",
-          state: "closed",
-          chunkCount: 3,
-        },
-      ],
-      status: "success",
-      teardown: {
-        runtimeDisposed: true,
-        reason: "response-end",
-        at: 123,
-        startedAt: 100,
-        completedAt: 123,
-        durationMillis: 23,
-        beforeDispose: {
-          fiberCount: 2,
-          familyCount: 1,
-          moduleCount: 1,
-          tagCount: 1,
-        },
-        afterDispose: {
-          fiberCount: 0,
-          familyCount: 1,
-          moduleCount: 0,
-          tagCount: 1,
-        },
-      },
-    };
-
-    await Effect.runPromise(store.recordRequestTrace(trace));
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    const summary = Effect.runSync(store.getSummary());
-    const graph = Effect.runSync(store.getCausalGraph());
-
-    expect(snapshot.requestTraces).toEqual([trace]);
-    expect(snapshot.events).toEqual([
-      {
-        _tag: "RequestTrace",
-        sequence: 0,
-        trace,
-      },
-    ]);
-    expect(summary.overview).toMatchObject({
-      requestTraceCount: 1,
-      runtimeEventCount: 1,
-    });
-    expect(summary.requests.traces).toEqual([
-      {
-        index: 0,
-        id: "req-project-atlas",
-        method: "GET",
-        path: "/projects/atlas",
-        url: "https://example.test/projects/atlas?tab=activity",
-        transport: "rpc",
-        status: "success",
-        failureKind: null,
-        responseStatus: 200,
-        serviceCount: 2,
-        resourceCount: 1,
-        serverFunctionCount: 1,
-        actionCount: 1,
-        fiberCount: 1,
-        streamCount: 1,
-        runtimeDisposed: true,
-        teardownReason: "response-end",
-        teardownAt: 123,
-        teardownStartedAt: 100,
-        teardownCompletedAt: 123,
-        durationMillis: 23,
-        beforeDispose: {
-          fiberCount: 2,
-          familyCount: 1,
-          moduleCount: 1,
-          tagCount: 1,
-        },
-        afterDispose: {
-          fiberCount: 0,
-          familyCount: 1,
-          moduleCount: 0,
-          tagCount: 1,
-        },
-        beforeDisposeFiberCount: 2,
-        afterDisposeFiberCount: 0,
-        cleanupFailure: null,
-        serverFunctions: [
-          {
-            name: "Project.load",
-            status: "success",
-            failureKind: null,
-          },
-        ],
-        actions: [
-          {
-            name: "Project.rename",
-            state: "Success",
-            failureKind: null,
-            invalidationIndexes: [0],
-          },
-        ],
-        routeHref: "/projects/atlas?tab=activity",
-      },
-    ]);
-    const panels = Effect.runSync(store.getPanels());
-    const requestPanel = panels.panels.find((panel) => panel.id === "requests");
-    expect(requestPanel).toMatchObject({
-      severity: "ok",
-      metrics: expect.arrayContaining([
-        {
-          label: "average duration",
-          value: 23,
-          unit: "ms",
-        },
-      ]),
-      items: [
-        expect.objectContaining({
-          id: "request:req-project-atlas",
-          label: "GET /projects/atlas",
-          detail: "rpc success",
-          metrics: expect.arrayContaining([
-            {
-              label: "before fibers",
-              value: 2,
-            },
-            {
-              label: "after fibers",
-              value: 0,
-            },
-            {
-              label: "before families",
-              value: 1,
-            },
-            {
-              label: "after modules",
-              value: 0,
-            },
-          ]),
-          data: expect.objectContaining({
-            id: "req-project-atlas",
-            failureKind: null,
-            routeHref: "/projects/atlas?tab=activity",
-            teardownReason: "response-end",
-            runtimeDisposed: true,
-            teardownAt: 123,
-            teardownStartedAt: 100,
-            teardownCompletedAt: 123,
-            durationMillis: 23,
-            beforeDispose: {
-              fiberCount: 2,
-              familyCount: 1,
-              moduleCount: 1,
-              tagCount: 1,
-            },
-            afterDispose: {
-              fiberCount: 0,
-              familyCount: 1,
-              moduleCount: 0,
-              tagCount: 1,
-            },
-            serverFunctions: [
-              {
-                name: "Project.load",
-                status: "success",
-                failureKind: null,
-              },
-            ],
-            actions: [
-              {
-                name: "Project.rename",
-                state: "Success",
-                failureKind: null,
-                invalidationIndexes: [0],
-              },
-            ],
-          }),
-        }),
-      ],
-    });
-    await expect(Effect.runPromise(store.getPanels())).resolves.toMatchObject({
-      panels: expect.arrayContaining([expect.objectContaining({ id: "requests" })]),
-    });
-    expect(summary.runtime.events).toEqual([
-      expect.objectContaining({
-        _tag: "RequestTrace",
-        label: "GET /projects/atlas",
-        target: {
-          kind: "RequestTrace",
-          id: "request-trace:req-project-atlas",
-        },
-      }),
-    ]);
-    expect(summary.resources).toEqual([
-      {
-        key: "Project.byId:atlas",
-        family: "Project.byId",
-        input: { id: "atlas" },
-        state: "Success",
-        sources: ["RequestTrace"],
-        routeHrefs: ["/projects/atlas?tab=activity"],
-        invalidationIndexes: [],
-      },
-    ]);
-    expect(graph.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "request-trace:req-project-atlas", kind: "RequestTrace" }),
-        expect.objectContaining({ id: "endpoint:rpc", kind: "Endpoint" }),
-        expect.objectContaining({ id: "route:/projects/:id", kind: "Route" }),
-        expect.objectContaining({ id: "resource:Project.byId:atlas", kind: "Resource" }),
-        expect.objectContaining({ id: "server-function:Project.load", kind: "ServerFunction" }),
-        expect.objectContaining({ id: "action:Project.rename", kind: "Action" }),
-      ]),
-    );
-    expect(graph.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "UsesEndpoint",
-          source: "request-trace:req-project-atlas",
-          target: "endpoint:rpc",
-        }),
-        expect.objectContaining({
-          kind: "Records",
-          source: "request-trace:req-project-atlas",
-          target: "route-plan:0:/projects/atlas?tab=activity",
-        }),
-        expect.objectContaining({
-          kind: "Matches",
-          source: "route-plan:0:/projects/atlas?tab=activity",
-          target: "route:/projects/:id",
-        }),
-        expect.objectContaining({
-          kind: "Preloads",
-          source: "route-plan:0:/projects/atlas?tab=activity",
-          target: "resource:Project.byId:atlas",
-        }),
-        expect.objectContaining({
-          kind: "Records",
-          source: "request-trace:req-project-atlas",
-          target: "resource:Project.byId:atlas",
-        }),
-        expect.objectContaining({
-          kind: "Records",
-          source: "request-trace:req-project-atlas",
-          target: "server-function:Project.load",
-        }),
-        expect.objectContaining({
-          kind: "Records",
-          source: "request-trace:req-project-atlas",
-          target: "action:Project.rename",
-        }),
-        expect.objectContaining({
-          kind: "Observes",
-          source: "runtime-event:0:RequestTrace",
-          target: "request-trace:req-project-atlas",
-        }),
-      ]),
-    );
-    expect(graph.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "Hydrates",
-          source: "route-plan:0:/projects/atlas?tab=activity",
-          target: "resource:Project.byId:atlas",
-        }),
-      ]),
-    );
-    expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
-  });
-
-  it("preserves bounded request runtime cleanup failures in snapshots, summaries, and panels", () => {
-    const store = Devtools.makeStore();
-    const trace: Devtools.RequestTrace = {
-      request: {
-        id: "req-cleanup-failure",
-        method: "GET",
-        url: "https://example.test/projects/cleanup",
-        path: "/projects/cleanup",
-        transport: "ssr",
-      },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "failure",
-      teardown: {
-        runtimeDisposed: false,
-        reason: "cleanup-failed",
-        cleanupFailure: {
-          _tag: "Failure",
-          message: "cleanup-failed",
-        },
-      },
-    };
-
-    Effect.runSync(store.recordRequestTrace(trace));
-
-    expect(
-      Effect.runSync(store.getSnapshot()).requestTraces?.[0]?.teardown?.cleanupFailure,
-    ).toEqual({
-      _tag: "Failure",
-      message: "cleanup-failed",
-    });
-    expect(Effect.runSync(store.getSummary()).requests.traces[0]?.cleanupFailure).toEqual({
-      _tag: "Failure",
-      message: "cleanup-failed",
-    });
-    expect(
-      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "requests")?.items[0]
-        ?.data,
-    ).toMatchObject({
-      cleanupFailure: {
-        _tag: "Failure",
-        message: "cleanup-failed",
-      },
-    });
-  });
-
-  it("projects runtime-only request trace events into request facts and causal records", () => {
-    const store = Devtools.makeStore();
-    const trace: Devtools.RequestTrace = {
-      request: {
-        id: "req-runtime-only",
-        method: "GET",
-        url: "https://example.test/projects/runtime-only",
-        path: "/projects/runtime-only",
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [
-        {
-          key: "Project.runtime-only:1",
-          family: "Project.runtime-only",
-          input: { id: "1" },
-          state: "Success",
-        },
-      ],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    };
-
-    Effect.runSync(
-      store.recordRuntimeEvent({
-        _tag: "RequestTrace",
-        trace,
-      }),
-    );
-
-    const summary = Effect.runSync(store.getSummary());
-    const requestPanel = Effect.runSync(store.getPanels()).panels.find(
-      (panel) => panel.id === "requests",
-    );
-    const graph = Effect.runSync(store.getCausalGraph());
-
-    expect(summary.requests.traces).toEqual([
-      expect.objectContaining({
-        id: "req-runtime-only",
-        method: "GET",
-        path: "/projects/runtime-only",
-        resourceCount: 1,
-      }),
-    ]);
-    expect(requestPanel?.items).toEqual([
-      expect.objectContaining({
-        id: "request:req-runtime-only",
-        label: "GET /projects/runtime-only",
-      }),
-    ]);
-    expect(summary.resources).toEqual([
-      expect.objectContaining({
-        key: "Project.runtime-only:1",
-        family: "Project.runtime-only",
-        state: "Success",
-        sources: ["RequestTrace"],
-      }),
-    ]);
-    expect(graph.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "Records",
-          source: "request-trace:req-runtime-only",
-          target: "resource:Project.runtime-only:1",
-        }),
-        expect.objectContaining({
-          kind: "Observes",
-          source: "runtime-event:0:RequestTrace",
-          target: "request-trace:req-runtime-only",
-        }),
-      ]),
-    );
-  });
-
-  it("preserves request owner failures in summaries and panels", async () => {
-    const store = Devtools.makeStore();
-    const trace: Devtools.RequestTrace = {
-      request: {
-        id: "req-project-failure",
-        method: "POST",
-        url: "https://example.test/__sunfall-arc/action",
-        path: "/__sunfall-arc/action",
-        transport: "action",
-      },
-      services: ["ProjectApi"],
-      resources: [],
-      serverFunctions: [
-        {
-          name: "Project.load",
-          status: "failure",
-          failureKind: "domain",
-        },
-      ],
-      actions: [
-        {
-          name: "Project.rename",
-          state: "Failure",
-          failureKind: "validation",
-          invalidationIndexes: [2],
-        },
-      ],
-      fibers: [],
-      streams: [],
-      status: "failure",
-      failureKind: "validation",
-      teardown: {
-        runtimeDisposed: true,
-        reason: "action-end",
-        completedAt: 42,
-        durationMillis: 12,
-        beforeDispose: {
-          fiberCount: 1,
-          familyCount: 2,
-          moduleCount: 3,
-          tagCount: 4,
-        },
-        afterDispose: {
-          fiberCount: 0,
-          familyCount: 2,
-          moduleCount: 1,
-          tagCount: 4,
-        },
-      },
-    };
-
-    await Effect.runPromise(store.recordRequestTrace(trace));
-
-    const summary = Effect.runSync(store.getSummary());
-    expect(summary.requests.traces[0]).toMatchObject({
-      failureKind: "validation",
-      beforeDispose: {
-        fiberCount: 1,
-        familyCount: 2,
-        moduleCount: 3,
-        tagCount: 4,
-      },
-      afterDispose: {
-        fiberCount: 0,
-        familyCount: 2,
-        moduleCount: 1,
-        tagCount: 4,
-      },
-      serverFunctions: [
-        {
-          name: "Project.load",
-          status: "failure",
-          failureKind: "domain",
-        },
-      ],
-      actions: [
-        {
-          name: "Project.rename",
-          state: "Failure",
-          failureKind: "validation",
-          invalidationIndexes: [2],
-        },
-      ],
-    });
-
-    const requestPanel = Effect.runSync(store.getPanels()).panels.find(
-      (panel) => panel.id === "requests",
-    );
-    expect(requestPanel?.items[0]).toMatchObject({
-      detail:
-        "action failure (validation) server:Project.load:domain, action:Project.rename:validation",
-      metrics: expect.arrayContaining([
-        {
-          label: "server failures",
-          value: 1,
-        },
-        {
-          label: "action failures",
-          value: 1,
-        },
-        {
-          label: "before modules",
-          value: 3,
-        },
-        {
-          label: "after modules",
-          value: 1,
-        },
-      ]),
-      data: expect.objectContaining({
-        serverFunctions: [
-          {
-            name: "Project.load",
-            status: "failure",
-            failureKind: "domain",
-          },
-        ],
-        actions: [
-          {
-            name: "Project.rename",
-            state: "Failure",
-            failureKind: "validation",
-            invalidationIndexes: [2],
-          },
-        ],
-      }),
-    });
-  });
-
-  it("stamps id-less request traces before runtime-event summarization", () => {
-    const store = Devtools.makeStore();
-    const trace: Devtools.RequestTrace = {
-      request: {
-        method: "GET",
-        url: "https://example.test/projects/atlas",
-        path: "/projects/atlas",
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    };
-
-    Effect.runSync(
-      store.recordRuntimeEvent({
-        _tag: "Custom",
-        sequence: 0,
-        name: "before-trace",
-      }),
-    );
-    Effect.runSync(store.recordRequestTrace(trace));
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    expect(snapshot.requestTraces?.[0]?.request.id).toBe("trace:0");
-    expect(snapshot.events?.[1]).toMatchObject({
-      _tag: "RequestTrace",
-      sequence: 1,
-      trace: {
-        request: {
-          id: "trace:0",
-        },
-      },
-    });
-
-    const graph = Effect.runSync(store.getCausalGraph());
-    expect(graph.nodes.filter((node) => node.kind === "RequestTrace")).toEqual([
-      expect.objectContaining({ id: "request-trace:trace:0" }),
-    ]);
-    expect(graph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Observes",
-        source: "runtime-event:1:RequestTrace",
-        target: "request-trace:trace:0",
-      }),
-    );
-  });
-
-  it("normalizes direct id-less request traces before runtime-event graph projection", () => {
-    const trace: Devtools.RequestTrace = {
-      request: {
-        method: "GET",
-        url: "https://example.test/projects/direct",
-        path: "/projects/direct",
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    };
-    const graph = Devtools.describeCausalGraph({
-      snapshot: {
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        requestTraces: [trace],
-        events: [
-          {
-            _tag: "Custom",
-            sequence: 0,
-            name: "before",
-          },
-          {
-            _tag: "RequestTrace",
-            sequence: 1,
-            trace,
-          },
-        ],
-      },
-    });
-
-    expect(graph.nodes.filter((node) => node.kind === "RequestTrace")).toEqual([
-      expect.objectContaining({ id: "request-trace:trace:0" }),
-    ]);
-    expect(graph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Observes",
-        source: "runtime-event:1:RequestTrace",
-        target: "request-trace:trace:0",
-      }),
-    );
-  });
-
-  it("seeds runtime trace id allocation from caller-supplied trace ids", () => {
-    const store = Devtools.makeStore();
-    const requestTrace = (path: string, id?: string): Devtools.RequestTrace => ({
-      request: {
-        ...(id === undefined ? {} : { id }),
-        method: "GET",
-        url: `https://example.test${path}`,
-        path,
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    });
-
-    Effect.runSync(store.recordRequestTrace(requestTrace("/projects/existing", "trace:1")));
-    Effect.runSync(store.recordRequestTrace(requestTrace("/projects/runtime")));
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual([
-      "trace:1",
-      "trace:2",
-    ]);
-    expect(
-      snapshot.events?.map((event) =>
-        event._tag === "RequestTrace" ? event.trace.request.id : null,
-      ),
-    ).toEqual(["trace:1", "trace:2"]);
-  });
-
-  it("normalizes imported id-less request traces before allocating new trace ids", () => {
-    const store = Devtools.makeStore();
-    const requestTrace = (path: string, id?: string): Devtools.RequestTrace => ({
-      request: {
-        ...(id === undefined ? {} : { id }),
-        method: "GET",
-        url: `https://example.test${path}`,
-        path,
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    });
-    const importedTrace = requestTrace("/projects/imported");
-
-    Effect.runSync(
-      store.setSnapshot({
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        requestTraces: [importedTrace, requestTrace("/projects/existing", "trace:7")],
-        events: [
-          {
-            _tag: "RequestTrace",
-            sequence: 3,
-            trace: importedTrace,
-          },
-        ],
-      }),
-    );
-    Effect.runSync(store.recordRequestTrace(requestTrace("/projects/runtime")));
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual([
-      "trace:8",
-      "trace:7",
-      "trace:9",
-    ]);
-    expect(
-      snapshot.events?.map((event) =>
-        event._tag === "RequestTrace" ? event.trace.request.id : null,
-      ),
-    ).toEqual(["trace:8", "trace:9"]);
-
-    expect(Effect.runSync(store.getSummary()).requests.traces.map((trace) => trace.id)).toEqual([
-      "trace:8",
-      "trace:7",
-      "trace:9",
-    ]);
-    expect(
-      Effect.runSync(store.getCausalGraph())
-        .nodes.filter((node) => node.kind === "RequestTrace")
-        .map((node) => node.id),
-    ).toEqual(["request-trace:trace:7", "request-trace:trace:8", "request-trace:trace:9"]);
-    expect(Effect.runSync(store.getCausalGraph()).edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: "Observes",
-          source: "runtime-event:3:RequestTrace",
-          target: "request-trace:trace:8",
-        }),
-        expect.objectContaining({
-          kind: "Observes",
-          source: "runtime-event:4:RequestTrace",
-          target: "request-trace:trace:9",
-        }),
-      ]),
-    );
-  });
-
-  it("normalizes id-less request traces before applying import trace limits", () => {
-    const store = Devtools.makeStore({
-      requestTraceLimit: 1,
-      eventLimit: 2,
-    });
-    const requestTrace = (resourceKey: string): Devtools.RequestTrace => ({
-      request: {
-        method: "GET",
-        url: "https://example.test/projects/atlas",
-        path: "/projects/atlas",
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [
-        {
-          key: resourceKey,
-          family: "Project",
-          input: { id: resourceKey },
-          state: "Success",
-        },
-      ],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    });
-    const droppedTrace = requestTrace("Project:dropped");
-    const retainedTrace = requestTrace("Project:retained");
-
-    Effect.runSync(
-      store.setSnapshot({
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        requestTraces: [droppedTrace, retainedTrace],
-        events: [
-          {
-            _tag: "RequestTrace",
-            sequence: 0,
-            trace: droppedTrace,
-          },
-          {
-            _tag: "RequestTrace",
-            sequence: 1,
-            trace: retainedTrace,
-          },
-        ],
-      }),
-    );
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    expect(
-      snapshot.requestTraces?.map((trace) => ({
-        id: trace.request.id,
-        resourceKey: trace.resources[0]?.key,
-      })),
-    ).toEqual([
-      {
-        id: "trace:1",
-        resourceKey: "Project:retained",
-      },
-    ]);
-    expect(
-      snapshot.events
-        ?.filter((event) => event._tag === "RequestTrace")
-        .map((event) =>
-          event._tag === "RequestTrace"
-            ? {
-                id: event.trace.request.id,
-                resourceKey: event.trace.resources[0]?.key,
-              }
-            : undefined,
-        ),
-    ).toEqual([
-      {
-        id: "trace:0",
-        resourceKey: "Project:dropped",
-      },
-      {
-        id: "trace:1",
-        resourceKey: "Project:retained",
-      },
-    ]);
-
-    const graph = Effect.runSync(store.getCausalGraph());
-    expect(graph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Observes",
-        source: "runtime-event:0:RequestTrace",
-        target: "request-trace:trace:0",
-      }),
-    );
-    expect(graph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Observes",
-        source: "runtime-event:1:RequestTrace",
-        target: "request-trace:trace:1",
-      }),
-    );
-    expect(graph.edges).not.toContainEqual(
-      expect.objectContaining({
-        kind: "Observes",
-        source: "runtime-event:0:RequestTrace",
-        target: "request-trace:trace:1",
-      }),
-    );
-  });
-
-  it("does not detach request traces dropped by import limits", () => {
-    const store = Devtools.makeStore({
-      requestTraceLimit: 1,
-    });
-    const droppedTrace: Devtools.RequestTrace = {
-      request: {
-        method: "GET",
-        url: "https://example.test/dropped",
-        path: "/dropped",
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    };
-    Object.defineProperty(droppedTrace, "resources", {
-      get() {
-        throw new Error("dropped trace should not be detached");
-      },
-    });
-    const retainedTrace: Devtools.RequestTrace = {
-      request: {
-        method: "GET",
-        url: "https://example.test/retained",
-        path: "/retained",
-        transport: "ssr",
-      },
-      response: { status: 200 },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [],
-      fibers: [],
-      streams: [],
-      status: "success",
-    };
-
-    expect(() =>
-      Effect.runSync(
-        store.setSnapshot({
-          resources: [],
-          actions: [],
-          invalidations: [],
-          routePlans: [],
-          requestTraces: [droppedTrace, retainedTrace],
-        }),
-      ),
-    ).not.toThrow();
-    expect(
-      Effect.runSync(store.getSnapshot()).requestTraces?.map((trace) => trace.request.path),
-    ).toEqual(["/retained"]);
-  });
-
   it("applies store limits and fact rebasing when importing snapshots", () => {
     const store = Devtools.makeStore({
       invalidationLimit: 1,
       routePlanLimit: 1,
-      requestTraceLimit: 1,
+      spanLimit: 1,
       eventLimit: 2,
     });
     const firstInvalidation: Devtools.InvalidationPlan = {
@@ -3849,28 +2527,6 @@ describe("devtools invalidation plans", () => {
         search: {},
       },
     };
-    const requestTrace = (id: string): Devtools.RequestTrace => ({
-      request: {
-        id,
-        method: "GET",
-        url: `https://example.test/${id}`,
-        path: `/${id}`,
-        transport: "ssr",
-      },
-      services: [],
-      resources: [],
-      serverFunctions: [],
-      actions: [
-        {
-          name: "Project.rename",
-          invalidationIndexes: [0, 1],
-        },
-      ],
-      fibers: [],
-      streams: [],
-      status: "success",
-    });
-
     Effect.runSync(
       store.setSnapshot({
         resources: [],
@@ -3883,7 +2539,7 @@ describe("devtools invalidation plans", () => {
         ],
         invalidations: [firstInvalidation, secondInvalidation],
         routePlans: [firstRoutePlan, secondRoutePlan],
-        requestTraces: [requestTrace("trace:0"), requestTrace("trace:1")],
+        spans: [requestSpan("span:0", "/0", "success"), requestSpan("span:1", "/1", "success")],
         events: [
           {
             _tag: "Custom",
@@ -3910,9 +2566,8 @@ describe("devtools invalidation plans", () => {
     const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.invalidations).toEqual([secondInvalidation]);
     expect(snapshot.routePlans).toEqual([secondRoutePlan]);
-    expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual(["trace:1"]);
+    expect(snapshot.spans?.map((span) => span.spanId)).toEqual(["span:1"]);
     expect(snapshot.actions[0]?.invalidationIndexes).toEqual([0]);
-    expect(snapshot.requestTraces?.[0]?.actions[0]?.invalidationIndexes).toEqual([0]);
     expect(snapshot.events).toEqual([
       expect.objectContaining({
         _tag: "ActionState",

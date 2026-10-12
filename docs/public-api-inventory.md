@@ -474,7 +474,7 @@ commands)`, never an Effect. `Program.emit(...)`
 The root export is the application surface only (about forty names). It
 includes:
 
-- Local source modules: `hydration`, `request-trace`, `start-action-client`,
+- Local source modules: `hydration`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
   `start-document`, `start-fetch`,
   `start-request-handler`, `start-transport-protocol`,
@@ -494,10 +494,10 @@ includes:
   `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`
   holds the server half: `server` (the server Layer, which must provide the
   root's services), `serverFunctions` (implementations served over RPC),
-  `document`, and `onRequestTrace`. Page requests render
+  and `document`. Page requests render
   `app.root` into Start's document; there is no render callback and no
-  hand-written HTML shell. `StartRequestTrace` and `StartRequestTraceHandler`
-  describe the trace hook.
+  hand-written HTML shell. Requests are traced as Effect spans
+  (`sunfall-arc.start.request`); there is no request-trace callback.
 - documents: `document: (context: StartDocumentContext) => StartDocument`
   sets `lang`, `title`, `meta` and `links` (`StartDocumentTagAttributes`,
   HTML-escaped), `clientEntry`, and response `headers`. Start emits the
@@ -585,9 +585,9 @@ Subpath exports:
 
 Release decisions:
 
-- `StartRequestTrace` is intentionally structural with `Devtools.RequestTrace`,
-  and `StartAction.InvalidationPlan` with `Devtools.InvalidationPlan`, so Start
-  and Devtools never import each other.
+- `StartAction.InvalidationPlan` is intentionally structural with
+  `Devtools.InvalidationPlan`, and request tracing goes through Effect spans,
+  so Start and Devtools never import each other.
 - The root does not re-export Core symbols; import `Action`, `Resource`,
   `Route`, `Server`, and `Signal` from `@sunfall/arc-core`.
 - `virtual:sunfall-arc/routes` intentionally exposes broad route maps; apps that
@@ -637,7 +637,8 @@ The root export includes:
 - One path per concern: the root exports only the `Devtools` namespace plus the
   tagged error classes `DevtoolsActionInvalidationPlanConflict` and
   `DevtoolsPanelContractError`.
-- `Devtools.makeStore` and the pure projections `Devtools.describeSummary`,
+- `Devtools.makeStore`, `Devtools.layerTracer(store)` (an Effect `Tracer`
+  Layer that records ended spans into the store), and the pure projections `Devtools.describeSummary`,
   `Devtools.describeCausalGraph`, and `Devtools.describePanels` (there are no
   trivial `*Effect` wrappers);
 - `Devtools.resolveBridgePayload(...)` with `Devtools.BridgePayloadResolution`
@@ -654,17 +655,16 @@ The root export includes:
   bound arbitrary runtime values and redact secret-shaped keys;
 - the DTOs adapters and panels exchange: `Devtools.Snapshot`,
   `Devtools.RuntimeEvent`, `Devtools.TimelineCommit`, `Devtools.RoutePlan`,
-  `Devtools.InvalidationPlan`, `Devtools.RequestTrace`,
+  `Devtools.InvalidationPlan`, `Devtools.Span`, `Devtools.SummaryRequest`,
   `Devtools.Summary`, `Devtools.CausalGraph`,
   `Devtools.Panels`, and `Devtools.Panel`. Their nested shapes (panel items,
-  metrics, causal nodes and edges, request-trace parts) are reached through
+  metrics, causal nodes and edges) are reached through
   these types rather than exported under their own names.
 
 Release decisions:
 
-- `Devtools.RequestTrace` is public as a data contract. Start emits a compatible
-  shape through `onRequestTrace`, with cancellation and failure-path coverage in
-  Start request tests.
+- Requests have no Devtools-specific DTO: the Requests panel projects Start's
+  request spans, recorded through `Devtools.layerTracer`.
 - `devtools-contract` owns the Devtools DTO and Interface vocabulary that
   renderers, stores, summaries, bridges, and agents share. The `Devtools`
   namespace names its public types, while internal Devtools modules import the

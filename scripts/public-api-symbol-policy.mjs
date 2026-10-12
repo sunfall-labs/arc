@@ -356,7 +356,8 @@ export const publicHoverDocGroups = [
         "TimelineCommit",
         "RoutePlan",
         "InvalidationPlan",
-        "RequestTrace",
+        "Span",
+        "SummaryRequest",
         "SerializableValue",
         "SerializationPolicy",
         "Summary",
@@ -376,6 +377,7 @@ export const publicHoverDocGroups = [
         "BridgeInstall",
         "BridgePayloadResolution",
         "makeStore",
+        "layerTracer",
         "describeSummary",
         "describeCausalGraph",
         "describePanels",
@@ -600,10 +602,6 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/start-vite-dev-ssr.ts",
     declarations: ["StartHandlerNotFound", "StartDevServerError"],
-  },
-  {
-    file: "packages/start/src/request-trace.ts",
-    declarations: ["StartRequestTrace", "StartRequestTraceHandler"],
   },
   {
     file: "packages/start/src/fetch.ts",

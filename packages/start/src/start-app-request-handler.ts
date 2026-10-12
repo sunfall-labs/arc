@@ -4,7 +4,6 @@ import { Component } from "@sunfall/arc-solid";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
 import { Effect, Stream } from "effect";
 import type { RequestRuntimeProvidedRequirements } from "./request-runtime.js";
-import type { StartRequestTraceHandler } from "./request-trace.js";
 import type { App, AppDefinition } from "./start-app.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import {
@@ -42,8 +41,6 @@ export interface CreateRequestHandlerOptions<
   readonly serverFunctions?: ReadonlyArray<ServerFunctions>;
   /** The page's head and response headers, per request. */
   readonly document?: (context: StartDocumentContext<Routes>) => StartDocument;
-  /** Receives best-effort request diagnostics after runtime teardown. */
-  readonly onRequestTrace?: StartRequestTraceHandler;
 }
 
 type ServerRegistry<Actions extends StartActionDefinition, ServerFunctions> = AppDefinitionRegistry<
@@ -164,9 +161,6 @@ export const createRequestHandler = <
   });
   const handler = createStartRequestHandler(serverApp as never, {
     actions: app.actions,
-    ...(serverOptions.onRequestTrace === undefined
-      ? {}
-      : { onRequestTrace: serverOptions.onRequestTrace }),
     render: (context) =>
       renderAppDocumentEffect(
         app,
