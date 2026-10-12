@@ -265,6 +265,10 @@ createServer(
         language: "shellscript",
         code: "pnpm starter:verify\npnpm --filter @sunfall/arc-example-project-console verify\npnpm docs-site:verify\npnpm devtools-panel:verify\npnpm devtools-extension:verify",
       },
+      {
+        _tag: "Paragraph",
+        text: "Measured: the [benchmarks](https://github.com/sunfall-labs/arc/blob/main/docs/benchmarks.md) build the same small app with Arc, SolidStart, and TanStack Start and compare bundle size, SSR throughput, load, update speed, and memory, including where Arc loses.",
+      },
     ],
   },
 ] as const satisfies readonly DocsPage[];

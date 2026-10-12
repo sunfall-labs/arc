@@ -1,0 +1,27 @@
+{
+  "name": "compare-arc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
+    "build": "vite build && vite build --ssr src/server.tsx --outDir dist/server",
+    "start": "NODE_ENV=production node server.mjs"
+  },
+  "dependencies": {
+    "@solidjs/web": "2.0.0-rc.14",
+    "@sunfall/arc-core": "file:./vendor/sunfall-arc-core.tgz",
+    "@sunfall/arc-solid": "file:./vendor/sunfall-arc-solid.tgz",
+    "@sunfall/arc-start": "file:./vendor/sunfall-arc-start.tgz",
+    "effect": "4.0.3",
+    "solid-js": "2.0.0-rc.14"
+  },
+  "devDependencies": {
+    "@sunfall/arc-tsrx": "file:./vendor/sunfall-arc-tsrx.tgz",
+    "@tsrx/typescript-plugin": "0.6.3",
+    "@types/node": "25.7.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  },
+  "packageManager": "pnpm@10.33.2"
+}

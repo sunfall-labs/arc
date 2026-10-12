@@ -1,0 +1,18 @@
+# Its own pnpm root: this app is not part of the Arc monorepo workspace.
+packages: []
+
+# Arc is consumed as packed tarballs of the local packages (built by
+# ../scripts/setup.mjs), so the packages' dependencies on each other resolve to
+# the same tarballs instead of the npm registry.
+overrides:
+  "@sunfall/arc-core": file:./vendor/sunfall-arc-core.tgz
+  "@sunfall/arc-db": file:./vendor/sunfall-arc-db.tgz
+  "@sunfall/arc-solid": file:./vendor/sunfall-arc-solid.tgz
+  "@sunfall/arc-start": file:./vendor/sunfall-arc-start.tgz
+  "@sunfall/arc-tsrx": file:./vendor/sunfall-arc-tsrx.tgz
+  solid-js: 2.0.0-rc.14
+  "@solidjs/web": 2.0.0-rc.14
+  "@solidjs/signals": 2.0.0-rc.14
+
+onlyBuiltDependencies:
+  - esbuild
