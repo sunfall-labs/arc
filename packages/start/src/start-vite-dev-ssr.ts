@@ -8,15 +8,12 @@ import {
   writeNodeExchangeResponse,
   type StartNodeRequestOptions,
 } from "./node-web-exchange.js";
-import { acceptsMediaType, startHtmlMediaType } from "./rpc.js";
 import type { StartRequestHandlerError } from "./start-request-handler.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
 import { responseWithScopeLifetime } from "./response-lifetime.js";
 import { suspendResponseStreamSuccessFinalizer } from "./streaming.js";
-import {
-  resolveStartTransportEndpointsSync,
-  type StartTransportEndpointSource,
-} from "./start-transport-endpoints.js";
+import { acceptsMediaType, serverActionPath, serverRpcPath, startHtmlMediaType } from "./rpc.js";
+import { warnUndeclaredRoutePreloadResources } from "./start-route-preload-warnings.js";
 import {
   interruptStartHostFiberOnSignal,
   mergeStartAbortSignals,
@@ -65,7 +62,7 @@ export interface StartViteDevServer {
 }
 
 /** Options for resolving the SSR handler export in Vite dev. */
-export interface HandleSsrDevRequestOptions extends StartTransportEndpointSource {
+export interface HandleSsrDevRequestOptions {
   readonly serverEntry?: string;
   readonly handlerExport?: string;
   /**
@@ -287,7 +284,7 @@ export const handleSsrDevMiddleware = <R = never>(
       }),
       ({ signal }) =>
         Effect.gen(function* () {
-          if (!shouldHandleSsrRequest(request, options)) {
+          if (!shouldHandleSsrRequest(request)) {
             yield* callMiddlewareNextBestEffort(next);
             return;
           }
@@ -364,12 +361,10 @@ const headerAcceptsHtml = (accept: string | readonly string[] | undefined): bool
 /** Returns true for requests the dev SSR middleware should handle. */
 export const shouldHandleSsrRequest = (
   request: Pick<IncomingMessage, "method" | "url" | "headers">,
-  endpoints?: StartTransportEndpointSource,
 ): boolean => {
   const url = request.url ?? "/";
   const pathname = new URL(url, "http://sunfall-arc.local").pathname;
-  const resolved = resolveStartTransportEndpointsSync(endpoints);
-  if (pathname === resolved.rpcPath || pathname === resolved.actionPath) {
+  if (pathname === serverRpcPath || pathname === serverActionPath) {
     return true;
   }
 
@@ -490,6 +485,7 @@ export const handleSsrDevRequest = <R = never>(
   Effect.gen(function* () {
     const module = yield* server.ssrLoadModule(options.serverEntry ?? defaultServerEntry);
     const handler = yield* resolveStartHandler(module, options);
+    yield* warnUndeclaredRoutePreloadResources(handler);
     const response = yield* handlerResultEffect(handler, request);
 
     if (!isHtmlResponse(response)) {

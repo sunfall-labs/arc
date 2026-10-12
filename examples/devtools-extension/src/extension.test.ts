@@ -2,14 +2,7 @@ import { readFileSync } from "node:fs";
 import { Effect, Fiber } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
-import {
-  describeDevtoolsPanels,
-  renderDevtoolsPanelsHtml,
-  resolveSunfallArcDevtoolsBridgePayload,
-  type DevtoolsPanelMount,
-  type DevtoolsPanelUiInput,
-  type DevtoolsStartAppGraphDiagnostics,
-} from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 import {
   sunfallArcDevtoolsPanelPage,
   sunfallArcDevtoolsPanelTitle,
@@ -18,7 +11,7 @@ import {
 import { sampleDevtoolsPanels } from "./sample.js";
 
 const validBridgePayload = (value: unknown) => {
-  const resolution = resolveSunfallArcDevtoolsBridgePayload(value);
+  const resolution = Devtools.resolveBridgePayload(value);
   return resolution._tag === "Valid" ? resolution.payload : undefined;
 };
 import {
@@ -64,7 +57,7 @@ describe("devtools extension example", () => {
   });
 
   it("renders the extension panel from public devtools facts", () => {
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels: sampleDevtoolsPanels(),
       selectedPanelId: "requests",
       title: "Sunfall Arc Devtools Extension",
@@ -196,25 +189,29 @@ describe("devtools extension example", () => {
     ).toEqual({ panels });
   });
 
-  it("normalizes bridge payloads generated from huge app graph route module arrays", () => {
-    const panels = describeDevtoolsPanels({
-      appGraph: appGraphDiagnosticsWithRoutes(1_001),
+  it("normalizes bridge payloads generated from huge resource arrays", () => {
+    const panels = Devtools.describePanels({
+      snapshot: {
+        resources: Array.from({ length: 1_001 }, (_value, index) => ({
+          key: `Extension.resource:${index}`,
+          state: "Success",
+        })),
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+      },
     });
     const payload = validBridgePayload({
       panels,
-      selectedPanelId: "app-graph",
+      selectedPanelId: "resources",
       title: "Live Sunfall Arc",
     });
 
-    const appGraphPanel = payload?.panels.panels.find((panel) => panel.id === "app-graph");
-    expect(payload?.selectedPanelId).toBe("app-graph");
-    expect(appGraphPanel?.items).toHaveLength(1_000);
-    expect(appGraphPanel?.items[998]).toMatchObject({
-      id: "route:route_extension_998_$id",
-      label: "/extension/998/:id",
-    });
-    expect(appGraphPanel?.items[999]).toMatchObject({
-      id: "__sunfall-arc-devtools-overflow:app-graph",
+    const resourcesPanel = payload?.panels.panels.find((panel) => panel.id === "resources");
+    expect(payload?.selectedPanelId).toBe("resources");
+    expect(resourcesPanel?.items).toHaveLength(1_000);
+    expect(resourcesPanel?.items[999]).toMatchObject({
+      id: "__sunfall-arc-devtools-overflow:resources",
       label: "2 panel items hidden",
       severity: "info",
       data: {
@@ -227,10 +224,10 @@ describe("devtools extension example", () => {
 
   it("does not override panel selection when live payloads omit selectedPanelId", async () => {
     const panels = sampleDevtoolsPanels();
-    const updates: Array<DevtoolsPanelUiInput | undefined> = [];
-    const mount: DevtoolsPanelMount = {
+    const updates: Array<Devtools.PanelUiInput | undefined> = [];
+    const mount: Devtools.PanelMount = {
       root: {} as HTMLElement,
-      update: (input?: DevtoolsPanelUiInput) => {
+      update: (input?: Devtools.PanelUiInput) => {
         updates.push(input);
       },
       unmount: () => undefined,
@@ -263,10 +260,10 @@ describe("devtools extension example", () => {
   it("polls inspected-window payloads once immediately and sleeps before the next read", async () => {
     const panels = sampleDevtoolsPanels();
     const evaluatedExpressions: Array<string> = [];
-    const updates: Array<DevtoolsPanelUiInput | undefined> = [];
-    const mount: DevtoolsPanelMount = {
+    const updates: Array<Devtools.PanelUiInput | undefined> = [];
+    const mount: Devtools.PanelMount = {
       root: {} as HTMLElement,
-      update: (input?: DevtoolsPanelUiInput) => {
+      update: (input?: Devtools.PanelUiInput) => {
         updates.push(input);
       },
       unmount: () => undefined,
@@ -308,10 +305,10 @@ describe("devtools extension example", () => {
   it("bounds inspected-window bridge strings before updating live panels", async () => {
     const panels = sampleDevtoolsPanels();
     const longString = "x".repeat(1_050);
-    const updates: Array<DevtoolsPanelUiInput | undefined> = [];
-    const mount: DevtoolsPanelMount = {
+    const updates: Array<Devtools.PanelUiInput | undefined> = [];
+    const mount: Devtools.PanelMount = {
       root: {} as HTMLElement,
-      update: (input?: DevtoolsPanelUiInput) => {
+      update: (input?: Devtools.PanelUiInput) => {
         updates.push(input);
       },
       unmount: () => undefined,
@@ -386,11 +383,11 @@ describe("devtools extension example", () => {
 
   it("reports diagnostics without sample facts when a live bridge later disappears", async () => {
     const livePanels = sampleDevtoolsPanels();
-    const updates: Array<DevtoolsPanelUiInput | undefined> = [];
+    const updates: Array<Devtools.PanelUiInput | undefined> = [];
     let reads = 0;
-    const mount: DevtoolsPanelMount = {
+    const mount: Devtools.PanelMount = {
       root: {} as HTMLElement,
-      update: (input?: DevtoolsPanelUiInput) => {
+      update: (input?: Devtools.PanelUiInput) => {
         updates.push(input);
       },
       unmount: () => undefined,
@@ -430,7 +427,7 @@ describe("devtools extension example", () => {
     if (update?.panels === undefined) {
       expect.fail("Expected the panel update to include missing-bridge diagnostics.");
     }
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
       title: update.title ?? "Sunfall Arc Devtools Extension",
@@ -473,7 +470,7 @@ describe("devtools extension example", () => {
           },
         },
       },
-      guidance: expect.stringContaining("DevtoolsPanels bridge contract"),
+      guidance: expect.stringContaining("Devtools.Panels bridge contract"),
     });
   });
 
@@ -521,7 +518,7 @@ describe("devtools extension example", () => {
       _tag: "DevtoolsExtensionTransportError",
       operation: "read-inspected-window",
       reason: "InvalidPayload",
-      guidance: expect.stringContaining("DevtoolsPanels bridge contract"),
+      guidance: expect.stringContaining("Devtools.Panels bridge contract"),
     });
   });
 
@@ -556,10 +553,10 @@ describe("devtools extension example", () => {
   });
 
   it("renders inspected-window transport failures in the diagnostics panel", async () => {
-    const updates: Array<DevtoolsPanelUiInput | undefined> = [];
-    const mount: DevtoolsPanelMount = {
+    const updates: Array<Devtools.PanelUiInput | undefined> = [];
+    const mount: Devtools.PanelMount = {
       root: {} as HTMLElement,
-      update: (input?: DevtoolsPanelUiInput) => {
+      update: (input?: Devtools.PanelUiInput) => {
         updates.push(input);
       },
       unmount: () => undefined,
@@ -589,7 +586,7 @@ describe("devtools extension example", () => {
     if (update?.panels === undefined) {
       expect.fail("Expected the panel update to include transport-error panels.");
     }
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
       title: update.title ?? "Sunfall Arc Devtools Extension",
@@ -691,10 +688,10 @@ describe("devtools extension example", () => {
   });
 
   it("times out inspected-window evals that never call back and renders diagnostics", async () => {
-    const updates: Array<DevtoolsPanelUiInput | undefined> = [];
-    const mount: DevtoolsPanelMount = {
+    const updates: Array<Devtools.PanelUiInput | undefined> = [];
+    const mount: Devtools.PanelMount = {
       root: {} as HTMLElement,
-      update: (input?: DevtoolsPanelUiInput) => {
+      update: (input?: Devtools.PanelUiInput) => {
         updates.push(input);
       },
       unmount: () => undefined,
@@ -725,7 +722,7 @@ describe("devtools extension example", () => {
     if (update?.panels === undefined) {
       expect.fail("Expected the timeout update to include diagnostics panels.");
     }
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
       title: update.title ?? "Sunfall Arc Devtools Extension",
@@ -762,57 +759,4 @@ describe("devtools extension example", () => {
       guidance: expect.stringContaining("__SUNFALL_ARC_DEVTOOLS__"),
     });
   });
-});
-
-const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGraphDiagnostics => ({
-  version: 1,
-  routeCount,
-  serverFunctionCount: 0,
-  actionCount: 0,
-  routePaths: Array.from({ length: routeCount }, (_value, index) => `/extension/${index}/:id`),
-  routeModules: Array.from({ length: routeCount }, (_value, index) => ({
-    routeId: `route_extension_${index}_$id`,
-    routePath: `/extension/${index}/:id`,
-    moduleId: `src/routes/extension/${index}/$id.tsx`,
-    filePath: `src/routes/extension/${index}/$id.tsx`,
-    pathParamCount: 1,
-    hasPathParams: true,
-    params: [
-      {
-        name: "id",
-        optional: false,
-      },
-    ],
-    paramsSchema: "present",
-    searchSchema: "absent",
-    preload: "present",
-    preloadResources: {
-      status: "declared",
-      families: [],
-    },
-  })),
-  serverFunctionModules: [],
-  actionModules: [],
-  resourceFamilies: [],
-  resourceTags: [],
-  serverOnlyModules: [],
-  browserClientModules: [],
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
-  schemaCoverage: {
-    serverFunctions: {
-      total: 0,
-      input: 0,
-      output: 0,
-      error: 0,
-    },
-    actions: {
-      total: 0,
-      input: 0,
-      output: 0,
-      error: 0,
-    },
-  },
-  missingSchemas: [],
-  unknownRoutePreloadResources: [],
 });

@@ -5,8 +5,8 @@ ownership in renderer-independent core packages. The Solid 2 adapter bridges
 that core model into Solid's fine-grained reactivity and ownership rules through
 one app model: **typed Components**.
 
-Use `@sunfall/arc-solid` for Solid apps. This page
-is the reference; [The Golden Path](golden-path.md) is the walkthrough.
+Use `@sunfall/arc-solid` for Solid apps. This page is the reference;
+[The Golden Path](golden-path.md) is the walkthrough.
 
 ## One App Model
 
@@ -76,7 +76,7 @@ Streams, live queries, the router) is a setup-time binding in a `Component`.
 - **Asynchronous setup** (awaiting a service built by an async Layer, an
   `Effect.sleep`, ...) suspends the nearest `<Loading>`; a synchronous setup
   renders right away, which keeps hydration and preloaded reads synchronous.
-  Render runs in a computation of the instance's own, so a render whose first
+  Render runs in its own computation, so a render whose first
   Resource read is pending suspends the nearest `<Loading>` and then retries
   only itself: the instance, its setup, and its bindings are kept (also under
   a `<Show>` with function children).
@@ -110,19 +110,20 @@ declared load errors join `E` and `catchTags` handles them; `submit`,
 breaks its contract (throws, returns a Promise, produces a row its schema
 rejects) is a defect, never part of `E`.
 
-| Binding                                | Returns                                                                                              | Joins                                                                |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `Component.resource(family)`           | `ResourceReader`: `reader(input)`, `waiting`, `failure`; with `rows`, also `get`, `index`            | load error to `E`, services                                          |
-| `Component.action(definition)`         | `ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)         | action services                                                      |
-| `Component.program(definition, opts?)` | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
-| `Component.stream(name, stream, init)` | `Accessor<A>` of the latest element, committed as `<Component>.<name>`                               | stream services                                                      |
-| `Component.callback(name, f)`          | `(...args) => void` that runs `f(...args)` as the transition `<Component>.<name>` (failures handled) | callback services                                                    |
-| `Component.router(routes, options?)`   | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
-| `Component.liveQuery(query, opts?)`    | `LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)              | source load errors to `E`, source services                           |
+| Binding                                | Returns                                                                                                        | Joins                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `Component.resource(family)`           | `Component.ResourceReader`: `reader(input)`, `waiting`, `failure`; with `rows`, also `get`, `index`            | load error to `E`, services                                          |
+| `Component.action(definition)`         | `Component.ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)         | action services                                                      |
+| `Component.program(definition, opts?)` | `Component.ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
+| `Component.stream(name, stream, init)` | `Accessor<A>` of the latest element, committed as `<Component>.<name>`                                         | stream services                                                      |
+| `Component.callback(name, f)`          | `(...args) => void` that runs `f(...args)` as the transition `<Component>.<name>` (failures handled)           | callback services                                                    |
+| `Component.router(routes, options?)`   | the instance's `BrowserRouter<Routes>`                                                                         | route preload and route Component services, route Component failures |
+| `Component.liveQuery(query, opts?)`    | `Component.LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)              | source load errors to `E`, source services                           |
 
 Handles share one vocabulary. Status is `waiting()` (work in flight) and
 `failure()` (the settled `Cause` of the latest load or submission, if it
-failed) on every handle; a Resource reader takes the input:
+failed) on every Resource, Action, and live-query handle (a Program handle
+reports `failures()` instead); a Resource reader takes the input:
 `waiting(input)` / `failure(input)`. Content renders through the reader
 (`reader(input)`) or `rows()`. Members that run work (`submit`, `dispatch`,
 `reset`, `preload`, `refresh`) return Effects; event handlers run them through
@@ -134,7 +135,7 @@ Every binding runs with the setup's context: Effects it starts see the
 runtime's services and `Component.provide` Layers. `Component.instance` is the
 expert seam for writing more bindings (it is how `Component.liveQuery` is
 built): it returns the instance's runtime (bound to the setup context), owner,
-and Scope, with `run(f)` (Solid primitives under the instance owner) and
+and Scope, with `run(f)` (Solid primitives under the instance owner),
 `fork(effect)` (fibers in the instance Scope), and `fail(cause)` (throws a
 render-time read failure to `<Errored>` the way a reader does).
 
@@ -234,8 +235,9 @@ whenever any part of it changes. `Component.program(...)` reconciles every
 committed model into a read-only Solid projection owned by the instance, and
 `model()` returns that view:
 
+<!-- prettier-ignore -->
 ```tsx
-const board = yield * Component.program(BoardProgram);
+const board = yield* Component.program(BoardProgram);
 
 return () => (
   <>
@@ -294,7 +296,7 @@ Effect in the instance Scope with the setup context, starting it right away so
 synchronous writes land within the event, and runs it as the **named
 transition** `<Component>.<name>`. Signal writes it makes commit under that
 name on the `Timeline`; Actions and Programs it runs keep their own causes
-(`Action "Project.rename" submit`, `Program "Board" message Relabel`), and a
+(`Action "Projects.rename" submit`, `Program "Board" message Relabel`), and a
 `Signal.transaction`/`Signal.batch` opened inside it without a name takes the
 callback's. Callbacks must handle their own failures (`E = never`): an event
 handler has nowhere to report a typed failure, so the type makes you decide.
@@ -303,17 +305,17 @@ handler has nowhere to report a typed failure, so the type makes you decide.
 instance and returns its latest element as an accessor; each element commits
 as `<Component>.<name>`.
 
+<!-- prettier-ignore -->
 ```tsx
-const presence = yield * Component.stream("presence", presenceStream, initialPresence);
+const presence = yield* Component.stream("presence", presenceStream, initialPresence);
 const move =
-  yield *
-  Component.callback("move", (id: WorkItemId, status: WorkItemStatus) =>
-    moveWorkItem.submit({ id, status }).pipe(Effect.ignore),
+  yield* Component.callback("move", (id: WorkItemId, status: WorkItemStatus) =>
+  moveWorkItem.submit({ id, status }).pipe(Effect.ignore),
   );
 // Client-only state: written only inside a named callback.
 const draft = Signal.make("", { name: "ProjectPage.draft" });
 const edit =
-  yield * Component.callback("edit", (value: string) => Effect.sync(() => draft.set(value)));
+  yield* Component.callback("edit", (value: string) => Effect.sync(() => draft.set(value)));
 ```
 
 A Signal written outside every named transition (a bare `onInput={() =>
@@ -512,17 +514,18 @@ models, Resource reads, and Action state, at the travelled commit. Effects keep
 running against the live head, so the UI can be inspected in the past while the
 app keeps working; `resume()` returns the DOM to the head.
 
+<!-- prettier-ignore -->
 ```ts
-const recording = yield * Timeline.record();
-yield * counter.dispatch({ _tag: "Increment" });
-yield * counter.dispatch({ _tag: "Increment" });
+const recording = yield* Timeline.record();
+yield* counter.dispatch({ _tag: "Increment" });
+yield* counter.dispatch({ _tag: "Increment" });
 
 const [first] = Signal.peek(recording.entries);
-yield * recording.travel(first!.sequence);
+yield* recording.travel(first!.sequence);
 flush();
 expect(container.textContent).toBe("1"); // the DOM shows the first commit
 
-yield * recording.resume();
+yield* recording.resume();
 flush();
 expect(container.textContent).toBe("2");
 ```

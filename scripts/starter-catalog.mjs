@@ -83,7 +83,6 @@ export const starterCatalog = [
     artifacts: [
       routeArtifact("src/routeTree.gen.ts"),
       virtualArtifact("src/sunfall-arc-start-virtual.d.ts"),
-      virtualArtifact("src/virtual-manifest-types.ts"),
     ],
     sourcePackage: sourcePackagePolicy(
       [
@@ -107,7 +106,6 @@ export const starterCatalog = [
         "src/server.tsx",
         "src/start-graph.ts",
         "src/start-options.ts",
-        "src/virtual-manifest-types.ts",
         "tsconfig.json",
         "vite.config.ts",
       ],

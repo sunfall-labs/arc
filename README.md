@@ -22,10 +22,10 @@ while examples, diagnostics, and release gates are hardened.
   Programs, live queries, and the router, and their services and typed failures
   accumulate into the component type that `Component.launch` checks.
 - Humans and agents can co-develop against explicit app structure: typed
-  definitions, generated route artifacts, app graph diagnostics, and verification
-  gates.
-- Effect-first Resources, Actions, Programs, Forms, Routes, Capabilities, and
-  server contracts through the Solid 2 adapter.
+  definitions, generated route artifacts, definition diagnostics, and
+  verification gates.
+- Effect-first Resources, Actions, Programs, Forms, Routes, Effect services,
+  and server contracts through the Solid 2 adapter.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and
   streamed responses.
 - One server-data model: Resources with keyed rows, indexes, change feeds,
@@ -109,7 +109,7 @@ pnpm example:leak-scan
 
 - `@sunfall/arc-core`: runtime spine, Signals, Programs, Program stories and
   timelines, Resources, Actions, Forms/FormData decoding, Routes,
-  Capabilities, and server contracts.
+  and server contracts.
 - `@sunfall/arc-start`: SSR, hydration, transports, manifests, diagnostics, and
   Start action clients; host adapters live at `@sunfall/arc-start/fetch` and
   `@sunfall/arc-start/node`.

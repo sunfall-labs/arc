@@ -17,8 +17,6 @@ const sharedAlias = {
   "@sunfall/arc-tsrx": new URL("./packages/tsrx/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-start/fetch": new URL("./packages/start/src/fetch.ts", import.meta.url).pathname,
   "@sunfall/arc-start/node": new URL("./packages/start/src/node.ts", import.meta.url).pathname,
-  "@sunfall/arc-start/internal": new URL("./packages/start/src/internal.ts", import.meta.url)
-    .pathname,
   "@sunfall/arc-start/testing": new URL("./packages/start/src/testing.ts", import.meta.url)
     .pathname,
   "@sunfall/arc-start": new URL("./packages/start/src/index.ts", import.meta.url).pathname,

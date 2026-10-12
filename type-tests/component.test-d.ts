@@ -16,13 +16,14 @@ import {
 } from "@sunfall/arc-core";
 import type { JSX } from "@solidjs/web";
 
-class ProjectApi extends Context.Service<
-  ProjectApi,
-  { readonly get: (id: string) => Effect.Effect<string, ProjectNotFound | Forbidden> }
->()("type-tests/Component/ProjectApi") {}
-class Realtime extends Context.Service<Realtime, { readonly feed: () => ReadonlyArray<string> }>()(
-  "type-tests/Component/Realtime",
-) {}
+interface ProjectApi {
+  readonly get: (id: string) => Effect.Effect<string, ProjectNotFound | Forbidden>;
+}
+const ProjectApi = Context.Service<ProjectApi>("type-tests/Component/ProjectApi");
+interface Realtime {
+  readonly feed: () => ReadonlyArray<string>;
+}
+const Realtime = Context.Service<Realtime>("type-tests/Component/Realtime");
 class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
   id: Schema.String,
 }) {}

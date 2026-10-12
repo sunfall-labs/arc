@@ -21,7 +21,7 @@ import {
 } from "./rpc.js";
 import { readStartTransportResponseText } from "./start-transport-body.js";
 import { type StartActionDefinition } from "./start-action-request-codec.js";
-import { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
+import { decodeServerWire, encodeServerWire } from "@sunfall/arc-core/internal";
 
 /**
  * Serializable invalidation target emitted by a Start action response.
@@ -244,7 +244,7 @@ export const actionResponseMode = (request: Request): "json" | "redirect" =>
 const encodeActionResultEffect = (
   action: StartActionDefinition,
   result: unknown,
-): Effect.Effect<unknown, Schema.SchemaError> => encodeWithSchema(action.output, result);
+): Effect.Effect<unknown, Schema.SchemaError> => encodeServerWire(action.output, result);
 
 const encodedActionResultOrSelf = (
   action: StartActionDefinition,
@@ -344,7 +344,7 @@ const actionResultResponseEffect = (
         });
       }
 
-      const encodedValue = yield* Effect.exit(encodeWithSchema(action.output, actionResult.value));
+      const encodedValue = yield* Effect.exit(encodeServerWire(action.output, actionResult.value));
       if (Exit.isSuccess(encodedValue)) {
         return actionJson({
           _tag: "Success",
@@ -364,7 +364,7 @@ const actionResultResponseEffect = (
   }
 
   return Effect.gen(function* () {
-    const encoded = yield* Effect.exit(encodeWithSchema(action.output, result));
+    const encoded = yield* Effect.exit(encodeServerWire(action.output, result));
     if (Exit.isSuccess(encoded)) {
       return actionJson({
         _tag: "Success",
@@ -407,7 +407,7 @@ export const actionExitResponse = <ActionError>(
     }
 
     return Effect.gen(function* () {
-      const encoded = yield* Effect.exit(encodeWithSchema(action.error, failure));
+      const encoded = yield* Effect.exit(encodeServerWire(action.error, failure));
       if (Exit.isSuccess(encoded)) {
         return actionJson({
           _tag: "Failure",
@@ -601,7 +601,7 @@ export const decodeStartActionOutcome = <I, A, E, R>(
   >,
 ): Effect.Effect<StartActionOutcome<A, E>, Schema.SchemaError> =>
   Effect.gen(function* () {
-    const whole = yield* Effect.exit(decodeWithSchema(definition.output, body));
+    const whole = yield* Effect.exit(decodeServerWire(definition.output, body));
     if (Exit.isSuccess(whole) && hasActionResultTag(whole.value)) {
       return { _tag: "Value", value: whole.value as A };
     }
@@ -610,12 +610,12 @@ export const decodeStartActionOutcome = <I, A, E, R>(
       case "Success":
         return {
           _tag: "Value",
-          value: (yield* decodeWithSchema(definition.output, body.value)) as A,
+          value: (yield* decodeServerWire(definition.output, body.value)) as A,
         };
       case "Failure":
         return {
           _tag: "Error",
-          error: (yield* decodeWithSchema(definition.error, body.error)) as E,
+          error: (yield* decodeServerWire(definition.error, body.error)) as E,
         };
       case "ValidationFailure":
         return {

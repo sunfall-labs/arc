@@ -1,31 +1,16 @@
 import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
+import { Devtools, DevtoolsActionInvalidationPlanConflict } from "../src/index.js";
 import {
-  bootDevtoolsPanels,
-  DevtoolsActionInvalidationPlanConflict,
   DevtoolsUnknownInvalidationTarget,
-  devtoolsPanelIds,
-  makeDevtoolsStore,
-  describeDevtoolsCausalGraph,
-  describeDevtoolsSummary,
-  describeDevtoolsPanels,
   describeInvalidationPlan,
   describeRoutePlan,
-  sunfallArcDevtoolsBridgeGlobal,
-  installDevtoolsBridge,
-  isDevtoolsSerializableValue,
-  mountDevtoolsPanels,
-  renderDevtoolsPanelsHtml,
-  toDevtoolsSerializableValue,
-  type DevtoolsBridgeTarget,
-  type DevtoolsInvalidationPlan,
-  type DevtoolsRequestTrace,
-  type DevtoolsRoutePlan,
-  type DevtoolsStartAppGraphDiagnostics,
-} from "../src/index.js";
+} from "../src/serialization.js";
 import { stableFactFingerprint } from "../src/fact-identity.js";
 import {
+  devtoolsPanelIds,
+  isDevtoolsSerializableValue,
   isDevtoolsPanelId,
   isDevtoolsPanelItem,
   isDevtoolsPanels,
@@ -37,9 +22,9 @@ import { defaultRuntime } from "@sunfall/arc-core/internal";
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
 
 const installBridgeForTest = (
-  ...args: Parameters<typeof installDevtoolsBridge>
-): Effect.Success<ReturnType<typeof installDevtoolsBridge>> =>
-  Effect.runSync(installDevtoolsBridge(...args).pipe(Scope.provide(Scope.makeUnsafe())));
+  ...args: Parameters<typeof Devtools.installBridge>
+): Effect.Success<ReturnType<typeof Devtools.installBridge>> =>
+  Effect.runSync(Devtools.installBridge(...args).pipe(Scope.provide(Scope.makeUnsafe())));
 
 const makeDevtoolsLifecycleWindow = () => {
   const listeners = new Map<DevtoolsLifecycleType, Set<() => void>>([
@@ -79,8 +64,8 @@ describe("devtools invalidation plans", () => {
     ).toThrow(DevtoolsUnknownInvalidationTarget);
 
     const Tag = Resource.tag("Devtools.error-tag");
-    const store = makeDevtoolsStore();
-    const serialized: DevtoolsInvalidationPlan = {
+    const store = Devtools.makeStore();
+    const serialized: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -151,7 +136,7 @@ describe("devtools invalidation plans", () => {
   it("keeps a bounded invalidation history", () => {
     const FirstTag = Resource.tag("First.devtools");
     const SecondTag = Resource.tag("Second.devtools");
-    const store = makeDevtoolsStore({ invalidationLimit: 1 });
+    const store = Devtools.makeStore({ invalidationLimit: 1 });
 
     Effect.runSync(store.recordInvalidation(Effect.runSync(Resource.planInvalidation(FirstTag))));
     Effect.runSync(store.recordInvalidation(Effect.runSync(Resource.planInvalidation(SecondTag))));
@@ -175,10 +160,10 @@ describe("devtools invalidation plans", () => {
     const routePlan = await Effect.runPromise(
       Route.planNavigation([RouteUser] as const, "/history/1"),
     );
-    const invalidationStore = makeDevtoolsStore({ invalidationLimit: 0 });
-    const routeStore = makeDevtoolsStore({ routePlanLimit: -1 });
-    const traceStore = makeDevtoolsStore({ requestTraceLimit: Number.NaN });
-    const eventStore = makeDevtoolsStore({ eventLimit: Number.POSITIVE_INFINITY });
+    const invalidationStore = Devtools.makeStore({ invalidationLimit: 0 });
+    const routeStore = Devtools.makeStore({ routePlanLimit: -1 });
+    const traceStore = Devtools.makeStore({ requestTraceLimit: Number.NaN });
+    const eventStore = Devtools.makeStore({ eventLimit: Number.POSITIVE_INFINITY });
 
     for (let index = 0; index < 55; index++) {
       Effect.runSync(
@@ -223,7 +208,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("records serialized action invalidation plans from full-stack transports", async () => {
-    const plan: DevtoolsInvalidationPlan = {
+    const plan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -248,7 +233,7 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     await Effect.runPromise(
       store.recordActionState("Project.rename", "Success", {
@@ -287,7 +272,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("uses bounded structural invalidation identity for matching and deduplication", () => {
-    const invalidationPlan = (tail: string): DevtoolsInvalidationPlan => ({
+    const invalidationPlan = (tail: string): Devtools.InvalidationPlan => ({
       targets: [
         {
           _tag: "Tag",
@@ -312,7 +297,7 @@ describe("devtools invalidation plans", () => {
     });
     const firstPlan = invalidationPlan("first-tail");
     const secondPlan = invalidationPlan("second-tail");
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordActionState("Project.bulk.first", "Success", {
@@ -375,7 +360,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("drops stale action invalidation links after bounded history trimming", () => {
-    const firstPlan: DevtoolsInvalidationPlan = {
+    const firstPlan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -385,7 +370,7 @@ describe("devtools invalidation plans", () => {
       ],
       entries: [],
     };
-    const secondPlan: DevtoolsInvalidationPlan = {
+    const secondPlan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -395,7 +380,7 @@ describe("devtools invalidation plans", () => {
       ],
       entries: [],
     };
-    const store = makeDevtoolsStore({ invalidationLimit: 1 });
+    const store = Devtools.makeStore({ invalidationLimit: 1 });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -454,19 +439,19 @@ describe("devtools invalidation plans", () => {
   });
 
   it("rebases request trace action invalidation links after bounded history trimming", () => {
-    const firstPlan: DevtoolsInvalidationPlan = {
+    const firstPlan: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Project.first", name: "Project.first" }],
       entries: [],
     };
-    const secondPlan: DevtoolsInvalidationPlan = {
+    const secondPlan: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Project.second", name: "Project.second" }],
       entries: [],
     };
-    const thirdPlan: DevtoolsInvalidationPlan = {
+    const thirdPlan: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Project.third", name: "Project.third" }],
       entries: [],
     };
-    const store = makeDevtoolsStore({ invalidationLimit: 2 });
+    const store = Devtools.makeStore({ invalidationLimit: 2 });
 
     Effect.runSync(store.recordSerializedInvalidation(firstPlan));
     Effect.runSync(store.recordSerializedInvalidation(secondPlan));
@@ -544,7 +529,7 @@ describe("devtools invalidation plans", () => {
       invalidates: () => [ref],
     });
     const action = Action.use(Increment, { runtime: defaultRuntime });
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     await Effect.runPromise(
       Effect.scoped(
@@ -587,7 +572,7 @@ describe("devtools invalidation plans", () => {
     previous.self = previous;
     const model = Signal.make(previous, { name: "Counter.model" });
     const failures = Signal.make<ReadonlyArray<unknown>>([], { name: "Counter.failures" });
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       serializationPolicy: {
         redactKeys: ["tenantPrivate"],
       },
@@ -706,7 +691,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("tracks a running Timeline recording with scoped cleanup", async () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const program = Program.start(
       Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
         name: "Counter.program-track",
@@ -788,7 +773,7 @@ describe("devtools invalidation plans", () => {
     });
   });
 
-  it("combines app graph diagnostics and runtime plans into a panel summary", async () => {
+  it("combines runtime plans into a panel summary", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.summary-devtools", {
       key: ({ id }) => id,
     });
@@ -811,8 +796,7 @@ describe("devtools invalidation plans", () => {
     const invalidationPlan = describeInvalidationPlan(
       Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
-    const summary = describeDevtoolsSummary({
-      appGraph: appGraphDiagnostics,
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [
           {
@@ -834,50 +818,11 @@ describe("devtools invalidation plans", () => {
     expect(summary).toMatchObject({
       version: 1,
       overview: {
-        routeCount: 1,
-        serverFunctionCount: 1,
-        actionCount: 1,
         runtimeResourceCount: 1,
         runtimeActionCount: 1,
         invalidationPlanCount: 1,
         routePlanCount: 1,
-        missingSchemaCount: 2,
-        unknownRoutePreloadResourcesCount: 0,
         notFoundRoutePlanCount: 0,
-      },
-      graph: {
-        _tag: "Available",
-        routes: {
-          modules: [
-            {
-              routePath: "/users/:id",
-              preloadResources: {
-                status: "declared",
-                families: ["User.summary-devtools"],
-              },
-            },
-          ],
-        },
-        actions: {
-          behavior: {
-            invalidates: [{ state: "present", count: 1 }],
-            optimistic: [{ state: "absent", count: 1 }],
-            retry: [{ state: "present", count: 1 }],
-            concurrency: [{ state: "latest", count: 1 }],
-          },
-        },
-        endpoints: {
-          rpc: "/__sunfall-arc/rpc",
-          action: "/__sunfall-arc/action",
-        },
-        modules: {
-          serverOnly: ["/src/user/user.server.ts"],
-          browserClient: ["/src/user/user.actions.ts"],
-        },
-        resources: {
-          familyCount: 1,
-          tagCount: 1,
-        },
       },
       invalidations: {
         plans: [
@@ -921,53 +866,24 @@ describe("devtools invalidation plans", () => {
       },
     ]);
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
-    const panels = describeDevtoolsPanels({ summary });
+    const panels = Devtools.describePanels({ summary });
     expect(panels.panels.map((panel) => panel.id)).toEqual(devtoolsPanelIds);
     expect(panels.version).toBe(1);
-    expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
-      title: "App Graph",
-      severity: "error",
-    });
     expect(panels.panels.find((panel) => panel.id === "routes")).toMatchObject({
       severity: "ok",
     });
     expect(panels.panels.find((panel) => panel.id === "resources")).toMatchObject({
       severity: "ok",
     });
-    expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
-      severity: "error",
-      items: expect.arrayContaining([
-        expect.objectContaining({
-          id: "missing-schema:serverFunction:User.get",
-          label: "User.get",
-          detail: "serverFunction",
-          severity: "error",
-        }),
-        expect.objectContaining({
-          id: "missing-schema:action:User.rename",
-          label: "User.rename",
-          detail: "action",
-          severity: "error",
-        }),
-      ]),
-    });
     expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
-    expect(describeDevtoolsSummary({ appGraph: appGraphDiagnostics })).toMatchObject({
-      graph: {
-        _tag: "Available",
-      },
-    });
-    expect(describeDevtoolsPanels({ summary })).toMatchObject({
-      panels: expect.arrayContaining([expect.objectContaining({ id: "app-graph" })]),
-    });
   });
 
   it("renders deterministic browser panel HTML from the panel contract", async () => {
     const requestTrace = (
       id: string,
       path: string,
-      status: DevtoolsRequestTrace["status"],
-    ): DevtoolsRequestTrace => ({
+      status: Devtools.RequestTrace["status"],
+    ): Devtools.RequestTrace => ({
       request: {
         id,
         method: "GET",
@@ -990,13 +906,13 @@ describe("devtools invalidation plans", () => {
         durationMillis: status === "success" ? 12 : 34,
       },
     });
-    const panels = describeDevtoolsPanels({
+    const panels = Devtools.describePanels({
       requestTraces: [
         requestTrace("safe", "/projects/<atlas>", "success"),
         requestTrace("failed", "/projects/failure", "failure"),
       ],
     });
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels,
       title: "Ops <Devtools>",
       selectedPanelId: "requests",
@@ -1014,8 +930,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("installs the inspected-window devtools bridge with scoped cleanup", async () => {
-    const target: DevtoolsBridgeTarget = {};
-    const panels = describeDevtoolsPanels();
+    const target: Devtools.BridgeTarget = {};
+    const panels = Devtools.describePanels();
     const install = installBridgeForTest(
       {
         panels,
@@ -1025,15 +941,15 @@ describe("devtools invalidation plans", () => {
       target,
     );
 
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toMatchObject({
+    expect(target[Devtools.bridgeGlobal]).toMatchObject({
       panels,
       selectedPanelId: "requests",
       title: "Bridge",
     });
     install.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBeUndefined();
+    expect(target[Devtools.bridgeGlobal]).toBeUndefined();
 
-    target[sunfallArcDevtoolsBridgeGlobal] = () => ({
+    target[Devtools.bridgeGlobal] = () => ({
       panels,
       title: "Previous",
     });
@@ -1041,17 +957,17 @@ describe("devtools invalidation plans", () => {
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* installDevtoolsBridge(
+          yield* Devtools.installBridge(
             () => ({
               panels,
               selectedPanelId: "resources",
             }),
             target,
           );
-          expect(typeof target[sunfallArcDevtoolsBridgeGlobal]).toBe("function");
+          expect(typeof target[Devtools.bridgeGlobal]).toBe("function");
           expect(
-            typeof target[sunfallArcDevtoolsBridgeGlobal] === "function"
-              ? target[sunfallArcDevtoolsBridgeGlobal]()
+            typeof target[Devtools.bridgeGlobal] === "function"
+              ? target[Devtools.bridgeGlobal]()
               : undefined,
           ).toMatchObject({
             panels,
@@ -1062,8 +978,8 @@ describe("devtools invalidation plans", () => {
     );
 
     expect(
-      typeof target[sunfallArcDevtoolsBridgeGlobal] === "function"
-        ? target[sunfallArcDevtoolsBridgeGlobal]()
+      typeof target[Devtools.bridgeGlobal] === "function"
+        ? target[Devtools.bridgeGlobal]()
         : undefined,
     ).toMatchObject({
       panels,
@@ -1072,8 +988,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("keeps inspected-window devtools bridge cleanup stack-safe", () => {
-    const target: DevtoolsBridgeTarget = {};
-    const panels = describeDevtoolsPanels();
+    const target: Devtools.BridgeTarget = {};
+    const panels = Devtools.describePanels();
     const previous = () => ({
       panels,
       title: "Previous",
@@ -1081,34 +997,34 @@ describe("devtools invalidation plans", () => {
     const firstProvider = { panels, title: "First" };
     const secondProvider = { panels, title: "Second" };
     const thirdProvider = { panels, title: "Third" };
-    target[sunfallArcDevtoolsBridgeGlobal] = previous;
+    target[Devtools.bridgeGlobal] = previous;
 
     const first = installBridgeForTest(firstProvider, target);
     const second = installBridgeForTest(secondProvider, target);
     const third = installBridgeForTest(thirdProvider, target);
 
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[Devtools.bridgeGlobal]).toBe(thirdProvider);
     second.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[Devtools.bridgeGlobal]).toBe(thirdProvider);
     first.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[Devtools.bridgeGlobal]).toBe(thirdProvider);
     third.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
+    expect(target[Devtools.bridgeGlobal]).toBe(previous);
     second.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
+    expect(target[Devtools.bridgeGlobal]).toBe(previous);
 
-    const noBaselineTarget: DevtoolsBridgeTarget = {};
+    const noBaselineTarget: Devtools.BridgeTarget = {};
     const noBaselineFirst = installBridgeForTest(firstProvider, noBaselineTarget);
     const noBaselineSecond = installBridgeForTest(secondProvider, noBaselineTarget);
 
     noBaselineFirst.uninstall();
-    expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBe(secondProvider);
+    expect(noBaselineTarget[Devtools.bridgeGlobal]).toBe(secondProvider);
     noBaselineSecond.uninstall();
-    expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBeUndefined();
+    expect(noBaselineTarget[Devtools.bridgeGlobal]).toBeUndefined();
   });
 
   it("normalizes inspected-window panel payloads through the shared panel contract", () => {
-    const panels = describeDevtoolsPanels();
+    const panels = Devtools.describePanels();
 
     expect(isDevtoolsPanelId("requests")).toBe(true);
     expect(isDevtoolsPanelId("missing")).toBe(false);
@@ -1295,7 +1211,7 @@ describe("devtools invalidation plans", () => {
     expect(normalized?.panels.panels.find((panel) => panel.id === "requests")?.title).toBe(
       "Requests",
     );
-    expect(renderDevtoolsPanelsHtml({ panels: normalized!.panels })).toContain("Requests");
+    expect(Devtools.renderPanelsHtml({ panels: normalized!.panels })).toContain("Requests");
     expect(
       normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
@@ -1480,7 +1396,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("renders malformed public panel payloads as contract diagnostics", () => {
-    const panels = describeDevtoolsPanels();
+    const panels = Devtools.describePanels();
     const duplicatePanels = {
       version: 1 as const,
       panels: panels.panels.map((panel, index) =>
@@ -1492,12 +1408,12 @@ describe("devtools invalidation plans", () => {
       panels: panels.panels.filter((panel) => panel.id !== "requests"),
     };
 
-    const duplicateHtml = renderDevtoolsPanelsHtml({
+    const duplicateHtml = Devtools.renderPanelsHtml({
       panels: duplicatePanels,
       selectedPanelId: "diagnostics",
       includeStyles: false,
     });
-    const missingHtml = renderDevtoolsPanelsHtml({
+    const missingHtml = Devtools.renderPanelsHtml({
       panels: missingPanels,
       selectedPanelId: "diagnostics",
       includeStyles: false,
@@ -1510,7 +1426,7 @@ describe("devtools invalidation plans", () => {
     } as unknown as HTMLElement;
     const mountScope = Effect.runSync(Scope.make());
     Effect.runSync(
-      mountDevtoolsPanels({
+      Devtools.mountPanels({
         root,
         panels: missingPanels,
         selectedPanelId: "diagnostics",
@@ -1538,7 +1454,7 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const boot = bootDevtoolsPanels({
+    const boot = Devtools.bootPanels({
       root,
       includeStyles: false,
       lifecycleWindow,
@@ -1561,7 +1477,7 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const boot = bootDevtoolsPanels({
+    const boot = Devtools.bootPanels({
       root,
       includeStyles: false,
       lifecycleWindow,
@@ -1583,7 +1499,7 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const boot = bootDevtoolsPanels({
+    const boot = Devtools.bootPanels({
       root,
       includeStyles: false,
       lifecycleWindow,
@@ -1594,394 +1510,7 @@ describe("devtools invalidation plans", () => {
     expectNoDevtoolsLifecycleListeners(listeners);
   });
 
-  it("repairs stale app graph counts, schema coverage, and unknown preload facts at public seams", () => {
-    const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
-      ...appGraphDiagnostics,
-      routeCount: 99,
-      serverFunctionCount: 0,
-      actionCount: 3,
-      routeModules: [
-        {
-          ...appGraphDiagnostics.routeModules[0]!,
-          pathParamCount: 42,
-          hasPathParams: false,
-          preloadResources: {
-            status: "unknown",
-            families: [],
-          },
-        },
-      ],
-      serverFunctionModules: [
-        {
-          ...appGraphDiagnostics.serverFunctionModules[0]!,
-          wire: {
-            inputSchema: true,
-            outputSchema: false,
-            errorSchema: false,
-            complete: true,
-            missing: [],
-          },
-        },
-      ],
-      actionModules: [
-        {
-          ...appGraphDiagnostics.actionModules[0]!,
-          wire: {
-            inputSchema: false,
-            outputSchema: false,
-            errorSchema: true,
-            complete: true,
-            missing: [],
-          },
-          behavior: {
-            ...appGraphDiagnostics.actionModules[0]!.behavior,
-            invalidates: "unknown",
-          },
-        },
-      ],
-      schemaCoverage: {
-        serverFunctions: {
-          total: 99,
-          input: 99,
-          output: 99,
-          error: 99,
-        },
-        actions: {
-          total: 99,
-          input: 99,
-          output: 99,
-          error: 99,
-        },
-      },
-      missingSchemas: [
-        {
-          kind: "action",
-          name: "Stale.deleted",
-          input: false,
-          output: false,
-          error: false,
-        },
-      ],
-      unknownRoutePreloadResources: [
-        {
-          kind: "route",
-          routeId: "route_stale",
-          routePath: "/stale",
-          moduleId: "src/routes/stale.tsx",
-          filePath: "src/routes/stale.tsx",
-          preload: "unknown",
-          preloadResources: {
-            status: "unknown",
-            families: ["Stale.family"],
-          },
-        },
-      ],
-    };
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
-
-    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
-    expect(snapshotAppGraph).toMatchObject({
-      routeCount: 1,
-      serverFunctionCount: 1,
-      actionCount: 1,
-      routeModules: [
-        {
-          pathParamCount: 1,
-          hasPathParams: true,
-        },
-      ],
-      serverFunctionModules: [
-        {
-          wire: {
-            complete: false,
-            missing: ["output", "error"],
-          },
-        },
-      ],
-      actionModules: [
-        {
-          wire: {
-            complete: false,
-            missing: ["input", "output"],
-          },
-        },
-      ],
-      schemaCoverage: {
-        serverFunctions: {
-          total: 1,
-          input: 1,
-          output: 0,
-          error: 0,
-        },
-        actions: {
-          total: 1,
-          input: 0,
-          output: 0,
-          error: 1,
-        },
-      },
-      unknownRoutePreloadResources: [
-        {
-          routeId: "route_users_$id",
-          routePath: "/users/:id",
-          preloadResources: {
-            status: "unknown",
-            families: [],
-          },
-        },
-      ],
-    });
-    expect(snapshotAppGraph?.missingSchemas).toEqual([
-      {
-        kind: "serverFunction",
-        name: "User.get",
-        input: true,
-        output: false,
-        error: false,
-      },
-      {
-        kind: "action",
-        name: "User.rename",
-        input: false,
-        output: false,
-        error: true,
-      },
-    ]);
-
-    const directSummary = describeDevtoolsSummary({ appGraph: staleAppGraph });
-    const storeSummary = Effect.runSync(store.getSummary());
-    for (const summary of [directSummary, storeSummary]) {
-      expect(summary.overview).toMatchObject({
-        routeCount: 1,
-        serverFunctionCount: 1,
-        actionCount: 1,
-        missingSchemaCount: 2,
-        unknownRoutePreloadResourcesCount: 1,
-      });
-      expect(summary.graph._tag).toBe("Available");
-      if (summary.graph._tag !== "Available") {
-        expect.fail("Expected normalized app graph summary.");
-      }
-      expect(summary.graph.routes).toMatchObject({
-        count: 1,
-        modules: [
-          {
-            routePath: "/users/:id",
-            pathParamCount: 1,
-            hasPathParams: true,
-            preloadResources: {
-              status: "unknown",
-              families: [],
-            },
-          },
-        ],
-        unknownPreloadResources: [
-          {
-            routeId: "route_users_$id",
-            routePath: "/users/:id",
-          },
-        ],
-      });
-      expect(summary.graph.serverFunctions.schemaCoverage).toEqual({
-        total: 1,
-        input: 1,
-        output: 0,
-        error: 0,
-      });
-      expect(summary.graph.actions.schemaCoverage).toEqual({
-        total: 1,
-        input: 0,
-        output: 0,
-        error: 1,
-      });
-    }
-
-    const panels = describeDevtoolsPanels({ appGraph: staleAppGraph });
-    expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
-      summary: "1 routes, 1 server functions, 1 actions",
-      items: [
-        expect.objectContaining({
-          label: "/users/:id",
-          severity: "warning",
-          metrics: expect.arrayContaining([
-            {
-              label: "params",
-              value: 1,
-            },
-            {
-              label: "preload resources",
-              value: "unknown",
-            },
-          ]),
-        }),
-      ],
-    });
-    expect(panels.panels.find((panel) => panel.id === "diagnostics")?.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "unknown-preload-resources:route_users_$id",
-          label: "/users/:id",
-          detail: "unknown preload resources",
-        }),
-      ]),
-    );
-    expect(panels.panels.find((panel) => panel.id === "diagnostics")?.items).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          label: "/stale",
-        }),
-      ]),
-    );
-
-    const causalGraph = Effect.runSync(store.getCausalGraph());
-    expect(causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "schema-coverage:serverFunctions",
-        data: {
-          total: 1,
-          input: 1,
-          output: 0,
-          error: 0,
-        },
-      }),
-    );
-    expect(causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "schema-coverage:actions",
-        data: {
-          total: 1,
-          input: 0,
-          output: 0,
-          error: 1,
-        },
-      }),
-    );
-    expect(causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "route:/users/:id",
-        data: expect.objectContaining({
-          pathParamCount: 1,
-          hasPathParams: true,
-          preloadResources: {
-            status: "unknown",
-            families: [],
-          },
-        }),
-      }),
-    );
-  });
-
-  it("uses Start preload semantics when deriving unknown route preload facts", () => {
-    const presentUnknown: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
-      ...appGraphDiagnostics.routeModules[0]!,
-      preload: "present",
-      preloadResources: {
-        status: "unknown",
-        families: [],
-      },
-    };
-    const staticUnknownFacts: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
-      ...appGraphDiagnostics.routeModules[0]!,
-      routeId: "route_static_unknown",
-      routePath: "/static",
-      moduleId: "src/routes/static.tsx",
-      filePath: "src/routes/static.tsx",
-      preload: "unknown",
-      preloadResources: {
-        status: "unknown",
-        families: ["Static.family"],
-      },
-    };
-    const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
-      ...appGraphDiagnostics,
-      routeModules: [presentUnknown, staticUnknownFacts],
-      unknownRoutePreloadResources: [],
-    };
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
-
-    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
-    expect(snapshotAppGraph?.unknownRoutePreloadResources.map((entry) => entry.routePath)).toEqual([
-      "/users/:id",
-    ]);
-    const summary = Effect.runSync(store.getSummary());
-    expect(summary.overview).toMatchObject({
-      unknownRoutePreloadResourcesCount: 1,
-    });
-    expect(summary.graph._tag).toBe("Available");
-    if (summary.graph._tag !== "Available") {
-      expect.fail("Expected normalized app graph summary.");
-    }
-    expect(summary.graph.routes.unknownPreloadResources.map((entry) => entry.routePath)).toEqual([
-      "/users/:id",
-    ]);
-    const appGraphItems =
-      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "app-graph")?.items ??
-      [];
-    expect(appGraphItems.find((item) => item.label === "/users/:id")?.severity).toBe("warning");
-    expect(appGraphItems.find((item) => item.label === "/static")?.severity).toBe("ok");
-    const diagnostics =
-      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "diagnostics")?.items ??
-      [];
-    expect(diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "unknown-preload-resources:route_users_$id",
-          label: "/users/:id",
-        }),
-      ]),
-    );
-    expect(diagnostics).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          label: "/static",
-        }),
-      ]),
-    );
-
-    const legacyRoute = presentUnknown;
-    const preservedStore = makeDevtoolsStore();
-    Effect.runSync(
-      preservedStore.setSnapshot({
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        appGraph: {
-          ...appGraphDiagnostics,
-          routeModules: [legacyRoute as never],
-          unknownRoutePreloadResources: [],
-        },
-      }),
-    );
-    expect(Effect.runSync(preservedStore.getSnapshot()).appGraph).toMatchObject({
-      unknownRoutePreloadResources: [],
-    });
-    const preservedSummary = Effect.runSync(preservedStore.getSummary());
-    expect(preservedSummary.overview).toMatchObject({
-      unknownRoutePreloadResourcesCount: 0,
-    });
-    expect(preservedSummary.graph._tag).toBe("Available");
-    if (preservedSummary.graph._tag !== "Available") {
-      expect.fail("Expected preserved app graph summary.");
-    }
-    expect(preservedSummary.graph.routes.unknownPreloadResources).toEqual([]);
-    expect(
-      Effect.runSync(preservedStore.getPanels()).panels.find((panel) => panel.id === "diagnostics")
-        ?.items,
-    ).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: expect.stringContaining("unknown-preload"),
-        }),
-      ]),
-    );
-  });
-
-  it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {
+  it("derives a deterministic causal graph from routes, resources, actions, and runtime events", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.causal-devtools", {
       key: ({ id }) => id,
     });
@@ -2003,8 +1532,7 @@ describe("devtools invalidation plans", () => {
     const invalidationPlan = describeInvalidationPlan(
       Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
-    const summary = describeDevtoolsSummary({
-      appGraph: appGraphDiagnostics,
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [
           {
@@ -2062,34 +1590,24 @@ describe("devtools invalidation plans", () => {
     expect(nodeKinds).toEqual(
       new Set([
         "Action",
-        "Endpoint",
         "InvalidationPlan",
-        "MissingSchema",
-        "Module",
         "Resource",
-        "ResourceFamily",
         "ResourceTag",
         "Route",
         "RoutePlan",
         "RuntimeEvent",
-        "SchemaCoverage",
-        "ServerFunction",
       ]),
     );
     expect(edgeKinds).toEqual(
       new Set([
         "Causes",
-        "Covers",
         "Emits",
         "Hydrates",
         "Invalidates",
         "Matches",
-        "MissingSchema",
         "Observes",
         "Preloads",
         "Targets",
-        "UsesEndpoint",
-        "UsesModule",
       ]),
     );
     expect(graph.nodes).toContainEqual(
@@ -2113,61 +1631,12 @@ describe("devtools invalidation plans", () => {
         target: "invalidation:0",
       }),
     );
-    expect(graph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Preloads",
-        source: "route:/users/:id",
-        target: "resource-family:User.summary-devtools",
-      }),
-    );
-    expect(graph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "resource-family:User.summary-devtools",
-        kind: "ResourceFamily",
-        data: expect.objectContaining({
-          name: "User.summary-devtools",
-          inputSchema: true,
-          outputSchema: true,
-          providesTags: true,
-          policy: {
-            staleFor: "30 seconds",
-            gcFor: "5 minutes",
-            retry: true,
-          },
-        }),
-      }),
-    );
     expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
-    expect(
-      describeDevtoolsCausalGraph({
-        appGraph: appGraphDiagnostics,
-        snapshot: {
-          resources: [],
-          actions: [],
-          invalidations: [],
-          routePlans: [],
-          events: [],
-        },
-      }),
-    ).toEqual(
-      describeDevtoolsCausalGraph({
-        appGraph: appGraphDiagnostics,
-        snapshot: {
-          resources: [],
-          actions: [],
-          invalidations: [],
-          routePlans: [],
-          events: [],
-        },
-      }),
-    );
-    expect(describeDevtoolsCausalGraph({ appGraph: appGraphDiagnostics })).toMatchObject({
-      version: 1,
-    });
+    expect(Devtools.describeCausalGraph()).toEqual({ version: 1, nodes: [], edges: [] });
   });
 
   it("links route hydration edges only to hydrated resources", () => {
-    const routePlan: DevtoolsRoutePlan = {
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/projects/atlas",
       match: {
@@ -2193,7 +1662,7 @@ describe("devtools invalidation plans", () => {
         resourceKeys: ["Project:atlas"],
       },
     };
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2211,7 +1680,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("does not infer hydration identity from count-only route-plan facts", () => {
-    const routePlan: DevtoolsRoutePlan = {
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/projects/atlas",
       match: {
@@ -2231,7 +1700,7 @@ describe("devtools invalidation plans", () => {
         resourceCount: 1,
       },
     };
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2246,7 +1715,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("keeps Ref invalidation targets under the Resource causal node kind", () => {
-    const invalidationPlan: DevtoolsInvalidationPlan = {
+    const invalidationPlan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Ref",
@@ -2259,7 +1728,7 @@ describe("devtools invalidation plans", () => {
       ],
       entries: [],
     };
-    const graph = describeDevtoolsCausalGraph({
+    const graph = Devtools.describeCausalGraph({
       snapshot: {
         resources: [],
         actions: [],
@@ -2293,7 +1762,7 @@ describe("devtools invalidation plans", () => {
     const invalidationPlan = describeInvalidationPlan(
       Effect.runSync(Resource.planInvalidation(RuntimeTargetTag)),
     );
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2400,7 +1869,7 @@ describe("devtools invalidation plans", () => {
       describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(FirstTag))),
       describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(SecondTag))),
     ];
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2451,7 +1920,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
     expect(
-      describeDevtoolsPanels({ summary }).panels.find((panel) => panel.id === "resources"),
+      Devtools.describePanels({ summary }).panels.find((panel) => panel.id === "resources"),
     ).toMatchObject({
       items: [
         expect.objectContaining({
@@ -2514,7 +1983,7 @@ describe("devtools invalidation plans", () => {
         Route.planNavigation([RequestTargetRoute] as const, "/request-route-targets/1/2"),
       ),
     );
-    const requestRoutePlan: DevtoolsRoutePlan =
+    const requestRoutePlan: Devtools.RoutePlan =
       routePlan._tag === "Matched" && routePlan.match !== undefined
         ? {
             ...routePlan,
@@ -2524,7 +1993,7 @@ describe("devtools invalidation plans", () => {
             },
           }
         : routePlan;
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2566,7 +2035,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("keeps request-embedded route-plan identity disjoint from recorded plans with the same href", () => {
-    const recordedPlan: DevtoolsRoutePlan = {
+    const recordedPlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/same-route",
       match: {
@@ -2586,7 +2055,7 @@ describe("devtools invalidation plans", () => {
         resourceCount: 0,
       },
     };
-    const embeddedPlan: DevtoolsRoutePlan = {
+    const embeddedPlan: Devtools.RoutePlan = {
       ...recordedPlan,
       resources: [
         {
@@ -2596,7 +2065,7 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2665,10 +2134,12 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const baseGraph = describeDevtoolsCausalGraph({ snapshot });
-    const graphWithAppFacts = describeDevtoolsCausalGraph({
-      appGraph: appGraphDiagnostics,
-      snapshot,
+    const baseGraph = Devtools.describeCausalGraph({ snapshot });
+    const graphWithUnrelatedFacts = Devtools.describeCausalGraph({
+      snapshot: {
+        ...snapshot,
+        actions: [{ name: "Unrelated.edge-devtools", state: "Success" }],
+      },
     });
     const observedEdge = {
       kind: "Observes",
@@ -2682,7 +2153,7 @@ describe("devtools invalidation plans", () => {
         edge.source === observedEdge.source &&
         edge.target === observedEdge.target,
     )?.id;
-    const graphWithAppFactsId = graphWithAppFacts.edges.find(
+    const graphWithUnrelatedFactsId = graphWithUnrelatedFacts.edges.find(
       (edge) =>
         edge.kind === observedEdge.kind &&
         edge.source === observedEdge.source &&
@@ -2690,11 +2161,11 @@ describe("devtools invalidation plans", () => {
     )?.id;
 
     expect(baseId).toBeDefined();
-    expect(graphWithAppFactsId).toBe(baseId);
+    expect(graphWithUnrelatedFactsId).toBe(baseId);
   });
 
   it("frames causal edge id parts so source and target delimiters cannot collide", () => {
-    const requestTrace = (id: string, resourceKey: string): DevtoolsRequestTrace => ({
+    const requestTrace = (id: string, resourceKey: string): Devtools.RequestTrace => ({
       request: {
         id,
         method: "GET",
@@ -2717,7 +2188,7 @@ describe("devtools invalidation plans", () => {
       streams: [],
       status: "success",
     });
-    const graph = describeDevtoolsCausalGraph({
+    const graph = Devtools.describeCausalGraph({
       snapshot: {
         resources: [],
         actions: [],
@@ -2745,7 +2216,7 @@ describe("devtools invalidation plans", () => {
     };
     circular.self = circular;
 
-    expect(toDevtoolsSerializableValue(circular)).toEqual({
+    expect(Devtools.toSerializable(circular)).toEqual({
       a: {
         _tag: "Undefined",
       },
@@ -2779,22 +2250,22 @@ describe("devtools invalidation plans", () => {
       },
     });
 
-    expect(toDevtoolsSerializableValue(new Map([["a", 1]]))).toEqual({
+    expect(Devtools.toSerializable(new Map([["a", 1]]))).toEqual({
       _tag: "Map",
       size: 1,
       entries: [["a", 1]],
     });
-    expect(toDevtoolsSerializableValue(new Set(["x"]))).toEqual({
+    expect(Devtools.toSerializable(new Set(["x"]))).toEqual({
       _tag: "Set",
       size: 1,
       values: ["x"],
     });
-    expect(toDevtoolsSerializableValue(new Error("boom"))).toMatchObject({
+    expect(Devtools.toSerializable(new Error("boom"))).toMatchObject({
       _tag: "Error",
       name: "Error",
       message: "boom",
     });
-    expect(toDevtoolsSerializableValue(throwingGetter)).toEqual({
+    expect(Devtools.toSerializable(throwingGetter)).toEqual({
       bad: {
         _tag: "Accessor",
       },
@@ -2824,21 +2295,21 @@ describe("devtools invalidation plans", () => {
       },
     });
 
-    expect(() => toDevtoolsSerializableValue(hostileRecord)).not.toThrow();
-    expect(toDevtoolsSerializableValue(hostileRecord)).toMatchObject({
+    expect(() => Devtools.toSerializable(hostileRecord)).not.toThrow();
+    expect(Devtools.toSerializable(hostileRecord)).toMatchObject({
       _tag: "UninspectableObject",
       message: "own keys failed",
     });
-    expect(() => toDevtoolsSerializableValue(hostileMap)).not.toThrow();
-    expect(toDevtoolsSerializableValue(hostileMap)).toMatchObject({
+    expect(() => Devtools.toSerializable(hostileMap)).not.toThrow();
+    expect(Devtools.toSerializable(hostileMap)).toMatchObject({
       _tag: "UninspectableObject",
     });
-    expect(() => toDevtoolsSerializableValue(hostileArray)).not.toThrow();
-    expect(toDevtoolsSerializableValue(hostileArray)).toMatchObject({
+    expect(() => Devtools.toSerializable(hostileArray)).not.toThrow();
+    expect(Devtools.toSerializable(hostileArray)).toMatchObject({
       _tag: "UninspectableObject",
       message: "array item failed",
     });
-    expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 2 })).toEqual([
+    expect(Devtools.toSerializable(["a", "b", "c"], { maxEntries: 2 })).toEqual([
       "a",
       "b",
       {
@@ -2856,7 +2327,7 @@ describe("devtools invalidation plans", () => {
         return Reflect.get(target, property, receiver);
       },
     });
-    expect(toDevtoolsSerializableValue(boundedArray, { maxEntries: 1 })).toEqual([
+    expect(Devtools.toSerializable(boundedArray, { maxEntries: 1 })).toEqual([
       "a",
       {
         _tag: "Truncated",
@@ -2864,7 +2335,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
     expect(accessed).not.toContain("1");
-    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3 })).toEqual({
+    expect(Devtools.toSerializable("abcdef", { maxStringLength: 3 })).toEqual({
       _tag: "TruncatedString",
       length: 6,
       value: "abc",
@@ -2874,44 +2345,40 @@ describe("devtools invalidation plans", () => {
   it("normalizes unsafe serialization policy bounds", () => {
     const longArray = Array.from({ length: 55 }, (_, index) => index);
 
-    expect(toDevtoolsSerializableValue({ nested: { value: 1 } }, { maxDepth: 1.8 })).toEqual({
+    expect(Devtools.toSerializable({ nested: { value: 1 } }, { maxDepth: 1.8 })).toEqual({
       nested: {
         _tag: "MaxDepth",
       },
     });
-    expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 1.8 })).toEqual([
+    expect(Devtools.toSerializable(["a", "b", "c"], { maxEntries: 1.8 })).toEqual([
       "a",
       {
         _tag: "Truncated",
         remaining: 2,
       },
     ]);
-    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3.8 })).toEqual({
+    expect(Devtools.toSerializable("abcdef", { maxStringLength: 3.8 })).toEqual({
       _tag: "TruncatedString",
       length: 6,
       value: "abc",
     });
-    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: -1 })).toBe("abcdef");
-    expect(
-      toDevtoolsSerializableValue(longArray, { maxEntries: Number.POSITIVE_INFINITY }),
-    ).toEqual([
+    expect(Devtools.toSerializable("abcdef", { maxStringLength: -1 })).toBe("abcdef");
+    expect(Devtools.toSerializable(longArray, { maxEntries: Number.POSITIVE_INFINITY })).toEqual([
       ...Array.from({ length: 50 }, (_, index) => index),
       {
         _tag: "Truncated",
         remaining: 5,
       },
     ]);
-    expect(toDevtoolsSerializableValue({ nested: { value: 1 } }, { maxDepth: Number.NaN })).toEqual(
-      {
-        nested: {
-          value: 1,
-        },
+    expect(Devtools.toSerializable({ nested: { value: 1 } }, { maxDepth: Number.NaN })).toEqual({
+      nested: {
+        value: 1,
       },
-    );
+    });
   });
 
   it("detaches stored Error and byte-view payloads before serialization", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const error = new TypeError("before");
     (error as Error & { extra?: { readonly nested: { value: number } } }).extra = {
       nested: { value: 1 },
@@ -2960,7 +2427,7 @@ describe("devtools invalidation plans", () => {
     });
     expect([...payload!.bytes]).toEqual([1, 2, 3]);
     expect([...payload!.buffer]).toEqual([4, 5, 6]);
-    expect(toDevtoolsSerializableValue(payload?.error)).toMatchObject({
+    expect(Devtools.toSerializable(payload?.error)).toMatchObject({
       name: "TypeError",
       message: "before",
       extra: {
@@ -2970,7 +2437,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("guards hostile array proxies while detaching stored payloads", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const hostileArray = new Proxy(["a"], {
       get: (target, property, receiver) => {
         if (property === "0") {
@@ -3000,7 +2467,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("bounds deeply nested custom runtime payloads while detaching", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     let payload: Record<string, unknown> = { value: "leaf" };
     for (let index = 0; index < 20_000; index++) {
       payload = { child: payload };
@@ -3028,7 +2495,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("truncates large arrays and maps while detaching stored payloads", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const accessedArrayIndexes: Array<string> = [];
     const largeArray = new Proxy(
       Array.from({ length: 55 }, (_, index) => index),
@@ -3091,7 +2558,7 @@ describe("devtools invalidation plans", () => {
         remaining: 5,
       },
     ]);
-    expect(toDevtoolsSerializableValue(payload?.largeArray)).toEqual([
+    expect(Devtools.toSerializable(payload?.largeArray)).toEqual([
       ...Array.from({ length: 50 }, (_, index) => index),
       {
         _tag: "Truncated",
@@ -3104,7 +2571,7 @@ describe("devtools invalidation plans", () => {
       Array.from({ length: 50 }, (_, index) => [index, index]),
     );
     expect(pulledMapEntries).toBe(50);
-    expect(toDevtoolsSerializableValue(payload?.largeMap)).toEqual({
+    expect(Devtools.toSerializable(payload?.largeMap)).toEqual({
       _tag: "Map",
       size: 55,
       entries: [
@@ -3118,7 +2585,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("copies ArrayBuffer payloads and serializes inspectable bytes", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const buffer = new ArrayBuffer(3);
     const bytes = new Uint8Array(buffer);
     bytes.set([4, 5, 6]);
@@ -3143,7 +2610,7 @@ describe("devtools invalidation plans", () => {
     expect(copiedBuffer).toBeInstanceOf(ArrayBuffer);
     expect(copiedBuffer).not.toBe(buffer);
     expect([...new Uint8Array(copiedBuffer!)]).toEqual([4, 5, 6]);
-    expect(toDevtoolsSerializableValue(copiedBuffer)).toEqual({
+    expect(Devtools.toSerializable(copiedBuffer)).toEqual({
       _tag: "ArrayBuffer",
       byteLength: 3,
       bytes: [4, 5, 6],
@@ -3160,151 +2627,8 @@ describe("devtools invalidation plans", () => {
     });
   });
 
-  it("lets the store expose graph-aware summaries", () => {
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
-
-    expect(Effect.runSync(store.getSummary()).overview).toMatchObject({
-      routeCount: 1,
-      serverFunctionCount: 1,
-      actionCount: 1,
-      missingSchemaCount: 2,
-    });
-    expect(Effect.runSync(store.getSummary()).graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        paths: ["/users/:id"],
-      },
-    });
-
-    Effect.runSync(store.clearAppGraphDiagnostics());
-
-    expect(Effect.runSync(store.getSummary()).graph).toEqual({
-      _tag: "Unavailable",
-    });
-  });
-
-  it("detaches store summaries from nested app graph diagnostics", () => {
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
-    const summary = Effect.runSync(store.getSummary());
-    if (summary.graph._tag !== "Available") {
-      throw new Error("expected available app graph summary");
-    }
-
-    (summary.graph.routes.modules[0]!.params[0] as { name: string }).name = "mutated";
-    (summary.graph.routes.modules[0]!.preloadResources.families as unknown as string[])[0] =
-      "Mutated.family";
-
-    const next = Effect.runSync(store.getSummary());
-    expect(next.graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        modules: [
-          {
-            params: [
-              {
-                name: "id",
-              },
-            ],
-            preloadResources: {
-              families: ["User.summary-devtools"],
-            },
-          },
-        ],
-      },
-    });
-  });
-
-  it("preserves huge app graph route module arrays through summaries, panels, store copies, and bridge windows", () => {
-    const appGraph = appGraphDiagnosticsWithRoutes(1_001);
-    const summary = describeDevtoolsSummary({ appGraph });
-    const panels = describeDevtoolsPanels({ appGraph });
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(appGraph));
-
-    expect(summary.overview.routeCount).toBe(1_001);
-    expect(summary.graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        paths: expect.arrayContaining(["/users/1000/:id"]),
-      },
-    });
-    if (summary.graph._tag !== "Available") {
-      expect.fail("expected available app graph summary");
-    }
-    expect(summary.graph.routes.modules).toHaveLength(1_001);
-    expect(summary.graph.routes.modules[1000]).toMatchObject({
-      routeId: "route_users_1000_$id",
-      routePath: "/users/1000/:id",
-    });
-
-    const appGraphPanel = panels.panels.find((panel) => panel.id === "app-graph");
-    expect(appGraphPanel?.items).toHaveLength(1_001);
-    expect(appGraphPanel?.items[1000]).toMatchObject({
-      id: "route:route_users_1000_$id",
-      label: "/users/1000/:id",
-    });
-    expect(isDevtoolsPanels(panels)).toBe(true);
-    const bridgeAppGraphPanel = normalizeSunfallArcDevtoolsBridgePayload({
-      panels,
-    })?.panels.panels.find((panel) => panel.id === "app-graph");
-    expect(bridgeAppGraphPanel?.items).toHaveLength(1_000);
-    expect(bridgeAppGraphPanel?.items[998]).toMatchObject({
-      id: "route:route_users_998_$id",
-      label: "/users/998/:id",
-    });
-    expect(bridgeAppGraphPanel?.items[999]).toMatchObject({
-      id: "__sunfall-arc-devtools-overflow:app-graph",
-      label: "2 panel items hidden",
-      severity: "info",
-      metrics: [
-        { label: "shown", value: 999 },
-        { label: "hidden", value: 2 },
-        { label: "total", value: 1_001 },
-      ],
-      data: {
-        total: 1_001,
-        shown: 999,
-        hidden: 2,
-      },
-    });
-    const defaultRenderedHtml = renderDevtoolsPanelsHtml({
-      panels,
-      selectedPanelId: "app-graph",
-    });
-    expect(defaultRenderedHtml).toContain(
-      'data-sunfall-arc-devtools-item-id="__sunfall-arc-devtools-overflow:app-graph"',
-    );
-    expect(defaultRenderedHtml).toContain("&quot;total&quot;: 1001");
-    expect(defaultRenderedHtml).toContain("&quot;shown&quot;: 999");
-    expect(defaultRenderedHtml).toContain("&quot;hidden&quot;: 2");
-
-    const snapshotRouteModules = Effect.runSync(store.getSnapshot()).appGraph?.routeModules;
-    expect(snapshotRouteModules).toHaveLength(1_001);
-    expect(
-      snapshotRouteModules?.some(
-        (routeModule) => (routeModule as { readonly _tag?: unknown })._tag === "Truncated",
-      ),
-    ).toBe(false);
-    expect(Effect.runSync(store.getSummary()).graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        modules: expect.arrayContaining([
-          expect.objectContaining({
-            routeId: "route_users_1000_$id",
-          }),
-        ]),
-      },
-    });
-    expect(isDevtoolsPanels(Effect.runSync(store.getPanels()))).toBe(true);
-  });
-
   it("projects resource failure causes and interruptions into resource state facts", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordResourceEvent({
@@ -3338,7 +2662,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("projects resource runtime events into their panel", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordResourceEvent({
@@ -3372,12 +2696,12 @@ describe("devtools invalidation plans", () => {
   });
 
   it("redacts sensitive request trace URL queries, headers, and cookies before storage and projection", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       serializationPolicy: {
         redactKeys: ["tenantPrivate"],
       },
     });
-    const trace: DevtoolsRequestTrace = {
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-sensitive",
         method: "POST",
@@ -3507,8 +2831,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("records structured request traces and links them into the causal graph", async () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-project-atlas",
         traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
@@ -3847,8 +3171,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("preserves bounded request runtime cleanup failures in snapshots, summaries, and panels", () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-cleanup-failure",
         method: "GET",
@@ -3897,8 +3221,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("projects runtime-only request trace events into request facts and causal records", () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-runtime-only",
         method: "GET",
@@ -3975,8 +3299,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("preserves request owner failures in summaries and panels", async () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-project-failure",
         method: "POST",
@@ -4104,8 +3428,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("stamps id-less request traces before runtime-event summarization", () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/projects/atlas",
@@ -4157,7 +3481,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes direct id-less request traces before runtime-event graph projection", () => {
-    const trace: DevtoolsRequestTrace = {
+    const trace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/projects/direct",
@@ -4173,7 +3497,7 @@ describe("devtools invalidation plans", () => {
       streams: [],
       status: "success",
     };
-    const graph = describeDevtoolsCausalGraph({
+    const graph = Devtools.describeCausalGraph({
       snapshot: {
         resources: [],
         actions: [],
@@ -4208,8 +3532,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("seeds runtime trace id allocation from caller-supplied trace ids", () => {
-    const store = makeDevtoolsStore();
-    const requestTrace = (path: string, id?: string): DevtoolsRequestTrace => ({
+    const store = Devtools.makeStore();
+    const requestTrace = (path: string, id?: string): Devtools.RequestTrace => ({
       request: {
         ...(id === undefined ? {} : { id }),
         method: "GET",
@@ -4243,8 +3567,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes imported id-less request traces before allocating new trace ids", () => {
-    const store = makeDevtoolsStore();
-    const requestTrace = (path: string, id?: string): DevtoolsRequestTrace => ({
+    const store = Devtools.makeStore();
+    const requestTrace = (path: string, id?: string): Devtools.RequestTrace => ({
       request: {
         ...(id === undefined ? {} : { id }),
         method: "GET",
@@ -4320,11 +3644,11 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes id-less request traces before applying import trace limits", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       requestTraceLimit: 1,
       eventLimit: 2,
     });
-    const requestTrace = (resourceKey: string): DevtoolsRequestTrace => ({
+    const requestTrace = (resourceKey: string): Devtools.RequestTrace => ({
       request: {
         method: "GET",
         url: "https://example.test/projects/atlas",
@@ -4431,10 +3755,10 @@ describe("devtools invalidation plans", () => {
   });
 
   it("does not detach request traces dropped by import limits", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       requestTraceLimit: 1,
     });
-    const droppedTrace: DevtoolsRequestTrace = {
+    const droppedTrace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/dropped",
@@ -4455,7 +3779,7 @@ describe("devtools invalidation plans", () => {
         throw new Error("dropped trace should not be detached");
       },
     });
-    const retainedTrace: DevtoolsRequestTrace = {
+    const retainedTrace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/retained",
@@ -4489,21 +3813,21 @@ describe("devtools invalidation plans", () => {
   });
 
   it("applies store limits and fact rebasing when importing snapshots", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       invalidationLimit: 1,
       routePlanLimit: 1,
       requestTraceLimit: 1,
       eventLimit: 2,
     });
-    const firstInvalidation: DevtoolsInvalidationPlan = {
+    const firstInvalidation: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "First", name: "First" }],
       entries: [],
     };
-    const secondInvalidation: DevtoolsInvalidationPlan = {
+    const secondInvalidation: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Second", name: "Second" }],
       entries: [],
     };
-    const firstRoutePlan: DevtoolsRoutePlan = {
+    const firstRoutePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/first",
       match: {
@@ -4515,7 +3839,7 @@ describe("devtools invalidation plans", () => {
       resources: [],
       hydration: { resourceCount: 0 },
     };
-    const secondRoutePlan: DevtoolsRoutePlan = {
+    const secondRoutePlan: Devtools.RoutePlan = {
       ...firstRoutePlan,
       href: "/second",
       match: {
@@ -4525,7 +3849,7 @@ describe("devtools invalidation plans", () => {
         search: {},
       },
     };
-    const requestTrace = (id: string): DevtoolsRequestTrace => ({
+    const requestTrace = (id: string): Devtools.RequestTrace => ({
       request: {
         id,
         method: "GET",
@@ -4604,8 +3928,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("returns retained route plan indexes so runtime events can observe duplicate route facts", () => {
-    const store = makeDevtoolsStore();
-    const plan: DevtoolsRoutePlan = {
+    const store = Devtools.makeStore();
+    const plan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/duplicate",
       match: {
@@ -4670,7 +3994,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("applies import limits before detaching dropped runtime event payloads", () => {
-    const store = makeDevtoolsStore({ eventLimit: 1 });
+    const store = Devtools.makeStore({ eventLimit: 1 });
     const droppedPayload: Record<string, unknown> = {};
     Object.defineProperty(droppedPayload, "explode", {
       enumerable: true,
@@ -4715,7 +4039,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("seeds runtime event sequence ids from imported snapshots", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.setSnapshot({
@@ -4768,7 +4092,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("rebases duplicate runtime event sequences imported from snapshots", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.setSnapshot({
@@ -4817,7 +4141,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("rebases duplicate caller-supplied runtime event sequences", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordRuntimeEvent({
@@ -4855,7 +4179,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("matches route-plan facts with stable serialized fingerprints", () => {
-    const routePlan: DevtoolsRoutePlan = {
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/ordered",
       match: {
@@ -4867,7 +4191,7 @@ describe("devtools invalidation plans", () => {
       resources: [],
       hydration: { resourceCount: 0 },
     };
-    const reorderedRoutePlan: DevtoolsRoutePlan = {
+    const reorderedRoutePlan: Devtools.RoutePlan = {
       ...routePlan,
       match: {
         path: "/ordered",
@@ -4876,7 +4200,7 @@ describe("devtools invalidation plans", () => {
         search: { y: "2", x: "1" },
       },
     };
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.setSnapshot({
@@ -4920,8 +4244,8 @@ describe("devtools invalidation plans", () => {
           return Reflect.get(target, property, receiver);
         },
       },
-    ) as DevtoolsRoutePlan["resources"];
-    const routePlan: DevtoolsRoutePlan = {
+    ) as Devtools.RoutePlan["resources"];
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/bounded",
       match: {
@@ -4944,7 +4268,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("matches invalidation facts through the bounded serialization policy", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const accessedIndexes: Array<string> = [];
     const largeInput = new Proxy(
       Array.from({ length: 55 }, (_, index) => index),
@@ -4958,7 +4282,7 @@ describe("devtools invalidation plans", () => {
         },
       },
     );
-    const plan: DevtoolsInvalidationPlan = {
+    const plan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Ref",
@@ -4993,9 +4317,9 @@ describe("devtools invalidation plans", () => {
   });
 
   it("detaches caller snapshots at the store seam", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const input = { id: "atlas" };
-    const plan: DevtoolsInvalidationPlan = {
+    const plan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Ref",
@@ -5080,7 +4404,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("detaches recorded runtime event payloads at the store seam", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const payload = {
       nested: {
         count: 1,
@@ -5120,11 +4444,10 @@ describe("devtools invalidation plans", () => {
   });
 
   it("lets adapters observe snapshots, summaries, events, and causal graphs through Effect", async () => {
-    const store = makeDevtoolsStore({ eventLimit: 1 });
+    const store = Devtools.makeStore({ eventLimit: 1 });
 
     const [snapshot, summary, graph] = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* store.setAppGraphDiagnostics(appGraphDiagnostics);
         yield* store.recordRuntimeEvent({
           _tag: "Custom",
           name: "first",
@@ -5180,9 +4503,9 @@ describe("devtools invalidation plans", () => {
     );
   });
 
-  it("explains the golden path across route, server, action, resource, and invalidation facts", async () => {
+  it("explains the golden path across route, action, resource, and invalidation facts", async () => {
     const runtime = makeRuntime();
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const ProjectId = Schema.Struct({ id: Schema.String });
     const Project = Schema.Struct({ id: Schema.String, name: Schema.String });
     const ProjectsTag = Resource.tag("Golden.Projects");
@@ -5214,23 +4537,11 @@ describe("devtools invalidation plans", () => {
       preload: ({ params }) => Resource.preload(ProjectById({ id: params.id })),
     });
     const ref = ProjectById({ id: "atlas" });
-    const resourceDiagnostics = Resource.diagnostics();
     const action = Action.use(RenameProject, { runtime });
 
     const [summary, graph] = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* store.setAppGraphDiagnostics(
-            goldenPathAppGraphDiagnostics({
-              resourceFamilies: resourceDiagnostics.families.filter(
-                (family) => family.name === "Golden.Project.byId",
-              ),
-              resourceTags: resourceDiagnostics.tags.filter(
-                (tag) => tag.name === "Golden.Project" || tag.name === "Golden.Projects",
-              ),
-            }),
-          );
-
           yield* runtime.provide(
             Effect.scoped(
               Effect.gen(function* () {
@@ -5293,79 +4604,11 @@ describe("devtools invalidation plans", () => {
     );
 
     expect(summary.overview).toMatchObject({
-      routeCount: 1,
-      serverFunctionCount: 1,
-      actionCount: 1,
-      resourceFamilyCount: 1,
-      resourceTagCount: 2,
       runtimeResourceCount: 1,
       runtimeActionCount: 1,
       invalidationPlanCount: 1,
       routePlanCount: 1,
       runtimeEventCount: 6,
-      missingSchemaCount: 0,
-      unknownRoutePreloadResourcesCount: 0,
-    });
-    expect(summary.graph).toMatchObject({
-      _tag: "Available",
-      routes: {
-        paths: ["/projects/:id"],
-        modules: [
-          {
-            routePath: "/projects/:id",
-            paramsSchema: "present",
-            searchSchema: "present",
-            preload: "present",
-          },
-        ],
-      },
-      serverFunctions: {
-        modules: [
-          {
-            name: "Golden.Project.load",
-            client: {
-              _tag: "Import",
-              rpcPath: "/__sunfall-arc/rpc",
-            },
-            wire: {
-              complete: true,
-              missing: [],
-            },
-          },
-        ],
-      },
-      actions: {
-        behavior: {
-          invalidates: [{ state: "present", count: 1 }],
-          optimistic: [{ state: "absent", count: 1 }],
-          retry: [{ state: "absent", count: 1 }],
-          concurrency: [{ state: "latest", count: 1 }],
-        },
-      },
-      resources: {
-        families: [
-          {
-            name: "Golden.Project.byId",
-            inputSchema: true,
-            outputSchema: true,
-            providesTags: true,
-          },
-        ],
-        tags: expect.arrayContaining([
-          {
-            name: "Golden.Project",
-            keyed: true,
-          },
-          {
-            name: "Golden.Projects",
-            keyed: false,
-          },
-        ]),
-      },
-      endpoints: {
-        rpc: "/__sunfall-arc/rpc",
-        action: "/__sunfall-arc/action",
-      },
     });
     expect(summary.routes.plans).toEqual([
       expect.objectContaining({
@@ -5461,16 +4704,7 @@ describe("devtools invalidation plans", () => {
     expect(graph.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "route:/projects/:id", kind: "Route" }),
-        expect.objectContaining({
-          id: "server-function:Golden.Project.load",
-          kind: "ServerFunction",
-        }),
         expect.objectContaining({ id: "action:Golden.Project.rename", kind: "Action" }),
-        expect.objectContaining({
-          id: "resource-family:Golden.Project.byId",
-          kind: "ResourceFamily",
-        }),
-        expect.objectContaining({ id: "resource-tag:Golden.Project", kind: "ResourceTag" }),
         expect.objectContaining({ id: "resource-tag:Golden.Projects", kind: "ResourceTag" }),
         expect.objectContaining({ id: `resource:${ref.key}`, kind: "Resource" }),
         expect.objectContaining({ id: "invalidation:0", kind: "InvalidationPlan" }),
@@ -5492,16 +4726,6 @@ describe("devtools invalidation plans", () => {
           kind: "Hydrates",
           source: "route-plan:0:/projects/atlas?tab=activity",
           target: `resource:${ref.key}`,
-        }),
-        expect.objectContaining({
-          kind: "UsesEndpoint",
-          source: "server-function:Golden.Project.load",
-          target: "endpoint:rpc",
-        }),
-        expect.objectContaining({
-          kind: "UsesEndpoint",
-          source: "action:Golden.Project.rename",
-          target: "endpoint:action",
         }),
         expect.objectContaining({
           kind: "Targets",
@@ -5537,265 +4761,4 @@ describe("devtools invalidation plans", () => {
     );
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
   });
-});
-
-const goldenPathAppGraphDiagnostics = (
-  resources: Pick<DevtoolsStartAppGraphDiagnostics, "resourceFamilies" | "resourceTags">,
-): DevtoolsStartAppGraphDiagnostics => ({
-  version: 1,
-  routeCount: 1,
-  serverFunctionCount: 1,
-  actionCount: 1,
-  routePaths: ["/projects/:id"],
-  routeModules: [
-    {
-      routeId: "route_projects_$id",
-      routePath: "/projects/:id",
-      moduleId: "src/routes/projects/$id.tsx",
-      filePath: "src/routes/projects/$id.tsx",
-      pathParamCount: 1,
-      hasPathParams: true,
-      params: [
-        {
-          name: "id",
-          optional: false,
-        },
-      ],
-      paramsSchema: "present",
-      searchSchema: "present",
-      preload: "present",
-      preloadResources: {
-        status: "declared",
-        families: ["Golden.Project.byId"],
-      },
-    },
-  ],
-  serverFunctionModules: [
-    {
-      id: "sf_golden_project_load",
-      name: "Golden.Project.load",
-      server: {
-        module: "/src/project/project.server.ts",
-        exportName: "loadProject",
-        moduleKind: "server-only",
-        hasHandler: true,
-      },
-      client: {
-        _tag: "Import",
-        rpcPath: "/__sunfall-arc/rpc",
-        module: "/src/project/project.contract.ts",
-        exportName: "loadProject",
-        moduleKind: "contract",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: true,
-        complete: true,
-        missing: [],
-      },
-    },
-  ],
-  actionModules: [
-    {
-      id: "act_golden_project_rename",
-      name: "Golden.Project.rename",
-      server: {
-        module: "/src/project/project.actions.ts",
-        exportName: "RenameProject",
-        moduleKind: "shared",
-      },
-      client: {
-        _tag: "Import",
-        actionPath: "/__sunfall-arc/action",
-        module: "/src/project/project.actions.ts",
-        exportName: "RenameProject",
-        moduleKind: "shared",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: true,
-        complete: true,
-        missing: [],
-      },
-      behavior: {
-        invalidates: "present",
-        optimistic: "absent",
-        retry: "absent",
-        concurrency: "latest",
-      },
-    },
-  ],
-  resourceFamilies: resources.resourceFamilies,
-  resourceTags: resources.resourceTags,
-  serverOnlyModules: ["/src/project/project.server.ts"],
-  browserClientModules: ["/src/project/project.actions.ts", "/src/project/project.contract.ts"],
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
-  schemaCoverage: {
-    serverFunctions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 1,
-    },
-    actions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 1,
-    },
-  },
-  missingSchemas: [],
-  unknownRoutePreloadResources: [],
-});
-
-const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
-  version: 1,
-  routeCount: 1,
-  serverFunctionCount: 1,
-  actionCount: 1,
-  routePaths: ["/users/:id"],
-  routeModules: [
-    {
-      routeId: "route_users_$id",
-      routePath: "/users/:id",
-      moduleId: "src/routes/users/$id.tsx",
-      filePath: "src/routes/users/$id.tsx",
-      pathParamCount: 1,
-      hasPathParams: true,
-      params: [
-        {
-          name: "id",
-          optional: false,
-        },
-      ],
-      paramsSchema: "present",
-      searchSchema: "absent",
-      preload: "present",
-      preloadResources: {
-        status: "declared",
-        families: ["User.summary-devtools"],
-      },
-    },
-  ],
-  serverFunctionModules: [
-    {
-      id: "sf_user_get",
-      name: "User.get",
-      server: {
-        module: "/src/user/user.server.ts",
-        exportName: "getUser",
-        moduleKind: "server-only",
-        hasHandler: true,
-      },
-      client: {
-        _tag: "Import",
-        rpcPath: "/__sunfall-arc/rpc",
-        module: "/src/user/user.contract.ts",
-        exportName: "getUser",
-        moduleKind: "contract",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: false,
-        complete: false,
-        missing: ["error"],
-      },
-    },
-  ],
-  actionModules: [
-    {
-      id: "act_user_rename",
-      name: "User.rename",
-      server: {
-        module: "/src/user/user.actions.ts",
-        exportName: "RenameUser",
-        moduleKind: "shared",
-      },
-      client: {
-        _tag: "Import",
-        actionPath: "/__sunfall-arc/action",
-        module: "/src/user/user.actions.ts",
-        exportName: "RenameUser",
-        moduleKind: "shared",
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: false,
-        complete: false,
-        missing: ["error"],
-      },
-      behavior: {
-        invalidates: "present",
-        optimistic: "absent",
-        retry: "present",
-        concurrency: "latest",
-      },
-    },
-  ],
-  resourceFamilies: [
-    {
-      name: "User.summary-devtools",
-      inputSchema: true,
-      outputSchema: true,
-      errorSchema: false,
-      providesTags: true,
-      policy: {
-        staleFor: "30 seconds",
-        gcFor: "5 minutes",
-        retry: true,
-      },
-    },
-  ],
-  resourceTags: [
-    {
-      name: "User.summary-devtools",
-      keyed: true,
-    },
-  ],
-  serverOnlyModules: ["/src/user/user.server.ts"],
-  browserClientModules: ["/src/user/user.actions.ts"],
-  rpcPath: "/__sunfall-arc/rpc",
-  actionPath: "/__sunfall-arc/action",
-  schemaCoverage: {
-    serverFunctions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 0,
-    },
-    actions: {
-      total: 1,
-      input: 1,
-      output: 1,
-      error: 0,
-    },
-  },
-  missingSchemas: [
-    {
-      kind: "action",
-      name: "User.rename",
-      input: true,
-      output: true,
-      error: false,
-    },
-  ],
-  unknownRoutePreloadResources: [],
-};
-
-const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGraphDiagnostics => ({
-  ...appGraphDiagnostics,
-  routeCount,
-  routePaths: Array.from({ length: routeCount }, (_value, index) => `/users/${index}/:id`),
-  routeModules: Array.from({ length: routeCount }, (_value, index) => ({
-    ...appGraphDiagnostics.routeModules[0]!,
-    routeId: `route_users_${index}_$id`,
-    routePath: `/users/${index}/:id`,
-    moduleId: `src/routes/users/${index}/$id.tsx`,
-    filePath: `src/routes/users/${index}/$id.tsx`,
-  })),
 });

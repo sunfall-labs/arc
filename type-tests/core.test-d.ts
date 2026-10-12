@@ -7,7 +7,6 @@ import {
   ActionTransport,
   ActionTypeId,
   ActionResult,
-  Capability,
   Form,
   Program,
   RequestContext,
@@ -121,6 +120,8 @@ import {
 type ResourceCollectorIsInternal = typeof import("@sunfall/arc-core").ResourceCollector;
 // @ts-expect-error ResourceCollected is exposed as Resource.Collected, not as a root export.
 type ResourceCollectedIsNamespaced = import("@sunfall/arc-core").ResourceCollected;
+// @ts-expect-error Capability was removed; app services are Effect services (`Context.Service`).
+type CapabilityIsRemoved = typeof import("@sunfall/arc-core").Capability;
 
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
@@ -320,7 +321,6 @@ const coreExports: Array<unknown> = [
   Action,
   ActionTypeId,
   ActionResult,
-  Capability,
   Form,
   Program,
   RequestContext,
@@ -989,3 +989,21 @@ void outboxView;
 void outboxPendingCount;
 void outboxRestore;
 void outboxService;
+
+// A ref's service requirements are covariant and checked the same way in every
+// checker: a ref that needs a service never passes where none is provided.
+interface RefVarianceService {
+  readonly refVarianceService: true;
+}
+interface OtherRefVarianceService {
+  readonly otherRefVarianceService: true;
+}
+declare const refNeedingService: Resource.Ref<"all", number, never, RefVarianceService>;
+// @ts-expect-error the ref requires RefVarianceService
+const refWithoutServices: Resource.Ref<"all", number, never, never> = refNeedingService;
+const refWithServices: Resource.Ref<
+  "all",
+  number,
+  never,
+  RefVarianceService | OtherRefVarianceService
+> = refNeedingService;

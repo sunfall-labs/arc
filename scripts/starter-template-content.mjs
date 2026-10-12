@@ -62,7 +62,7 @@ export const projectConsoleStarterReadme = `# Sunfall Arc Project Console Starte
 
 This is the larger checked starter path for Sunfall Arc. It exercises branded
 routes, file-route generation, Resources with keyed rows, Start server functions,
-Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
+Start actions, no-JS form fallback, SSR, hydration, service-Layer mocking,
 and a production server-only leak scan.
 
 ## Commands
@@ -75,9 +75,8 @@ pnpm verify
 
 Keep \`src/domain.contract.ts\` browser-safe. Put server implementations and
 seed data in \`src/domain.server.ts\`. \`src/app-definition.ts\` is the one
-app definition; the Start Vite plugin derives the app graph's server functions
-and Actions from \`createRequestHandler(app, { serverFunctions })\` in
-\`src/server.tsx\`, so \`src/start-options.ts\` holds only file-route,
-diagnostics, and build-policy options. Keep \`src/routeTree.gen.ts\`
-generated, not hand-edited.
+app definition, served by \`createRequestHandler(app, { serverFunctions })\`
+in \`src/server.tsx\`; \`src/start-options.ts\` holds only the Start Vite
+plugin's file-route options. Keep \`src/routeTree.gen.ts\` generated, not
+hand-edited.
 `;

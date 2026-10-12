@@ -1,5 +1,5 @@
 import { Data } from "effect";
-import { bootDevtoolsPanels } from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 import { sampleDevtoolsPanels } from "./sample.js";
 import { type ChromeInspectedWindowApi } from "./transport.js";
 import { panelTitle, pollInspectedWindowEffect } from "./panel-runtime.js";
@@ -13,7 +13,7 @@ class DevtoolsExtensionRootMissing extends Data.TaggedError("DevtoolsExtensionRo
 declare const chrome: ChromeInspectedWindowApi | undefined;
 
 export const bootDevtoolsExtensionPanel = (root: HTMLElement) =>
-  bootDevtoolsPanels({
+  Devtools.bootPanels({
     root,
     panels: sampleDevtoolsPanels(),
     selectedPanelId: "requests",
@@ -33,7 +33,7 @@ if (!root) {
   });
 }
 
-export const devtoolsExtensionPanelBoot = bootDevtoolsPanels({
+export const devtoolsExtensionPanelBoot = Devtools.bootPanels({
   root,
   panels: sampleDevtoolsPanels(),
   selectedPanelId: "requests",

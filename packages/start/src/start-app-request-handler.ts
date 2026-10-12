@@ -19,8 +19,7 @@ import {
   type StartRequestRequirements,
 } from "./start-request-handler.js";
 import { makeStartServerApp } from "./start-server-app.js";
-import { attachStartServedDefinitions } from "./start-served-definitions.js";
-import type { StartTransportEndpointOverrides } from "./start-transport-endpoints.js";
+import { attachStartHandlerRoutes } from "./start-route-preload-warnings.js";
 import { createStartStreamedHtmlResponse, htmlChunk } from "./streaming.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -43,8 +42,6 @@ export interface CreateRequestHandlerOptions<
   readonly serverFunctions?: ReadonlyArray<ServerFunctions>;
   /** The page's head and response headers, per request. */
   readonly document?: (context: StartDocumentContext<Routes>) => StartDocument;
-  /** Transport endpoint paths for RPC and Action requests. */
-  readonly endpoints?: StartTransportEndpointOverrides;
   /** Receives best-effort request diagnostics after runtime teardown. */
   readonly onRequestTrace?: StartRequestTraceHandler;
 }
@@ -167,7 +164,6 @@ export const createRequestHandler = <
   });
   const handler = createStartRequestHandler(serverApp as never, {
     actions: app.actions,
-    ...(serverOptions.endpoints === undefined ? {} : { endpoints: serverOptions.endpoints }),
     ...(serverOptions.onRequestTrace === undefined
       ? {}
       : { onRequestTrace: serverOptions.onRequestTrace }),
@@ -178,11 +174,8 @@ export const createRequestHandler = <
         context as StartRenderContext<Routes, ServerServices, ServerError, any>,
       ),
   });
-  // The Vite plugin reads what the handler serves to derive the app graph.
-  return attachStartServedDefinitions(handler, {
-    actions: app.actions,
-    serverFunctions: serverOptions.serverFunctions ?? [],
-  }) as StartRequestHandler<
+  // Vite dev SSR reads the routes to warn about undeclared preload resources.
+  return attachStartHandlerRoutes(handler, app.routes) as StartRequestHandler<
     StartRequestRequirements<
       Routes,
       ServerServices,

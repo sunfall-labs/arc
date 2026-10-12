@@ -36,10 +36,5 @@ export const docsSiteStartOptions = {
       target: "static",
       forbidBrowserRpc: true,
     },
-    diagnostics: {
-      routePreloadResources: {
-        requireDeclaredForPreload: true,
-      },
-    },
   },
 } as const;

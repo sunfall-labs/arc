@@ -62,6 +62,7 @@ export {
   type ResourceFailureSnapshot,
 } from "./resource-failure-snapshot.js";
 export * from "./resource-registry.js";
+export { decodeServerWire, encodeServerWire } from "./server-wire-codec.js";
 export type {
   MutableResourceStore,
   ResourceStoreEventBus,

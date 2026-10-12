@@ -1,8 +1,9 @@
 import {
   Cause,
+  Context,
   Effect,
   Fiber,
-  type Layer,
+  Layer,
   Metric,
   Request as EffectRequest,
   RequestResolver,
@@ -18,7 +19,6 @@ import {
   ActionInterrupted,
   ActionResult,
   type ActionTransport,
-  Capability,
   EffectInputCallbackError,
   Form,
   Program,
@@ -100,22 +100,7 @@ import {
   type RouterLinkProps,
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
-import {
-  describeDevtoolsPanels,
-  describeDevtoolsSummary,
-  makeDevtoolsStore,
-  type DevtoolsInvalidationPlan,
-  type DevtoolsTimelineCommit,
-  type DevtoolsPanels,
-  type DevtoolsRequestTrace,
-  type DevtoolsRequestTraceTeardown,
-  type DevtoolsRuntimeEvent,
-  type DevtoolsSnapshot,
-  type DevtoolsStartAppGraphDiagnostics,
-  type DevtoolsStore,
-  type DevtoolsSummary,
-} from "@sunfall/arc-devtools";
-import { normalizeDevtoolsAppGraphDiagnostics } from "../packages/devtools/src/app-graph-normalizer.js";
+import { Devtools } from "@sunfall/arc-devtools";
 import {
   App,
   createRequestHandler,
@@ -145,32 +130,6 @@ import {
   createServerActionResponse,
   createServerRpcResponse,
 } from "../packages/start/src/start-request-endpoints.js";
-import {
-  createStartAgentGraphImpact,
-  createStartAgentGraph,
-  formatStartAgentGraphImpact,
-  queryStartAgentGraph,
-  formatStartAgentGraph,
-  type StartAgentGraph,
-  type StartAgentGraphEdge,
-  type StartAgentGraphEdgeKind,
-  type StartAgentGraphFormatOptions,
-  type StartAgentGraphImpact,
-  type StartAgentGraphImpactItem,
-  type StartAgentGraphImpactOptions,
-  type StartAgentGraphImpactRelation,
-  type StartAgentGraphImpactRelationKind,
-  type StartAgentGraphInput,
-  type StartAgentGraphNode,
-  type StartAgentGraphNodeKind,
-  type StartAgentGraphNodeStatus,
-  type StartAgentGraphQuery,
-  type StartAgentGraphQueryKind,
-  type StartAgentGraphQueryResult,
-  type StartAgentGraphSelfReview,
-  type StartAgentGraphSummary,
-} from "../packages/start/src/agent-graph.js";
-import type { StartAppGraphDiagnostics } from "../packages/start/src/app-graph.js";
 import {
   hydrateStartHydrationChunksFromDocument,
   readStartHydrationChunks,
@@ -202,28 +161,10 @@ import {
   type StartSsrRequestHandler,
 } from "../packages/start/src/start-vite-dev-ssr.js";
 import {
-  loadStartAppGraphDiagnostics,
-  type LoadedStartAppGraphDiagnostics,
-  type LoadStartAppGraphDiagnosticsOptions,
-  type StartAppGraphDiagnosticsLoadError,
-} from "../packages/start/src/start-vite-diagnostics-loader.js";
-import {
   writeFileRouteDefinitionsFile,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
 } from "../packages/start/src/generated-route-definitions.js";
-import {
-  createStartDiagnosticsReport as createSubpathStartDiagnosticsReport,
-  formatStartDiagnosticsReport as formatSubpathStartDiagnosticsReport,
-  type StartDiagnosticsReport as SubpathStartDiagnosticsReport,
-  type StartDiagnosticsReportFinding as SubpathStartDiagnosticsReportFinding,
-  type StartDiagnosticsReportFindingKind as SubpathStartDiagnosticsReportFindingKind,
-  type StartDiagnosticsReportInput as SubpathStartDiagnosticsReportInput,
-  type StartDiagnosticsReportOwnerGroup as SubpathStartDiagnosticsReportOwnerGroup,
-  type StartDiagnosticsReportStatus as SubpathStartDiagnosticsReportStatus,
-  type StartDiagnosticsReportSummary as SubpathStartDiagnosticsReportSummary,
-} from "@sunfall/arc-start/diagnostics-report";
-import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "../packages/start/src/cli.js";
 import {
   createFetchHandler,
   toFetchHandler,
@@ -252,7 +193,6 @@ import { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 import type { PluginOption } from "vite";
 import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/domain.contract.js";
 import "@sunfall/arc-start/virtual";
-import { diagnosticsPolicyViolations as virtualDiagnosticsPolicyViolations } from "virtual:sunfall-arc/app-graph";
 import {
   layoutsById as virtualLayoutsById,
   metadataById as virtualMetadataById,
@@ -1018,93 +958,6 @@ const invalidFileRouteIdentifier = new FileRouteDefinitionsModuleInvalidIdentifi
   routeId: "route-with-dash",
   routePath: "/",
 });
-const startDiagnosticsLoadOptions: LoadStartAppGraphDiagnosticsOptions = {
-  root: ".",
-  configFile: false,
-};
-const startDiagnosticsLoadEffect: Effect.Effect<
-  LoadedStartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsLoadError
-> = loadStartAppGraphDiagnostics(startDiagnosticsLoadOptions);
-declare const loadedStartDiagnostics: LoadedStartAppGraphDiagnostics;
-const startDiagnosticsReportInput: SubpathStartDiagnosticsReportInput = {
-  diagnostics: loadedStartDiagnostics.diagnostics,
-  diagnosticsPolicyViolations: loadedStartDiagnostics.diagnosticsPolicyViolations,
-};
-const startDiagnosticsReport: SubpathStartDiagnosticsReport = createSubpathStartDiagnosticsReport(
-  startDiagnosticsReportInput,
-);
-const startDiagnosticsReportText: string =
-  formatSubpathStartDiagnosticsReport(startDiagnosticsReport);
-const startDiagnosticsReportStatus: SubpathStartDiagnosticsReportStatus =
-  startDiagnosticsReport.status;
-const startDiagnosticsReportSummary: SubpathStartDiagnosticsReportSummary =
-  startDiagnosticsReport.summary;
-const startDiagnosticsReportFinding: SubpathStartDiagnosticsReportFinding | undefined =
-  startDiagnosticsReport.findings[0];
-const startDiagnosticsReportFindingKind: SubpathStartDiagnosticsReportFindingKind | undefined =
-  startDiagnosticsReportFinding?.kind;
-const startDiagnosticsReportOwnerGroup: SubpathStartDiagnosticsReportOwnerGroup | undefined =
-  startDiagnosticsReport.groups[0];
-const startAgentGraphInput: StartAgentGraphInput = {
-  diagnostics: loadedStartDiagnostics.diagnostics,
-  diagnosticsPolicyViolations: loadedStartDiagnostics.diagnosticsPolicyViolations,
-};
-const startAgentGraph: StartAgentGraph = createStartAgentGraph(startAgentGraphInput);
-const startAgentGraphQueryKind: StartAgentGraphQueryKind = "route";
-const startAgentGraphQuery: StartAgentGraphQuery = {
-  kind: startAgentGraphQueryKind,
-  text: "/projects",
-};
-const startAgentGraphQueryResult: StartAgentGraphQueryResult = queryStartAgentGraph(
-  startAgentGraph,
-  startAgentGraphQuery,
-);
-const startAgentGraphFormatOptions: StartAgentGraphFormatOptions = {
-  query: startAgentGraphQuery,
-  verbose: false,
-};
-const startAgentGraphText: string = formatStartAgentGraph(
-  startAgentGraph,
-  startAgentGraphFormatOptions,
-);
-const startAgentGraphImpactOptions: StartAgentGraphImpactOptions = {
-  root: "examples/project-console",
-};
-const startAgentGraphImpact: StartAgentGraphImpact = createStartAgentGraphImpact(
-  startAgentGraph,
-  startAgentGraphQuery,
-  startAgentGraphImpactOptions,
-);
-const startAgentGraphImpactText: string = formatStartAgentGraphImpact(startAgentGraphImpact);
-const startAgentGraphImpactItem: StartAgentGraphImpactItem | undefined =
-  startAgentGraphImpact.items[0];
-const startAgentGraphImpactRelation: StartAgentGraphImpactRelation | undefined =
-  startAgentGraphImpactItem?.dependencies[0];
-const startAgentGraphImpactRelationKind: StartAgentGraphImpactRelationKind | undefined =
-  startAgentGraphImpactRelation?.kind;
-const startAgentGraphSummary: StartAgentGraphSummary = startAgentGraph.summary;
-const startAgentGraphSelfReview: StartAgentGraphSelfReview = startAgentGraph.selfReview;
-const startAgentGraphNode: StartAgentGraphNode | undefined = startAgentGraph.nodes[0];
-const startAgentGraphEdge: StartAgentGraphEdge | undefined = startAgentGraph.edges[0];
-const startAgentGraphNodeKind: StartAgentGraphNodeKind | undefined = startAgentGraphNode?.kind;
-const startAgentGraphNodeStatus: StartAgentGraphNodeStatus | undefined =
-  startAgentGraphNode?.status;
-const startAgentGraphEdgeKind: StartAgentGraphEdgeKind | undefined = startAgentGraphEdge?.kind;
-void startDiagnosticsReportText;
-void startDiagnosticsReportStatus;
-void startDiagnosticsReportSummary;
-void startDiagnosticsReportFindingKind;
-void startDiagnosticsReportOwnerGroup;
-void startAgentGraphQueryResult;
-void startAgentGraphText;
-void startAgentGraphImpactText;
-void startAgentGraphImpactRelationKind;
-void startAgentGraphSummary;
-void startAgentGraphSelfReview;
-void startAgentGraphNodeKind;
-void startAgentGraphNodeStatus;
-void startAgentGraphEdgeKind;
 void projectConsoleRouteId;
 void projectConsoleFriendlyRouteId;
 void projectConsoleHrefOptions;
@@ -1128,14 +981,6 @@ void generatedFileRouteWriteEffect;
 void generatedFileRouteHeader;
 void invalidFileRouteExportName;
 void invalidFileRouteIdentifier;
-void startDiagnosticsLoadEffect;
-void startDiagnosticsReportInput;
-void startDiagnosticsReport;
-void startDiagnosticsReportText;
-void startDiagnosticsReportStatus;
-void startDiagnosticsReportSummary;
-void startDiagnosticsReportFindingKind;
-void startDiagnosticsReportOwnerGroup;
 
 // @ts-expect-error generated route definitions keep canonical href param checks
 Route.href(projectConsoleRouteById.route_projects_$id, { params: {} });
@@ -1556,7 +1401,7 @@ const StartServerApp = makeStartServerApp({ routes: [ProjectRoute] as const });
 const startLaunchEffect: Effect.Effect<never, App.LaunchError> = App.launch(StartApp);
 void startLaunchEffect;
 const requestTraceHandler = (trace: StartRequestTrace) => {
-  const devtoolsTrace: DevtoolsRequestTrace = trace;
+  const devtoolsTrace: Devtools.RequestTrace = trace;
   const teardownStartedAt: number | undefined = trace.teardown?.startedAt;
   const teardownCompletedAt: number | undefined = trace.teardown?.completedAt;
   const teardownDurationMillis: number | undefined = trace.teardown?.durationMillis;
@@ -1589,7 +1434,8 @@ const startRequestTraceTeardown: StartRequestTraceTeardown = {
     tagCount: 1,
   },
 };
-const devtoolsRequestTraceTeardown: DevtoolsRequestTraceTeardown = startRequestTraceTeardown;
+const devtoolsRequestTraceTeardown: NonNullable<Devtools.RequestTrace["teardown"]> =
+  startRequestTraceTeardown;
 void devtoolsRequestTraceTeardown;
 createRequestHandler(StartApp, {
   onRequestTrace: requestTraceHandler,
@@ -1600,13 +1446,6 @@ createRequestHandler(StartApp, {
     headers: { "x-start": "yes" },
   }),
 });
-virtualDiagnosticsPolicyViolations.map((violation) => {
-  violation.message.toUpperCase();
-  violation.routes.map((route) => route.routePath.toUpperCase());
-  if (violation._tag === "UnknownRoutePreloadResources") {
-    violation.routes.map((route) => route.preloadResources.families.length);
-  }
-});
 createRequestHandler(StartApp, {
   // @ts-expect-error Start document functions return a StartDocument, not a Promise
   document: () => promisedString,
@@ -1615,14 +1454,6 @@ createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
   onRequestTrace: () => promisedVoid,
 });
-const promiseStartDiagnosticsCliIo: FrameworkStartDiagnosticsCliIo = {
-  // @ts-expect-error diagnostics CLI writers must return EffectInput, not host async work
-  stdout: () => promisedVoid,
-};
-const promiseStartDiagnosticsCliLoaderIo: FrameworkStartDiagnosticsCliIo = {
-  // @ts-expect-error diagnostics CLI loaders must return Effect, not host async work
-  loadDiagnosticsEffect: () => promisedString,
-};
 declare const startResponsePromise: Promise<Response>;
 // @ts-expect-error Start host adapters reject request handlers that return Promise
 const promiseStartRequestHandler = toFetchHandler(() => startResponsePromise);
@@ -1642,7 +1473,6 @@ declare const serviceStartSsrResponse: Effect.Effect<Response, never, ViteDevSsr
 // @ts-expect-error Vite dev SSR handlers may require request Scope, but must provide app services before returning an Effect
 const serviceViteStartSsrRequestHandler: StartSsrRequestHandler = () => serviceStartSsrResponse;
 const startVitePlugin: SunfallArcStartPlugin = sunfallArcStart();
-startVitePlugin.resolveId("virtual:sunfall-arc/app-graph");
 startVitePlugin.transform("", "/src/domain.server.ts", { ssr: true });
 Metric.value(startRequestCountMetric).pipe(Effect.map((state) => state.count.toFixed()));
 Metric.value(startRequestDurationMetric).pipe(Effect.map((state) => state.count.toFixed()));
@@ -1737,37 +1567,37 @@ hydrationRuntime.runSync(hydrateFromDocument(hydrationDocument));
 interface RuntimeDocumentService {
   readonly readDocument: () => string;
 }
-const RuntimeDocumentService = Capability.define<RuntimeDocumentService>("RuntimeDocumentService");
+const RuntimeDocumentService = Context.Service<RuntimeDocumentService>("RuntimeDocumentService");
 interface RuntimeMissingService {
   readonly readMissing: () => string;
 }
-const RuntimeMissingService = Capability.define<RuntimeMissingService>("RuntimeMissingService");
+const RuntimeMissingService = Context.Service<RuntimeMissingService>("RuntimeMissingService");
 const typedRuntime = makeRuntime(
-  RuntimeDocumentService.layer({
+  Layer.succeed(RuntimeDocumentService, {
     readDocument: () => "ok",
   }),
 );
 const runtimeProvidedEffect: Effect.Effect<string> = typedRuntime.provide(
-  RuntimeDocumentService.use((service) => service.readDocument()),
+  RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
 const runtimeMissingRequirementEffect: Effect.Effect<string, never, RuntimeMissingService> =
-  typedRuntime.provide(RuntimeMissingService.use((service) => service.readMissing()));
+  typedRuntime.provide(RuntimeMissingService.useSync((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine provide preserves services that are not in the runtime
 const runtimeMissingRequirementErased: Effect.Effect<string> = typedRuntime.provide(
-  RuntimeMissingService.use((service) => service.readMissing()),
+  RuntimeMissingService.useSync((service) => service.readMissing()),
 );
 const typedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = typedRuntime.dispose;
-typedRuntime.runSync(RuntimeDocumentService.use((service) => service.readDocument()));
+typedRuntime.runSync(RuntimeDocumentService.useSync((service) => service.readDocument()));
 // @ts-expect-error Runtime Spine cannot run an effect with services it does not provide
-typedRuntime.runSync(RuntimeMissingService.use((service) => service.readMissing()));
+typedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine cannot fork an effect with services it does not provide
-typedRuntime.runFork(RuntimeMissingService.use((service) => service.readMissing()));
+typedRuntime.runFork(RuntimeMissingService.useSync((service) => service.readMissing()));
 declare const erasedRuntime: AnySunfallArcRuntime<never>;
 const erasedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = erasedRuntime.dispose;
 const erasedRuntimeProvidedEffect: Effect.Effect<string> = erasedRuntime.provide(
-  RuntimeMissingService.use((service) => service.readMissing()),
+  RuntimeMissingService.useSync((service) => service.readMissing()),
 );
-erasedRuntime.runSync(RuntimeMissingService.use((service) => service.readMissing()));
+erasedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 const runtimeUiScope: UiScope = makeRuntimeUiScope(erasedRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(erasedRuntime);
 void runtimeProvidedEffect;
@@ -1786,10 +1616,10 @@ const viteDevSsrEffect: Effect.Effect<Response, StartHandlerNotFound | StartDevS
   handleSsrDevRequest(viteDevServer, new Request("https://example.com/"));
 const servicefulDevServer: StartDevServer<RuntimeMissingService> = {
   ssrLoadModule: () =>
-    RuntimeMissingService.use(() => ({
+    RuntimeMissingService.useSync(() => ({
       default: () => new Response("ok"),
     })),
-  transformIndexHtml: (_url, html) => RuntimeMissingService.use(() => html),
+  transformIndexHtml: (_url, html) => RuntimeMissingService.useSync(() => html),
 };
 const servicefulDevSsrEffect: Effect.Effect<
   Response,
@@ -2192,31 +2022,26 @@ interface ProjectApi {
   }) => Effect.Effect<Project, ProjectError | Server.ClientError>;
 }
 
-const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
-ProjectApi.layer({
+Layer.succeed(ProjectApi, {
   get: (id) => getProject.effect({ id }),
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
 
-// @ts-expect-error Capability.mock was removed; test doubles use layer(...)
-ProjectApi.mock;
-// @ts-expect-error Capability.provide was removed; provide layer(...) instead
-ProjectApi.provide;
-
-// @ts-expect-error capability implementation must include all service methods
-ProjectApi.layer({
+// @ts-expect-error service implementation must include all service methods
+Layer.succeed(ProjectApi, {
   get: (id) => Effect.succeed({ id, name: "Incomplete" }),
 });
 
 ProjectApi.use((api) => api.get("atlas"));
-ProjectApi.use(() => ({ id: "atlas", name: "Pure Project" }));
-const capabilityEffectReturn: Effect.Effect<number> = ProjectApi.use(() => effectNumberValue).pipe(
-  Effect.provide(ProjectApi.layer({} as never)),
+ProjectApi.useSync(() => ({ id: "atlas", name: "Pure Project" }));
+const serviceEffectReturn: Effect.Effect<number> = ProjectApi.use(() => effectNumberValue).pipe(
+  Effect.provide(Layer.succeed(ProjectApi, {} as never)),
 );
-void capabilityEffectReturn;
+void serviceEffectReturn;
 const projectProgramRuntime = makeRuntime(
-  ProjectApi.layer({
+  Layer.succeed(ProjectApi, {
     get: (id) => Effect.succeed({ id, name: "Runtime Project" }),
     rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
   }),
@@ -2365,7 +2190,7 @@ const ProjectProgramWithMissingService = Program.define<
       Program.next(
         model,
         Program.emit(
-          RuntimeMissingService.use((service) => service.readMissing()).pipe(Effect.asVoid),
+          RuntimeMissingService.useSync((service) => service.readMissing()).pipe(Effect.asVoid),
         ),
       ),
     Loaded: (model) => model,
@@ -2484,7 +2309,7 @@ Program.define<number, BadMessage>({ initial: 0, update: (model: number) => mode
 // @ts-expect-error service method input remains typed
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
 
-// @ts-expect-error capability callbacks must return Effect or a pure value, not Promise
+// @ts-expect-error service use callbacks must return an Effect, not a Promise
 ProjectApi.use(() => promisedProject);
 
 Resource.define<string, Project>({
@@ -2520,7 +2345,7 @@ interface RoutePreloadApi {
   readonly warm: (id: string) => Effect.Effect<void>;
 }
 
-const RoutePreloadApi = Capability.define<RoutePreloadApi>("RoutePreloadApi");
+const RoutePreloadApi = Context.Service<RoutePreloadApi>("RoutePreloadApi");
 const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
@@ -2644,7 +2469,7 @@ toFetchHandler<StartRequestHandlerError>(routePreloadMissingHandler);
 // @ts-expect-error effect-first Node adapters cannot hide requirements through partial generics
 createNodeHandler<StartRequestHandlerError>(routePreloadMissingHandler);
 const routePreloadRuntime = makeRuntime(
-  RoutePreloadApi.layer({
+  Layer.succeed(RoutePreloadApi, {
     warm: () => Effect.void,
   }),
 );
@@ -2679,11 +2504,11 @@ const routePreloadNodeFacade = createNodeServerHandler(routePreloadMissingHandle
 });
 const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.registryAction",
-  run: () => RuntimeDocumentService.use((service) => service.readDocument()),
+  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 });
 const RegistryReadDocumentRpc = Server.implement(
   Server.contract<void, string, never>("RuntimeDocument.registryRpc"),
-  () => RuntimeDocumentService.use((service) => service.readDocument()),
+  () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
 // The app's Actions and the handler's server functions add their services to
 // the handler's requirements unless the server runtime provides them.
@@ -2891,7 +2716,7 @@ void resultWithServicefulInvalidationRequirement;
 void fieldErrorWithServicefulInvalidationRequirement;
 const ReadDocumentAction = Action.define<void, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.readAction",
-  run: () => RuntimeDocumentService.use((service) => service.readDocument()),
+  run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 });
 const readDocumentAction = Action.use(ReadDocumentAction, { runtime: emptyActionRuntime });
 const readDocumentActionSubmit: Effect.Effect<
@@ -2915,8 +2740,8 @@ const ReadDocumentAndMissingAction = Action.define<
   name: "RuntimeDocument.readAndMissingAction",
   run: () =>
     Effect.zipWith(
-      RuntimeDocumentService.use((service) => service.readDocument()),
-      RuntimeMissingService.use((service) => service.readMissing()),
+      RuntimeDocumentService.useSync((service) => service.readDocument()),
+      RuntimeMissingService.useSync((service) => service.readMissing()),
       (document, missing) => `${document}:${missing}`,
     ),
 });
@@ -3036,7 +2861,6 @@ declare const startTransportRuntime: SunfallArcRuntime<StartTransportEnv, never>
 // Start provides the ActionTransport that routes served Actions to the server.
 const startActionTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
   actions: [TouchProject],
-  actionManifest: { actionPath: "/custom/action" },
 });
 const startActionServicefulTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
   actions: [TouchProject],
@@ -3048,7 +2872,6 @@ makeActionTransportLayer({ actions: [TouchProject], fetch: authenticatedStartFet
 makeRpcClientLayer({
   fetch: authenticatedStartFetch,
   transportRuntime: startTransportRuntime,
-  serverFunctionManifest: { rpcPath: "/custom/rpc" },
 });
 // @ts-expect-error RPC ServerClient layers cannot hide a serviceful fetch without a transport runtime
 makeRpcClientLayer({ fetch: authenticatedStartFetch });
@@ -3067,13 +2890,12 @@ touchHandle.submit({ slug: "atlas" });
 StartAction.use(TouchProject);
 
 StartAction.form(TouchProject, {
-  action: "/custom/action",
   input: { id: "atlas" },
 });
 
 StartAction.form(TouchProject, {
-  // @ts-expect-error the form action URL is set only through `action`
-  actionPath: "/custom/action",
+  // @ts-expect-error the form action URL is always the Start action endpoint
+  action: "/custom/action",
 });
 
 StartAction.form(TouchProject, {
@@ -3099,8 +2921,8 @@ StartAction.form(TouchProject, {
   input: { id: 123 },
 });
 
-const devtoolsStore: DevtoolsStore = makeDevtoolsStore();
-const devtoolsTimelineCommit: DevtoolsTimelineCommit = {
+const devtoolsStore: Devtools.Store = Devtools.makeStore();
+const devtoolsTimelineCommit: Devtools.TimelineCommit = {
   sequence: 1,
   label: Timeline.describe(renameCause),
   cause: renameCause,
@@ -3110,8 +2932,8 @@ Effect.runSync(devtoolsStore.recordTimelineEntry(projectProgramHistory[0]!));
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackTimeline(projectTimeline);
 declare const startRuntimeRequestTrace: StartRequestTrace;
-const devtoolsRuntimeRequestTrace: DevtoolsRequestTrace = startRuntimeRequestTrace;
-const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
+const devtoolsRuntimeRequestTrace: Devtools.RequestTrace = startRuntimeRequestTrace;
+const devtoolsResourceRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "ResourceStoreEvent",
   sequence: 1,
   event: {
@@ -3122,20 +2944,20 @@ const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
     previous: false,
   },
 };
-const devtoolsTimelineRuntimeEvent: DevtoolsRuntimeEvent = {
+const devtoolsTimelineRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "TimelineCommit",
   commit: devtoolsTimelineCommit,
 };
-const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
+const devtoolsRequestRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "RequestTrace",
   trace: devtoolsRuntimeRequestTrace,
 };
-const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
+const devtoolsRuntimeEvents: ReadonlyArray<Devtools.RuntimeEvent> = [
   devtoolsResourceRuntimeEvent,
   devtoolsTimelineRuntimeEvent,
   devtoolsRequestRuntimeEvent,
 ];
-const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
+const devtoolsRuntimeSnapshot: Devtools.Snapshot = {
   resources: [],
   actions: [],
   invalidations: [],
@@ -3143,23 +2965,7 @@ const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
   events: devtoolsRuntimeEvents,
 };
 Effect.runSync(devtoolsStore.recordRuntimeEvent(devtoolsResourceRuntimeEvent));
-declare const startAppGraphDiagnostics: StartAppGraphDiagnostics;
-const devtoolsStartAppGraphDiagnosticsFromStart: DevtoolsStartAppGraphDiagnostics =
-  startAppGraphDiagnostics;
-const devtoolsLoadedStartAppGraphDiagnostics: DevtoolsStartAppGraphDiagnostics =
-  loadedStartDiagnostics.diagnostics;
-const normalizedDevtoolsStartAppGraphDiagnostics: DevtoolsStartAppGraphDiagnostics =
-  normalizeDevtoolsAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const devtoolsStartAppGraphSummary: DevtoolsSummary = describeDevtoolsSummary({
-  appGraph: loadedStartDiagnostics.diagnostics,
-});
-const devtoolsStartAppGraphPanels: DevtoolsPanels = describeDevtoolsPanels({
-  appGraph: loadedStartDiagnostics.diagnostics,
-});
-Effect.runSync(devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics));
-const devtoolsSetStartAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
+const serializedInvalidationPlan: Devtools.InvalidationPlan = {
   targets: [
     {
       _tag: "Tag",
@@ -3185,7 +2991,7 @@ const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   ],
 };
 const startInvalidationPlan: StartAction.InvalidationPlan = serializedInvalidationPlan;
-const devtoolsInvalidationPlanFromStart: DevtoolsInvalidationPlan = startInvalidationPlan;
+const devtoolsInvalidationPlanFromStart: Devtools.InvalidationPlan = startInvalidationPlan;
 Effect.runSync(
   devtoolsStore.recordActionState("Project.touch", "Success", {
     serializedInvalidationPlan: startInvalidationPlan,
@@ -3220,12 +3026,6 @@ Effect.runSync(
 );
 void devtoolsRuntimeSnapshot;
 void devtoolsTrackTimelineEffect;
-void devtoolsStartAppGraphDiagnosticsFromStart;
-void devtoolsLoadedStartAppGraphDiagnostics;
-void normalizedDevtoolsStartAppGraphDiagnostics;
-void devtoolsStartAppGraphSummary;
-void devtoolsStartAppGraphPanels;
-void devtoolsSetStartAppGraphDiagnosticsEffect;
 void devtoolsStartInvalidationIndex;
 void devtoolsSerializedInvalidationIndexEffect;
 void devtoolsTrackActionEffect;

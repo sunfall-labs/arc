@@ -1,5 +1,5 @@
-import { Capability, Resource } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
+import { Resource } from "@sunfall/arc-core";
+import { Context, Effect, Schema } from "effect";
 
 export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
 export type ProjectId = typeof ProjectId.Type;
@@ -24,7 +24,7 @@ export interface ProjectApi {
     readonly name: string;
   }) => Effect.Effect<Project, ProjectNotFound>;
 }
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
 // Semantic tags: Resources provide them, Actions invalidate them.
 export const ProjectsTag = Resource.tag("Projects");

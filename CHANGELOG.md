@@ -6,6 +6,72 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Start Drops Its Diagnostics CLI, Agent Graph And App Graph (Breaking)
+
+- The `sunfall-arc-start` binary (`diagnostics`, `graph`, `impact`), the
+  `@sunfall/arc-start/diagnostics-report` and `@sunfall/arc-start/internal`
+  entrypoints, the Start agent graph, and the Start app graph
+  (`virtual:sunfall-arc/app-graph`, `.../runtime-diagnostics`,
+  `__SUNFALL_ARC_APP_GRAPH__`) are removed. So are the
+  `virtual:sunfall-arc/server-functions` and `virtual:sunfall-arc/actions`
+  manifest modules and the `__SUNFALL_ARC_SERVER_FUNCTIONS__` /
+  `__SUNFALL_ARC_ACTIONS__` / `__SUNFALL_ARC_FILE_ROUTES__` defines: nothing
+  read them. The file-route virtual modules stay.
+- The Vite plugin no longer SSR-loads the server entry through a second Vite
+  server at startup, and builds no longer start a third one for the
+  diagnostics gate.
+- `buildPolicy` is `{ staticClient }`: `buildPolicy: true`, `wireSchemas`
+  (`StartAppGraphMissingWireSchemas`) and `diagnostics` are gone. The one
+  diagnostics rule, routes with a `preload` must declare `preloadResources`,
+  is now a dev warning: the Vite dev SSR middleware logs it once per loaded
+  server entry for each such route.
+- The RPC and Action endpoints are fixed at `/__sunfall-arc/rpc` and
+  `/__sunfall-arc/action`: the plugin's `rpcPath`/`actionPath`,
+  `createRequestHandler`'s and `App.launch`'s `endpoints`, and
+  `StartAction.form`'s `action` options are removed, with
+  `StartTransportEndpointPathError`, `StartTransportEndpointConflictError` and
+  `StartTransportEndpointOverrides`.
+- Start encodes and decodes Action wire values with core's server wire codec
+  instead of its own copy.
+
+### Devtools Is One Namespace (Breaking)
+
+- `@sunfall/arc-devtools` exports the `Devtools` namespace plus the error
+  classes `DevtoolsActionInvalidationPlanConflict` and
+  `DevtoolsPanelContractError` (root exports 106 to 3). Functions drop the
+  `Devtools` infix: `makeDevtoolsStore` is `Devtools.makeStore`,
+  `describeDevtoolsSummary` / `describeDevtoolsCausalGraph` /
+  `describeDevtoolsPanels` are `Devtools.describeSummary` /
+  `describeCausalGraph` / `describePanels`, `renderDevtoolsPanelsHtml`,
+  `mountDevtoolsPanels`, and `bootDevtoolsPanels` are
+  `Devtools.renderPanelsHtml` / `mountPanels` / `bootPanels`,
+  `installDevtoolsBridge` is `Devtools.installBridge`,
+  `sunfallArcDevtoolsBridgeGlobal` is `Devtools.bridgeGlobal`,
+  `resolveSunfallArcDevtoolsBridgePayload` is `Devtools.resolveBridgePayload`,
+  and `toDevtoolsSerializableValue` is `Devtools.toSerializable`. Types are
+  members: `DevtoolsStore` is `Devtools.Store`, `DevtoolsPanels` is
+  `Devtools.Panels`, `DevtoolsBridgePayloadContractResolution` is
+  `Devtools.BridgePayloadResolution`, and so on.
+- Removed exports nothing used: `describeInvalidationPlan` /
+  `describeRoutePlan` (the Store's `recordInvalidation` / `recordRoutePlan`
+  take live plans), `isDevtoolsSerializableValue`, `devtoolsPanelIds`,
+  `devtoolsPanelSeverities`, `DevtoolsUnknownInvalidationTarget` (a defect,
+  never a typed failure), and the nested DTO names (`DevtoolsPanelItem`,
+  `DevtoolsPanelMetric`, `DevtoolsCausalNode*`, `DevtoolsRequestTrace*`,
+  `DevtoolsStartAppGraph*`, `DevtoolsSummary*` parts). Reach nested shapes
+  through their owner, e.g. `Devtools.Panel["items"][number]`.
+  See [From Flat Devtools Names](docs/migration-notes.md#from-flat-devtools-names).
+
+### App Services Are Effect Services (Breaking)
+
+- `Capability` is removed (`Capability.define`, `.layer`, `.tag`,
+  `isCapability`, `CapabilityTypeId`, and the `Capability.Any` / `Shape` /
+  `Identifier` types). Define an app service with Effect's
+  `Context.Service<ProjectApi>("ProjectApi")` and provide it with
+  `Layer.succeed(ProjectApi, { ... })`. `ProjectApi.use((api) => ...)` is
+  unchanged for Effect callbacks; a plain-value callback is
+  `ProjectApi.useSync(...)`. See the migration notes' "From Capability".
+
 ### Resource Is The One Server-Data Model (Breaking)
 
 - `Resource.define` takes `rows` when its `output` is an array:

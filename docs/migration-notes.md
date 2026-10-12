@@ -5,6 +5,22 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Capability
+
+`Capability` is gone: Arc's wrapper added nothing over Effect's own services.
+Define an app service with `Context.Service` and provide it with `Layer`.
+Resources, Actions, route preload, and Components keep calling
+`ProjectApi.use(...)`; the service still joins their `R`.
+
+| Before                                                                        | After                                                             |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `Capability.define<ProjectApi>("ProjectApi")`                                 | `Context.Service<ProjectApi>("ProjectApi")` (from `effect`)       |
+| `ProjectApi.layer({ ... })`                                                   | `Layer.succeed(ProjectApi, { ... })`                              |
+| `ProjectApi.use((api) => api.get(id))` (Effect callback)                      | unchanged                                                         |
+| `ProjectApi.use((api) => api.cached)` (plain-value callback)                  | `ProjectApi.useSync((api) => api.cached)`                         |
+| `ProjectApi.tag`                                                              | `ProjectApi` (the service is its own key)                         |
+| `isCapability`, `CapabilityTypeId`, `Capability.Any` / `Shape` / `Identifier` | removed; the shape is the interface the service was declared with |
+
 ## From Collection
 
 Collections are gone: a Resource is the one server-data model. Every
@@ -47,6 +63,31 @@ Resource reader, and patch them on the Resource ref.
   `UnknownCollectionIndex` are removed: an update of a missing key is a no-op,
   and a key change or an unknown index is a defect.
 
+## From Flat Devtools Names
+
+`@sunfall/arc-devtools` exports one `Devtools` namespace plus its two error
+classes (`DevtoolsActionInvalidationPlanConflict`,
+`DevtoolsPanelContractError`). Drop the `Devtools` prefix or infix and read the
+name off the namespace:
+
+| Before                                                                       | After                                                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `makeDevtoolsStore(options)`                                                 | `Devtools.makeStore(options)`                                      |
+| `describeDevtoolsSummary` / `describeDevtoolsCausalGraph`                    | `Devtools.describeSummary` / `Devtools.describeCausalGraph`        |
+| `describeDevtoolsPanels` / `renderDevtoolsPanelsHtml`                        | `Devtools.describePanels` / `Devtools.renderPanelsHtml`            |
+| `mountDevtoolsPanels` / `bootDevtoolsPanels`                                 | `Devtools.mountPanels` / `Devtools.bootPanels`                     |
+| `installDevtoolsBridge` / `sunfallArcDevtoolsBridgeGlobal`                   | `Devtools.installBridge` / `Devtools.bridgeGlobal`                 |
+| `resolveSunfallArcDevtoolsBridgePayload`                                     | `Devtools.resolveBridgePayload`                                    |
+| `toDevtoolsSerializableValue`                                                | `Devtools.toSerializable`                                          |
+| `DevtoolsStore`, `DevtoolsSnapshot`, `DevtoolsPanels`, `DevtoolsSummary`     | `Devtools.Store`, `Devtools.Snapshot`, `Devtools.Panels`, ...      |
+| `DevtoolsStartAppGraphDiagnostics`                                           | `Devtools.AppGraphDiagnostics`                                     |
+| `DevtoolsBridgePayloadContractResolution`                                    | `Devtools.BridgePayloadResolution`                                 |
+| `DevtoolsPanelItem`, `DevtoolsPanelMetric`, `DevtoolsPanelId`                | `Devtools.Panel["items"][number]`, `["metrics"][number]`, `["id"]` |
+| `DevtoolsCausalNodeKind` / `DevtoolsCausalEdgeKind`                          | `Devtools.CausalGraph["nodes"][number]["kind"]` / `["edges"]...`   |
+| `DevtoolsRequestTraceTeardown` and other `DevtoolsRequestTrace*` parts       | `NonNullable<Devtools.RequestTrace["teardown"]>`, ...              |
+| `describeInvalidationPlan(plan)` / `describeRoutePlan(plan)`                 | `store.recordInvalidation(plan)` / `store.recordRoutePlan(plan)`   |
+| `isDevtoolsSerializableValue`, `devtoolsPanelIds`, `devtoolsPanelSeverities` | removed; validate payloads with `Devtools.resolveBridgePayload`    |
+
 ## From Duplicate Names And Forms
 
 Every public thing now has one name and one form. Types a namespace owns are
@@ -84,9 +125,9 @@ services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 | `Server.stub(name, schemas)`                                                                          | `Server.client(Server.contract(name, schemas))`                                                                     |
 | `Server.provideMocks(effect, ...mocks)` / `Server.mockClient(...mocks)`                               | `Effect.provide(effect, Server.mockLayer(...mocks))`                                                                |
 | `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
-| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `capability.layer(service)` / `Effect.provide(effect, capability.layer(service))`                                   |
+| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `Layer.succeed(Service, service)` / `Effect.provide(effect, Layer.succeed(Service, service))`                       |
 | `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
-| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action, { action: url })`                                                                         |
+| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to `/__sunfall-arc/action`)                                                       |
 | prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
 | prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
 | cookie `sameSite: "Strict"` / `"Lax"` / `"None"`                                                      | `sameSite: "strict"` / `"lax"` / `"none"`                                                                           |
@@ -161,7 +202,7 @@ This alpha applies three naming rules across every package:
 
 1. Definition constructors are `define`, namespaced: `Resource.define`,
    `Route.define`, `App.define`, `Component.define`,
-   beside `Action.define`, `Program.define`, and `Capability.define`.
+   beside `Action.define` and `Program.define`.
 2. Operations that return Effects carry no `Effect` suffix, and each has one
    form: where a synchronous twin existed it is gone. Hosts without an Effect
    context run the Effect (`Effect.runFork(...)` from a cleanup hook starts
@@ -172,12 +213,12 @@ Handles follow the same rule: members that run work (`submit`, `dispatch`,
 `reset`, `preload`, `refresh`) return Effects, and UI event handlers run them
 through `Component.callback`, which requires failures to be handled:
 
+<!-- prettier-ignore -->
 ```tsx
-const rename = yield * Component.action(RenameProject);
+const rename = yield* Component.action(RenameProject);
 const save =
-  yield *
-  Component.callback("save", (name: string) =>
-    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
+  yield* Component.callback("save", (name: string) =>
+  rename.submit({ id: props.id, name }).pipe(Effect.ignore),
   );
 return () => <RenameForm onRename={save} />;
 ```
@@ -211,7 +252,7 @@ Effect.runFork(App.launch(app));
 | `ActionResult.successEffect` / `failureEffect` / `failEffect` / `redirectEffect` / `validationEffect`                        | return `ActionResult.success(...)` etc. (or `Effect.succeed(...)` of it)                                                                      |
 | `ActionResult.fail`                                                                                                          | `ActionResult.failure`                                                                                                                        |
 | `ActionResult.validateFormEffect` / `requireSuccessEffect`                                                                   | `ActionResult.validateForm` / `requireSuccess`                                                                                                |
-| `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                               | `Capability.use(f)` (Effect or plain-value callback)                                                                                          |
+| `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                               | Effect service `use(f)` / `useSync(f)` (see [From Capability](#from-capability))                                                              |
 | `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                  | `form.validate()`, `Form.validate`, `Form.decodeFormData`                                                                                     |
 | root `decodeFormDataEffect`, `formDataToObject`                                                                              | `Form.decodeFormData`, `Form.data`                                                                                                            |
 | `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                        | `Server.handleRoute`, `Signal.fromStream`                                                                                                     |
@@ -239,12 +280,12 @@ Effect.runFork(App.launch(app));
 | Solid DB handle `result()` / `preloadFailure()`, `onPreloadFailure`, `pendingMutations()`                                    | `waiting()` / `failure()`; a never-loaded failure throws to `<Errored>` (`catchTags`)                                                         |
 | `Route.define(path, { component })`                                                                                          | `Route.withComponent(route, Component, props?)` (Start code-splits it)                                                                        |
 | `Collection.RuntimeError<E>`, `collection.preload().pipe(Effect.orDie)` in a route preload                                   | `E`: collection loads fail only with their declared error; contract breaks are defects                                                        |
-| Vite plugin `serverFunctionManifest` / `actionManifest` options                                                              | removed: the plugin derives both from the server entry's `createRequestHandler`                                                               |
+| Vite plugin `serverFunctionManifest` / `actionManifest` options                                                              | removed                                                                                                                                       |
 | `catchTags({ LoadErrorTag })` on a reader of a Resource without `error` (render failure was the raw load error)              | declare `error: LoadErrorSchema` on the Resource, or handle `ResourceUntypedFailure` (its `tag` only)                                         |
 | Resource `error: unknown` (diagnostics only)                                                                                 | `error` is a `Schema.Codec<E>` (`Resource.ErrorSchema<E>`): `load` must fail within it and it defines the declared error                      |
 | raw typed failure serialized by `<Errored>` during SSR                                                                       | the Solid adapter throws only a safe wire value: schema-encoded Resource failure, `_tag` without a schema, nothing for setup failures/defects |
 | app graph route diagnostics `component` presence                                                                             | removed: components attach with `Route.withComponent` in app modules                                                                          |
-| `validateStartAppGraphActionBehaviorEffect`, `StartBuildPolicy.actionBehavior`, `diagnostics.unknownActionBehavior`          | removed: manifests are derived from `Action.define` values, so behavior is always known                                                       |
+| `validateStartAppGraphActionBehaviorEffect`, `StartBuildPolicy.actionBehavior`, `diagnostics.unknownActionBehavior`          | removed                                                                                                                                       |
 | `Option.getOrUndefined(AsyncResult.error(action.result()))`, `action.result().waiting`                                       | `action.failure()` (a `Cause`), `action.waiting()`                                                                                            |
 | `optimistic: (input, tx) => ... return Effect.void` (rollback Effect)                                                        | `optimistic: (input, tx) => tx.set(...)` (the transaction owns rollback)                                                                      |
 | `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`                                                           | `Query.once`, `preload` / `refresh`                                                                                                           |
@@ -264,6 +305,26 @@ Effect.runFork(App.launch(app));
 The migration is done when no `*Effect`-suffixed Arc name remains in app code,
 event handlers reach Effects only through `Component.callback`, and routes are
 addressed by their definitions.
+
+## From The Start Diagnostics CLI And App Graph
+
+Start no longer builds an app graph, so the tooling that read it is gone:
+
+| Before                                                                                                                            | Now                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `sunfall-arc-start diagnostics` / `graph` / `impact` (the package `bin`)                                                          | removed; read `routeTree.gen.ts`, `Resource.diagnostics()`, and `Route.describePreloadResources` |
+| `@sunfall/arc-start/diagnostics-report`, `createStartAgentGraph(...)`                                                             | removed                                                                                          |
+| `virtual:sunfall-arc/app-graph`, `virtual:sunfall-arc/app-graph/runtime-diagnostics`                                              | removed                                                                                          |
+| `virtual:sunfall-arc/server-functions`, `virtual:sunfall-arc/actions`, `__SUNFALL_ARC_*__` manifest defines                       | removed (`virtual:sunfall-arc/file-routes` and `virtual:sunfall-arc/routes` remain)              |
+| `buildPolicy: true`, `buildPolicy.wireSchemas`                                                                                    | removed; `buildPolicy` is `{ staticClient }`                                                     |
+| `buildPolicy.diagnostics.routePreloadResources.requireDeclaredForPreload`                                                         | Vite dev logs a warning for each route whose `preload` declares no `preloadResources`            |
+| `@sunfall/arc-start/internal`                                                                                                     | removed                                                                                          |
+| Vite plugin `rpcPath` / `actionPath`, `createRequestHandler(app, { endpoints })`, `App.launch(app, { transport: { endpoints } })` | removed: the endpoints are fixed at `/__sunfall-arc/rpc` and `/__sunfall-arc/action`             |
+| `StartTransportEndpointPathError`, `StartTransportEndpointConflictError`, `StartTransportEndpointOverrides`                       | removed                                                                                          |
+| `StartAction.form(action, { action: url })`                                                                                       | `StartAction.form(action)`                                                                       |
+
+The plugin also no longer loads the server entry through a second Vite server
+at startup to name server functions and Actions: nothing consumed those names.
 
 ## From Reducers And Effect Queues
 
@@ -331,7 +392,7 @@ behind Resource families and Actions:
 
 - Query keys become `Resource.define({ name, input, load })` refs.
 - Query functions become Effect loaders, usually calling a server contract or
-  Capability.
+  Effect service.
 - `invalidateQueries(...)` becomes `Resource.invalidate(...)` or an
   Action invalidation plan.
 - Mutation callbacks become `Action.define(...)` definitions with retry,
@@ -352,7 +413,7 @@ and interruption stay visible.
 
 TanStack Start route files often combine route definitions, loaders, server
 functions, and generated route typing. Sunfall Arc keeps the same copyable route
-shape but makes app graph facts explicit:
+shape but makes route facts explicit:
 
 - File routes export `route = Route.define(path, options)`; Start generates
   the route maps and fails when the declared path differs from the file's.
@@ -363,8 +424,8 @@ shape but makes app graph facts explicit:
 - Start renders the app root into its own streamed document; a route sets its
   head and headers through the handler's `document` function instead of
   hand-written HTML.
-- Build diagnostics should run with declared route preload ownership and schema
-  metadata before a route leaves the starter stage.
+- Routes with a `preload` declare `preloadResources`; Vite dev warns for every
+  route that does not.
 
 When moving a route, migrate the route path, schemas, Resource preloads, and
 server contracts together. A route that compiles but hides preload ownership is
@@ -394,16 +455,17 @@ Resource invalidation.
 
 Ad hoc mocks usually replace imports directly, which makes SSR, client tests,
 and route preloads disagree about the service graph. Sunfall Arc uses
-Capabilities and Layers instead:
+Effect services and Layers instead:
 
-- Define a `Capability` for each service interface the app owns.
+- Define an Effect service (`Context.Service`) for each service interface the
+  app owns.
 - Provide production behavior through the server Layer passed to
   `createRequestHandler(app, { server })`, the client Layer in
   `App.define({ client })`, or `makeRuntime(...)`.
-- Provide test behavior through `Server.mock(...)`, Capability test Layers, or
+- Provide test behavior through `Server.mock(...)`, test Layers for the service, or
   a runtime created for the test.
 - Keep server-only implementations in `.server.ts` modules and prove they stay
   out of browser bundles with a leak scan.
 
-Prefer mocking the interface at the Capability or contract level. Avoid mocking
+Prefer mocking the interface at the service or contract level. Avoid mocking
 deep modules that callers should not know exist.

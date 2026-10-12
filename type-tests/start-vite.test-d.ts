@@ -5,9 +5,6 @@ import {
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
   FileRouteDiscoveryError,
-  StartAppGraphDiagnosticsRunnerError,
-  StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownRoutePreloadResources,
   StartDevServerError,
   StartHandlerNotFound,
   StartPrerenderError,
@@ -16,7 +13,6 @@ import {
   type FileRouteGenerationOptions,
   type FileRouteManifestOptions,
   type StartBuildPolicy,
-  type StartBuildPolicyError,
   type StartPrerenderConfig,
   type StartPrerenderFailureEvent,
   type StartPrerenderOptions,
@@ -36,9 +32,6 @@ const viteExports: Array<unknown> = [
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
   FileRouteDiscoveryError,
-  StartAppGraphDiagnosticsRunnerError,
-  StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownRoutePreloadResources,
   StartDevServerError,
   StartHandlerNotFound,
   StartPrerenderError,
@@ -49,7 +42,6 @@ type ViteTypes =
   | FileRouteGenerationOptions
   | FileRouteManifestOptions
   | StartBuildPolicy
-  | StartBuildPolicyError
   | StartPrerenderConfig
   | StartPrerenderFailureEvent
   | StartPrerenderOptions
@@ -63,26 +55,11 @@ type ViteTypes =
   | SunfallArcStartPlugin
   | SunfallArcStartResolvedConfig;
 
-const diagnosticsBuildPolicyOptions = {
+const staticBuildPolicyOptions = {
   buildPolicy: {
-    wireSchemas: false,
-    diagnostics: {
-      routePreloadResources: {
-        requireDeclaredForPreload: false,
-      },
-    },
+    staticClient: { target: "static" },
   },
 } satisfies SunfallArcStartOptions;
-type Assert<T extends true> = T;
-type StaticStartBuildPolicyErrors = StartAppGraphMissingWireSchemas;
-type _StartBuildPolicyErrorIsStaticOnly = Assert<
-  StartBuildPolicyError extends StaticStartBuildPolicyErrors ? true : false
->;
-type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
-  Extract<StartBuildPolicyError, StartAppGraphUnknownRoutePreloadResources> extends never
-    ? true
-    : false
->;
 
 interface ViteDevSsrService {
   readonly value: string;
@@ -138,20 +115,14 @@ const discoveryOptions: FileRouteDiscoveryOptions = {
   fileRouteGeneration: { outputFile: "src/routes/routeTree.gen.ts" },
 };
 const plugin: SunfallArcStartPlugin = sunfallArcStart({
-  ...diagnosticsBuildPolicyOptions,
+  ...staticBuildPolicyOptions,
   serverEntry: "/src/server.tsx",
   fileRouteOptions: { routeDirectory: "src/routes" },
 });
-// Server functions and Actions come only from the server entry's handler.
 sunfallArcStart({
   serverEntry: "/src/server.tsx",
-  // @ts-expect-error the plugin derives the server-function manifest; there is no option for it
-  serverFunctionManifest: [],
-});
-sunfallArcStart({
-  serverEntry: "/src/server.tsx",
-  // @ts-expect-error the plugin derives the Action manifest; there is no option for it
-  actionManifest: [],
+  // @ts-expect-error the Start transport endpoints are fixed; there is no option for them
+  rpcPath: "/rpc",
 });
 const prerenderError = new StartPrerenderError({
   operation: "render-page",

@@ -10,7 +10,7 @@ edge.
 
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
-- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, query callbacks, capabilities, and form validators.
+- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, query callbacks, and form validators; an Effect service's `use` callback must return an Effect.
 - Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. `Program.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
@@ -23,7 +23,7 @@ edge.
 - `createRequestHandler(app, { server })` is the server-side dependency provider for SSR/request work, and the app's `client` Layer is the browser's (`App.define({ client })`). Prefer Effect `Layer`s there; each must provide everything the app's root needs.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
-- Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Capability services, schemas, retries, or invalidation.
+- Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Effect services, schemas, retries, or invalidation.
 - Run application work through `SunfallArcRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
@@ -32,7 +32,7 @@ edge.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
-- Prefer named `Capability` services for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are layers behind that capability.
+- Prefer named Effect services (`Context.Service`) for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are Layers behind that service.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
 - Add type tests for API rules that should fail at compile time. A passing runtime test is not enough when the framework can reject the mistake earlier.
@@ -43,8 +43,7 @@ edge.
 Framework code should optimize for the caller being able to see the Effect
 shape:
 
-- services are named `Context.Service` / `Capability` values, then provided with
-  `Layer`;
+- services are named `Context.Service` values, then provided with `Layer`;
 - recoverable failures are tagged errors with schemas when they cross the wire;
 - retries are `Schedule` values in policy objects, not custom retry flags;
 - cancellation is fiber interruption, not boolean flags;
@@ -63,6 +62,7 @@ fighting the framework's thesis.
 
 ## Current API Pattern
 
+<!-- prettier-ignore -->
 ```ts
 const UserId = Schema.String.pipe(Schema.brand("UserId"));
 type UserId = typeof UserId.Type;
@@ -77,7 +77,7 @@ const UserById = Resource.define({
 
 const ref = UserById(makeUserId("1"));
 
-yield * Resource.preload(ref);
+yield* Resource.preload(ref);
 ```
 
 Under the hood, `Resource.define` uses Effect `Cache`: `preload` maps to
@@ -121,10 +121,10 @@ const UserById = Resource.define({
 ```
 
 Use this for route preloads and server-function-backed resources when the
-transport or capability layer can answer a batch. Direct server-function RPC
+transport or service Layer can answer a batch. Direct server-function RPC
 batching is a larger transport concern; until that lands, keep server contracts
-as the capability boundary and put the batched resolver behind the resource or
-capability implementation.
+as the service boundary and put the batched resolver behind the resource or
+service implementation.
 
 Resources can also publish typed tags into the dependency graph:
 
@@ -155,8 +155,9 @@ const RenameUser = Action.define({
 When debugging, ask the runtime for the plan rather than guessing which cache
 entries will move:
 
+<!-- prettier-ignore -->
 ```ts
-const plan = yield * Action.planInvalidation(RenameUser, user, input);
+const plan = yield* Action.planInvalidation(RenameUser, user, input);
 
 for (const entry of plan.entries) {
   console.log(entry.ref.key, entry.causes);
@@ -166,17 +167,12 @@ for (const entry of plan.entries) {
 `Action.planInvalidation(...)` keeps synchronous `invalidates` callback
 failures in the typed `EffectInputCallbackError` channel.
 
-SSR hydration must populate both layers:
-
-```ts
-yield * hydrateStartPayload(payload, { runtime });
-```
-
-Start hydration helpers call `Resource.hydrate(payload)` for resource entries
-(rows included: they are part of the Resource value), so the resource signal used
-by components and the Effect cache entry in the active `ResourceStore` update
-together. `App.launch(app)` runs `hydrateFromDocument(...)` for the full browser
-payload; use `hydrateStartPayload(...)` for already-parsed payloads.
+SSR hydration must populate both layers. `App.launch(app)` runs
+`hydrateFromDocument(...)` for the browser payload, and it calls
+`Resource.hydrate(payload)` for resource entries (rows included: they are part
+of the Resource value), so the resource signal used by components and the
+Effect cache entry in the active `ResourceStore` update together. Outside Start,
+apply an already-parsed payload with `Resource.hydrate(payload)` directly.
 
 ```tsx
 const UserCard = Component.define("UserCard", function* (props: { readonly id: UserId }) {
@@ -209,6 +205,7 @@ const UserById = Resource.define({
 });
 ```
 
+<!-- prettier-ignore -->
 ```ts
 const SaveUser = Action.define({
   name: "User.save",
@@ -230,9 +227,9 @@ const SaveUser = Action.define({
 
 // UI binds it in a Component setup; the handle submits locally, or through a
 // runtime-provided ActionTransport when the server serves it.
-const save = yield * Component.action(SaveUser);
+const save = yield* Component.action(SaveUser);
 
-yield * save.submit(input);
+yield* save.submit(input);
 ```
 
 Expose progressive actions to Start when the same mutation should work with
@@ -269,13 +266,14 @@ runtime decides where it runs: listing it in the app's `actions` makes
 serves go over the network and their responses update client Resources without
 a second fetch:
 
+<!-- prettier-ignore -->
 ```ts
 export const app = App.define({ root: Root, routes, actions: [RenameUser], client: UserApiLive });
 Effect.runFork(App.launch(app));
 
 // In a Component setup: the same handle, local or remote.
-const rename = yield * Component.action(RenameUser);
-yield * rename.submit(input);
+const rename = yield* Component.action(RenameUser);
+yield* rename.submit(input);
 ```
 
 Start action responses include a serializable invalidation plan and a hydration
@@ -288,6 +286,7 @@ values stored on fields. Initial/reset/exposed values share the same snapshot
 policy as dirty tracking, so structurally equal object/array fields are not
 marked dirty just because callers passed a new object.
 
+<!-- prettier-ignore -->
 ```ts
 const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
 type ProjectId = typeof ProjectId.Type;
@@ -315,7 +314,7 @@ const form = Form.make<typeof RenameProjectInput, ProjectNameTooShort>({
 
 form.setField("name", "Atlas Revenue");
 
-const input = yield * form.validate();
+const input = yield* form.validate();
 ```
 
 Start progressive forms reuse the same schema-backed action request codec as JSON
@@ -329,14 +328,14 @@ interface ProjectApi {
   readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
 }
 
-const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
-const ProjectApiLive = ProjectApi.layer({
+const ProjectApiLive = Layer.succeed(ProjectApi, {
   get: (id) => getProject.effect({ id }),
   rename: renameProject.effect,
 });
 
-const ProjectApiTest = ProjectApi.layer({
+const ProjectApiTest = Layer.succeed(ProjectApi, {
   get: (id) => Effect.succeed({ id, name: "Mock Project" }),
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
@@ -365,14 +364,14 @@ export const getProject = Server.implement(GetProject, ({ id }) =>
 );
 ```
 
+<!-- prettier-ignore -->
 ```ts
 const testProject =
-  yield *
-  Effect.provide(
-    getProject.effect({ id: makeProjectId("atlas") }),
-    Server.mockLayer(
-      Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Test Project" })),
-    ),
+  yield* Effect.provide(
+  getProject.effect({ id: makeProjectId("atlas") }),
+  Server.mockLayer(
+    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Test Project" })),
+  ),
   );
 
 const TestServerLive = Server.mockLayer(
@@ -380,8 +379,9 @@ const TestServerLive = Server.mockLayer(
 );
 ```
 
+<!-- prettier-ignore -->
 ```ts
-yield * getProject.effect({ id: makeProjectId("atlas") });
+yield* getProject.effect({ id: makeProjectId("atlas") });
 ```
 
 ```ts
@@ -393,15 +393,17 @@ const UserRoute = Route.define("/users/:id", {
 Route.href(UserRoute, { params: { id: makeUserId("1") } });
 ```
 
+<!-- prettier-ignore -->
 ```ts
-const result = yield * Resource.collect(Route.preload(match));
-const payload = yield * Resource.hydrationPayload(result.refs);
+const result = yield* Resource.collect(Route.preload(match));
+const payload = yield* Resource.hydrationPayload(result.refs);
 ```
 
 Prefer route plans when callers need the full navigation data graph:
 
+<!-- prettier-ignore -->
 ```ts
-const plan = yield * Route.planNavigation(routes, "/users/1");
+const plan = yield* Route.planNavigation(routes, "/users/1");
 
 if (plan._tag === "Matched") {
   plan.refs;
@@ -420,15 +422,17 @@ const handler = createRequestHandler(app, { server: UsersLive }); // native Effe
 const fetchHandler = toFetchHandler(handler); // fetch-shaped Effect adapter
 ```
 
+<!-- prettier-ignore -->
 ```ts
 const count = Signal.make(0, { name: "Counter.count" });
 
-yield * Signal.values(count).pipe(Stream.runForEach((value) => Effect.log(`count: ${value}`)));
+yield* Signal.values(count).pipe(Stream.runForEach((value) => Effect.log(`count: ${value}`)));
 ```
 
+<!-- prettier-ignore -->
 ```ts
 const presence =
-  yield * Signal.fromStream(presenceStream, { status: "offline" }, { name: "Presence.status" });
+  yield* Signal.fromStream(presenceStream, { status: "offline" }, { name: "Presence.status" });
 
 presence.get();
 ```

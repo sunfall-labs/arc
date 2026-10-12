@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtemp, readFile, readdir, rm, stat, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
@@ -608,109 +607,6 @@ const sourceGeneratedArtifactDriftFailuresEffect = (target, snapshots) =>
     return failures;
   });
 
-const verifyStartCliSymlinkBinEffect = (target) => {
-  if (target.label !== "@sunfall/arc-start") {
-    return Effect.void;
-  }
-
-  return Effect.gen(function* () {
-    const binTarget = target.packageJson.bin?.["sunfall-arc-start"];
-    if (!isNonEmptyString(binTarget)) {
-      return yield* Effect.fail(
-        fail(
-          "@sunfall/arc-start package.json is missing the sunfall-arc-start bin target.",
-          "Keep the diagnostics CLI bin declared so package-manager installs expose the Start diagnostics command.",
-        ),
-      );
-    }
-
-    const cliPath = join(target.directory, binTarget);
-    const tempDirectory = yield* fsEffect(
-      "create sunfall-arc-start symlink bin check directory",
-      () => mkdtemp(join(tmpdir(), "sunfall-arc-start-bin-")),
-    );
-
-    return yield* Effect.gen(function* () {
-      const linkedBin = join(tempDirectory, "sunfall-arc-start");
-      yield* fsEffect("create sunfall-arc-start bin symlink", () =>
-        symlink(cliPath, linkedBin, "file"),
-      );
-
-      const { stdout } = yield* commandEffect(
-        "@sunfall/arc-start symlinked CLI bin version check",
-        process.platform === "win32" ? process.execPath : linkedBin,
-        process.platform === "win32" ? [linkedBin, "--version"] : ["--version"],
-      );
-      const expected = `sunfall-arc-start v${target.packageJson.version}`;
-      if (stdout.trim() !== expected) {
-        return yield* Effect.fail(
-          fail(
-            "@sunfall/arc-start symlinked CLI bin did not execute.",
-            [
-              "Keep the CLI main-module guard resilient to package-manager symlink entrypoints.",
-              `Expected stdout: ${expected}`,
-              stdout.trim() === "" ? "Actual stdout was empty." : `Actual stdout: ${stdout.trim()}`,
-            ].join(" "),
-          ),
-        );
-      }
-
-      const invalidCommandError = yield* Effect.flip(
-        runScriptCommandEffect(
-          process.platform === "win32" ? process.execPath : linkedBin,
-          process.platform === "win32" ? [linkedBin, "unknown"] : ["unknown"],
-          {
-            cwd: workspaceRoot,
-            env: {
-              ...process.env,
-            },
-          },
-        ),
-      ).pipe(
-        Effect.mapError((result) =>
-          fail(
-            "@sunfall/arc-start symlinked CLI invalid subcommand unexpectedly succeeded.",
-            [
-              "Usage errors must keep a non-zero process exit code through the Effect main-runner teardown.",
-              result.stdout.trim() === "" ? "stdout was empty." : `stdout: ${result.stdout.trim()}`,
-              result.stderr.trim() === "" ? "stderr was empty." : `stderr: ${result.stderr.trim()}`,
-            ].join(" "),
-            result,
-          ),
-        ),
-      );
-      if (
-        invalidCommandError.code !== 1 ||
-        !invalidCommandError.stderr.includes("Unknown subcommand") ||
-        !invalidCommandError.stdout.includes("USAGE")
-      ) {
-        return yield* Effect.fail(
-          fail(
-            "@sunfall/arc-start symlinked CLI invalid subcommand did not fail with usage semantics.",
-            [
-              "Keep Effect CLI parse failures mapped to process exit code 1.",
-              `Exit code: ${invalidCommandError.code}`,
-              invalidCommandError.stdout.trim() === ""
-                ? "stdout was empty."
-                : `stdout: ${invalidCommandError.stdout.trim()}`,
-              invalidCommandError.stderr.trim() === ""
-                ? "stderr was empty."
-                : `stderr: ${invalidCommandError.stderr.trim()}`,
-            ].join(" "),
-            invalidCommandError,
-          ),
-        );
-      }
-    }).pipe(
-      Effect.ensuring(
-        fsEffect("remove sunfall-arc-start symlink bin check directory", () =>
-          rm(tempDirectory, { recursive: true, force: true }),
-        ).pipe(Effect.catchCause(() => Effect.void)),
-      ),
-    );
-  });
-};
-
 const verifyPackageTarget = (target) =>
   Effect.gen(function* () {
     const manifestMetadataFailures = manifestMetadataValidationFailures(target);
@@ -861,7 +757,6 @@ const verifyPackageTarget = (target) =>
         );
       }
     }
-    yield* verifyStartCliSymlinkBinEffect(target);
 
     return {
       label: target.label,

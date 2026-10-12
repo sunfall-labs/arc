@@ -1,7 +1,8 @@
 # The Golden Path
 
-Arc gives you Signals, Programs, Resources, Actions, Components, and Routes. This page picks the right one for each job, then builds one small
-feature end to end with them: a project list, a project page, and a rename.
+Arc gives you Signals, Programs, Resources, Actions, Components, and Routes.
+This page picks the right one for each job, then builds one small feature end
+to end with them: a project list, a project page, and a rename.
 
 Every snippet here is compiled. The code lives in
 [`type-tests/golden-path/`](../type-tests/golden-path), and `pnpm typecheck`
@@ -18,34 +19,34 @@ type-checks it and fails if a snippet on this page no longer matches its file
 | run a state machine with many messages               | **Program**: `Program.define`, bound with `Component.program`                 | one or two independent values: use Signals                                         |
 | build a screen or feature that reads or writes state | **Component**: `Component.define`                                             | it only renders props: write a plain Solid function                                |
 | map a URL to a screen and its data                   | **Route**: `Route.define`                                                     | the state is not addressable (a modal, a tab): use a Signal                        |
-| call a backend or service                            | **Capability**: `Capability.define` plus a Layer per host                     | it is pure computation: write a function                                           |
+| call a backend or service                            | an **Effect service** (`Context.Service`) plus a Layer per host               | it is pure computation: write a function                                           |
 | wire and start the app                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client)  | never skip it: this is where missing services and unhandled failures become errors |
 | answer "how did the UI get into this state?"         | **Timeline**: `Timeline.record`, then `travel`                                | production telemetry: use [devtools](devtools.md) summaries                        |
 
-Two defaults settle most arguments:
+Four defaults settle most arguments:
 
 - **Mutations are Actions.** Every change to server data is an Action. When
   the screen must change before the server answers, the Action's `optimistic`
   patches Signals, Resource entries, and Resource rows, and a failure rolls
   them back.
 - **A failure that can reach rendering joins `E`; a failure of work you start
-  is yours.** Resource readers add their load errors to the Component's `E`, so `catchTags` must handle them before `launch`
-  compiles. `submit`, `dispatch`, and `preload` return their failures, and
-  `Component.callback` makes the handler deal with them.
+  is yours.** Resource readers add their load errors to the Component's `E`,
+  so `catchTags` must handle them before `launch` compiles. `submit`,
+  `dispatch`, and `preload` return their failures, and `Component.callback`
+  makes the handler deal with them.
 - **State that matters has a typed owner.** If rendering, caching, testing, or
   debugging depends on it, it belongs in one of the definitions above, not in
   ad hoc component locals.
 - **Every state change has a name.** A Signal changes only inside a named
   transition: a `Component.callback("name", ...)`, an Action, a Program
-  message, or a framework event (Resource load, navigation).
-  A write anywhere else dies with `SignalWriteOutsideTransition`, so the
-  Timeline reads like a message log: `ProjectSidebar.filter`,
-  `Action "Project.rename" submit`.
+  message, or a framework event (Resource load, navigation). A write anywhere
+  else dies with `SignalWriteOutsideTransition`, so the Timeline reads like a
+  message log: `ProjectSidebar.filter`, `Action "Projects.rename" submit`.
 
 ## How The Pieces Fit
 
 ```text
-  Layer ──provides──► Capability (ProjectApi)
+  Layer ──provides──► Effect service (ProjectApi)
                         ▲               ▲
                    load │               │ run
                      Resource ◄──tags── Action
@@ -80,8 +81,8 @@ Actions refresh it by meaning instead of by cache key.
 <!-- snippet: type-tests/golden-path/projects.step-1.ts -->
 
 ```ts
-import { Capability, Resource } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
+import { Resource } from "@sunfall/arc-core";
+import { Context, Effect, Schema } from "effect";
 
 export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
 export type ProjectId = typeof ProjectId.Type;
@@ -106,7 +107,7 @@ export interface ProjectApi {
     readonly name: string;
   }) => Effect.Effect<Project, ProjectNotFound>;
 }
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
 // Semantic tags: Resources provide them, Actions invalidate them.
 export const ProjectsTag = Resource.tag("Projects");
@@ -134,10 +135,10 @@ export const ProjectById = Resource.define({
 });
 ```
 
-- `ProjectApi` is a Capability: the boundary every Resource and Action depends
-  on. Layers implement it: the fixture's `ProjectApiMemory` is
-  `ProjectApi.layer({ list, get, rename })` over a `Map`; a real app's client
-  Layer calls server functions (see the
+- `ProjectApi` is an Effect service (`Context.Service`): the boundary every
+  Resource and Action depends on. Layers implement it: the fixture's
+  `ProjectApiMemory` is `Layer.succeed(ProjectApi, { list, get, rename })`
+  over a `Map`; a real app's client Layer calls server functions (see the
   [Resource from a server function](../examples/docs-site/src/content/cookbook/resource-from-server-function.md)
   recipe).
 - `ProjectById` loads one project and can fail with `ProjectNotFound`.
@@ -512,10 +513,11 @@ callback:
   preloads (and server renders) the rows.
 
 Make the rename instant on the Action. `optimistic` patches the sidebar row
-and the project page before `run` starts. `transaction.update(ProjectsRef, id,
-patch)` patches one row of the list by key (the key is typed by `rows.key`),
-and `transaction.set` patches the `ProjectById` entry, so both readers show
-the new name with no `<Loading>` flash. Success keeps the new name until the
+and the project page before `run` starts.
+`transaction.update(ProjectsRef, id, patch)` patches one row of the list by
+key (the key is typed by `rows.key`), and `transaction.set` patches the
+`ProjectById` entry, so both readers show the new name with no `<Loading>`
+flash. Success keeps the new name until the
 `ProjectsTag` and `ProjectTag` reloads replace it, and a failure or an
 interrupted submission rolls both back. A reload while the rename is in
 flight replaces the value underneath and keeps the patch on top. The form did
@@ -692,11 +694,10 @@ export const launchTimelinePanel = (container: HTMLElement) =>
 
 Mount it beside the app in development with
 `Effect.runFork(launchTimelinePanel(panelElement))`. Rename a project and the
-panel reads like a message log: `RenameForm.save`'s Action submit and success,
-and the Resource reloads its tags triggered;
-changing the sidebar filter shows `ProjectSidebar.filter` changing
-`ProjectSidebar.status`. In tests, record inside the test's Scope and assert on
-the DOM after `travel`
+panel reads like a message log: `RenameForm.save`, the Action's submit and
+success, and the Resource reloads that follow; changing the sidebar filter
+shows `ProjectSidebar.filter` changing `ProjectSidebar.status`. In tests,
+record inside the test's Scope and assert on the DOM after `travel`
 ([example](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
 
 ## Testing
@@ -840,8 +841,8 @@ To test what the screen shows, render the Component (see
   `<Component>.<name>` on the Timeline.
 - **Change server data with Actions.** `optimistic` patches Signals, Resource
   entries, and Resource rows for the life of the submission; there is no
-  other write path. Add `durable: { maxAge }` when a change must survive going offline
-  or reloading; `Action.outbox` counts what is waiting to sync.
+  other write path. Add `durable: { maxAge }` when a change must survive going
+  offline or reloading; `Action.outbox` counts what is waiting to sync.
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`
   them. Call `Resource.invalidate(ref)` yourself only for an explicit refresh
   button.

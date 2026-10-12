@@ -1,11 +1,5 @@
 import { Effect, type Scope } from "effect";
-import {
-  type DevtoolsPanel,
-  type DevtoolsPanelMount,
-  type DevtoolsPanels,
-  describeDevtoolsPanels,
-  toDevtoolsSerializableValue,
-} from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 import {
   DevtoolsExtensionTransportError,
   readInspectedWindowDevtoolsPayloadEffect,
@@ -41,14 +35,14 @@ const transportErrorItem = (error: DevtoolsExtensionTransportError) => ({
     operation: error.operation,
     reason: error.reason ?? null,
     description: errorDescription(error.error),
-    error: toDevtoolsSerializableValue(error.error),
+    error: Devtools.toSerializable(error.error),
   },
 });
 
 const withTransportError = (
-  panel: DevtoolsPanel,
+  panel: Devtools.Panel,
   error: DevtoolsExtensionTransportError,
-): DevtoolsPanel =>
+): Devtools.Panel =>
   panel.id === "diagnostics"
     ? {
         ...panel,
@@ -60,8 +54,8 @@ const withTransportError = (
 
 export const devtoolsExtensionTransportErrorPanels = (
   error: DevtoolsExtensionTransportError,
-): DevtoolsPanels => {
-  const fallback = describeDevtoolsPanels();
+): Devtools.Panels => {
+  const fallback = Devtools.describePanels();
   return {
     ...fallback,
     panels: fallback.panels.map((panel) => withTransportError(panel, error)),
@@ -69,7 +63,7 @@ export const devtoolsExtensionTransportErrorPanels = (
 };
 
 export const updateFromInspectedWindowEffect = (
-  mount: DevtoolsPanelMount,
+  mount: Devtools.PanelMount,
   api: ChromeInspectedWindowApi | undefined,
   options: InspectedWindowEvalOptions = {},
 ): Effect.Effect<void> =>
@@ -105,7 +99,7 @@ export type DevtoolsExtensionPollingOptions = InspectedWindowEvalOptions & {
 };
 
 export const pollInspectedWindowEffect = (
-  mount: DevtoolsPanelMount,
+  mount: Devtools.PanelMount,
   api: ChromeInspectedWindowApi | undefined,
   options: DevtoolsExtensionPollingOptions = {},
 ): Effect.Effect<void, never, Scope.Scope> =>

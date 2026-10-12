@@ -1,21 +1,21 @@
 ---
 {
-  "title": "Capability mocks in tests",
+  "title": "Service mocks in tests",
   "category": "testing",
-  "summary": "Test Resources and Actions by swapping a Capability layer instead of importing server-only handlers.",
+  "summary": "Test Resources and Actions by swapping an Effect service Layer instead of importing server-only handlers.",
   "order": 5,
   "related": ["resource-from-server-function"],
 }
 ---
 
-# Capability mocks in tests
+# Service mocks in tests
 
-## Depend on a Capability
+## Depend on an Effect service
 
-Application definitions should depend on a Capability. Tests can provide a layer that satisfies the same interface, so the Resource or Action stays unchanged.
+Application definitions should depend on an Effect service (`Context.Service`). Tests can provide a `Layer` that satisfies the same interface, so the Resource or Action stays unchanged.
 
 ```ts
-const ProjectApiTest = ProjectApi.layer({
+const ProjectApiTest = Layer.succeed(ProjectApi, {
   get: (id) => Effect.succeed({ id, name: "Atlas" }),
   list: () => Effect.succeed([{ id: makeProjectId("atlas"), name: "Atlas" }]),
 });

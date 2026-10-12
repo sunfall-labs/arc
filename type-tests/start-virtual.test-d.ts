@@ -1,13 +1,5 @@
 import "@sunfall/arc-start/virtual";
 
-import serverFunctionManifest, {
-  entries as serverFunctionEntries,
-  type ServerFunctionManifestEntry,
-} from "virtual:sunfall-arc/server-functions";
-import actionManifest, {
-  entries as actionEntries,
-  type ActionManifestEntry,
-} from "virtual:sunfall-arc/actions";
 import fileRouteManifest, {
   entries as fileRouteEntries,
   modules as fileRouteModules,
@@ -42,21 +34,8 @@ import {
   type RouteById,
   type RouteTree,
 } from "virtual:sunfall-arc/routes";
-import appGraph, {
-  diagnostics as appGraphDiagnostics,
-  diagnosticsPolicyViolations as appGraphDiagnosticsPolicyViolations,
-  type StartAppGraphDiagnostics,
-} from "virtual:sunfall-arc/app-graph";
-import runtimeDiagnosticsGraph, {
-  diagnostics as runtimeDiagnostics,
-  diagnosticsPolicyViolations as runtimeDiagnosticsPolicyViolations,
-} from "virtual:sunfall-arc/app-graph/runtime-diagnostics";
 
 const virtualModuleValues: Array<unknown> = [
-  serverFunctionManifest,
-  serverFunctionEntries,
-  actionManifest,
-  actionEntries,
   fileRouteManifest,
   fileRouteEntries,
   fileRouteModules,
@@ -70,17 +49,8 @@ const virtualModuleValues: Array<unknown> = [
   metadataById,
   routeFileRouteModules,
   routeFileRouteMetadata,
-  appGraph,
-  appGraphDiagnostics,
-  appGraphDiagnosticsPolicyViolations,
-  runtimeDiagnosticsGraph,
-  runtimeDiagnostics,
-  runtimeDiagnosticsPolicyViolations,
 ];
-type VirtualManifestEntries =
-  | ServerFunctionManifestEntry
-  | ActionManifestEntry
-  | FileRouteManifestEntry;
+type VirtualManifestEntries = FileRouteManifestEntry;
 type VirtualRouteContracts =
   | RouteTree
   | RouteById
@@ -99,8 +69,6 @@ type VirtualRouteContracts =
   | FileRouteMetadataModules<FileRouteId>
   | FileRouteModules
   | FileRouteMetadata;
-type VirtualGraphContracts = StartAppGraphDiagnostics;
 void virtualModuleValues;
 type _VirtualManifestEntries = VirtualManifestEntries;
 type _VirtualRouteContracts = VirtualRouteContracts;
-type _VirtualGraphContracts = VirtualGraphContracts;

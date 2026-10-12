@@ -20,24 +20,21 @@ it against `type-tests/public-api.manifest.json` and the package manifests
 
 ## Package Export Map
 
-| Package                 | Export                  | Source                                     | Classification | Release decision                                                     |
-| ----------------------- | ----------------------- | ------------------------------------------ | -------------- | -------------------------------------------------------------------- |
-| `@sunfall/arc-core`     | `.`                     | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                        |
-| `@sunfall/arc-core`     | `./internal`            | `packages/core/src/internal.ts`            | Internal       | Adapter plumbing for Solid/Start/DB; not application API.            |
-| `@sunfall/arc-start`    | `.`                     | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                              |
-| `@sunfall/arc-start`    | `./vite`                | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.             |
-| `@sunfall/arc-start`    | `./diagnostics-report`  | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                              |
-| `@sunfall/arc-start`    | `./fetch`               | `packages/start/src/fetch.ts`              | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).              |
-| `@sunfall/arc-start`    | `./node`                | `packages/start/src/node.ts`               | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).              |
-| `@sunfall/arc-start`    | `./testing`             | `packages/start/src/testing.ts`            | Expert public  | Test-only wire markers and static-output helpers for app tests.      |
-| `@sunfall/arc-start`    | `./internal`            | `packages/start/src/internal.ts`           | Internal       | Imported by Vite-generated diagnostics modules; not application API. |
-| `@sunfall/arc-start`    | `./virtual`             | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                       |
-| `@sunfall/arc-start`    | `sunfall-arc-start` bin | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                           |
-| `@sunfall/arc-db`       | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the Query engine over Resource rows.                         |
-| `@sunfall/arc-db`       | `./internal`            | `packages/db/src/internal.ts`              | Internal       | Adapter plumbing for `Component.liveQuery`; not application API.     |
-| `@sunfall/arc-devtools` | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                           |
-| `@sunfall/arc-solid`    | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                   |
-| `@sunfall/arc-tsrx`     | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                        |
+| Package                 | Export       | Source                                    | Classification | Release decision                                                 |
+| ----------------------- | ------------ | ----------------------------------------- | -------------- | ---------------------------------------------------------------- |
+| `@sunfall/arc-core`     | `.`          | `packages/core/src/index.ts`              | Public         | Keep as the core application/runtime surface.                    |
+| `@sunfall/arc-core`     | `./internal` | `packages/core/src/internal.ts`           | Internal       | Adapter plumbing for Solid/Start/DB; not application API.        |
+| `@sunfall/arc-start`    | `.`          | `packages/start/src/index.ts`             | Public         | Keep as the full-stack runtime surface.                          |
+| `@sunfall/arc-start`    | `./vite`     | `packages/start/src/vite.ts`              | Public         | Keep as the build-plugin surface.                                |
+| `@sunfall/arc-start`    | `./fetch`    | `packages/start/src/fetch.ts`             | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).          |
+| `@sunfall/arc-start`    | `./node`     | `packages/start/src/node.ts`              | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).          |
+| `@sunfall/arc-start`    | `./testing`  | `packages/start/src/testing.ts`           | Expert public  | Test-only wire markers and static-output helpers for app tests.  |
+| `@sunfall/arc-start`    | `./virtual`  | `packages/start/src/virtual-modules.d.ts` | Expert public  | Keep as type-only virtual module declarations.                   |
+| `@sunfall/arc-db`       | `.`          | `packages/db/src/index.ts`                | Public         | Keep as the Query engine over Resource rows.                     |
+| `@sunfall/arc-db`       | `./internal` | `packages/db/src/internal.ts`             | Internal       | Adapter plumbing for `Component.liveQuery`; not application API. |
+| `@sunfall/arc-devtools` | `.`          | `packages/devtools/src/index.ts`          | Public         | Keep as the JSON-safe inspection contract.                       |
+| `@sunfall/arc-solid`    | `.`          | `packages/solid/src/index.ts`             | Public         | Keep as the Solid adapter surface.                               |
+| `@sunfall/arc-tsrx`     | `.`          | `packages/tsrx/src/index.ts`              | Public         | Keep as the Vite/TSRX preset.                                    |
 
 ## Type-Test Coverage
 
@@ -71,7 +68,7 @@ or explicit namespace alias, and those declarations must keep JSDoc for LSP
 hovers. Together these checks keep hover/LSP docs from drifting away from
 package Interfaces rather than merely reachable implementation files.
 The curated hover declarations currently cover the Core Action, ActionResult,
-Capability, Form, Program, and Resource Interfaces,
+Form, Program, and Resource Interfaces,
 browser-router/router Adapter, Solid runtime and hook Adapter seams,
 Start request/hydration/action seams, fetch, and Node Adapter seams,
 Devtools DTO/panel contract seams, the Resource rows contract, and the DB
@@ -86,7 +83,7 @@ coverage.
 The root export re-exports these local modules:
 
 - `action`, `action-outbox`, `action-result`, `action-submission`,
-  `action-transport`, `capability`
+  `action-transport`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
   `program`, `request-context`
@@ -94,7 +91,7 @@ The root export re-exports these local modules:
 - `runtime`, `server`, `signal`, `timeline`
 
 Every module is selected by name: the root exports each namespace (`Action`,
-`ActionResult`, `Capability`, `Form`, `Program`, `Resource`, `Route`,
+`ActionResult`, `Form`, `Program`, `Resource`, `Route`,
 `Server`, `Signal`, `Timeline`) plus the error classes, Type IDs, guards,
 services, and runtime helpers that have no namespace home. Each type has
 exactly one public name: types a namespace owns are reachable only as
@@ -127,7 +124,8 @@ Golden-path public groups:
 - `Route`, `Resource`, `Action`, `ActionResult`, `Program` (the app
   definition, `App`, is Start's)
 - `Server`, `Server.Client`, request/response context services
-- `Signal`, `Form`, `Capability`
+- `Signal`, `Form`; app services are plain Effect services
+  (`Context.Service` plus a `Layer`), with no Arc wrapper
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
   `Timeline.Recording` (`entries`, `position`, `travel(sequence)`, `resume()`)
   over every committed change set; every `Timeline.Entry` has a `cause`, and
@@ -349,10 +347,6 @@ Release decisions:
   facade keeps runtime binding and requirement subtraction local, so LSP hovers
   still show the action requirements after any explicit Runtime Spine is
   applied.
-- `Capability.use(...)` is the one service accessor, with explicit
-  Effect-returning and plain-value overloads; Promise-returning callbacks are
-  rejected so host async work is routed through Effect primitives, and a
-  throwing callback is a defect (as with `Effect.sync`).
 - `Program` is the public facade for the headless frontend loop around
   centralized model/message state. `Program.define(...)` takes a plain initial
   model and an exhaustive `on` handler map keyed by every message `_tag`
@@ -483,8 +477,8 @@ includes:
 - Local source modules: `hydration`, `request-trace`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
   `start-document`, `start-fetch`,
-  `start-request-handler`, `start-transport-endpoints`,
-  `start-transport-protocol`, `static-client-navigation`, and `streaming`.
+  `start-request-handler`, `start-transport-protocol`,
+  `static-client-navigation`, and `streaming`.
 - the app: `App.define({ root, routes, actions?, client? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
@@ -500,7 +494,7 @@ includes:
   `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`
   holds the server half: `server` (the server Layer, which must provide the
   root's services), `serverFunctions` (implementations served over RPC),
-  `document`, `endpoints`, and `onRequestTrace`. Page requests render
+  `document`, and `onRequestTrace`. Page requests render
   `app.root` into Start's document; there is no render callback and no
   hand-written HTML shell. `StartRequestTrace` and `StartRequestTraceHandler`
   describe the trace hook.
@@ -518,8 +512,9 @@ includes:
   the `StartHydration*ParseError` / `StartHydrationPayloadSerializeError`
   classes are public error vocabulary.
 - transports: `App.launch` owns the browser RPC client and the action
-  transport; `App.LaunchOptions.transport` sets their `endpoints`, `fetch`
-  (`StartFetch`, `StartFetchInit`, `StartFetchInput`), and `headers`.
+  transport, which use the fixed `/__sunfall-arc/rpc` and
+  `/__sunfall-arc/action` endpoints; `App.LaunchOptions.transport` sets their
+  `fetch` (`StartFetch`, `StartFetchInit`, `StartFetchInput`) and `headers`.
 - durable submissions: `App.launch` provides the Action Outbox over the
   browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
   shared with persisted Resources;
@@ -551,19 +546,11 @@ includes:
   `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
   `stripStartStaticBasePath`, `StartStaticBasePathError`, and
   `StartStaticNavigationHydrationError`.
-- transport configuration: `StartTransportEndpointOverrides`,
-  `StartTransportEndpointPathError`, and `StartTransportEndpointConflictError`.
-- there are no hand-written manifest sources: the Vite plugin derives the
-  server-function and Action manifests from the server entry's
-  `createRequestHandler(app, { serverFunctions })`, naming each definition by
-  the module export it came from (and a server function's browser client by
-  its `Server.client` export of the same name).
 
-Manifest make/serialize/deserialize, stable ids, client-reference
-classification, generated route module codegen, transport header constants and
-media types, `validateStart*Effect` validators, endpoint guidance, app-graph and
-agent-graph diagnostics, request metrics, and hydration chunk primitives are
-package-internal. `vite.ts`, `cli.ts`, and tests import them from source.
+File-route manifest serialization, generated route module codegen, transport
+header constants and media types, `validateStart*Effect` validators, request
+metrics, and hydration chunk primitives are package-internal. `vite.ts` and
+tests import them from source.
 
 Subpath exports:
 
@@ -584,38 +571,28 @@ Subpath exports:
   defaults to `false`; enable it only behind a proxy that overwrites
   `x-forwarded-proto` / `x-forwarded-host`.
 - `./vite` exports only `sunfallArcStart`, its option types, and its errors.
-  Manifest-pinned Source Surface Modules: `app-graph`, `file-routes`,
-  `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
-  `start-manifest-wall`, `start-prerender`, `start-vite-dev-ssr`, and
-  `start-vite-diagnostics-loader`.
-- `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
-  Manifest-pinned Source Surface Module: `start-diagnostics-contract`.
+  Manifest-pinned Source Surface Modules: `file-routes`,
+  `generated-route-definitions`, `start-manifest-wall`, `start-prerender`, and
+  `start-vite-dev-ssr`.
 - `./testing` exposes wire markers and static-output helpers that app tests
   assert against: `hydrationScriptId`, `streamHydrationAttribute`,
   `StartHydrationChunk`, `serverActionPath`, `serverRpcPath`,
   `extractStartStaticHtmlLinks`, and `startStaticPageOutputPath`.
   Manifest-pinned Source Surface Modules: `hydration`, `rpc`, and
   `static-export`.
-- `./internal` is imported only by the Vite-generated
-  `virtual:sunfall-arc/app-graph/runtime-diagnostics` module. Manifest-pinned
-  Source Surface Modules: `app-graph` and `start-app-graph-diagnostics-policy`.
-- `./virtual` owns virtual module typings only.
-- `sunfall-arc-start` owns diagnostics and agent graph CLI execution
-  (`diagnostics`, `graph`, `impact`). There is no programmatic CLI subpath.
+- `./virtual` owns virtual module typings only:
+  `virtual:sunfall-arc/file-routes` and `virtual:sunfall-arc/routes`.
 
 Release decisions:
 
-- `StartRequestTrace` is intentionally structural with `DevtoolsRequestTrace`,
-  and `StartAction.InvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
+- `StartRequestTrace` is intentionally structural with `Devtools.RequestTrace`,
+  and `StartAction.InvalidationPlan` with `Devtools.InvalidationPlan`, so Start
   and Devtools never import each other.
 - The root does not re-export Core symbols; import `Action`, `Resource`,
   `Route`, `Server`, and `Signal` from `@sunfall/arc-core`.
 - `virtual:sunfall-arc/routes` intentionally exposes broad route maps; apps that
   need exact literal route ids, paths, params, search, or href options import
   the written generated route definitions artifact.
-- `virtual:sunfall-arc/app-graph` is a static DTO module; tooling that needs
-  runtime route-module/resource diagnostics imports
-  `virtual:sunfall-arc/app-graph/runtime-diagnostics` explicitly.
 
 ### `@sunfall/arc-db`
 
@@ -654,61 +631,64 @@ Release decisions:
 
 The root export includes:
 
-- Local source modules: `bridge`, `devtools-contract`, `panel-contract`,
-  `serialization`, and `summary`.
-- `makeDevtoolsStore`, snapshot APIs, `describeDevtoolsSummary`,
-  `describeDevtoolsCausalGraph`, and `describeDevtoolsPanels` (pure
-  projections; there are no trivial `*Effect` wrappers);
-- panel contract vocabulary: `devtoolsPanelIds`, `devtoolsPanelSeverities`,
-  `isDevtoolsSerializableValue(...)`, `DevtoolsPanelContractError`,
-  `DevtoolsPanelContractErrorReason`, and
-  `resolveSunfallArcDevtoolsBridgePayload(...)` with
-  `DevtoolsBridgePayloadContractResolution` for validating untrusted
-  inspected-window payloads;
-- `renderDevtoolsPanelsHtml` for deterministic embeddable HTML;
+- Local source modules: `devtools`, `devtools-contract`, and `panel-contract`.
+- Namespace-backed source modules: `devtools`; the root re-exports no flat
+  aliases from it.
+- One path per concern: the root exports only the `Devtools` namespace plus the
+  tagged error classes `DevtoolsActionInvalidationPlanConflict` and
+  `DevtoolsPanelContractError`.
+- `Devtools.makeStore` and the pure projections `Devtools.describeSummary`,
+  `Devtools.describeCausalGraph`, and `Devtools.describePanels` (there are no
+  trivial `*Effect` wrappers);
+- `Devtools.resolveBridgePayload(...)` with `Devtools.BridgePayloadResolution`
+  for validating untrusted inspected-window payloads;
+- `Devtools.renderPanelsHtml` for deterministic embeddable HTML;
 - panel mounting has one scoped Effect and one host facade:
-  `mountDevtoolsPanels(...)` mounts inside a Scope and unmounts when it
-  closes; `bootDevtoolsPanels(...)` (with `DevtoolsPanelBoot` /
-  `DevtoolsPanelBootOptions`) runs that Effect in its own fiber for non-Effect
+  `Devtools.mountPanels(...)` mounts inside a Scope and unmounts when it
+  closes; `Devtools.bootPanels(...)` (with `Devtools.PanelBoot` /
+  `Devtools.PanelBootOptions`) runs that Effect in its own fiber for non-Effect
   shells and is stopped with its host `boot.interrupt()`;
-- `sunfallArcDevtoolsBridgeGlobal` and the scoped `installDevtoolsBridge`
+- `Devtools.bridgeGlobal` and the scoped `Devtools.installBridge`
   for exposing an inspected-window bridge to browser extension panels;
-- JSON-safe serialization helpers, including the public
-  `DevtoolsSerializationPolicy` used to bound arbitrary runtime values and
-  redact secret-shaped keys;
-- invalidation plans, route plans, app graph diagnostics summaries, runtime
-  event models, Program event models, and request
-  trace models.
+- `Devtools.toSerializable(...)` and `Devtools.SerializationPolicy`, used to
+  bound arbitrary runtime values and redact secret-shaped keys;
+- the DTOs adapters and panels exchange: `Devtools.Snapshot`,
+  `Devtools.RuntimeEvent`, `Devtools.TimelineCommit`, `Devtools.RoutePlan`,
+  `Devtools.InvalidationPlan`, `Devtools.RequestTrace`,
+  `Devtools.Summary`, `Devtools.CausalGraph`,
+  `Devtools.Panels`, and `Devtools.Panel`. Their nested shapes (panel items,
+  metrics, causal nodes and edges, request-trace parts) are reached through
+  these types rather than exported under their own names.
 
 Release decisions:
 
-- `DevtoolsRequestTrace` is public as a data contract. Start emits a compatible
+- `Devtools.RequestTrace` is public as a data contract. Start emits a compatible
   shape through `onRequestTrace`, with cancellation and failure-path coverage in
   Start request tests.
-- `devtools-contract` owns the public Devtools DTO and Interface vocabulary
-  that renderers, stores, summaries, bridges, and agents share. The root
-  import path re-exports it, while internal Devtools modules import the
+- `devtools-contract` owns the Devtools DTO and Interface vocabulary that
+  renderers, stores, summaries, bridges, and agents share. The `Devtools`
+  namespace names its public types, while internal Devtools modules import the
   contract directly instead of depending on the root facade. Serialization
   policy belongs to this contract too.
-- `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
+- `Devtools.InvalidationPlan` is public as an inspection data contract. Start
   emits a compatible `StartAction.InvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata
   without importing `@sunfall/arc-start`.
-- `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
+- `Devtools.Summary`, `Devtools.CausalGraph`, and the first `Devtools.Panels`
   model should be treated as stable data contracts for agents and UI panels.
-- `DevtoolsStore` is an explicit public Interface, not an inferred factory
+- `Devtools.Store` is an explicit public Interface, not an inferred factory
   return. Route-plan and invalidation record methods return retained fact
   indexes for adapters that emit runtime events against duplicate recorded facts.
 - Timeline observation is a first-class store capability:
-  `recordTimelineEntry(...)`, `recordTimelineEntry(...)`, and
+  `recordTimelineEntry(...)` and
   `trackTimeline(recording)` copy Core `Timeline.Entry` values into
-  `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
+  `TimelineCommit` runtime events (`Devtools.TimelineCommit`), linked to the
   Program, Action, or Resource their cause names. Store
   `serializationPolicy` options apply before those commits enter snapshots.
 - The browser panel renderer is public as an embedded UI surface, while
   the bridge helpers are public as the supported app-side handshake for checked
   app or extension shells.
-- `bootDevtoolsPanels(...)` is the expert-public browser panel boot helper for
+- `Devtools.bootPanels(...)` is the expert-public browser panel boot helper for
   small shells that only want to provide a root element, optional initial panel
   input, and an optional Effectful `afterMount` loop such as extension bridge
   polling. It returns the mounted panel handle plus the boot fiber so shells can
@@ -718,10 +698,10 @@ Release decisions:
   in the shared Devtools Panel Contract Module so renderers, app shells, browser
   extensions, tests, and agents do not duplicate runtime validation. The
   contract windows oversized item lists with a deterministic overflow row, so
-  valid large app graph panels remain bridgeable.
-- Panel guards (`isDevtoolsPanel*`), normalizers, panel-input resolvers, the
-  app-graph DTO normalizers, and `devtoolsPanelStyles` are package-internal.
-  `resolveSunfallArcDevtoolsBridgePayload(...)` is the single public validator
+  valid large panels remain bridgeable.
+- Panel guards (`isDevtoolsPanel*`), normalizers, panel-input resolvers, and
+  `devtoolsPanelStyles` are package-internal.
+  `Devtools.resolveBridgePayload(...)` is the single public validator
   and returns a valid detached DTO or typed diagnostics.
 - Raw Devtools snapshots may contain detached `unknown` inspection facts owned
   by Core, Start, DB, or app code. Summaries, causal graphs, panels, and bridge
@@ -746,9 +726,6 @@ Release decisions:
 - Fact Identity stays internal, but Store and Summary share its first-match
   fact index helpers so duplicate invalidation and route-plan facts resolve
   through one Devtools Serialization Policy fingerprint.
-- Devtools Store plain methods intentionally remain sync host facades over the
-  Effect-first store implementation methods. Do not split them unless a new host
-  package needs a distinct seam.
 - The root Devtools module remains the public facade; internal Panels and Store
   modules own their concrete projection/copy dependencies directly instead of
   exposing single-adapter runtime injection Interfaces.

@@ -14,7 +14,8 @@ target. The public API is owned by Sunfall Arc:
   Resources.
 - `Action` for every change to server data: optimistic Signal, Resource entry,
   and Resource row patches, the Effect that writes, and invalidation.
-- `Capability` for named app services and test layers.
+- Effect services (`Context.Service`) for named app services, provided by a
+  Layer per host or test.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
 - `Server.contract` / `Server.client` / `Server.implement` for schema-described server calls.
@@ -22,23 +23,21 @@ target. The public API is owned by Sunfall Arc:
 Future versions can add a custom TSRX host profile once the runtime semantics are stable.
 
 This architecture document explains the concrete shape of the framework: the
-runtime spine,
-dependency injection, routing, resources, queries, actions, server
-contracts, SSR, hydration, diagnostics, and devtools all converge on one typed
-app graph.
+runtime spine, dependency injection, routing, resources, queries, actions,
+server contracts, SSR, hydration, diagnostics, and devtools all share one typed
+definition vocabulary.
 
 ## Target Architecture
 
 The end-state architecture has four layers that intentionally share the same
 domain vocabulary.
 
-1. Definition layer: schemas, branded ids, capabilities, server contracts,
+1. Definition layer: schemas, branded ids, Effect services, server contracts,
    programs, resources, actions, forms, and routes are stable typed
    definitions. Definitions are safe to import broadly when they do not include
    server handlers.
-2. Generated graph layer: file-route manifests, server function manifests,
-   action manifests, generated route definitions, and Start app graph
-   diagnostics turn definitions into deterministic machine-readable artifacts.
+2. Generated route layer: file-route manifests and generated route
+   definitions turn route files into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
    UI scopes, route scopes, Program fibers, action fibers,
    server clients, response context, hydration, and event streams execute the
@@ -58,7 +57,7 @@ Sunfall Arc should stay unusually strict in these places:
 
 - server contracts are shared, handlers are server-only;
 - request work gets a fresh runtime and store;
-- route preload is typed, interruptible, and declared for diagnostics;
+- route preload is typed, interruptible, and declares the resources it loads;
 - resources live in the active runtime/store, never global process state;
 - Program handlers are pure: they return plain model data or `Program.next(...)`;
   async work leaves the handler through Effect commands and Stream
@@ -73,7 +72,7 @@ Sunfall Arc should stay unusually strict in these places:
 - Promise boundaries are compatibility adapters for host or platform contracts,
   never alternate framework APIs;
 - generated artifacts are deterministic and source-attributed;
-- devtools use public Effect streams and app graph facts;
+- devtools use public Effect streams and definition diagnostics;
 - tests mock services through layers and contracts.
 
 This strictness is what lets the component API stay simple without losing
@@ -115,7 +114,8 @@ later refreshes keep the current (or, after a failed refresh, stale) value, so
 chrome. A failed first load throws to the boundary `catchTags` installs, which
 matches the family's render failure: its `error` schema's type (here
 `ProjectNotFound`), or `ResourceUntypedFailure` (the `tag` only) for a family
-without one. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
+without one. See
+[Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
 
 ### AsyncResult Is The Async-State Vocabulary
 
@@ -132,8 +132,9 @@ async-state vocabulary. Arc signals own it and Solid renders it:
   breaks its contract is a defect, not part of `E`); the latest invalidation
   plan stays its own signal.
 - A live query's `state` is `AsyncResult<ReadonlyArray<T>, E>` beside the
-  always-available `rows`. Every `AsyncResult`-valued accessor is named
-  `result`; Solid handles project it to `waiting()` and `failure()`.
+  always-available `rows`. Solid handles project every `AsyncResult` (a
+  Resource's or Action's `result`, a live query's `state`) to `waiting()` and
+  `failure()`.
 
 Settlement semantics are shared. A load or submission marks the current result
 `waiting` without changing its tag, so a refresh is `Success` with
@@ -306,18 +307,18 @@ current `Request`, parsed `URL`, headers, and cookies. `ResponseContext` lets
 preload, render, server functions, actions, and server routes set status,
 headers, and cookies through Effect:
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  ResponseContext.use((response) =>
-    Effect.gen(function* () {
-      yield* response.setHeader("x-project", "atlas");
-      yield* response.setCookie("session", token, {
-        httpOnly: true,
-        path: "/",
-        sameSite: "lax",
-      });
-    }),
-  );
+yield* ResponseContext.use((response) =>
+  Effect.gen(function* () {
+    yield* response.setHeader("x-project", "atlas");
+    yield* response.setCookie("session", token, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+    });
+  }),
+);
 ```
 
 Start applies the accumulated response context to the final `Response`, including
@@ -343,7 +344,8 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
   runtime built from the app's client Layer.
 - Solid Components get their runtime from their entry point
   (`App.launch` or `createRequestHandler` in a Start app; `Component.launch`,
-  `mount`, or `embed` otherwise), which checks the tree's services against it; every setup-time binding (resources, actions, programs, streams,
+  `mount`, or `embed` otherwise), which checks the tree's services against it;
+  every setup-time binding (resources, actions, programs, streams,
   callbacks, live queries, the router and its route preloads) runs on its
   instance's runtime with the setup's context. There is no runtime context and
   no implicit default runtime.
@@ -352,11 +354,11 @@ That means services, tagged errors, request context, scopes, retries, and
 fibers all flow through one Effect-native execution model instead of being
 hand-wired per feature.
 
-## Capability Services
+## Effect Services
 
-Application features should depend on capabilities, not directly on transport
-details. A capability is a thin Sunfall Arc convention over `Context.Service` plus
-layer helpers:
+Application features should depend on Effect services, not directly on transport
+details. Arc adds no wrapper: a service is a plain `Context.Service`, and each
+host or test provides it with a `Layer`:
 
 ```ts
 export interface ProjectApi {
@@ -364,17 +366,17 @@ export interface ProjectApi {
   readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
 }
 
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
 
-export const ProjectApiLive = ProjectApi.layer({
+export const ProjectApiLive = Layer.succeed(ProjectApi, {
   get: (id) => getProject.effect({ id }),
   rename: renameProject.effect,
 });
 ```
 
 Resources, actions, and route preload depend on `ProjectApi.use(...)`. Server
-functions are one live implementation; tests can swap `ProjectApi.layer(...)`
-without importing server modules or replacing app code.
+functions are one live implementation; tests can provide
+`Layer.succeed(ProjectApi, ...)` without importing server modules or replacing app code.
 
 ## Progressive Actions
 
@@ -388,10 +390,9 @@ export const SubmitProjectName = Action.define({
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
 });
 
-export const handleRequest = createRequestHandler(app, {
-  actions: [SubmitProjectName],
-  render,
-});
+export const app = App.define({ root, routes, actions: [SubmitProjectName], client: AppLive });
+
+export const handleRequest = createRequestHandler(app, { server: AppServerLive });
 ```
 
 `POST /__sunfall-arc/action` accepts either JSON (`{ name, input }`) or ordinary
@@ -440,7 +441,7 @@ such as `id` and `redirectTo` while the user edits fields like `name`.
 This is the progressive enhancement seam: with JavaScript, the Solid handler
 intercepts the submit and calls the Component's action handle (which the
 transport routes to the server); without JavaScript, the same form posts to
-Start and runs the same Action Definition, Capability services, schemas,
+Start and runs the same Action Definition, Effect services, schemas,
 retries, and invalidation policy.
 
 ### Optimistic Patches
@@ -451,7 +452,7 @@ for the life of one submission:
 ```ts
 optimistic: (input, transaction) =>
   Effect.all([
-    transaction.update(Projects, input.id, { name: input.name }),
+    transaction.update(ProjectsRef, input.id, { name: input.name }),
     transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
     transaction.set(lastRenamed, input.id),
   ]),
@@ -535,7 +536,10 @@ export const AdvanceProject = Action.define({
   output: ProjectSchema,
   durable: { maxAge: "1 day" },
   optimistic: ({ id }, transaction) =>
-    transaction.update(Projects, id, (project) => ({ ...project, progress: project.progress + 8 })),
+    transaction.update(ProjectsRef, id, (project) => ({
+      ...project,
+      progress: project.progress + 8,
+    })),
   run: (input) => ProjectApi.use((api) => api.advance(input)),
 });
 ```
@@ -552,7 +556,8 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   with `KeyValueStore.toSchemaStore`. In a Start app it is the browser's one
   store, shared with persisted Resources: the client Layer's, else
   `localStorage`. Elsewhere the runtime's Layer chooses it
-  (`KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`). The optimistic intent is the input itself: `optimistic` is a pure
+  (`KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`). The
+  optimistic intent is the input itself: `optimistic` is a pure
   function of it, so restoring re-runs it instead of serializing patches.
 - **`submit` settles or queues.** It succeeds or fails with the outcome when
   the submission settles while the caller waits (online, this is the same
@@ -591,8 +596,8 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   replay order), `failures`, and `dismiss(id)`. A runtime without an outbox,
   such as a server render, reports nothing pending, so a Component can render
   "3 changes waiting to sync" without a server-side service. The outbox
-  commits with Timeline causes `Action{event:"queue" | "restore" | "replay" |
-"success" | "failure" | "dismiss"}`.
+  commits with Timeline causes `Action "<name>" queue`, `restore`, `replay`,
+  `success`, `failure`, and `dismiss`.
 - **Client-only.** The endpoint site never consults an outbox, and the server
   render path never persists anything. Non-durable Actions pay nothing: the
   workflow checks `definition.durable` before it looks for an outbox.
@@ -702,16 +707,13 @@ request's resource graph into another request.
 Resource and action definitions also publish static diagnostics for tooling.
 `Resource.diagnostics()` reports declared families, tags, schema flags,
 tag-providing behavior, stale/GC/retry/persist policy, and declared `rows`
-(index names and whether a change feed exists). Start action manifests report
-whether invalidation, optimistic updates, retry policy, and concurrency are known
-for each action. Generated definitions can prove action facts from
-`Action.define(...)`; hand-written manifests can opt in, otherwise diagnostics
-mark the behavior as `unknown`.
+(index names and whether a change feed exists).
 
 The graph is inspectable before it is executed:
 
+<!-- prettier-ignore -->
 ```ts
-const plan = yield * Resource.planInvalidation([ProjectsTag, ProjectTag({ id: project.id })]);
+const plan = yield* Resource.planInvalidation([ProjectsTag, ProjectTag({ id: project.id })]);
 
 plan.entries.map((entry) => ({
   ref: entry.ref.key,
@@ -724,7 +726,7 @@ An Action instance exposes the latest `invalidationPlan` as a signal, and
 trace view. The intended debugging loop is “this mutation invalidated these
 domain facts, which matched these live resource refs, for these causes.”
 
-`DevtoolsRequestTrace` is the request-level join point for the same public
+`Devtools.RequestTrace` is the request-level join point for the same public
 facts. A trace records request and response context, service names, route plans,
 resources, server functions, actions, streams, fibers, status, and
 teardown in JSON-safe data. Start request handlers expose an `onRequestTrace`
@@ -889,8 +891,7 @@ array holes, marker-shaped plain objects, and typed unsupported-value failures.
 Visible resource entry GC is also Effect-native. Successful loads fork an
 immediately-started, interruptible `Effect.sleep(gcFor)` fiber; refreshes,
 failures, hydration, explicit deletion, and Resource Store disposal interrupt the
-old lifetime fiber before moving the entry to its next state. The Promise
-methods are only host/UI adapters over the Effect forms.
+old lifetime fiber before moving the entry to its next state.
 
 The Resource Store also exposes an Effect `PubSub` event stream. Consumers can
 subscribe with `Resource.subscribeEvents()` to observe pending, success,
@@ -961,7 +962,8 @@ A route's component is attached with `Route.withComponent(route, component)`,
 where it takes `Route.Props<typeof route>`, or with
 `Route.withComponent(route, component, (route) => props)`, which maps the
 route props to a feature component's own props (checked against them). It is
-the only way to attach one: route options take no `component`. Routes compare by path, so `RouterLink`, `navigate`, and
+the only way to attach one: route options take no `component`. Routes compare by
+path, so `RouterLink`, `navigate`, and
 `Route.isMatch` given the route reach the copy `withComponent` returned.
 In the browser, Start's Vite plugin splits the component a `withComponent`
 call attaches into its own chunk when that call is its only use (an import
@@ -1018,8 +1020,9 @@ instead of allowing later segments to overwrite earlier params.
 
 Preload is also inspectable as a route data graph:
 
+<!-- prettier-ignore -->
 ```ts
-const plan = yield * Route.planNavigation(routes, "/projects/atlas");
+const plan = yield* Route.planNavigation(routes, "/projects/atlas");
 
 if (plan._tag === "Matched") {
   plan.match.route.path;
@@ -1036,13 +1039,13 @@ the typed `Resource.SnapshotCodecError` Effect error channel. Resources with
 `rows` are ordinary Resources here: their rows are the preloaded value.
 
 Routes can also declare the resource families their preload is expected to
-touch through `preloadResources`. The app graph treats those declarations as
-static facts and keeps runtime `Route.planNavigation(...)` as the dynamic
-proof for a concrete href. If a route has a preload but no declaration, graph
-diagnostics report the preload resources as `unknown` rather than guessing.
-Once route modules have been resolved, `unknownRoutePreloadResources` names routes
-that still have `preload: present` with unknown preload declarations, and the
-typed diagnostics validators can enforce those as policy.
+touch through `preloadResources`. `Route.describePreloadResources(route)`
+reports those declarations as static facts (`declared`, `none`, or `unknown`
+for a preload without a declaration) and keeps runtime
+`Route.planNavigation(...)` as the dynamic proof for a concrete href. In Vite
+dev, the Start SSR middleware logs a warning (`Effect.logWarning`) once per
+loaded server entry for each route whose preload declares no
+`preloadResources`.
 
 File routes are manifest-first in v0. The pure helpers
 `generateFileRouteManifest(files, { routeDirectory })` and
@@ -1067,8 +1070,7 @@ Production generators should use `generateValidatedFileRouteManifest` or
 collapse to the same route path after route groups and pathless segments are
 removed, and malformed dynamic segments like `$123`, keeping bad route graphs
 out of builds. Discovered `.d.ts` files are ignored before manifest generation.
-The Start Vite plugin exposes the same artifact as
-`__SUNFALL_ARC_FILE_ROUTES__` and as the Vite virtual module
+The Start Vite plugin exposes the same artifact as the Vite virtual module
 `virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`, and the
 default manifest. Serialized artifacts can be parsed again with
 `deserializeFileRouteManifest`, which revalidates the branded ids and rejects
@@ -1094,7 +1096,8 @@ export const route = Route.define("/projects/:id", {
 The generated file imports those route modules and checks each imported route's
 declared `path` against the path derived from its file: a literal-typed
 assignment makes a mismatch a type error, and a load-time assertion makes it a
-startup and prerender failure for builds that skip type checking. It then emits a `routes` tuple and a
+startup and prerender failure for builds that skip type checking. It then emits
+a `routes` tuple and a
 `routeById` map of the route definitions (hrefs come from
 `Route.href(routeById.route_projects_$id, ...)`, like any definition). The
 matching Vite virtual
@@ -1115,23 +1118,20 @@ a checked declaration file such as `src/sunfall-arc-start-virtual.d.ts` containi
 
 ## SSR Hydration
 
-Route preload is also the server data graph. `@sunfall/arc-start` can match a
-request, run the matched route preload, collect every resource touched by
-`Resource.preload`, and serialize successful resource cache entries:
-
-```ts
-const preloaded = yield * preloadRequest(app, request);
-preloaded.resources; // { resources: [...] }
-```
+Route preload is also the server data graph. For each document request,
+`createRequestHandler(app, ...)` matches the route, runs its preload, collects
+every resource touched by `Resource.preload`, and serializes the successful
+resource cache entries into the document's hydration payload.
 
 The payload includes the resource family name, stable key, and original input
 (Arc's envelope) plus `state`: the `AsyncResult.Schema`-style JSON encoding of a
 settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
 `value` encoded through the family's `output` schema when one exists. Hydration
-is Success-only: failures can carry server-only causes and are never serialized. Start client hydration applies that payload with
-`hydrateFromDocument(...)` or `hydrateStartPayload(...)`; those
-helpers call `Resource.hydrate(payload)` so the visible resource signal
-and Effect `Cache` entry update in the same Runtime Spine.
+is Success-only: failures can carry server-only causes and are never serialized.
+In the browser, `App.launch(app)` applies that payload with
+`hydrateFromDocument(...)`, which calls `Resource.hydrate(payload)` so the
+visible resource signal and Effect `Cache` entry update in the same Runtime
+Spine.
 
 A failed route preload is a render outcome in Start: the request renders with
 status 500 and every router on the request runtime starts in the `Failure`
@@ -1167,10 +1167,8 @@ no `catchTags` handler matches them there (put failing data behind a Resource
 with an `error` schema to render it during SSR). Action failures never throw
 to a boundary: `submit` returns them.
 
-Preload dehydration has both sync and Effect forms. Runtime/request work should
-prefer `Resource.hydrationPayload(refs)` so the payload is read from the
-Resource Store provided by the Runtime Spine. The sync `Resource.hydrationPayload`
-is for already-current UI contexts and tests.
+`Resource.hydrationPayload(refs)` builds the preload payload as an Effect, read
+from the Resource Store the Runtime Spine provides.
 
 Rows need no hydration channel of their own: a Resource with `rows` hydrates
 as its value, and the browser rebuilds key positions and index buckets lazily
@@ -1222,7 +1220,8 @@ for Node HTTP. Effect-capable hosts use `toFetchHandler(handler)` or
 `createNodeHandler(handler)`. Edge-style hosts that require a Promise-shaped
 export wrap `createRequestHandler(app)` with
 `createFetchHandler(handler, { runtime })`, while Node HTTP servers use
-`createNodeServerHandler(handler, { runtime })`. Host facades provide the per-request Scope themselves
+`createNodeServerHandler(handler, { runtime })`. Host facades provide the
+per-request Scope themselves
 but require a typed runtime whenever the handler still needs app services. The
 Node adapter callback facades delegate the lower Node/Web exchange mechanics to
 the internal Start Node Web Exchange Module. That Module converts
@@ -1298,134 +1297,26 @@ preload and render, so shared clients dispatch to registered local handlers
 through the Effect runtime even when the app runtime also provides a remote
 client service. In the browser, `App.launch` provides a fetch-backed
 `Server.Client` (compiled out of static-client builds) that posts to the
-configured Start RPC endpoint, defaulting to
-`POST /__sunfall-arc/rpc`. Start action clients and progressive forms use the same
-shared endpoint policy, defaulting to `POST /__sunfall-arc/action`, so custom
-`rpcPath`/`actionPath` values can flow from manifests and handler options into
-clients without a second transport rule. The resource/action/router code above
-does not change.
+Start RPC endpoint, `POST /__sunfall-arc/rpc`. Start action clients and
+progressive forms post to `POST /__sunfall-arc/action`. Both paths are fixed:
+the request handler, the Vite dev middleware, and the clients share them. The
+resource/action/router code above does not change.
 
 The Vite plugin treats `*.server.ts` / `*.server.tsx` as server-only modules.
 Client transforms fail if one enters the browser graph. Use a shared contract
 module for schemas, contracts, and clients, and import the `.server.ts` module
 only from the server entry so the handlers are registered for SSR and RPC.
 
-Start also has a production-shaped Server Function Manifest Module. It gives
-each function a deterministic `sf_*` id, records the server export, emits either
-RPC-only or browser-safe import client references, tracks whether input/output/
-error schemas exist, and rejects duplicate names, ids, server module exports,
-and invalid import-client module/export references before bundling. The Start
-Vite plugin exposes the artifact as
-`__SUNFALL_ARC_SERVER_FUNCTIONS__` and as the Vite virtual module
-`virtual:sunfall-arc/server-functions`. Progressive action manifests mirror this
-for `Action.define(...)` values through `__SUNFALL_ARC_ACTIONS__` and
-`virtual:sunfall-arc/actions`, with deterministic branded `act_*` ids and
-typed deserialization through `deserializeActionManifest`.
-
-Nothing lists these by hand. When Vite starts (dev or build), the plugin
-SSR-loads the server entry through a temporary Vite server, reads what its
-`createRequestHandler(app, { serverFunctions })` handler serves (the app's
-`actions` and the handler's `serverFunctions`), and names each definition by
-the module export it came from among the modules the entry loaded. A server
-function's browser client is the `Server.client(...)` export with the same
-name, usually in a contract module. A served definition that no module exports
-fails the build with `StartDefinitionNotExported`; a server entry that does not
-load fails the build and leaves the dev server's graph empty until it loads.
-The derivation is the only source: the plugin has no option that lists
-server functions or Actions.
-
-The same Vite boundary also emits a Start App Graph. The graph is versioned,
-deterministic, and machine-readable: `routes`, `serverFunctions`, and `actions`
-are the exact manifest artifacts that builds already validate. Agents and
-devtools should prefer `virtual:sunfall-arc/app-graph` or
-`__SUNFALL_ARC_APP_GRAPH__` when they need topology, because it keeps the app's
-compile-time facts in one inspectable object. `deserializeStartAppGraph`
-round-trips the artifact and revalidates each nested manifest before tooling
-trusts it.
-
-Example-local graph summaries, such as the project-console SSR header helper,
-are narrow non-Vite fallbacks for tests and early server rendering. They should
-not grow into a second topology Interface; build-time and tooling consumers
-should use the generated Start App Graph instead.
-
-`describeStartAppGraph(graph)` turns that artifact into diagnostics: route
-paths, route ids, owning route files, path param metadata, server function
-ownership, action ownership, server-only modules, browser client modules,
-RPC/action endpoints, and schema coverage for server functions and actions.
-Server function and action diagnostics include stable ids, server exports,
-client transport/import references, module kinds, and wire-schema completeness.
-Static graph diagnostics mark route-module features like params schemas, search
-schemas, preloads, declared preload resources, and components as
-`unknown`; the `virtual:sunfall-arc/app-graph` module stays a pure static DTO and
-does not import application route implementations. Runtime route-module facts
-are available only from the explicit
-`virtual:sunfall-arc/app-graph/runtime-diagnostics` module, which SSR-loads the
-route modules and resolves those feature flags to `present` or `absent` for
-devtools and agents that ask for runtime diagnostics. Declared preload resource
-families are exposed as source-attributed route facts, while runtime route plans
-continue to show the exact resource refs touched for a specific navigation.
-Runtime diagnostics can also include static `Resource.diagnostics()` so
-devtools can explain resource families, tags, and rows without reading
-private stores. A shared
-diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
-duplicate loose shape guards at each Adapter seam. Builds can enforce static
-manifest policy with
-`validateStartAppGraphWireSchemas(graph)`, which fails with
-`StartAppGraphMissingWireSchemas` when required input/output schemas are absent;
-projects can opt into requiring error schemas too. Resolved route-module policy
-lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
-Diagnostics Gate SSR-loads the resolved graph through Vite and fails the build
-if configured resource preload declarations are still unknown,
-even when application code never imports `virtual:sunfall-arc/app-graph`. The
-runtime diagnostics virtual module exports `diagnosticsPolicyViolations` as a readonly
-`StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
-succeeds; if the guard finds unknown preload declarations, module evaluation
-fails with the diagnostics-bearing policy exception instead.
-CI scripts run the same gate explicitly and receive the resolved diagnostics as
-JSON-safe data through the package binary:
-
-```sh
-sunfall-arc-start diagnostics --root . --json
-```
-
-Without `--json`, the command prints an agent-readable repair report grouped by
-owning route, action, or server module. The same report model is available from
-`@sunfall/arc-start/diagnostics-report` via `createStartDiagnosticsReport(...)`
-and `formatStartDiagnosticsReport(...)`, so CI bots can attach exact "what to
-edit" guidance without reverse-engineering the raw graph payload.
-For semantic inspection, the same resolved diagnostics can be projected into a
-Start Agent Graph:
-
-```sh
-sunfall-arc-start impact route /projects/:id
-sunfall-arc-start impact action Project.rename --json
-sunfall-arc-start graph route /projects/:id
-sunfall-arc-start graph route /projects/:id --verbose
-sunfall-arc-start graph action Project.rename --json
-```
-
-`createStartAgentGraph(...)` turns diagnostics into typed Route, Action,
-ServerFunction, ResourceFamily, ResourceTag, Endpoint, Module, and
-Finding nodes with deterministic edges and self-review facts. This is the
-agent-operable map: agents can query the app by framework meaning before they
-edit source files, while the underlying facts still come from the compile-time
-and Vite-resolved diagnostics pipeline. The default text output is intentionally
-brief and edit-oriented; `--verbose` exposes raw graph ids, facts, and edges for
-debugging. For the default agent workflow, `createStartAgentGraphImpact(...)`
-and `formatStartAgentGraphImpact(...)` compress a focused graph query into an
-edit brief: where to work, which contracts must hold, which neighboring nodes
-may be affected, and which framework checks should be rerun.
-
 Tests should mock contracts, not modules:
 
+<!-- prettier-ignore -->
 ```ts
 const value =
-  yield *
-  Effect.provide(
-    getProject.effect({ id: makeProjectId("atlas") }),
-    Server.mockLayer(
-      Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
-    ),
+  yield* Effect.provide(
+  getProject.effect({ id: makeProjectId("atlas") }),
+  Server.mockLayer(
+    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+  ),
   );
 ```
 
@@ -1465,15 +1356,15 @@ Signals separate committed state from rendered state:
    tracks natively and catches up atomically at its next flush.
 3. A transaction that fails or is interrupted commits nothing.
 
+<!-- prettier-ignore -->
 ```ts
-yield *
-  Signal.transaction(
-    Effect.gen(function* () {
-      const saved = yield* Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
-      yield* api.save(saved); // if this fails, the write above never happened
-    }),
-    { name: "Counter.save" },
-  );
+yield* Signal.transaction(
+  Effect.gen(function* () {
+    const saved = yield* Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
+    yield* api.save(saved); // if this fails, the write above never happened
+  }),
+  { name: "Counter.save" },
+);
 
 Signal.batch(
   () => {
@@ -1502,8 +1393,9 @@ Signal.changes(count); // updates only
 
 Streams can also drive signals when the stream cannot fail:
 
+<!-- prettier-ignore -->
 ```ts
-const online = yield * Signal.fromStream(presenceStream, false, { name: "presence.online" });
+const online = yield* Signal.fromStream(presenceStream, false, { name: "presence.online" });
 ```
 
 Each element commits under a transition of the signal's name. In Solid
@@ -1520,7 +1412,8 @@ Effect-first APIs:
   reload resources as Effects.
 - `action.submit(input)` runs action workflows, optimistic patches,
   concurrency, and invalidation as an Effect.
-- `serverFunction.effect(input)` is the local Effect API; `serverFunction.invoke(raw)` is the schema-validated wire API.
+- `serverFunction.effect(input)` is the local Effect API;
+  `serverFunction.invoke(raw)` is the schema-validated wire API.
 
 Resource retry policy is an Effect `Schedule`, not a framework-specific retry
 DSL:
@@ -1568,8 +1461,9 @@ failures, and router state. Every write happens inside a named
 transition, so every entry reads like a message (Foldkit-style
 predictability: no state changes without a name):
 
+<!-- prettier-ignore -->
 ```ts
-const recording = yield * Timeline.record({ limit: 1000 });
+const recording = yield* Timeline.record({ limit: 1000 });
 
 // What `Component.callback("rename", ...)` in `ProjectPage` commits as:
 Signal.batch(() => title.set("Apollo"), { name: "ProjectPage.rename" });
@@ -1577,8 +1471,8 @@ Signal.batch(() => title.set("Apollo"), { name: "ProjectPage.rename" });
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
 // ['Program "Board" message Relabel', 'Resource "Project.get" success atlas', "ProjectPage.rename"]
 
-yield * recording.travel(entry.sequence); // render the app as it was after `entry`
-yield * recording.resume(); // render the live head again
+yield* recording.travel(entry.sequence); // render the app as it was after `entry`
+yield* recording.resume(); // render the live head again
 ```
 
 Entries are `{ sequence, at, cause, changes: [{ signal, name, previous, next }] }`.
@@ -1611,7 +1505,8 @@ deterministic.
   renders it.
 - **Names** come from `Signal.make(initial, { name })`, where `name` is
   required. Framework signals name themselves (`Board.model`,
-  `Project.rename.state`, `Project.get(<key>)`, `Router.state`). A router outlet's rendered node is derived
+  `Project.rename.state`, `Project.get(<key>)`, `Router.state`). A router
+  outlet's rendered node is derived
   from recorded router state, so it is bookkeeping, not recorded: travel
   re-renders the travelled route.
 - **Travel renders the past; it does not rewrite state.** Committed state stays
@@ -1641,7 +1536,8 @@ deterministic.
   recorded. Travel does not move the browser URL: a travelled router renders the old route while
   history stays at the head.
 
-Devtools consumes the same entries: `store.trackTimeline(recording)`
+A devtools store (`Devtools.makeStore()`) consumes the same entries:
+`store.trackTimeline(recording)`
 records each entry as a JSON-safe `TimelineCommit` runtime event, linked to the
 Program, Action, or Resource fact its cause names.
 

@@ -321,23 +321,8 @@ const allowed = [
       ),
       seam(
         "packages/start/src/vite.ts",
-        "Vite plugin config hook contract",
-        /\) => Promise<UserConfig>;/,
-      ),
-      seam(
-        "packages/start/src/vite.ts",
-        "Vite plugin buildStart hook contract",
-        /readonly buildStart:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/,
-      ),
-      seam(
-        "packages/start/src/vite.ts",
         "Vite plugin closeBundle hook contract",
         /readonly closeBundle:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/,
-      ),
-      seam(
-        "packages/start/src/vite.ts",
-        "Vite diagnostics gate Promise hook",
-        /const runCurrentDiagnosticsGate\s*=\s*\(\):\s*Promise<void>\s*=>/,
       ),
       seam(
         "type-tests/framework.test-d.ts",

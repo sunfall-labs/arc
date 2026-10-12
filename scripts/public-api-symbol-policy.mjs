@@ -56,14 +56,6 @@ export const publicHoverDocGroups = [
     allDeclarations: ["ActionResult"],
   },
   {
-    file: "packages/core/src/capability.ts",
-    declarations: ["CapabilityTypeId", "isCapability"],
-    allDeclarations: ["Capability"],
-    namespaceDeclarations: {
-      Capability: ["Any", "Shape", "Identifier", "define"],
-    },
-  },
-  {
     file: "packages/core/src/form.ts",
     declarations: [
       "FormTypeId",
@@ -352,38 +344,65 @@ export const publicHoverDocGroups = [
     ],
   },
   {
-    file: "packages/devtools/src/serialization.ts",
-    declarations: [
-      "DevtoolsUnknownInvalidationTarget",
-      "describeInvalidationPlan",
-      "describeRoutePlan",
-    ],
+    file: "packages/devtools/src/devtools.ts",
+    declarations: ["Devtools"],
+    namespaceDeclarations: {
+      Devtools: [
+        "Store",
+        "StoreOptions",
+        "RecordActionStateOptions",
+        "Snapshot",
+        "RuntimeEvent",
+        "TimelineCommit",
+        "RoutePlan",
+        "InvalidationPlan",
+        "RequestTrace",
+        "SerializableValue",
+        "SerializationPolicy",
+        "Summary",
+        "SummaryInput",
+        "CausalGraph",
+        "Panels",
+        "Panel",
+        "PanelsInput",
+        "PanelUiInput",
+        "PanelMountOptions",
+        "PanelMount",
+        "PanelBootOptions",
+        "PanelBoot",
+        "BridgePayload",
+        "BridgeProvider",
+        "BridgeTarget",
+        "BridgeInstall",
+        "BridgePayloadResolution",
+        "makeStore",
+        "describeSummary",
+        "describeCausalGraph",
+        "describePanels",
+        "renderPanelsHtml",
+        "mountPanels",
+        "bootPanels",
+        "bridgeGlobal",
+        "installBridge",
+        "resolveBridgePayload",
+        "toSerializable",
+      ],
+    },
   },
   {
     file: "packages/devtools/src/devtools-contract.ts",
     declarations: [
-      "DevtoolsRuntimeEvent",
-      "DevtoolsTimelineChange",
-      "DevtoolsTimelineCommit",
-      "DevtoolsSnapshot",
-      "DevtoolsStoreOptions",
+      "DevtoolsActionInvalidationPlanConflict",
       "DevtoolsStore",
-      "DevtoolsStartAppGraphSchemaCoverage",
-      "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
-      "DevtoolsSummaryResourceRef",
-      "DevtoolsSummaryInvalidationTarget",
-      "DevtoolsSummaryInvalidationCause",
-      "DevtoolsSummaryInvalidationPlan",
-      "DevtoolsSummaryRoutePlan",
-      "DevtoolsSummaryResource",
-      "DevtoolsPanelId",
-      "DevtoolsPanelSeverity",
-      "DevtoolsPanelMetric",
-      "DevtoolsPanelItem",
-      "DevtoolsPanel",
+      "DevtoolsStoreOptions",
+      "DevtoolsSnapshot",
+      "DevtoolsRuntimeEvent",
+      "DevtoolsTimelineCommit",
+      "DevtoolsSummary",
+      "DevtoolsCausalGraph",
       "DevtoolsPanels",
+      "DevtoolsPanel",
       "DevtoolsPanelsInput",
-      "DevtoolsPanelUiOptions",
       "DevtoolsPanelUiInput",
       "DevtoolsPanelMountOptions",
       "DevtoolsPanelMount",
@@ -392,27 +411,8 @@ export const publicHoverDocGroups = [
     ],
   },
   {
-    file: "packages/devtools/src/index.ts",
-    declarations: [
-      "makeDevtoolsStore",
-      "describeDevtoolsPanels",
-      "renderDevtoolsPanelsHtml",
-      "mountDevtoolsPanels",
-      "bootDevtoolsPanels",
-    ],
-  },
-  {
-    file: "packages/devtools/src/summary.ts",
-    declarations: ["describeDevtoolsSummary"],
-  },
-  {
     file: "packages/devtools/src/panel-contract.ts",
-    declarations: [
-      "DevtoolsPanelContractErrorReason",
-      "DevtoolsBridgePayloadContractResolution",
-      "devtoolsPanelIds",
-      "devtoolsPanelSeverities",
-    ],
+    declarations: ["DevtoolsPanelContractError", "DevtoolsBridgePayloadContractResolution"],
   },
   {
     file: "packages/db/src/query-plan.ts",
@@ -581,19 +581,8 @@ export const publicHoverDocGroups = [
     declarations: ["StartActionDuplicateName"],
   },
   {
-    file: "packages/start/src/app-graph.ts",
-    declarations: ["StartAppGraphMissingWireSchemas", "describeStartAppGraphRuntimeDiagnostics"],
-  },
-  {
-    file: "packages/start/src/start-app-graph-diagnostics-policy.ts",
-    declarations: [
-      "StartAppGraphUnknownRoutePreloadResources",
-      "validateStartAppGraphDiagnosticsPolicyException",
-    ],
-  },
-  {
     file: "packages/start/src/start-manifest-wall.ts",
-    declarations: ["StartBuildPolicy", "StartBuildPolicyError"],
+    declarations: ["StartBuildPolicy"],
   },
   {
     file: "packages/start/src/start-prerender.ts",
@@ -613,18 +602,6 @@ export const publicHoverDocGroups = [
     declarations: ["StartHandlerNotFound", "StartDevServerError"],
   },
   {
-    file: "packages/start/src/start-vite-diagnostics-loader.ts",
-    declarations: ["StartAppGraphDiagnosticsRunnerError"],
-  },
-  {
-    file: "packages/start/src/start-transport-endpoints.ts",
-    declarations: [
-      "StartTransportEndpointPathError",
-      "StartTransportEndpointConflictError",
-      "StartTransportEndpointOverrides",
-    ],
-  },
-  {
     file: "packages/start/src/request-trace.ts",
     declarations: ["StartRequestTrace", "StartRequestTraceHandler"],
   },
@@ -640,34 +617,7 @@ export const publicHoverDocGroups = [
 
 export const namespaceBackedSurfaceModules = new Map([
   ["@sunfall/arc-db", new Set(["query-builder"])],
+  ["@sunfall/arc-devtools", new Set(["devtools"])],
 ]);
 
-export const currentDocsTextPolicies = [
-  {
-    file: "CONTEXT.md",
-    banned: [
-      {
-        name: "Start Diagnostics CLI Contract must describe variadic graph/impact arguments",
-        pattern: /Start Diagnostics CLI Contract[\s\S]*?nested `Command` subcommands/,
-      },
-    ],
-  },
-  {
-    file: "packages/start/src/start-agent-graph-contract.ts",
-    banned: [
-      {
-        name: "StartAgentGraphQuery hover docs must describe graph/impact arguments, not query-kind subcommands",
-        pattern: /CLI subcommands/,
-      },
-    ],
-  },
-  {
-    file: "packages/start/src/start-agent-graph-vocabulary.ts",
-    banned: [
-      {
-        name: "Start agent graph vocabulary hover docs must describe query parsing, not query-kind subcommands",
-        pattern: /wiring CLI subcommands or impact relations/,
-      },
-    ],
-  },
-];
+export const currentDocsTextPolicies = [];

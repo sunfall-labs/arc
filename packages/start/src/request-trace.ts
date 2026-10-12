@@ -20,11 +20,13 @@ import {
 } from "effect";
 import * as Headers from "effect/http/Headers";
 import * as HttpTraceContext from "effect/http/HttpTraceContext";
-import { makeStartRequestId, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
 import {
-  resolveStartTransportEndpointsSync,
-  type StartTransportEndpointSource,
-} from "./start-transport-endpoints.js";
+  makeStartRequestId,
+  serverActionPath,
+  serverRpcPath,
+  startRequestIdHeader,
+  startTraceparentHeader,
+} from "./rpc.js";
 
 /** Request transport classification used by Start request traces and metrics. */
 export type StartRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
@@ -295,17 +297,9 @@ export const startRequestStatusMetric = Metric.frequency("sunfall_arc_start_requ
   description: "Start request outcomes by transport, method, path, and status.",
 });
 
-export const startRequestTraceTransport = (
-  request: Request,
-  endpoints?: StartTransportEndpointSource,
-): StartRequestTraceTransport => {
+export const startRequestTraceTransport = (request: Request): StartRequestTraceTransport => {
   const pathname = new URL(request.url).pathname;
-  const resolved = resolveStartTransportEndpointsSync(endpoints);
-  return pathname === resolved.rpcPath
-    ? "rpc"
-    : pathname === resolved.actionPath
-      ? "action"
-      : "ssr";
+  return pathname === serverRpcPath ? "rpc" : pathname === serverActionPath ? "action" : "ssr";
 };
 
 const redactedTraceValue = (value: string): string => String(Redacted.make(value));
@@ -566,10 +560,7 @@ export const traceRoutePlan = (plan: Route.NavigationPlan): StartRequestTraceRou
   },
 });
 
-export const startRequestTraceFacts = (
-  request: Request,
-  endpoints?: StartTransportEndpointSource,
-): Effect.Effect<StartRequestTraceFacts> =>
+export const startRequestTraceFacts = (request: Request): Effect.Effect<StartRequestTraceFacts> =>
   Effect.gen(function* () {
     const incomingRequestId = request.headers.get(startRequestIdHeader)?.trim();
     const startedAt = yield* Clock.currentTimeMillis;
@@ -578,7 +569,7 @@ export const startRequestTraceFacts = (
         incomingRequestId && !/[\r\n]/.test(incomingRequestId)
           ? incomingRequestId
           : yield* Effect.sync(makeStartRequestId),
-      transport: startRequestTraceTransport(request, endpoints),
+      transport: startRequestTraceTransport(request),
       startedAt,
       serverFunctions: [],
       actions: [],
