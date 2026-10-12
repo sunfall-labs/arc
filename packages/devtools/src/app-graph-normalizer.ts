@@ -5,7 +5,6 @@ import type {
   DevtoolsStartAppGraphMissingSchema,
   DevtoolsStartAppGraphRouteModuleDiagnostics,
   DevtoolsStartAppGraphRoutePreloadCollections,
-  DevtoolsStartAppGraphUnknownActionBehaviorEntry,
   DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
   DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
 } from "./devtools-contract.js";
@@ -97,7 +96,6 @@ const normalizeAppGraphRouteModule = (
       families: [...routeModule.preloadResources.families],
     },
     preloadCollections: normalizeRouteModulePreloadCollections(routeModule),
-    component: routeModule.component,
   };
 };
 
@@ -219,26 +217,6 @@ const normalizeAppGraphUnknownRoutePreloadResources = (
       },
     }));
 
-const normalizeAppGraphUnknownActionBehavior = (
-  actions: readonly DevtoolsStartAppGraphActionDiagnostics[],
-): readonly DevtoolsStartAppGraphUnknownActionBehaviorEntry[] =>
-  actions
-    .filter(
-      (action) =>
-        action.behavior.invalidates === "unknown" ||
-        action.behavior.optimistic === "unknown" ||
-        action.behavior.retry === "unknown" ||
-        action.behavior.concurrency === "unknown",
-    )
-    .map((action) => ({
-      kind: "action" as const,
-      name: action.name,
-      invalidates: action.behavior.invalidates,
-      optimistic: action.behavior.optimistic,
-      retry: action.behavior.retry,
-      concurrency: action.behavior.concurrency,
-    }));
-
 const missingSchemasForModules = (
   serverFunctions: readonly DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number][],
   actions: readonly DevtoolsStartAppGraphActionDiagnostics[],
@@ -334,7 +312,6 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
       actions: copyAppGraphSchemaCoverage(actionModules),
     },
     missingSchemas: missingSchemasForModules(serverFunctionModules, actionModules),
-    unknownActionBehavior: normalizeAppGraphUnknownActionBehavior(actionModules),
     unknownRoutePreloadResources: suppliedUnknownRoutePreloadResources,
     unknownRoutePreloadCollections: suppliedUnknownRoutePreloadCollections,
   };

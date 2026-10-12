@@ -120,7 +120,6 @@ export const graphSummary = (
       schemaCoverage: { ...detached.schemaCoverage.actions },
       modules: detached.actionModules.map((action) => ({ ...action })),
       behavior: actionBehaviorSummary(detached.actionModules),
-      unknownBehavior: detached.unknownActionBehavior.map((entry) => ({ ...entry })),
     },
     resources: {
       familyCount: detached.resourceFamilies.length,

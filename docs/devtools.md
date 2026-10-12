@@ -188,15 +188,14 @@ Use
 `sunfall-arc-start diagnostics --root .` when a CI script wants to run the same
 resolved diagnostics gate through Vite; pass `--json` when the caller wants the
 resolved graph payload. The default CLI output is an agent-readable repair
-report grouped by source owner, with concrete edits for missing wire schemas,
-unknown action behavior metadata, and route preload resource/collection
-declarations.
+report grouped by source owner, with concrete edits for missing wire schemas
+and route preload resource/collection declarations.
 For edit planning, use `sunfall-arc-start impact`; for topology questions rather
 than repair lists, use `sunfall-arc-start graph`.
 It projects the resolved diagnostics into a typed agent graph with Route,
 Action, ServerFunction, ResourceFamily, ResourceTag, Collection, Endpoint,
 Module, and Finding nodes plus self-review facts for policy cleanliness, wire
-schema completeness, known action behavior, and route preload declarations.
+schema completeness, and route preload declarations.
 Queries are positional and stay JSON-safe:
 
 ```sh
@@ -410,8 +409,8 @@ The devtools product should grow in this order:
   mutations, persistence, sync adapter, and rollback facts.
 - Request Trace: request context, response context, server functions, actions,
   resources, collections, streams, fibers, interruption, and teardown.
-- Diagnostics Repair: missing schemas, unknown preload ownership, unknown
-  action behavior, unsafe modules, and exact owner/edit guidance.
+- Diagnostics Repair: missing schemas, unknown preload ownership, unsafe
+  modules, and exact owner/edit guidance.
 
 Each panel should be backed by serializable data that can also be used by tests,
 CI, browser extensions, and agents.

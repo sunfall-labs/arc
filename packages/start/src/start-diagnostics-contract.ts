@@ -14,7 +14,6 @@ export type StartDiagnosticsReportFindingKind =
   | "route-preload-resources"
   | "route-preload-collections"
   | "wire-schema"
-  | "action-behavior"
   | "policy-violation";
 
 /** One actionable repair item grouped by the file, module, or policy owner. */
@@ -48,7 +47,6 @@ export interface StartDiagnosticsReportSummary {
   readonly resourceTags: number;
   readonly collections: number;
   readonly missingSchemas: number;
-  readonly unknownActionBehavior: number;
   readonly unknownRoutePreloadResources: number;
   readonly unknownRoutePreloadCollections: number;
   readonly policyViolations: number;
@@ -113,18 +111,6 @@ const schemaEdit = (
   kind === "serverFunction"
     ? `Add ${quotedList(fields)} schema${fields.length === 1 ? "" : "s"} to this Server function contract or manifest entry.`
     : `Add ${quotedList(fields)} schema${fields.length === 1 ? "" : "s"} to \`Action.define(...)\` or this action manifest entry.`;
-
-const unknownBehaviorFields = (
-  entry: StartAppGraphDiagnostics["unknownActionBehavior"][number],
-): readonly string[] => [
-  ...(entry.invalidates === "unknown" ? ["invalidates"] : []),
-  ...(entry.optimistic === "unknown" ? ["optimistic"] : []),
-  ...(entry.retry === "unknown" ? ["retry"] : []),
-  ...(entry.concurrency === "unknown" ? ["concurrency"] : []),
-];
-
-const actionBehaviorEdit = (fields: readonly string[]): string =>
-  `Declare action behavior metadata for ${quotedList(fields)} by generating the manifest from \`Action.define(...)\`, or set the matching fields on the hand-written action manifest entry.`;
 
 const policyViolationFinding = (
   violation: StartAppGraphDiagnosticsPolicyViolation,
@@ -222,22 +208,6 @@ export const createStartDiagnosticsReport = (
         ],
       };
     }),
-    ...diagnostics.unknownActionBehavior.map((entry): StartDiagnosticsReportFinding => {
-      const fields = unknownBehaviorFields(entry);
-      return {
-        kind: "action-behavior",
-        owner: ownerForAction(actions.get(entry.name), entry.name),
-        subject: `action: ${entry.name}`,
-        issue: `Action behavior metadata is unknown for ${quotedList(fields)}.`,
-        edit: actionBehaviorEdit(fields),
-        details: [
-          `invalidates: ${entry.invalidates}`,
-          `optimistic: ${entry.optimistic}`,
-          `retry: ${entry.retry}`,
-          `concurrency: ${entry.concurrency}`,
-        ],
-      };
-    }),
     ...(input.diagnosticsPolicyViolations ?? []).map(policyViolationFinding),
   ];
   const summary: StartDiagnosticsReportSummary = {
@@ -248,7 +218,6 @@ export const createStartDiagnosticsReport = (
     resourceTags: diagnostics.resourceTags.length,
     collections: diagnostics.collectionDefinitions.length,
     missingSchemas: diagnostics.missingSchemas.length,
-    unknownActionBehavior: diagnostics.unknownActionBehavior.length,
     unknownRoutePreloadResources: diagnostics.unknownRoutePreloadResources.length,
     unknownRoutePreloadCollections: diagnostics.unknownRoutePreloadCollections.length,
     policyViolations: input.diagnosticsPolicyViolations?.length ?? 0,

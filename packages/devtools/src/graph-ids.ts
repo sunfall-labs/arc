@@ -60,8 +60,6 @@ export const devtoolsServerFunctionNodeId = (name: string): string => `server-fu
 
 export const devtoolsResourceTagNodeId = (key: string): string => `resource-tag:${key}`;
 
-export const devtoolsUnknownActionPanelItemId = (name: string): string => `unknown-action:${name}`;
-
 export const devtoolsUnknownRoutePreloadCollectionsPanelItemId = (routeId: string): string =>
   `unknown-preload-collections:${routeId}`;
 

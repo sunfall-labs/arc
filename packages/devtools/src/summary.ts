@@ -54,7 +54,6 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
       requestTraceCount: normalized.requestTraceSummaries.length,
       runtimeEventCount: normalized.runtimeEvents.length,
       missingSchemaCount: normalized.appGraph?.missingSchemas.length ?? 0,
-      unknownActionBehaviorCount: normalized.appGraph?.unknownActionBehavior.length ?? 0,
       unknownRoutePreloadResourcesCount:
         normalized.appGraph?.unknownRoutePreloadResources.length ?? 0,
       unknownRoutePreloadCollectionsCount: normalized.appGraph
