@@ -5,18 +5,18 @@ import {
   Resource,
   ResourceTagIdentityTypeId,
   ResourceTagTypeId,
-  Server,
-  ServerFunctionNotFound,
-  ServerRpcProtocolError,
-  ServerTransportError,
+  ActionNotFound,
+  ActionProtocolError,
+  ActionTransportError,
   type Action,
 } from "@sunfall/arc-core";
 import {
-  decodeServerWire,
-  encodeServerWire,
+  decodeActionWire,
+  encodeActionWire,
   lookupResourceFamily,
 } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, Schema } from "effect";
+import type * as HttpClientResponse from "effect/http/HttpClientResponse";
 import {
   createStartHydrationPayload,
   hydrateStartPayload,
@@ -24,14 +24,14 @@ import {
 } from "./hydration.js";
 import {
   hasContentType,
+  mediaTypeOf,
   negotiateAcceptedMediaType,
   startHtmlMediaType,
   startJsonMediaType,
-  validateStartActionResponse,
   type StartTransportRequestError,
 } from "./rpc.js";
-import { readStartTransportResponseText } from "./start-transport-body.js";
-import { type StartActionDefinition } from "./start-action-request-codec.js";
+import type { StartRequestFailureKind } from "./request-trace.js";
+import { serializeDefect, type StartActionDefinition } from "./start-action-request-codec.js";
 
 const refFields = { key: Schema.String, family: Schema.String };
 const Ref = Schema.Struct({ ...refFields, input: Schema.Unknown });
@@ -106,7 +106,7 @@ const actionJson = (body: StartActionResponseBody, status = 200): Response => {
   try {
     return new Response(JSON.stringify(body), { status, headers });
   } catch (cause) {
-    return new Response(JSON.stringify({ _tag: "Defect", defect: Server.serializeDefect(cause) }), {
+    return new Response(JSON.stringify({ _tag: "Defect", defect: serializeDefect(cause) }), {
       status: 500,
       headers,
     });
@@ -114,25 +114,51 @@ const actionJson = (body: StartActionResponseBody, status = 200): Response => {
 };
 
 const defectJson = (defect: unknown, status = 500): Response =>
-  actionJson({ _tag: "Defect", defect: Server.serializeDefect(defect) }, status);
+  actionJson({ _tag: "Defect", defect: serializeDefect(defect) }, status);
 
-const serverErrorJson = (
-  error: ServerRpcProtocolError | ServerFunctionNotFound,
-  status: number,
-): Response =>
-  actionJson({ _tag: "ServerError", error: Server.serializeServerError(error) }, status);
+const serverErrorJson = (error: ActionProtocolError | ActionNotFound, status: number): Response =>
+  actionJson(
+    {
+      _tag: "ServerError",
+      error:
+        error._tag === "ActionNotFound"
+          ? { _tag: error._tag, actionName: error.actionName }
+          : { _tag: error._tag, message: error.message, payload: error.payload },
+    },
+    status,
+  );
+
+const isRecordValue = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+/** Decodes a `ServerError` body's error, falling back to a protocol error. */
+const deserializeServerError = (error: unknown): ActionProtocolError | ActionNotFound =>
+  isRecordValue(error) && error._tag === "ActionNotFound" && typeof error.actionName === "string"
+    ? new ActionNotFound({ actionName: error.actionName })
+    : isRecordValue(error) &&
+        error._tag === "ActionProtocolError" &&
+        typeof error.message === "string"
+      ? new ActionProtocolError({ message: error.message, payload: error.payload })
+      : new ActionProtocolError({
+          message: "The server returned an unknown action protocol error.",
+          payload: error,
+        });
 
 export const actionRuntimeFailureResponse = (error: unknown): Response => defectJson(error);
 
-export const actionProtocolFailureResponse = (
-  error: ServerRpcProtocolError,
-  status = 400,
-): Response => serverErrorJson(error, status);
+export const actionProtocolFailureResponse = (error: ActionProtocolError, status = 400): Response =>
+  serverErrorJson(error, status);
 
 export const actionTransportRequestFailureResponse = (
   error: StartTransportRequestError,
 ): Response => {
-  const response = actionProtocolFailureResponse(error.error, error.status);
+  const response = actionProtocolFailureResponse(
+    new ActionProtocolError({
+      message: error.message,
+      ...(error.payload === undefined ? {} : { payload: error.payload }),
+    }),
+    error.status,
+  );
   if (error.allow) {
     response.headers.set("allow", error.allow);
   }
@@ -140,7 +166,7 @@ export const actionTransportRequestFailureResponse = (
 };
 
 export const actionFunctionNotFoundResponse = (actionName: string): Response =>
-  serverErrorJson(new ServerFunctionNotFound({ functionName: actionName }), 404);
+  serverErrorJson(new ActionNotFound({ actionName }), 404);
 
 /** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
@@ -217,7 +243,7 @@ const actionValueResponse = (
         : new Response(null, { status, headers: { location, ...headers } });
     }
 
-    const whole = yield* Effect.exit(encodeServerWire(action.output, result));
+    const whole = yield* Effect.exit(encodeActionWire(action.output, result));
     if (actionResult === undefined) {
       return Exit.isSuccess(whole)
         ? actionJson({ _tag: "Success", value: whole.value, ...meta })
@@ -236,7 +262,7 @@ const actionValueResponse = (
           _tag: "ValidationFailure",
           fieldErrors: source.fieldErrors,
           formErrors: Array.isArray(source.formErrors) ? source.formErrors : [],
-          ...(source.cause === undefined ? {} : { cause: Server.serializeDefect(source.cause) }),
+          ...(source.cause === undefined ? {} : { cause: serializeDefect(source.cause) }),
           ...meta,
         },
         422,
@@ -249,7 +275,7 @@ const actionValueResponse = (
       encoded !== undefined && "value" in encoded
         ? Exit.succeed(encoded.value)
         : yield* Effect.exit(
-            encodeServerWire(action.output, (actionResult as { readonly value: unknown }).value),
+            encodeActionWire(action.output, (actionResult as { readonly value: unknown }).value),
           );
     return Exit.isSuccess(value)
       ? actionJson({ _tag: "Success", value: value.value, ...meta })
@@ -272,14 +298,14 @@ export const actionExitResponse = <ActionError>(
     if (Schema.isSchemaError(failure.error)) {
       return Effect.succeed(
         actionProtocolFailureResponse(
-          new ServerRpcProtocolError({
+          new ActionProtocolError({
             message: failure.error.message,
-            payload: Server.serializeDefect(failure.error),
+            payload: serializeDefect(failure.error),
           }),
         ),
       );
     }
-    return Effect.map(Effect.exit(encodeServerWire(action.error, failure.error)), (encoded) =>
+    return Effect.map(Effect.exit(encodeActionWire(action.error, failure.error)), (encoded) =>
       Exit.isSuccess(encoded)
         ? actionJson({ _tag: "Failure", error: encoded.value, ...meta })
         : defectJson(Cause.pretty(encoded.cause)),
@@ -305,35 +331,86 @@ export const actionExitResponse = <ActionError>(
 
 const isStartActionResponseBody = Schema.is(StartActionResponseBody);
 
+/**
+ * Reads an action response from the `HttpClient`: checks the JSON media type
+ * and the protocol shape, then checks the HTTP status against the body's tag
+ * and turns `ServerError` / `Defect` bodies into failures.
+ */
 export const parseStartActionResponse = (
-  response: Response,
-): Effect.Effect<StartActionResponseBody, ServerTransportError> =>
+  response: HttpClientResponse.HttpClientResponse,
+): Effect.Effect<
+  StartActionDomainBody,
+  ActionTransportError | ActionProtocolError | ActionNotFound
+> =>
   Effect.gen(function* () {
-    yield* validateStartActionResponse(response);
-    const text = yield* readStartTransportResponseText(
-      response,
-      "Could not read the action response body.",
+    const status = response.status;
+    if (mediaTypeOf(response.headers["content-type"]) !== startJsonMediaType) {
+      return yield* new ActionTransportError({
+        reason: "InvalidResponse",
+        status,
+        message: "Start action response content-type was not application/json.",
+        payload: { contentType: response.headers["content-type"] },
+      });
+    }
+    const text = yield* response.text.pipe(
+      Effect.mapError(
+        (cause) =>
+          new ActionTransportError({
+            reason: "InvalidResponse",
+            status,
+            message: "Could not read the action response body.",
+            cause,
+          }),
+      ),
     );
     const payload = yield* Effect.try({
       try: () => JSON.parse(text) as unknown,
       catch: (cause) =>
-        new ServerTransportError({
+        new ActionTransportError({
           reason: "InvalidResponse",
-          status: response.status,
+          status,
           message: "Action response was not valid JSON.",
           cause,
           payload: text,
         }),
     });
     if (!isStartActionResponseBody(payload)) {
-      return yield* new ServerTransportError({
+      return yield* new ActionTransportError({
         reason: "InvalidResponse",
-        status: response.status,
+        status,
         message: "Action response did not match the Sunfall Arc Start action protocol.",
         payload,
       });
     }
-    return payload;
+    switch (payload._tag) {
+      case "ServerError":
+        return yield* Effect.fail(deserializeServerError(payload.error));
+      case "Defect":
+        return yield* new ActionTransportError({
+          reason: "Defect",
+          status,
+          message: "Start action failed with a defect.",
+          payload: payload.defect,
+        });
+      case "ValidationFailure":
+        return status === 422
+          ? payload
+          : yield* new ActionTransportError({
+              reason: "BadStatus",
+              status,
+              message: `Start action validation response used unexpected HTTP status ${status}.`,
+              payload,
+            });
+      default:
+        return status >= 200 && status < 300
+          ? payload
+          : yield* new ActionTransportError({
+              reason: "BadStatus",
+              status,
+              message: `Start action ${payload._tag} response used unexpected HTTP status ${status}.`,
+              payload,
+            });
+    }
   });
 
 /** A decoded remote action outcome: the value or typed error a local `run` would produce. */
@@ -360,7 +437,7 @@ export const decodeStartActionOutcome = <I, A, E, R>(
   body: StartActionDomainBody,
 ): Effect.Effect<StartActionOutcome<A, E>, Schema.SchemaError> =>
   Effect.gen(function* () {
-    const whole = yield* Effect.exit(decodeServerWire(definition.output, body));
+    const whole = yield* Effect.exit(decodeActionWire(definition.output, body));
     if (Exit.isSuccess(whole) && isRecord(whole.value) && actionResultTags.has(whole.value._tag)) {
       return { _tag: "Value", value: whole.value as A };
     }
@@ -369,12 +446,12 @@ export const decodeStartActionOutcome = <I, A, E, R>(
       case "Success":
         return {
           _tag: "Value",
-          value: (yield* decodeServerWire(definition.output, body.value)) as A,
+          value: (yield* decodeActionWire(definition.output, body.value)) as A,
         };
       case "Failure":
         return {
           _tag: "Error",
-          error: (yield* decodeServerWire(definition.error, body.error)) as E,
+          error: (yield* decodeActionWire(definition.error, body.error)) as E,
         };
       case "ValidationFailure":
         return {
@@ -408,10 +485,10 @@ type WireInvalidation =
 const resolveInvalidation = (
   body: StartActionResponseBody,
   target: WireInvalidation,
-): Effect.Effect<Resource.Invalidation<any> | undefined, ServerTransportError> => {
+): Effect.Effect<Resource.Invalidation<any> | undefined, ActionTransportError> => {
   const invalid = (message: string) =>
     Effect.fail(
-      new ServerTransportError({
+      new ActionTransportError({
         reason: "InvalidResponse",
         message: `Start action invalidation metadata ${message}`,
         payload: { body, target },
@@ -460,7 +537,7 @@ const resourceIdentity = (name: string, key: string): string => JSON.stringify([
 const runResponseInvalidation = (
   body: StartActionResponseBody,
   hydrated: ReadonlySet<string>,
-): Effect.Effect<void, ServerTransportError> =>
+): Effect.Effect<void, ActionTransportError> =>
   Effect.gen(function* () {
     const plan = "invalidation" in body ? body.invalidation : undefined;
     if (plan === undefined) {
@@ -484,7 +561,7 @@ const runResponseInvalidation = (
         (entry) => !hydrated.has(resourceIdentity(entry.ref.family.options.name, entry.ref.key)),
       ),
     });
-  }) as Effect.Effect<void, ServerTransportError>;
+  }) as Effect.Effect<void, ActionTransportError>;
 
 /**
  * Applies only the invalidation metadata of an action response, in the
@@ -494,24 +571,24 @@ const runResponseInvalidation = (
  */
 export const applyStartActionInvalidation = (
   body: StartActionResponseBody,
-): Effect.Effect<void, ServerTransportError> => runResponseInvalidation(body, new Set());
+): Effect.Effect<void, ActionTransportError> => runResponseInvalidation(body, new Set());
 
 /**
  * Applies accepted Start action response metadata in the runtime running this
  * Effect (the submitting runtime): hydrates returned resources, then runs the
  * invalidation for the refs that were not hydrated. Malformed metadata fails
- * with `ServerTransportError`.
+ * with `ActionTransportError`.
  */
 export const applyStartActionResponse = (
   body: StartActionResponseBody,
-): Effect.Effect<void, ServerTransportError> =>
+): Effect.Effect<void, ActionTransportError> =>
   Effect.gen(function* () {
     const hydration = "hydration" in body ? body.hydration : undefined;
     if (hydration !== undefined) {
       yield* hydrateStartPayload(hydration).pipe(
         Effect.mapError(
           (cause) =>
-            new ServerTransportError({
+            new ActionTransportError({
               reason: "InvalidResponse",
               message: "Start action response metadata could not be applied.",
               cause,
@@ -529,3 +606,37 @@ export const applyStartActionResponse = (
       ),
     );
   });
+
+/** Failure category of one action submission's exit, for the request span. */
+export const actionFailureKind = <ActionError>(
+  action: StartActionDefinition,
+  exit: Exit.Exit<unknown, ActionError>,
+): Effect.Effect<StartRequestFailureKind | undefined> => {
+  if (Exit.isSuccess(exit)) {
+    const result = exit.value;
+    return Effect.succeed(
+      !ActionResult.is(result)
+        ? undefined
+        : ActionResult.isValidationFailure(result)
+          ? "validation"
+          : ActionResult.isFailure(result)
+            ? "domain"
+            : undefined,
+    );
+  }
+
+  const failure = exit.cause.reasons.find(Cause.isFailReason);
+  if (failure !== undefined) {
+    if (Schema.isSchemaError(failure.error)) {
+      return Effect.succeed("validation");
+    }
+
+    return Effect.map(Effect.exit(encodeActionWire(action.error, failure.error)), (encoded) =>
+      Exit.isSuccess(encoded) ? "domain" : "defect",
+    );
+  }
+
+  return Effect.succeed(
+    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect",
+  );
+};

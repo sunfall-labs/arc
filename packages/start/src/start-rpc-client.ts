@@ -1,81 +1,54 @@
-import { Server, type AnySunfallArcRuntime, type SunfallArcRuntime } from "@sunfall/arc-core";
-import { Effect, Layer } from "effect";
-import { type ServerRpcClientOptions } from "./start-fetch.js";
-import { executeStartClientTransport } from "./start-client-transport.js";
+import { Server } from "@sunfall/arc-core";
+import { Effect, Layer, Scope } from "effect";
+import * as HttpClient from "effect/http/HttpClient";
+import * as HttpClientRequest from "effect/http/HttpClientRequest";
+import { RpcClient, RpcGroup, RpcSerialization, type Rpc } from "effect/rpc";
 import { serverRpcPath } from "./rpc.js";
-import { parseRpcResponse } from "./start-transport-protocol.js";
 
-type ServerRpcTransportRuntime<FetchRequirements> =
-  | SunfallArcRuntime<FetchRequirements, never>
-  | AnySunfallArcRuntime<never>;
-
-type ServerRpcRuntimeFreeOptions<FetchError = never> = ServerRpcClientOptions<
-  FetchError,
-  never,
-  never
-> & {
-  readonly transportRuntime?: undefined;
-};
-
-type ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements> = ServerRpcClientOptions<
-  FetchError,
-  FetchRequirements,
-  never
-> & {
-  readonly transportRuntime: ServerRpcTransportRuntime<FetchRequirements>;
-};
-
-const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>(
-  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
-): Server.Client => ({
-  call: <I, A, E, R>(
-    fn: Server.Fn<I, A, E, R>,
-    input: I,
-  ): Effect.Effect<A, E | Server.ClientError, R> => {
-    const workflow = Effect.gen(function* () {
-      const encodedInput = yield* Server.encodeInput(fn, input);
-      const request: Server.RpcRequest = {
-        name: fn.name,
-        input: encodedInput,
-      };
-      const { body: rpcResponse } = yield* executeStartClientTransport({
-        kind: "rpc",
-        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
-        ...(options.headers === undefined ? {} : { headers: options.headers }),
-        endpoint: options.endpoint ?? serverRpcPath,
-        request,
-        parseResponse: parseRpcResponse,
-      });
-
-      switch (rpcResponse._tag) {
-        case "Success":
-          return yield* Server.decodeOutput(fn, rpcResponse.value);
-        case "Failure":
-          return yield* Effect.fail(yield* Server.decodeError(fn, rpcResponse.error));
-      }
-    });
-
-    return (options.transportRuntime
-      ? options.transportRuntime.provide(workflow)
-      : workflow) as unknown as Effect.Effect<A, E | Server.ClientError, R>;
-  },
-});
+type FlatClient = (tag: string, payload: unknown) => Effect.Effect<unknown, unknown, never>;
 
 /**
- * Layer that provides a Start RPC-backed `ServerClient`.
+ * Layer that provides Start's `Server.Client`: an `effect/rpc` `RpcClient`
+ * over the runtime's `HttpClient` with JSON serialization, posting to the
+ * fixed `/__sunfall-arc/rpc` endpoint. `HttpClient` propagates the caller's
+ * span (`traceparent`), so client and server spans share one trace.
  *
- * Calls remain Effects; the HTTP request is performed only when a server
- * function Effect runs. `makeRpcClientLayer()` uses `globalThis.fetch` and the
- * default Start RPC path.
+ * Server functions are module values that load as routes do, so the group
+ * is not known up front: each function gets a one-Rpc client the first time
+ * it is called, all sharing one HTTP protocol and the Layer's scope.
  */
-export function makeRpcClientLayer<FetchError = never>(
-  options?: ServerRpcRuntimeFreeOptions<FetchError>,
-): Layer.Layer<Server.Client>;
-export function makeRpcClientLayer<FetchError = never, FetchRequirements = never>(
-  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>,
-): Layer.Layer<Server.Client>;
-export function makeRpcClientLayer<FetchError = never, FetchRequirements = never>(
-  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
-): Layer.Layer<Server.Client> {
-  return Layer.succeed(Server.Client)(makeRpcClientFromOptions(options));
-}
+export const rpcClientLayer: Layer.Layer<Server.Client, never, HttpClient.HttpClient> =
+  Layer.effect(Server.Client)(
+    Effect.gen(function* () {
+      const scope = yield* Scope.Scope;
+      const httpClient = (yield* HttpClient.HttpClient).pipe(
+        HttpClient.mapRequest(HttpClientRequest.setUrl(serverRpcPath)),
+      );
+      const protocol = yield* RpcClient.makeProtocolHttp(httpClient).pipe(
+        Effect.provideService(RpcSerialization.RpcSerialization, RpcSerialization.json),
+      );
+      const clients = new Map<string, Effect.Effect<FlatClient>>();
+      const clientFor = (rpc: Rpc.Any): Effect.Effect<FlatClient> =>
+        Effect.suspend(() => {
+          let client = clients.get(rpc._tag);
+          if (client === undefined) {
+            client = Effect.runSync(
+              Effect.cached(
+                RpcClient.make(RpcGroup.make(rpc), { flatten: true }).pipe(
+                  Effect.provideService(RpcClient.Protocol, protocol),
+                  Scope.provide(scope),
+                ) as unknown as Effect.Effect<FlatClient>,
+              ),
+            );
+            clients.set(rpc._tag, client);
+          }
+          return client;
+        });
+      return Server.Client.of({
+        call: <I, A, E, R>(fn: Server.Fn<I, A, E, R>, input: I) =>
+          Effect.flatMap(clientFor(fn.rpc as Rpc.Any), (client) =>
+            client(fn.name, input),
+          ) as Effect.Effect<A, E | Server.ClientError, R>,
+      });
+    }),
+  );

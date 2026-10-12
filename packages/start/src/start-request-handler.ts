@@ -31,12 +31,8 @@ import {
   createStartRenderHydrationPlan,
   type StartRenderHydrationPlan,
 } from "./render-hydration-plan.js";
-import {
-  isServerActionRequest,
-  isServerRpcRequest,
-  makeActionMap,
-  type StartActionDefinition,
-} from "./start-transport-protocol.js";
+import { isServerActionRequest, isServerRpcRequest } from "./rpc.js";
+import { makeActionMap, type StartActionDefinition } from "./start-action-request-codec.js";
 import { makeStartActionWorkflows, settledActionSubmissions } from "./start-action-workflow.js";
 import { readStartActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
