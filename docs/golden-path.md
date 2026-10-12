@@ -334,8 +334,10 @@ export const App = Component.define("App", function* (props: { readonly href: st
   `export const route = Route.define(path, sameOptions)`, and the Vite
   plugin generates `routeTree.gen.ts`, which fails when the declared path
   differs from the one the file location implies. The app
-  still attaches components with `Route.withComponent`, and the plugin
-  lazy-loads a page Component imported only for that call, keeping its type.
+  still attaches components with `Route.withComponent`; a page Component in a
+  sibling `src/routes/<path>.component.tsx` (default export, taking
+  `Route.Props<typeof route>`) is attached by the generated tree as a lazy
+  chunk, keeping its type.
 
 ### 4. An Action for the rename
 

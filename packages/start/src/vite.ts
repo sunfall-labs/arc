@@ -30,12 +30,6 @@ import {
 } from "./start-vite-dev-ssr.js";
 import { forkStartHost, runStartHostPromise } from "./start-host-runtime-runner.js";
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
-import {
-  isStartRouteCodeSplitModule,
-  loadStartRouteComponentSplitModule,
-  resolveStartRouteComponentSplitModuleId,
-  transformStartRouteAutoCodeSplitting,
-} from "./route-code-splitting.js";
 import { runStartPrerender } from "./start-prerender.js";
 
 export type {
@@ -336,27 +330,15 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       );
     },
     resolveId(id) {
-      return resolveStartRouteComponentSplitModuleId(id) ?? resolveStartVirtualModuleId(id);
+      return resolveStartVirtualModuleId(id);
     },
     load(id) {
-      const splitModule = loadStartRouteComponentSplitModule(id);
-      if (splitModule !== null) {
-        return splitModule;
-      }
       const activeOptions = currentOptions();
       return Effect.runSync(loadStartVirtualModule(id, activeOptions));
     },
-    transform(code, id, options) {
+    transform(_code, id, options) {
       if (isServerOnlyModule(id) && !options?.ssr) {
         throw new StartServerOnlyModuleError({ id });
-      }
-      const activeOptions = currentOptions();
-      if (
-        !options?.ssr &&
-        activeOptions.autoCodeSplitting !== false &&
-        isStartRouteCodeSplitModule(id, viteRoot)
-      ) {
-        return transformStartRouteAutoCodeSplitting(code, id, { root: viteRoot });
       }
       return null;
     },

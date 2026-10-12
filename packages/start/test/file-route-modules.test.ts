@@ -347,6 +347,37 @@ describe("file route definition module generation", () => {
     expect(generated).not.toContain("export type Match<");
   });
 
+  it("attaches a route's sibling component module as a lazy component", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      [
+        "src/routes/index.tsx",
+        "src/routes/projects/$id.tsx",
+        "src/routes/projects/$id.component.tsx",
+      ],
+      { routeDirectory: "src/routes" },
+    );
+
+    expect(manifest.entries.map((entry) => entry.routePath)).toEqual(["/", "/projects/:id"]);
+    expect(manifest.modules.find((module) => module.kind === "Component")).toMatchObject({
+      routePath: "/projects/:id",
+      exportName: "default",
+    });
+    const generated = createFileRouteDefinitionsModule(manifest);
+    expect(generated).toContain('import { Effect } from "effect";');
+    expect(generated).toContain('import { route as route_root } from "./routes/index.js";');
+    expect(generated).toContain(
+      [
+        'import { route as route_projects_$id_definition } from "./routes/projects/$id.js";',
+        "",
+        "const route_projects_$id = Route.withComponent(",
+        "  route_projects_$id_definition,",
+        '  Route.lazyComponent(Effect.tryPromise(() => import("./routes/projects/$id.component.js"))),',
+        ");",
+      ].join("\n"),
+    );
+    expect(generated).toContain("  route_projects_$id: route_projects_$id,");
+  });
+
   it("keeps long generated route definitions formatter-stable by construction", () => {
     const manifest = generateFileRouteManifestArtifact(
       [

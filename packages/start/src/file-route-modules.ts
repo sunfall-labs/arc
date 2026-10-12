@@ -21,6 +21,8 @@ export interface FileRouteModuleReference {
   readonly importName: string;
   readonly identifier: string;
   readonly importSpecifier: string;
+  /** Lazy import specifier of the route's sibling `*.component` module, when it has one. */
+  readonly componentSpecifier?: string;
 }
 
 /** Generated import reference for a layout, error boundary, or metadata companion module. */
@@ -102,6 +104,8 @@ const companionModuleIdentifierPrefix = (module: FileRouteManifestModule): strin
       return "metadata";
     case "Route":
       return "route";
+    case "Component":
+      return "component";
   }
 };
 
@@ -383,12 +387,20 @@ export const createFileRouteModuleReferences = (
   options: FileRouteDefinitionsModuleOptions = {},
 ): readonly FileRouteModuleReference[] => {
   const importName = fileRouteModuleExportName("Route");
-  return Array.from(manifest.entries, (entry) => ({
-    entry,
-    importName,
-    identifier: asRouteIdentifier(entry),
-    importSpecifier: routeModuleImportSpecifier(entry, options),
-  }));
+  return Array.from(manifest.entries, (entry) => {
+    const component = manifest.modules.find(
+      (module) => module.kind === "Component" && module.id === `${entry.id}.component`,
+    );
+    return {
+      entry,
+      importName,
+      identifier: asRouteIdentifier(entry),
+      importSpecifier: routeModuleImportSpecifier(entry, options),
+      ...(component === undefined
+        ? {}
+        : { componentSpecifier: routeModuleImportSpecifier(component, options) }),
+    };
+  });
 };
 
 const uniqueCompanionModules = (
@@ -449,8 +461,31 @@ export const createFileRouteDefinitionsModule = (
   const companionReferenceByModuleId = new Map(
     companionReferences.map((reference) => [reference.module.moduleId, reference]),
   );
-  const routeImports = references.flatMap(({ importName, identifier, importSpecifier }) =>
-    generatedImportLines(importName, identifier, importSpecifier),
+  const routeImports = references.flatMap(
+    ({ importName, identifier, importSpecifier, componentSpecifier }) =>
+      generatedImportLines(
+        importName,
+        componentSpecifier === undefined ? identifier : `${identifier}_definition`,
+        importSpecifier,
+      ),
+  );
+  // A route with a sibling `*.component` module renders it from its own chunk.
+  const componentRoutes = references.flatMap(({ identifier, componentSpecifier }) =>
+    componentSpecifier === undefined
+      ? []
+      : [
+          `const ${identifier} = Route.withComponent(`,
+          `  ${identifier}_definition,`,
+          ...generatedOneLineOrSplit(
+            `  Route.lazyComponent(Effect.tryPromise(() => import(${stringLiteral(componentSpecifier)}))),`,
+            [
+              "  Route.lazyComponent(",
+              `    Effect.tryPromise(() => import(${stringLiteral(componentSpecifier)})),`,
+              "  ),",
+            ],
+          ),
+          ");",
+        ],
   );
   const companionImports = companionReferences.flatMap(
     ({ importName, identifier, importSpecifier }) =>
@@ -511,10 +546,12 @@ export const createFileRouteDefinitionsModule = (
 
   return [
     'import { Route } from "@sunfall/arc-core";',
+    ...(componentRoutes.length > 0 ? ['import { Effect } from "effect";'] : []),
     "",
     ...routeImports,
     ...companionImports,
     ...(routeImports.length + companionImports.length > 0 ? [""] : []),
+    ...(componentRoutes.length > 0 ? [...componentRoutes, ""] : []),
     ...routePathChecks.flat(),
     ...(routePathChecks.length > 0 ? ["", ...routePathAssertionLines(references), ""] : []),
     ...(routeExports.length > 0 ? [...routeExports, ""] : []),

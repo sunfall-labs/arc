@@ -14,7 +14,6 @@ import {
 } from "./domain.js";
 import { PresencePill } from "./ui.tsrx";
 import { routeById } from "./routeTree.gen.js";
-import { ProjectPage } from "./project-page.js";
 import { FailureView, InlineFailure, ProjectSkeleton, statusLabel } from "./project-views.js";
 
 const HomeRoute = routeById.route_root;
@@ -53,7 +52,7 @@ function HomeRouteView() {
   const router = useRouter<AppRoutes>();
 
   onSettled(() => {
-    router.navigate(ProjectUiRoute, { params: { id: makeProjectId("atlas") } }, { replace: true });
+    router.navigate(ProjectRoute, { params: { id: makeProjectId("atlas") } }, { replace: true });
   });
 
   return <ProjectSkeleton />;
@@ -231,7 +230,7 @@ function ProjectRow(props: {
 }) {
   return (
     <RouterLink
-      route={ProjectUiRoute}
+      route={ProjectRoute}
       options={{ params: { id: props.project.id } }}
       class={["projectRow", { selected: props.selected, saving: props.saving }]}
     >
@@ -254,11 +253,9 @@ function ProjectRow(props: {
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeRouteView);
 const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView);
-const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectPage, ({ params, search }) => ({
-  id: params.id,
-  tab: search.tab ?? "overview",
-}));
-const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
+// The project route's component comes from `routes/projects/$id.component.tsx`,
+// which the generated route tree attaches as a lazy chunk.
+const routes = [HomeUiRoute, ProjectsUiRoute, ProjectRoute] as const;
 
 /**
  * The Project Console root: Start renders it on the server and `App.launch`

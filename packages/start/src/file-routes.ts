@@ -40,9 +40,11 @@ export type FileRouteParam = RoutePathParam;
  *
  * Layout, error-boundary, and metadata modules are scoped by source id
  * directory, not URL path alone. Sibling route groups may share the same route
- * path while keeping support modules isolated by source scope.
+ * path while keeping support modules isolated by source scope. A `Component`
+ * module (`$id.component.tsx` beside `$id.ts`) default-exports its route's
+ * component, which the generated route tree attaches as a lazy chunk.
  */
-export type FileRouteModuleKind = "Route" | "Layout" | "ErrorBoundary" | "Metadata";
+export type FileRouteModuleKind = "Route" | "Component" | "Layout" | "ErrorBoundary" | "Metadata";
 
 /** One module discovered from the file-route tree. */
 export interface FileRouteManifestModule {
@@ -261,7 +263,12 @@ const isLayoutFile = (segment: string): boolean =>
   segment === "+layout" ||
   isFileRoutePathlessSegment(segment);
 
+const componentSuffix = ".component";
+
 const fileRouteModuleKindFromLeaf = (segment: string): FileRouteModuleKind => {
+  if (segment.endsWith(componentSuffix) && segment.length > componentSuffix.length) {
+    return "Component";
+  }
   if (isErrorBoundaryFile(segment)) {
     return "ErrorBoundary";
   }
@@ -274,6 +281,18 @@ const fileRouteModuleKindFromLeaf = (segment: string): FileRouteModuleKind => {
   return "Route";
 };
 
+/** The route segments a module's file location maps to. */
+const fileRouteSegmentsFor = (
+  kind: FileRouteModuleKind,
+  rawSegments: readonly string[],
+  leaf: string,
+): readonly string[] => {
+  const route = kind === "Component" ? leaf.slice(0, -componentSuffix.length) : leaf;
+  return (kind === "Route" || kind === "Component") && route !== "index"
+    ? [...rawSegments.slice(0, -1), route]
+    : rawSegments.slice(0, -1);
+};
+
 /**
  * Export name each module role must provide. Route modules export
  * `route = Route.define(path, options)`; Start checks the declared path against
@@ -283,6 +302,8 @@ export const fileRouteModuleExportName = (kind: FileRouteModuleKind): string => 
   switch (kind) {
     case "Route":
       return "route";
+    case "Component":
+      return "default";
     case "Layout":
       return "Layout";
     case "ErrorBoundary":
@@ -456,8 +477,7 @@ export const filePathToFileRouteModuleSync = (
   }
 
   const kind = fileRouteModuleKindFromLeaf(leaf);
-  const routeSegments =
-    kind === "Route" && leaf !== "index" ? rawSegments : rawSegments.slice(0, -1);
+  const routeSegments = fileRouteSegmentsFor(kind, rawSegments, leaf);
   const decodedPath = decodeFileRoutePathSync(routeSegments);
   if (!decodedPath) {
     return undefined;
@@ -498,8 +518,7 @@ export const filePathToFileRouteModule = (
     }
 
     const kind = fileRouteModuleKindFromLeaf(leaf);
-    const routeSegments =
-      kind === "Route" && leaf !== "index" ? rawSegments : rawSegments.slice(0, -1);
+    const routeSegments = fileRouteSegmentsFor(kind, rawSegments, leaf);
     const decodedPath = yield* decodeFileRoutePath(routeSegments).pipe(
       Effect.mapError((error) => invalidSegmentFromPathDecodeError(error, normalized)),
     );
@@ -702,7 +721,11 @@ const isNonEmptyString = (value: unknown): value is string =>
 const isIdentifier = (value: string): boolean => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
 
 const isFileRouteModuleKind = (value: unknown): value is FileRouteModuleKind =>
-  value === "Route" || value === "Layout" || value === "ErrorBoundary" || value === "Metadata";
+  value === "Route" ||
+  value === "Component" ||
+  value === "Layout" ||
+  value === "ErrorBoundary" ||
+  value === "Metadata";
 
 const decodeSerializedModule = (
   value: unknown,

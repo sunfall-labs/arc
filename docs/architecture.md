@@ -961,16 +961,17 @@ route props to a feature component's own props (checked against them). It is
 the only way to attach one: route options take no `component`. Routes compare by
 path, so `RouterLink`, `navigate`, and
 `Route.isMatch` given the route reach the copy `withComponent` returned.
-In the browser, Start's Vite plugin splits the component a `withComponent`
-call attaches into its own chunk when that call is its only use (an import
-used nowhere else, or a module-local declaration that depends on no other
-module-local binding). Only the runtime value becomes a lazy component that
-the router loads before rendering; the call's source types are unchanged, so
-the router still checks the split Component's services and failures.
-`App.launch` loads the initial route's split component before hydrating
+A route component loads as its own chunk when it is attached as a lazy
+component, `Route.withComponent(route, Route.lazyComponent(importer))`; the
+router loads it before rendering and still checks its services and failures
+through the loaded module's type. In a Start app the file-route generator
+writes that call for you: a sibling `<route>.component.tsx` module (beside
+`<route>.ts`) default-exports the route's component, taking
+`Route.Props<typeof route>`, and the generated route tree attaches it lazily.
+The server preloads a matched route's lazy component before rendering, and
+`App.launch` loads the initial route's before hydrating
 (`Route.preloadComponent` on a route reaches the components its copies
-attach), so the first client pass renders the server markup.
-`autoCodeSplitting: false` keeps every route component eager.
+attach), so both first passes render the same markup.
 A route's preload failure is typed. `preload` is inferred from its own body
 (params from `params` or the path, services and failures from what it
 returns), so inline pipelines keep their types. Like an Effect RPC `error`
@@ -1059,7 +1060,7 @@ The supported conventions are intentionally narrow: nested directories, `index`
 routes, dynamic `$id` segments, optional `$id?` segments, route groups like
 `(app)` ignored in the URL, pathless layout directories beginning with `_`, and
 layout leaf files named `layout`, `_layout`, `+layout`, or beginning with `_`
-ignored entirely.
+ignored entirely, and route component files named `<route>.component`.
 
 Production generators should use `generateValidatedFileRouteManifest` or
 `generateValidatedFileRouteManifestArtifact`. They reject files that
@@ -1078,7 +1079,8 @@ routing convention of keeping generated route types in the project for editors,
 agents, and non-Vite tooling. Route files export a named `route` built with
 core `Route.define(path, options)`, the same constructor as anywhere else;
 static preload hints and preload work stay together, and the component is
-attached where the app builds its router:
+attached where the app builds its router, or in a sibling
+`$id.component.tsx` module that the generated tree attaches as a lazy chunk:
 
 ```ts
 export const route = Route.define("/projects/:id", {
@@ -1092,8 +1094,10 @@ export const route = Route.define("/projects/:id", {
 The generated file imports those route modules and checks each imported route's
 declared `path` against the path derived from its file: a literal-typed
 assignment makes a mismatch a type error, and a load-time assertion makes it a
-startup and prerender failure for builds that skip type checking. It then emits
-a `routes` tuple and a
+startup and prerender failure for builds that skip type checking. A route with
+a sibling component module becomes
+`Route.withComponent(route, Route.lazyComponent(Effect.tryPromise(() => import("./routes/projects/$id.component.js"))))`.
+It then emits a `routes` tuple and a
 `routeById` map of the route definitions (hrefs come from
 `Route.href(routeById.route_projects_$id, ...)`, like any definition). The
 matching Vite virtual

@@ -825,9 +825,11 @@ initial)` commits each element as `<Component>.<name>`.
 - `Route.withComponent(route, component, props?)` attaches a route component:
   without `props` it takes `Route.Props<typeof route>`; with `props` the
   mapper turns route props into the component's props. It is the only
-  attachment path (`Route.DefineOptions` has no `component`), and Start's Vite
-  plugin code-splits the component it attaches without changing its type, so
-  the router's service and failure check covers code-split Components. Router
+  attachment path (`Route.DefineOptions` has no `component`). A
+  `Route.lazyComponent(...)` component loads as its own chunk, and the
+  router's service and failure check covers it through the loaded module's
+  type; Start's file-route generator attaches a sibling `<route>.component`
+  module this way. Router
   membership compares routes by path, like `Route.isMatch`.
 - `RouterLink` is the typed anchor path: it builds `Route.href(...)`, preloads on
   hover through the router runtime, preserves modified-click/browser-handled

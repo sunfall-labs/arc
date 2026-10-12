@@ -63,10 +63,10 @@ Effect.runFork(App.launch(app));
 Use the project console when you need the larger example with forms,
 actions (one `Component.action` binding; the app's `actions` list makes
 `App.launch` route the server-served rename over the network), Resource rows
-patched optimistically, a live query, mocks, and diagnostics. Its project page lives in its own
-module (`src/project-page.tsx`) and is attached with `Route.withComponent`, so
-the Start plugin loads it as a separate chunk while the router still checks
-its services. Use the basic starter when you need the smallest copyable app
+patched optimistically, a live query, mocks, and diagnostics. Its project
+route's component lives in `src/routes/projects/$id.component.tsx`, which the
+generated route tree attaches as a lazy component, so the project page loads
+as a separate chunk while the router still checks its services. Use the basic starter when you need the smallest copyable app
 shell.
 
 The docs site example lives at

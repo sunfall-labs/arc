@@ -444,10 +444,10 @@ const App = Component.define("App", function* (props: { readonly initialHref?: s
 
 Route components may be plain Solid functions or typed `Component`s; a
 `Component` route view renders with the router's setup context.
-`Route.withComponent` is the only way to attach one, and in a Start app the
-Vite plugin lazy-loads a component imported only for that call (keep each
-page Component in its own module to get a chunk per page); the router's
-service and failure check still sees its type. Links may name the route or the
+`Route.withComponent` is the only way to attach one; pass
+`Route.lazyComponent(importer)` to load it as its own chunk (in a Start app,
+a sibling `<route>.component.tsx` file route gets this generated); the
+router's service and failure check still sees its type. Links may name the route or the
 `withComponent` copy: routes compare by path. Without a
 mapper the component takes `Route.Props<typeof route>` (`params`, `search`,
 `match`); with one, `Route.withComponent(route, component, (route) => props)`

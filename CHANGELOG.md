@@ -6,6 +6,18 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Route Code Splitting Is Explicit (Breaking)
+
+- The Vite plugin no longer rewrites `Route.withComponent(...)` calls to split
+  route components, and its `autoCodeSplitting` option is removed. A lazy
+  component, `Route.lazyComponent(importer)`, is the one way to load a route
+  component as its own chunk.
+- File routes get it generated: a sibling `<route>.component.tsx` (for example
+  `src/routes/projects/$id.component.tsx`) default-exports the route's
+  component, taking `Route.Props<typeof route>`, and `routeTree.gen.ts`
+  attaches it with `Route.lazyComponent`. The server preloads a matched
+  route's lazy component before rendering.
+
 ### Start Prerender Reads Vite's Build Manifest (Breaking)
 
 - Prerendering swaps the dev entry script and dev stylesheets for the built

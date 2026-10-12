@@ -38,15 +38,6 @@ export interface SunfallArcStartOptions {
   readonly fileRouteOptions?: FileRouteManifestOptions;
   /** Controls generated route definition file output. */
   readonly fileRouteGeneration?: FileRouteGenerationOptions;
-  /**
-   * Lazy-load the components attached with `Route.withComponent(...)` in the
-   * browser: a component used only in that call moves to its own chunk, and
-   * the route loads it before rendering. Types are unchanged, so the router
-   * still checks the component's services and failures.
-   *
-   * Enabled by default. Set to `false` to keep route components eager.
-   */
-  readonly autoCodeSplitting?: boolean;
   /** Server entry module loaded by Vite dev SSR. */
   readonly serverEntry?: string;
   /** Named handler export to load from the server entry. */
