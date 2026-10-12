@@ -2340,7 +2340,8 @@ describe("Sunfall Arc Start", () => {
       ),
     );
 
-    expect(validation.status).toBe(422);
+    // A validation outcome is an answer, not a transport error.
+    expect(validation.status).toBe(200);
     await expect(validation.json()).resolves.toMatchObject({
       _tag: "ValidationFailure",
       fieldErrors: {
@@ -3214,7 +3215,7 @@ describe("Sunfall Arc Start", () => {
     });
   });
 
-  it("requires Start action validation bodies to use HTTP 422", async () => {
+  it("reads Start action validation bodies as 2xx answers", async () => {
     type PingResult = ActionResult<
       { readonly value: string },
       { readonly value: string },
@@ -3265,17 +3266,17 @@ describe("Sunfall Arc Start", () => {
         );
 
     const badExit = await Effect.runPromiseExit(
-      submitViaActionTransport(Ping, { value: "x" }, { fetch: validationWithStatus(200) }),
+      submitViaActionTransport(Ping, { value: "x" }, { fetch: validationWithStatus(422) }),
     );
     const ok = await Effect.runPromise(
-      submitViaActionTransport(Ping, { value: "x" }, { fetch: validationWithStatus(422) }),
+      submitViaActionTransport(Ping, { value: "x" }, { fetch: validationWithStatus(200) }),
     );
     const failure = Exit.isFailure(badExit) ? firstFailure(badExit.cause) : undefined;
 
     expect(failure).toBeInstanceOf(ActionTransportError);
     expect(failure).toMatchObject({
       reason: "BadStatus",
-      status: 200,
+      status: 422,
       payload: {
         _tag: "ValidationFailure",
       },

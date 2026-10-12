@@ -6,6 +6,14 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Validation Results Are Answers, Not Transport Errors
+
+- The action endpoint answers a JSON submission whose Action returned
+  `ActionResult.validation(...)` with status 200 and the `ValidationFailure`
+  body; the action transport reads it like any 2xx answer and rejects a
+  validation body with another status as `BadStatus`. Browsers log every 4xx
+  fetch as a console error, so ordinary form validation no longer does.
+
 ### Served Resources And Actions: Declared Once, Implemented On The Server
 
 Found by `examples/tracker`, where every write took four definitions (a

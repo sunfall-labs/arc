@@ -265,7 +265,9 @@ const actionValueResponse = (
           ...(source.cause === undefined ? {} : { cause: serializeDefect(source.cause) }),
           ...meta,
         },
-        422,
+        // A validation outcome is an answer, not a transport error: JSON clients
+        // get 200, so browsers log nothing; a form post gets 422.
+        mode === "json" ? 200 : 422,
       );
     }
     if (ActionResult.isFailure(actionResult)) {
@@ -392,15 +394,6 @@ export const parseStartActionResponse = (
           message: "Start action failed with a defect.",
           payload: payload.defect,
         });
-      case "ValidationFailure":
-        return status === 422
-          ? payload
-          : yield* new ActionTransportError({
-              reason: "BadStatus",
-              status,
-              message: `Start action validation response used unexpected HTTP status ${status}.`,
-              payload,
-            });
       default:
         return status >= 200 && status < 300
           ? payload

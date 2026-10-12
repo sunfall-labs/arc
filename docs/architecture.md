@@ -478,7 +478,9 @@ maps `ActionResult` values to HTTP:
 
 - `ActionResult.redirect(...)` becomes an HTTP redirect for form posts and a
   typed redirect envelope for JSON action clients.
-- `ActionResult.validation(...)` becomes a typed `422` JSON payload.
+- `ActionResult.validation(...)` becomes a typed `ValidationFailure` JSON payload
+  with status 200 for JSON clients (an answer, not a transport error, so the
+  browser logs nothing) and 422 for a form post.
 - `ActionResult.success(...)` and non-ActionResult values become typed success JSON.
 - Effect failures become typed failure JSON when the action has an error schema;
   protocol and defects stay separate.

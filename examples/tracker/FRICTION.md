@@ -174,6 +174,20 @@ went through `domainOnly` to turn transport failures into defects.
   not declare (transport, wire schema, a missing implementation) as a defect
   (`servedLoad` in `packages/core/src/resource.ts`). `domainOnly` is gone.
 
+### 16. Validation failures logged console errors
+
+The JSON action client received 422 for a validation result, and browsers log
+every 4xx fetch as a console error, so ordinary form validation polluted the
+console (the browser check filtered it).
+
+- Fix: a validation result is an answer, not a transport error. The action
+  endpoint answers JSON clients `ValidationFailure` with 200 (the body carries
+  the tag), and the client reads it as a 2xx answer
+  (`packages/start/src/start-action-response-codec.ts`). The browser check
+  no longer filters 422s.
+- Test: `packages/start/test/start.test.ts` ("reads Start action validation
+  bodies as 2xx answers").
+
 ### 20. No production SSR server
 
 Start's Vite plugin served the handler in dev and prerendered static sites,
@@ -205,16 +219,6 @@ works; validation does not.
   referring page with the result in a short-lived, HttpOnly flash cookie that
   the next document request hydrates into the Action's state, so
   `Component.action(...).result()` shows it on both paths.
-
-### 16. Validation failures log console errors
-
-The JSON action client receives 422 for a validation result; browsers log
-every 4xx fetch as a console error, so ordinary form validation pollutes the
-console (`browser check` filters it).
-
-- Proposal: answer validation results 200 with `_tag: "ValidationFailure"` for
-  JSON clients (the body already carries the tag) and keep 422 for no-JS
-  posts.
 
 ### 17. Forms need a form-shaped Action input
 
