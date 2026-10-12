@@ -154,7 +154,7 @@ export class StateDisposed extends Data.TaggedError("StateDisposed")<{
  * `Component.state` handle is one.
  */
 export interface StateRef<Model> {
-  /** @internal The model cell; written only by the State loop and optimistic layers. */
+  /** The model cell; written only by the State loop and optimistic layers. */
   readonly [StateRefTypeId]: WritableSignal<Model>;
 }
 
