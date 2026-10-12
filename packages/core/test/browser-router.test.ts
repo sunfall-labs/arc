@@ -324,6 +324,38 @@ describe("browser router kernel", () => {
       }),
     ));
 
+  it("preloads the lazy component a withComponent copy attaches from the source route's match", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const component = () => undefined;
+        let imports = 0;
+        const lazyComponent = Route.lazyComponent(
+          Effect.sync(() => {
+            imports++;
+            return { default: component };
+          }),
+        );
+        // File routes carry no component; the app attaches it to a copy.
+        const Project = Route.define("/attached-lazy-components/:id");
+        const Unrelated = Route.define("/unattached-components/:id");
+        Route.withComponent(
+          Route.withComponent(Project, () => "eager"),
+          lazyComponent,
+        );
+
+        const unrelated = Unrelated.match("/unattached-components/atlas");
+        const project = Project.match("/attached-lazy-components/atlas");
+        if (unrelated === undefined || project === undefined) {
+          return expect.fail("expected both routes to match");
+        }
+        yield* Route.preloadComponent(unrelated);
+        expect(imports).toBe(0);
+        yield* Route.preloadComponent(project);
+        expect(imports).toBe(1);
+        expect(Route.readComponent(lazyComponent)).toBe(component);
+      }),
+    ));
+
   it("forks lazy route component pending work for framework Suspense adapters", () =>
     Effect.runPromise(
       Effect.scoped(

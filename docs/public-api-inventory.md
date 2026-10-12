@@ -986,7 +986,11 @@ Release decisions:
   options accept `undefined` as "absent".
 - `Route.withComponent(route, component, props?)` attaches a route component:
   without `props` it takes `Route.Props<typeof route>`; with `props` the
-  mapper turns route props into the component's props.
+  mapper turns route props into the component's props. It is the only
+  attachment path (`RouteDefineOptions` has no `component`), and Start's Vite
+  plugin code-splits the component it attaches without changing its type, so
+  the router's service and failure check covers code-split Components. Router
+  membership compares routes by path, like `Route.isMatch`.
 - `RouterLink` is the typed anchor path: it builds `Route.href(...)`, preloads on
   hover through the router runtime, preserves modified-click/browser-handled
   behavior, and navigates only plain left clicks. The Solid adapter delegates

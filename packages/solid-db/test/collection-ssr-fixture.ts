@@ -26,7 +26,7 @@ const reactive = (read: () => string): JSX.Element => read as unknown as JSX.Ele
 export const failingProjectsApp = (
   load: () => Effect.Effect<ReadonlyArray<Project>, ProjectsUnavailable>,
 ) => {
-  const events = { loads: 0, typedFallbacks: 0 };
+  const events = { loads: 0, typedFallbacks: 0, renders: [] as Array<string> };
   const Projects = Collection.define<Project, string, ProjectsUnavailable>({
     name: "SolidDbSsr.failingProjects",
     getKey: (project) => project.id,
@@ -43,7 +43,11 @@ export const failingProjectsApp = (
     return () =>
       reactive(() => {
         const names = projects.rows().map((project) => project.name);
-        return `projects: ${names.length === 0 ? "none" : names.join(", ")}`;
+        const text = projects.waiting()
+          ? "projects: loading"
+          : `projects: ${names.length === 0 ? "none" : names.join(", ")}`;
+        events.renders.push(text);
+        return text;
       });
   }).pipe(
     Component.catchTags({

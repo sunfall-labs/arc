@@ -1,11 +1,11 @@
 // `App.launch` (from @sunfall/arc-start) in Solid's browser build: it restores
 // the server's hydration payload and hydrates the server-rendered root.
-import { makeRuntime, Resource } from "@sunfall/arc-core";
+import { makeRuntime, Resource, Route } from "@sunfall/arc-core";
 import { App, StartRootMissing } from "@sunfall/arc-start";
 import { createComponent } from "@solidjs/web";
 import { Effect, Exit, Fiber } from "effect";
-import { describe, expect, it } from "vitest";
-import { Component } from "../src/index.js";
+import { describe, expect, it, vi } from "vitest";
+import { Component, RouterProvider } from "../src/index.js";
 import { createHydrationScript, createStartHydrationPayload } from "../../start/src/hydration.js";
 import { ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
@@ -53,6 +53,71 @@ describe("App.launch", () => {
           yield* Fiber.interrupt(fiber);
           // Interrupting disposes the tree and the runtime (and its Layer).
           expect(events.released).toBe(1);
+        }),
+      ),
+    ));
+
+  it("loads a code-split route component before hydrating, so the first pass matches the server", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          let imports = 0;
+          const renders: Array<string> = [];
+          const ProjectRoute = Route.define("/split-projects/:id");
+          const ProjectPage = (props: Route.Props<typeof ProjectRoute>) => {
+            renders.push(props.params.id);
+            return `Project ${props.params.id}`;
+          };
+          const warnings: Array<string> = [];
+          const warn = vi.spyOn(console, "warn").mockImplementation((...args: Array<unknown>) => {
+            warnings.push(args.map(String).join(" "));
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(() => warn.mockRestore()));
+          // What Start's code splitting makes of `Route.withComponent(ProjectRoute, ProjectPage)`.
+          const LazyProjectPage = Route.lazyComponent(
+            Effect.promise(
+              () =>
+                new Promise<{ readonly ProjectPage: typeof ProjectPage }>((resolve) => {
+                  imports++;
+                  setTimeout(() => resolve({ ProjectPage }), 5);
+                }),
+            ),
+            "ProjectPage",
+          );
+          const routes = [Route.withComponent(ProjectRoute, LazyProjectPage)] as const;
+          const Root = Component.define("Root", function* (props: App.RootProps) {
+            const router = yield* Component.router(routes, { initialHref: props.href });
+            return () => createComponent(RouterProvider, { router });
+          });
+          // The app lists the route without its component, as file routes do.
+          const app = App.define({ root: Root, routes: [ProjectRoute] as const });
+
+          const hydrationGlobal = globalThis as { _$HY?: unknown };
+          hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
+          document.body.innerHTML = `<div id="root">Project atlas</div>${createHydrationScript(
+            createStartHydrationPayload({ resources: [] }),
+          )}`;
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              delete hydrationGlobal._$HY;
+              document.body.innerHTML = "";
+            }),
+          );
+          const root = document.getElementById("root")!;
+          const serverText = root.firstChild;
+
+          const fiber = Effect.runFork(App.launch(app, { href: "/split-projects/atlas" }));
+          yield* Effect.promise(() => vi.waitFor(() => expect(imports).toBe(1)));
+          yield* Effect.sleep("20 millis");
+          expect(root.textContent).toBe("Project atlas");
+          expect(root.firstChild).toBe(serverText);
+          expect(imports).toBe(1);
+          // The page rendered once, in the hydration pass: no async read deferred
+          // the mount, and no server node went unclaimed.
+          expect(renders).toHaveLength(1);
+          expect(warnings).toEqual([]);
+
+          yield* Fiber.interrupt(fiber);
         }),
       ),
     ));

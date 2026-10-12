@@ -840,6 +840,25 @@ const untypedPreloadFailure = (cause: unknown): RoutePreloadUntypedFailure => {
   return new RoutePreloadUntypedFailure(tag === undefined ? {} : { tag });
 };
 
+/**
+ * The route each `Route.withComponent(...)` copy was made from, and the
+ * components attached to each such source route. A route and its copies are
+ * one route (they compare by path), so preloading the source's match can load
+ * the component a copy renders: Start does this before hydrating, where only
+ * the app's route list (often without components) is at hand.
+ */
+const routeSources = new WeakMap<object, object>();
+const routeAttachedComponents = new WeakMap<object, Set<unknown>>();
+
+const routeSource = (definition: object): object => routeSources.get(definition) ?? definition;
+
+const attachRouteComponent = (source: object, copy: object, component: unknown): void => {
+  routeSources.set(copy, source);
+  const attached = routeAttachedComponents.get(source) ?? new Set<unknown>();
+  attached.add(component);
+  routeAttachedComponents.set(source, attached);
+};
+
 const makeRouteDefinition = (
   path: string,
   options: RouteOptions<string, unknown, unknown, unknown>,
@@ -1076,11 +1095,13 @@ export namespace Route {
     props?: (route: RouteComponentProps<any>) => unknown,
   ): Definition<string, unknown, unknown, any> {
     const { componentProps: _previous, ...options } = definition.options;
-    return makeRouteDefinition(definition.path, {
+    const copy = makeRouteDefinition(definition.path, {
       ...options,
       component,
       ...(props === undefined ? {} : { componentProps: props }),
     });
+    attachRouteComponent(routeSource(definition), copy, component);
+    return copy;
   }
 
   /**
@@ -1149,24 +1170,34 @@ export namespace Route {
     );
 
   /**
-   * Preloads a lazy route component chunk, when the route component is lazy.
-   * A failed load fails with `RouteLazyComponentFailed`.
+   * Preloads the lazy component chunk the matched route renders: its own
+   * component, or, for a route without one, the components
+   * `Route.withComponent(...)` attached to copies of it (a route and its copies
+   * compare by path). A failed load fails with `RouteLazyComponentFailed`.
    */
   export const preloadComponent = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
   ): Effect.Effect<void, RouteLazyComponentFailed<unknown>> => {
-    const component = match.route.options.component;
-    if (!isRouteLazyComponent(component)) {
-      return Effect.void;
-    }
+    const own = match.route.options.component;
+    const components = (
+      own === undefined
+        ? Array.from(routeAttachedComponents.get(routeSource(match.route)) ?? [])
+        : [own]
+    ).filter(isRouteLazyComponent);
 
-    return component.preload().pipe(
-      Effect.asVoid,
-      Effect.catchCause((cause) =>
-        Effect.fail(
-          new RouteLazyComponentFailed<unknown>({ exportName: component.exportName, cause }),
-        ),
-      ),
+    return Effect.forEach(
+      components,
+      (component) =>
+        component
+          .preload()
+          .pipe(
+            Effect.catchCause((cause) =>
+              Effect.fail(
+                new RouteLazyComponentFailed<unknown>({ exportName: component.exportName, cause }),
+              ),
+            ),
+          ),
+      { concurrency: "unbounded", discard: true },
     );
   };
 
