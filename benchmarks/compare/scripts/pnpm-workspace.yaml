@@ -1,0 +1,2 @@
+# Its own pnpm root: the harness is not part of the Arc monorepo workspace.
+packages: []

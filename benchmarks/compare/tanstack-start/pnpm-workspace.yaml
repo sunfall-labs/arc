@@ -1,0 +1,2 @@
+# Makes this benchmark app its own pnpm root, outside the monorepo workspace.
+packages: []

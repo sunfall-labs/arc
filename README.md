@@ -213,6 +213,25 @@ All packages are MIT-licensed and published under the `alpha` dist-tag.
   [`examples/devtools-extension`](examples/devtools-extension): the devtools
   panel in an app shell and in a browser extension.
 
+## Measured
+
+The same 1,000-row list app, built with Arc, SolidStart, and TanStack Start
+and measured in production builds on Node
+([methodology, full table, and profiles](docs/benchmarks.md)):
+
+| On the 1,000-row page                   |     Arc | SolidStart | TanStack Start |
+| --------------------------------------- | ------: | ---------: | -------------: |
+| JS on first visit (brotli)              |  130 KB |      30 KB |         106 KB |
+| First click handled (4x CPU throttle)   |  627 ms |     407 ms |         450 ms |
+| Total blocking time (4x CPU throttle)   |  259 ms |      33 ms |           5 ms |
+| Server CPU per render                   | 19.6 ms |    24.0 ms |        11.1 ms |
+| Toggle a row, settled with revalidation |   61 ms |     215 ms |          70 ms |
+| JS heap after load                      | 11.6 MB |     6.3 MB |         5.3 MB |
+
+Today Arc is the heaviest to load and the slowest to server-render a small
+page, and the fastest to settle a mutation. [The benchmark page](docs/benchmarks.md) profiles why and lists the
+fixes.
+
 ## Documentation
 
 1. [The Golden Path](docs/golden-path.md): which definition for which job, and
@@ -228,7 +247,8 @@ Reference: [Effect style guide](docs/effect-style.md) ·
 [Invariants](docs/invariants.md) ·
 [Public API inventory](docs/public-api-inventory.md) ·
 [Migration notes](docs/migration-notes.md) ·
-[Comparison](docs/comparison.md) · [Changelog](CHANGELOG.md)
+[Comparison](docs/comparison.md) · [Benchmarks](docs/benchmarks.md) ·
+[Changelog](CHANGELOG.md)
 
 ## Contributing
 
