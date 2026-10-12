@@ -2,7 +2,7 @@ import { Data, Effect, Schema, type SchemaIssue } from "effect";
 import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
-import { Signal, type ReadableSignal } from "./signal.js";
+import { Signal, SignalWrites, type ReadableSignal } from "./signal.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Runtime marker used by `isForm(...)` to identify Form controllers. */
@@ -603,7 +603,7 @@ export namespace Form {
   >(
     options: FormOptions<S, Values, E, R>,
   ): FormInstance<Values, E, R | FormSchemaServices<S>> => {
-    const internalState = Signal.make<
+    const internalState = SignalWrites.make<
       FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>
     >(emptyState<Values, E | Schema.SchemaError | EffectInputCallbackError>(options.initial), {
       name: options.name,

@@ -46,8 +46,6 @@ declare module "virtual:sunfall-arc/routes" {
   export const metadataById: <Id extends FileRouteId>(id: Id) => FileRouteMetadataModules<Id>;
   /** Generated file-route manifest modules used by diagnostics and tooling. */
   export const fileRouteModules: readonly import("./file-routes.js").FileRouteManifestModule[];
-  /** Generated route metadata used by diagnostics and tooling. */
-  export const fileRouteMetadata: readonly import("./file-routes.js").FileRouteRouteMetadata[];
   /** Broad virtual route tree type; written generated files provide precise app-specific unions. */
   export type RouteTree = typeof routes;
   /** Broad map type keyed by generated route id. */
@@ -86,8 +84,6 @@ declare module "virtual:sunfall-arc/routes" {
   export type FileRouteErrorBoundary<Id extends FileRouteId> = FileRouteErrorBoundaryById[Id];
   /** Metadata modules for one virtual route id. */
   export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
-  /** Generated file-route companion modules. */
+  /** Generated route, component, layout, error boundary, and metadata modules. */
   export type FileRouteModules = typeof fileRouteModules;
-  /** Generated route metadata projection. */
-  export type FileRouteMetadata = typeof fileRouteMetadata;
 }

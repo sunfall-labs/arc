@@ -2,71 +2,40 @@ import { Devtools } from "@sunfall/arc-devtools";
 
 export const sampleDevtoolsPanels = (): Devtools.Panels =>
   Devtools.describePanels({
-    requestTraces: [
+    spans: [
       {
-        request: {
-          id: "demo-request",
-          method: "GET",
-          url: "https://example.test/projects/atlas?tab=activity",
-          path: "/projects/atlas",
-          transport: "ssr",
-        },
-        response: {
-          status: 200,
-          statusText: "OK",
-        },
-        services: ["ProjectApi"],
-        resources: [
-          {
-            key: "Project.byId:atlas",
-            family: "Project.byId",
-            input: { id: "atlas" },
-            state: "Success",
-          },
-        ],
-        serverFunctions: [
-          {
-            name: "Project.get",
-            status: "success",
-          },
-        ],
-        actions: [
-          {
-            name: "Project.rename",
-            state: "Initial",
-          },
-        ],
-        fibers: [
-          {
-            name: "request-runtime",
-            status: "done",
-          },
-        ],
-        streams: [
-          {
-            name: "html",
-            state: "closed",
-            chunkCount: 2,
-          },
-        ],
+        traceId: "demo-trace",
+        spanId: "demo-request",
+        name: "sunfall-arc.start.request",
+        kind: "server",
+        startTime: 0,
+        durationMillis: 18,
         status: "success",
-        teardown: {
-          runtimeDisposed: true,
-          reason: "response-end",
-          durationMillis: 18,
-          beforeDispose: {
-            fiberCount: 1,
-            familyCount: 1,
-            moduleCount: 1,
-            tagCount: 0,
-          },
-          afterDispose: {
-            fiberCount: 0,
-            familyCount: 0,
-            moduleCount: 0,
-            tagCount: 0,
-          },
+        attributes: {
+          "sunfall-arc.request.id": "demo-request",
+          "sunfall-arc.request.transport": "ssr",
+          "http.request.method": "GET",
+          "url.path": "/projects/atlas",
+          "http.route": "/projects/:id",
+          "sunfall-arc.route.resources": ["Project.byId:atlas"],
+          "sunfall-arc.route.href": "/projects/atlas?tab=activity",
+          "http.response.status_code": 200,
+          "sunfall-arc.request.status": "success",
+          "sunfall-arc.teardown.reason": "response-end",
+          "sunfall-arc.teardown.runtime_disposed": true,
+          "sunfall-arc.teardown.fibers": 0,
         },
+      },
+      {
+        traceId: "demo-trace",
+        spanId: "demo-request-rpc",
+        parentSpanId: "demo-request",
+        name: "sunfall-arc.start.rpc",
+        kind: "server",
+        startTime: 2,
+        durationMillis: 6,
+        status: "success",
+        attributes: { "sunfall-arc.rpc.name": "Project.get" },
       },
     ],
   });

@@ -736,7 +736,7 @@ function BlogPostView() {
             Runtime scopes isolate requests, resources, action submissions, and streamed responses.
           </li>
           <li>
-            Devtools explain route plans, invalidation, request traces, and resource lifetimes.
+            Devtools explain route plans, invalidation, request spans, and resource lifetimes.
           </li>
         </ul>
         <p>

@@ -9,7 +9,6 @@ import {
   errorBoundaryById,
   fileRouteErrorBoundaryById,
   fileRouteLayoutsById,
-  fileRouteMetadata as routeFileRouteMetadata,
   fileRouteMetadataById,
   fileRouteModules as routeFileRouteModules,
   layoutsById,
@@ -25,7 +24,6 @@ import {
   type FileRouteId,
   type FileRouteLayouts,
   type FileRouteLayoutsById,
-  type FileRouteMetadata,
   type FileRouteMetadataById,
   type FileRouteMetadataModules,
   type FileRouteModules,
@@ -48,7 +46,6 @@ const virtualModuleValues: Array<unknown> = [
   errorBoundaryById,
   metadataById,
   routeFileRouteModules,
-  routeFileRouteMetadata,
 ];
 type VirtualManifestEntries = FileRouteManifestEntry;
 type VirtualRouteContracts =
@@ -67,8 +64,7 @@ type VirtualRouteContracts =
   | FileRouteLayouts<FileRouteId>
   | FileRouteErrorBoundary<FileRouteId>
   | FileRouteMetadataModules<FileRouteId>
-  | FileRouteModules
-  | FileRouteMetadata;
+  | FileRouteModules;
 void virtualModuleValues;
 type _VirtualManifestEntries = VirtualManifestEntries;
 type _VirtualRouteContracts = VirtualRouteContracts;

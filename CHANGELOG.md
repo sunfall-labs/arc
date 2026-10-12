@@ -6,6 +6,86 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### State Is The One Writable Client State (Breaking)
+
+- `Program` is renamed `State`, and it is now the only way to hold writable
+  client state. `State.define({ name, initial, on })` infers the message union
+  from `on` (a handler's second parameter types the message's fields);
+  `State.define<Model, Message>()({ ... })` names it up front for commands
+  that emit the State's own messages. `name` is required. `State.next`,
+  `emit`, `commands`, `subscription`, `step`, and `start` keep Program's
+  semantics; `ProgramFailure`/`ProgramDisposed` are `StateFailure`/
+  `StateDisposed`, and the Type IDs are `State*TypeId` (plus `StateRefTypeId`).
+- Solid: `Component.program` becomes `Component.state`, whose
+  `Component.StateHandle` adds `send`: one DOM-ready sender per PascalCase tag
+  (`onClick={menu.send.Toggle}`, `send.Search({ query })`). Primitive models
+  skip the store projection; object models keep keyed reconciliation.
+  `Component.ProgramHandle`/`ProgramOptions`/`ProgramModelView` are
+  `StateHandle`/`StateOptions`/`StateView`. `Component.callback` is for
+  non-state Effect work; `Component.stream` stays a read-only accessor.
+- `Signal` is read-only in the public API (`Readable`, `StreamOptions`,
+  `derive`, `peek`, `untracked`, `changes`, `values`). `Signal.make`,
+  `batch`, `transaction`, `updateAndGet`, `fromStream`, `Signal.Writable`,
+  and `SignalWriteOutsideTransition` move to `@sunfall/arc-core/internal`
+  (`SignalWrites`, `WritableSignal`) for framework code and fixtures; the
+  unnamed-write check is an internal assertion.
+- Action `optimistic`: `transaction.set` targets a `State.Ref` (a
+  `State.Instance` or `Component.state` handle) or a Resource ref. State
+  messages that arrive while a patch is in flight apply to the base model and
+  the patch re-applies over them; `Action.planOptimistic` reports State
+  targets.
+- Timeline: `Timeline.ProgramCause` is `Timeline.StateCause`
+  (`{ _tag: "State", state, event, message }`), described as
+  `State "Board" Relabel`; a State's model signal is named by its `name`
+  (no `.model` suffix). Devtools' `programs` panel is `states`.
+- See [From Program And Writable Signals](docs/migration-notes.md#from-program-and-writable-signals).
+
+### File-Route Manifests Are Plain Validated Data (Breaking)
+
+- File-route manifests drop their serialize/deserialize round trip and
+  Schema-branded ids; one validated generator, `generateFileRouteManifest`,
+  replaces the Sync/Effect and entries/artifact variants.
+- The generated route tree and `virtual:sunfall-arc/routes` drop
+  `fileRouteMetadata` / `FileRouteMetadata`; `layoutsById`,
+  `errorBoundaryById` and `metadataById` carry a route's support modules.
+
+### Route Code Splitting Is Explicit (Breaking)
+
+- The Vite plugin no longer rewrites `Route.withComponent(...)` calls to split
+  route components, and its `autoCodeSplitting` option is removed. A lazy
+  component, `Route.lazyComponent(importer)`, is the one way to load a route
+  component as its own chunk.
+- File routes get it generated: a sibling `<route>.component.tsx` (for example
+  `src/routes/projects/$id.component.tsx`) default-exports the route's
+  component, taking `Route.Props<typeof route>`, and `routeTree.gen.ts`
+  attaches it with `Route.lazyComponent`. The server preloads a matched
+  route's lazy component before rendering.
+
+### Start Prerender Reads Vite's Build Manifest (Breaking)
+
+- Prerendering swaps the dev entry script and dev stylesheets for the built
+  entry chunk and its CSS listed in Vite's build manifest, instead of copying
+  tags out of the built `index.html`. The Start plugin turns
+  `build.manifest` on when `prerender` is set. The temporary Vite server is a
+  scoped resource, and `retryCount`/`retryDelay` run through `Effect.retry`.
+- `StartPrerenderError`'s `close-server` and `create-directory` operations are
+  gone: a server close failure is logged, and directory creation reports
+  `write-page`.
+
+### Requests Are Traced As Effect Spans (Breaking)
+
+- `createRequestHandler`'s `onRequestTrace` option and the `StartRequestTrace`
+  DTO are removed. The `sunfall-arc.start.request` span now carries the route
+  plan (`http.route`, preloaded/hydrated Resource keys), failure kind, response
+  status, stream state, and request runtime teardown as attributes, and stays
+  open until a streamed body closes, errors, or is cancelled.
+- Devtools reads requests from spans: `Devtools.layerTracer(store)` records
+  every ended span (still forwarding to the current tracer), `Devtools.Span`
+  replaces `Devtools.RequestTrace`, and the Requests panel projects request
+  spans and their RPC/action child spans. `store.recordRequestTrace`,
+  `requestTraceLimit`, the `RequestTrace` runtime event, and the causal graph's
+  request-trace, endpoint, and server-function nodes are gone.
+
 ### Start Drops Its Diagnostics CLI, Agent Graph And App Graph (Breaking)
 
 - The `sunfall-arc-start` binary (`diagnostics`, `graph`, `impact`), the
@@ -33,6 +113,9 @@ Entries are newest first.
   `StartTransportEndpointOverrides`.
 - Start encodes and decodes Action wire values with core's server wire codec
   instead of its own copy.
+- Static client navigation is one module: the href preparation cache and
+  target-document hydration moved into `static-client-navigation.ts`. No
+  public API changed.
 
 ### Devtools Is One Namespace (Breaking)
 
@@ -254,6 +337,10 @@ Entries are newest first.
 
 ### Durable Submissions And Tracing Papercuts
 
+- Start's action request and response wire bodies are Effect Schemas (a
+  `Schema.Struct` request and a `Schema.TaggedUnion` response) instead of
+  hand-written guards, and response metadata application lives in the
+  response codec. The wire format is unchanged.
 - `Action.restoreOutbox` is a function: `Action.restoreOutbox(options?)` takes
   `ActionOutboxRestoreOptions` (`settled`: ids the hydrated state already
   reflects, restored without re-applying their optimistic patch). Start's

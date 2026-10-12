@@ -3,7 +3,7 @@ import { Route, RouteNavigationError } from "./route.js";
 import { matchRoutes } from "./route-match.js";
 import { takeHydratedRoutePreloadFailure } from "./route-preload-failure-hydration.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
-import { Signal, type ReadableSignal } from "./signal.js";
+import { Signal, SignalWrites, type ReadableSignal } from "./signal.js";
 import { makeRuntimeUiScope, type UiScope } from "./scope.js";
 import type { BrowserNavigateOptions } from "./browser-router-history-adapter.js";
 import {
@@ -220,7 +220,7 @@ export const createBrowserRouterKernel = <
           initialMatch,
         );
   };
-  const state = Signal.make<BrowserRouterState<Routes, ER>>(initialRouterState(), {
+  const state = SignalWrites.make<BrowserRouterState<Routes, ER>>(initialRouterState(), {
     name: "Router.state",
   });
   const match = Signal.derive(() => routeStateMatch(state.get()));

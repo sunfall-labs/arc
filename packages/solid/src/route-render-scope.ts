@@ -1,9 +1,4 @@
-import {
-  Route,
-  type AnySunfallArcRuntime,
-  type BrowserRouterState,
-  type Signal,
-} from "@sunfall/arc-core";
+import { Route, type AnySunfallArcRuntime, type BrowserRouterState } from "@sunfall/arc-core";
 import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
@@ -11,6 +6,7 @@ import {
   writeUntracedSignals,
   type AnyBrowserRoute,
   type BrowserRouteOutletRenderers,
+  type WritableSignal,
 } from "@sunfall/arc-core/internal";
 import { Effect, Fiber } from "effect";
 import { createComponent, createMemo, createRoot, runWithOwner, type Owner } from "solid-js";
@@ -218,9 +214,9 @@ export const makeSolidRouteRenderScopeController = <
   /** Solid owner route roots render under; usually the outlet's. */
   readonly owner: Owner | null;
   /** Rendered route node; Arc owns outlet state and Solid renders it. */
-  readonly node: Signal.Writable<JSX.Element>;
+  readonly node: WritableSignal<JSX.Element>;
   /** Route render failure surfaced to the host `<Errored>` boundary. */
-  readonly renderError: Signal.Writable<unknown>;
+  readonly renderError: WritableSignal<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
   let renderedState = options.initialInput.state;
   let renderedIdentity = browserRouteRenderIdentity({

@@ -41,12 +41,6 @@ export {
 } from "./effect-like.js";
 export { Form, FormTypeId, isForm } from "./form.js";
 export {
-  Program,
-  ProgramCommandTypeId,
-  ProgramStepTypeId,
-  ProgramSubscriptionTypeId,
-} from "./program.js";
-export {
   applyResponseContext,
   makeRequestContext,
   makeResponseContext,
@@ -120,11 +114,12 @@ export {
   ServerRpcProtocolError,
   ServerTransportError,
 } from "./server.js";
+export { isSignal, Signal, SignalTypeId, trackDependency } from "./signal.js";
 export {
-  isSignal,
-  Signal,
-  SignalTypeId,
-  SignalWriteOutsideTransition,
-  trackDependency,
-} from "./signal.js";
+  State,
+  StateCommandTypeId,
+  StateRefTypeId,
+  StateStepTypeId,
+  StateSubscriptionTypeId,
+} from "./state.js";
 export { Timeline, TimelineAlreadyRecording, TimelineEntryUnavailable } from "./timeline.js";

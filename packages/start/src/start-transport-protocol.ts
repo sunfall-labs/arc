@@ -4,7 +4,6 @@ import {
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
-  type Action,
 } from "@sunfall/arc-core";
 import {
   type CoreDefinitionRegistry,
@@ -24,50 +23,10 @@ import {
   readStartTransportResponseText,
 } from "./start-transport-body.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
-import type { StartRequestTraceFailureKind } from "./request-trace.js";
+import type { StartRequestFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
 
-export {
-  actionExitResponse,
-  actionFunctionNotFoundResponse,
-  actionProtocolFailureResponse,
-  actionResponseMeta,
-  actionResponseMode,
-  actionRuntimeFailureResponse,
-  actionTransportRequestFailureResponse,
-  decodeStartActionOutcome,
-  describeStartActionInvalidationPlan,
-  parseStartActionResponse,
-} from "./start-action-response-codec.js";
-export type {
-  StartActionInvalidationCause,
-  StartActionInvalidationPlan,
-  StartActionInvalidationTarget,
-  StartActionResponseBody,
-  StartActionResponseMeta,
-  StartActionOutcome,
-} from "./start-action-response-codec.js";
-
-export { applyStartActionResponse } from "./start-action-response-application.js";
-
-export {
-  encodeStartActionFormInput,
-  encodeStartActionInput,
-  encodeStartActionPartialInput,
-  encodeStartActionRequest,
-  readStartActionRequest,
-  StartActionFormEncodeError,
-  startActionForm,
-  startActionInputField,
-  startActionNameField,
-} from "./start-action-request-codec.js";
-export type {
-  StartActionDefinition,
-  StartActionForm,
-  StartActionFormField,
-  StartActionFormOptions,
-  StartActionRequest,
-} from "./start-action-request-codec.js";
+export type { StartActionDefinition } from "./start-action-request-codec.js";
 
 /**
  * Action transport settings for clients that submit Start actions: RPC-style
@@ -78,10 +37,6 @@ export interface StartActionClientOptions<
   FetchError = never,
   FetchRequirements = never,
 > extends ServerRpcClientOptions<FetchError, FetchRequirements, never> {}
-
-/** Extracts the input value type from a core `ActionDefinition`. */
-export type ActionDefinitionInputValue<D> =
-  D extends Action.Definition<infer I, infer _A, infer _E, infer _R> ? I : never;
 
 /** True when a request targets the Start server-function RPC endpoint. */
 export const isServerRpcRequest = (request: Request): boolean =>
@@ -238,7 +193,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 export const rpcFailureKind = <FnError>(
   fn: Server.Fn<unknown, unknown, FnError, unknown>,
   exit: Exit.Exit<unknown, FnError>,
-): Effect.Effect<StartRequestTraceFailureKind> => {
+): Effect.Effect<StartRequestFailureKind> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed("domain");
   }
@@ -259,7 +214,7 @@ export const rpcFailureKind = <FnError>(
   );
 };
 
-const actionResultFailureKind = (result: unknown): StartRequestTraceFailureKind | undefined => {
+const actionResultFailureKind = (result: unknown): StartRequestFailureKind | undefined => {
   if (!ActionResult.is(result)) {
     return undefined;
   }
@@ -275,7 +230,7 @@ const actionResultFailureKind = (result: unknown): StartRequestTraceFailureKind 
 export const actionFailureKind = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
-): Effect.Effect<StartRequestTraceFailureKind | undefined> => {
+): Effect.Effect<StartRequestFailureKind | undefined> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed(actionResultFailureKind(exit.value));
   }

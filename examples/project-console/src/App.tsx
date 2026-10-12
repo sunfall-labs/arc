@@ -1,5 +1,5 @@
 import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
-import { Action, Resource, Route, Signal } from "@sunfall/arc-core";
+import { Action, Resource, Route, Signal, State } from "@sunfall/arc-core";
 import { Cause, Effect } from "effect";
 import { For, Loading, Show, createEffect, onSettled } from "solid-js";
 import {
@@ -14,7 +14,6 @@ import {
 } from "./domain.js";
 import { PresencePill } from "./ui.tsrx";
 import { routeById } from "./routeTree.gen.js";
-import { ProjectPage } from "./project-page.js";
 import { FailureView, InlineFailure, ProjectSkeleton, statusLabel } from "./project-views.js";
 
 const HomeRoute = routeById.route_root;
@@ -53,7 +52,7 @@ function HomeRouteView() {
   const router = useRouter<AppRoutes>();
 
   onSettled(() => {
-    router.navigate(ProjectUiRoute, { params: { id: makeProjectId("atlas") } }, { replace: true });
+    router.navigate(ProjectRoute, { params: { id: makeProjectId("atlas") } }, { replace: true });
   });
 
   return <ProjectSkeleton />;
@@ -128,17 +127,20 @@ const ProjectRows = Component.define(
   },
 ).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
+// Client-only UI state: the project filter. The Timeline reads each keystroke
+// as `State "AppShell.search" Search`.
+const ProjectSearch = State.define({
+  name: "AppShell.search",
+  initial: "",
+  on: { Search: (_query, message: { readonly query: string }) => message.query },
+});
+
 const AppShell = Component.define("AppShell", function* () {
   const presence = yield* Component.stream("presence", makePresenceStream(), initialPresence);
   const refresh = yield* Component.callback("refresh", (id: ProjectId | undefined) =>
     Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(Effect.ignore),
   );
-  // Client-only UI state, written only through a named transition: the
-  // Timeline reads each keystroke as `AppShell.search`.
-  const projectSearch = Signal.make("", { name: "AppShell.projectSearch" });
-  const search = yield* Component.callback("search", (value: string) =>
-    Effect.sync(() => projectSearch.set(value)),
-  );
+  const search = yield* Component.state(ProjectSearch);
   const Rows = yield* ProjectRows;
   // Durable submissions (AdvanceProject) waiting to sync. The server render
   // has no outbox, so it reports none.
@@ -177,12 +179,12 @@ const AppShell = Component.define("AppShell", function* () {
               <input
                 type="search"
                 placeholder="Filter projects"
-                value={projectSearch.get()}
-                onInput={(event) => search(event.currentTarget.value)}
+                value={search.model()}
+                onInput={(event) => search.send.Search({ query: event.currentTarget.value })}
               />
             </label>
 
-            <Rows selectedId={selectedId()} search={projectSearch.get()} />
+            <Rows selectedId={selectedId()} search={search.model()} />
           </section>
         </aside>
 
@@ -231,7 +233,7 @@ function ProjectRow(props: {
 }) {
   return (
     <RouterLink
-      route={ProjectUiRoute}
+      route={ProjectRoute}
       options={{ params: { id: props.project.id } }}
       class={["projectRow", { selected: props.selected, saving: props.saving }]}
     >
@@ -254,11 +256,9 @@ function ProjectRow(props: {
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeRouteView);
 const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView);
-const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectPage, ({ params, search }) => ({
-  id: params.id,
-  tab: search.tab ?? "overview",
-}));
-const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
+// The project route's component comes from `routes/projects/$id.component.tsx`,
+// which the generated route tree attaches as a lazy chunk.
+const routes = [HomeUiRoute, ProjectsUiRoute, ProjectRoute] as const;
 
 /**
  * The Project Console root: Start renders it on the server and `App.launch`

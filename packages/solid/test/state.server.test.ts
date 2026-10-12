@@ -1,4 +1,4 @@
-import { makeRuntime, Program } from "@sunfall/arc-core";
+import { makeRuntime, State } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { createComponent, renderToString } from "@solidjs/web";
 import { describe, expect, it } from "vitest";
@@ -9,7 +9,8 @@ interface Board {
   readonly items: ReadonlyArray<{ readonly id: number; readonly label: string }>;
 }
 
-const BoardProgram = Program.define<Board, { readonly _tag: "Noop" }>({
+const BoardState = State.define<Board, { readonly _tag: "Noop" }>()({
+  name: "BoardState",
   initial: {
     title: "Roadmap",
     items: [
@@ -20,17 +21,18 @@ const BoardProgram = Program.define<Board, { readonly _tag: "Noop" }>({
   on: { Noop: (model) => model },
 });
 
-const Counter = Program.define<number, { readonly _tag: "Noop" }>({
+const Counter = State.define<number, { readonly _tag: "Noop" }>()({
+  name: "Counter",
   initial: 7,
   on: { Noop: (model) => model },
 });
 
-describe("Component.program on the server", () => {
-  it("renders the Program model with Solid's server build", async () => {
+describe("Component.state on the server", () => {
+  it("renders the State model with Solid's server build", async () => {
     const runtime = makeRuntime();
     const BoardView = Component.define("BoardView", function* () {
-      const board = yield* Component.program(BoardProgram);
-      const counter = yield* Component.program(Counter);
+      const board = yield* Component.state(BoardState);
+      const counter = yield* Component.state(Counter);
       return () => {
         const rows = board
           .model()

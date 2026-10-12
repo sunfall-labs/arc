@@ -3,7 +3,7 @@ import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import type { ActionConcurrency } from "./action.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
-import { Signal, type ReadableSignal } from "./signal.js";
+import { SignalWrites, type ReadableSignal } from "./signal.js";
 import type { TimelineActionCause } from "./timeline.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
@@ -103,8 +103,10 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     result: AsyncResult.initial(),
     input: Option.none(),
   };
-  const state = Signal.make<ActionState<I, A, E>>(idle, { name: `${options.actionName}.state` });
-  const invalidationPlan = Signal.make<P | undefined>(undefined, {
+  const state = SignalWrites.make<ActionState<I, A, E>>(idle, {
+    name: `${options.actionName}.state`,
+  });
+  const invalidationPlan = SignalWrites.make<P | undefined>(undefined, {
     name: `${options.actionName}.invalidationPlan`,
   });
   // Last settled state and plan, restored when the latest submission is interrupted.

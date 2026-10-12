@@ -19,6 +19,12 @@ import {
   type ResourceRowPatch,
 } from "./resource-rows.js";
 import { Signal, type WritableSignal } from "./signal.js";
+import {
+  signalOptimisticLayers as signalPatchStates,
+  type SignalOptimisticLayers as SignalPatchState,
+  type SignalOptimisticPatch as SignalPatch,
+} from "./signal-optimistic-layer.js";
+import { StateRefTypeId, type StateRef } from "./state-contract.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Settles one optimistic transaction: commit or rollback. */
@@ -44,10 +50,11 @@ export type ActionOptimisticSetUpdate<A> =
   | ((current: A) => ActionOptimisticValue<A>);
 
 /**
- * What `transaction.set` patches: a writable Signal, or the entry a Resource
- * ref names (any Resource family; the patch applies to its output value).
+ * What `transaction.set` patches: a running State's model (a `State.Instance`
+ * or `Component.state` handle), or the entry a Resource ref names (any
+ * Resource family; the patch applies to its output value).
  */
-export type ActionOptimisticSetTarget<A> = WritableSignal<A> | ResourceRef<any, A, any, any>;
+export type ActionOptimisticSetTarget<A> = StateRef<A> | ResourceRef<any, A, any, any>;
 
 /** Partial patch or pure updater for one optimistic row update. */
 export type ActionOptimisticRowUpdate<Row> = Partial<Row> | ((row: Row) => Row);
@@ -63,9 +70,9 @@ export type ActionOptimisticRowUpdate<Row> = Partial<Row> | ((row: Row) => Row);
  */
 export interface ActionOptimisticTransaction {
   /**
-   * Patches a writable Signal, or the loaded value of a Resource entry
-   * (`ProjectById(id)`): readers see the patched value while a reload
-   * replaces the value underneath. An entry that has not loaded is left alone.
+   * Patches a running State's model, or the loaded value of a Resource entry
+   * (`ProjectById(id)`): readers see the patched value while the State's
+   * messages or a reload replace the value underneath. An entry that has not loaded is left alone.
    */
   readonly set: <A>(
     target: ActionOptimisticSetTarget<A>,
@@ -99,18 +106,7 @@ export interface ActionOptimisticTransactionRuntime {
   readonly rollback: ActionOptimisticSettle;
 }
 
-interface SignalPatch<A> {
-  readonly transaction: symbol;
-  readonly apply: (value: A) => A;
-}
-
-interface SignalPatchState<A> {
-  base: A;
-  patches: Array<SignalPatch<A>>;
-}
-
 type AnyWritableSignal = WritableSignal<any>;
-type AnySignalPatchState = SignalPatchState<any>;
 
 type SignalPatchDecision<A> =
   | { readonly _tag: "Commit"; readonly base: A }
@@ -121,8 +117,6 @@ interface PlannedSignalPatchFinish<A> {
   readonly value: A;
   readonly state: SignalPatchState<A>;
 }
-
-const signalPatchStates = new WeakMap<AnyWritableSignal, AnySignalPatchState>();
 
 const isResourceRef = (target: ActionOptimisticSetTarget<any>): target is AnyResourceRef =>
   (target as { readonly [ResourceTypeId]?: unknown })[ResourceTypeId] === ResourceTypeId;
@@ -241,7 +235,7 @@ const rowPatchUpdater =
 /**
  * Creates one optimistic transaction for an Action submission.
  *
- * The transaction owns every Signal patch and Resource entry patch (whole
+ * The transaction owns every State patch and Resource entry patch (whole
  * values and rows) it touches. Commit folds them into their base values, while rollback
  * removes them and recomputes any later optimistic patches from other
  * submissions.
@@ -285,7 +279,9 @@ export const makeActionOptimisticTransactionRuntime = (
   const api: ActionOptimisticTransaction = {
     set: (target, update) => {
       const apply = optimisticUpdater(actionName, update);
-      return isResourceRef(target) ? setResource(target, apply) : setSignal(target, apply);
+      return isResourceRef(target)
+        ? setResource(target, apply)
+        : setSignal(target[StateRefTypeId], apply);
     },
     insert: (target, values) =>
       setResource(target, rowPatchUpdater(actionName, target, insertPatch(values))),
@@ -320,7 +316,7 @@ export const makeActionOptimisticTransactionRuntime = (
           }),
         catch: (cause) => optimisticPatchError(actionName, cause),
       });
-      // Signal and Resource patches settle in one commit named by the Action.
+      // State and Resource patches settle in one commit named by the Action.
       batchSignalWrites(
         () => {
           for (const plan of plans) {
@@ -352,14 +348,14 @@ export const makeActionOptimisticTransactionRuntime = (
 
 /**
  * One change an Action's `optimistic` patch makes, as `Action.planOptimistic`
- * reports it: the value a Signal or Resource entry would read, or a row change
+ * reports it: the value a State model or Resource entry would read, or a row change
  * for a row store.
  */
 export type ActionOptimisticChange =
   | {
       readonly _tag: "Set";
-      /** The patched Signal, or the Resource ref naming the patched entry. */
-      readonly target: WritableSignal<any> | AnyResourceRef;
+      /** The patched State, or the Resource ref naming the patched entry. */
+      readonly target: StateRef<any> | AnyResourceRef;
       /** The value the target would read with this patch applied. */
       readonly value: unknown;
     }
@@ -398,16 +394,18 @@ export const makeActionOptimisticPlanRuntime = (
 ): ActionOptimisticPlanRuntime => {
   const changes: Array<ActionOptimisticChange> = [];
   const planned = new Map<unknown, unknown>();
+  const plannedKey = (target: ActionOptimisticSetTarget<unknown>): unknown =>
+    isResourceRef(target) ? resourceRefStoreKey(target) : target[StateRefTypeId];
 
   const current = (
     target: ActionOptimisticSetTarget<unknown>,
   ): Effect.Effect<Option.Option<unknown>> => {
-    const key = isResourceRef(target) ? resourceRefStoreKey(target) : target;
+    const key = plannedKey(target);
     return planned.has(key)
       ? Effect.succeed(Option.some(planned.get(key)))
       : isResourceRef(target)
         ? peekResourceValueEffect(target)
-        : Effect.sync(() => Option.some(Signal.peek(target)));
+        : Effect.sync(() => Option.some(Signal.peek(target[StateRefTypeId])));
   };
 
   const api: ActionOptimisticTransaction = {
@@ -422,7 +420,7 @@ export const makeActionOptimisticPlanRuntime = (
           try: () => apply(value.value),
           catch: (cause) => optimisticPatchError(actionName, cause),
         });
-        planned.set(isResourceRef(target) ? resourceRefStoreKey(target) : target, next);
+        planned.set(plannedKey(target), next);
         changes.push({ _tag: "Set", target, value: next });
       }).pipe(Effect.orDie),
     insert: (target, values) =>

@@ -1,5 +1,5 @@
 import type { Route, Action, Resource, Timeline } from "@sunfall/arc-core";
-import { Data, type Effect, type Fiber, type Scope } from "effect";
+import { Data, type Effect, type Fiber, type Scope, type Tracer } from "effect";
 
 /**
  * JSON-safe value shape used by Devtools DTOs.
@@ -146,23 +146,6 @@ export interface DevtoolsTimelineCommit {
   readonly changes: ReadonlyArray<DevtoolsTimelineChange>;
 }
 
-/** Transport family that produced a request trace. */
-export type DevtoolsRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
-/** Final request trace status. */
-export type DevtoolsRequestTraceStatus = "success" | "failure" | "cancelled";
-/** High-level failure category used by request trace panels. */
-export type DevtoolsRequestTraceFailureKind =
-  | "domain"
-  | "validation"
-  | "protocol"
-  | "transport"
-  | "defect"
-  | "interruption";
-/** Streaming response lifecycle state. */
-export type DevtoolsRequestTraceStreamState = "open" | "closed" | "cancelled" | "errored";
-/** Request-runtime fiber lifecycle state. */
-export type DevtoolsRequestTraceFiberStatus = "running" | "done" | "interrupted" | "failed";
-
 /** Typed error thrown when callers provide both live and serialized invalidation plans. */
 export class DevtoolsActionInvalidationPlanConflict extends Data.TaggedError(
   "DevtoolsActionInvalidationPlanConflict",
@@ -170,126 +153,23 @@ export class DevtoolsActionInvalidationPlanConflict extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
-/** Header captured for request inspection; Devtools serialization redacts sensitive names and values before storage/projection. */
-export interface DevtoolsRequestTraceHeader {
-  readonly name: string;
-  readonly value: string;
-}
-
-/** Cookie fact captured for request inspection; Devtools serialization redacts values and sensitive names before storage/projection. */
-export interface DevtoolsRequestTraceCookie {
-  readonly name: string;
-  readonly value: string;
-}
-
-/** HTTP request facts recorded by Start or another compatible server adapter. */
-export interface DevtoolsRequestTraceRequest {
-  readonly id?: string;
-  readonly traceparent?: string;
-  readonly method: string;
-  readonly url: string;
-  readonly path: string;
-  readonly transport: DevtoolsRequestTraceTransport;
-  readonly headers?: ReadonlyArray<DevtoolsRequestTraceHeader>;
-  readonly cookies?: ReadonlyArray<DevtoolsRequestTraceCookie>;
-}
-
-/** HTTP response facts recorded for a request trace. */
-export interface DevtoolsRequestTraceResponse {
-  readonly status: number;
-  readonly statusText?: string;
-  readonly headers?: ReadonlyArray<DevtoolsRequestTraceHeader>;
-  readonly setCookieCount?: number;
-}
-
 /**
- * Resource fact supplied by a compatible request trace.
- *
- * Start currently emits SSR route-plan resources here; compatible non-Start
- * producers may provide broader request-resource facts.
+ * JSON-safe copy of one ended Effect span, recorded by `Devtools.layerTracer`
+ * or `store.recordSpan`. Start request spans (`sunfall-arc.start.request`)
+ * carry the route plan, failure kind, response, stream, and teardown as
+ * attributes; the Requests panel reads them from here.
  */
-export interface DevtoolsRequestTraceResource {
-  readonly key: string;
-  readonly family: string;
-  readonly input?: unknown;
-  readonly state?: string;
-}
-
-/** Server function call observed during one request. */
-export interface DevtoolsRequestTraceServerFunction {
+export interface DevtoolsSpan {
+  readonly traceId: string;
+  readonly spanId: string;
+  readonly parentSpanId?: string;
   readonly name: string;
-  readonly status?: DevtoolsRequestTraceStatus;
-  readonly failureKind?: DevtoolsRequestTraceFailureKind;
-}
-
-/** Start Action call observed during one request. */
-export interface DevtoolsRequestTraceAction {
-  readonly name: string;
-  readonly state?: string;
-  readonly failureKind?: DevtoolsRequestTraceFailureKind;
-  readonly invalidationIndexes?: ReadonlyArray<number>;
-}
-
-/** Fiber fact for work owned by a request runtime. */
-export interface DevtoolsRequestTraceFiber {
-  readonly name: string;
-  readonly status: DevtoolsRequestTraceFiberStatus;
-}
-
-/** Stream fact for response or hydration streams owned by a request. */
-export interface DevtoolsRequestTraceStream {
-  readonly name: string;
-  readonly state: DevtoolsRequestTraceStreamState;
-  readonly chunkCount?: number;
-}
-
-/** Resource Store counts captured before or after request-runtime disposal. */
-export interface DevtoolsRequestTraceTeardownSnapshot {
-  readonly fiberCount: number;
-  readonly familyCount: number;
-  readonly moduleCount: number;
-  readonly tagCount: number;
-}
-
-/** Best-effort request-runtime cleanup failure summary emitted by Start traces. */
-export interface DevtoolsRequestTraceCleanupFailure {
-  readonly _tag: "Failure" | "Defect" | "Interruption";
-  readonly message: string;
-}
-
-/** Request-runtime disposal facts used to detect leaks after streamed responses close. */
-export interface DevtoolsRequestTraceTeardown {
-  readonly runtimeDisposed: boolean;
-  readonly reason?: string;
-  readonly at?: number;
-  readonly startedAt?: number;
-  readonly completedAt?: number;
-  readonly durationMillis?: number;
-  readonly beforeDispose?: DevtoolsRequestTraceTeardownSnapshot;
-  readonly afterDispose?: DevtoolsRequestTraceTeardownSnapshot;
-  readonly cleanupFailure?: DevtoolsRequestTraceCleanupFailure;
-}
-
-/**
- * Structural request trace contract consumed by Devtools.
- *
- * Start emits this shape without depending on `@sunfall/arc-devtools`; adapters
- * can record compatible traces when they preserve the same failure and teardown
- * semantics.
- */
-export interface DevtoolsRequestTrace {
-  readonly request: DevtoolsRequestTraceRequest;
-  readonly response?: DevtoolsRequestTraceResponse;
-  readonly services: ReadonlyArray<string>;
-  readonly routePlan?: DevtoolsRoutePlan;
-  readonly resources: ReadonlyArray<DevtoolsRequestTraceResource>;
-  readonly serverFunctions: ReadonlyArray<DevtoolsRequestTraceServerFunction>;
-  readonly actions: ReadonlyArray<DevtoolsRequestTraceAction>;
-  readonly fibers: ReadonlyArray<DevtoolsRequestTraceFiber>;
-  readonly streams: ReadonlyArray<DevtoolsRequestTraceStream>;
-  readonly status: DevtoolsRequestTraceStatus;
-  readonly failureKind?: DevtoolsRequestTraceFailureKind;
-  readonly teardown?: DevtoolsRequestTraceTeardown;
+  readonly kind: string;
+  /** Span start, in epoch milliseconds. */
+  readonly startTime: number;
+  readonly durationMillis: number;
+  readonly status: "success" | "failure" | "interrupted";
+  readonly attributes: { readonly [key: string]: unknown };
 }
 
 /**
@@ -339,12 +219,6 @@ export type DevtoolsRuntimeEvent =
       readonly plan: DevtoolsRoutePlan;
     }
   | {
-      readonly _tag: "RequestTrace";
-      readonly sequence?: number;
-      readonly at?: number;
-      readonly trace: DevtoolsRequestTrace;
-    }
-  | {
       readonly _tag: "Custom";
       readonly sequence?: number;
       readonly at?: number;
@@ -364,7 +238,7 @@ export interface DevtoolsSnapshot {
   readonly actions: ReadonlyArray<DevtoolsSnapshotAction>;
   readonly invalidations: ReadonlyArray<DevtoolsInvalidationPlan>;
   readonly routePlans: ReadonlyArray<DevtoolsRoutePlan>;
-  readonly requestTraces?: ReadonlyArray<DevtoolsRequestTrace>;
+  readonly spans?: ReadonlyArray<DevtoolsSpan>;
   readonly events?: ReadonlyArray<DevtoolsRuntimeEvent>;
 }
 
@@ -386,8 +260,8 @@ export interface DevtoolsStoreOptions {
   readonly invalidationLimit?: number;
   /** Maximum route plans retained in snapshots. Defaults to 50. */
   readonly routePlanLimit?: number;
-  /** Maximum request traces retained in snapshots. Defaults to 50. */
-  readonly requestTraceLimit?: number;
+  /** Maximum ended spans retained in snapshots. Defaults to 200. */
+  readonly spanLimit?: number;
   /** Maximum runtime events retained in snapshots. Defaults to 500. */
   readonly eventLimit?: number;
   /** Serialization and redaction policy applied before runtime facts enter the store. */
@@ -398,7 +272,7 @@ export interface DevtoolsStoreOptions {
  * Store returned by `makeDevtoolsStore`.
  *
  * Every method returns an Effect: snapshot reads/writes, invalidation plans, action state, route plans, resource
- * events, Timeline commits, request traces, summaries,
+ * events, Timeline commits, spans, summaries,
  * panels, and causal graphs.
  * Values are copied or projected before storage so panel consumers do not
  * mutate live framework state. Fact-recording methods return the retained
@@ -440,8 +314,8 @@ export interface DevtoolsStore {
   ) => Effect.Effect<void, never, Scope.Scope>;
   /** Record a prebuilt runtime event, assigning sequence and serialization bounds. */
   readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => Effect.Effect<void>;
-  /** Record one structural request trace and normalize its fact identity. */
-  readonly recordRequestTrace: (trace: DevtoolsRequestTrace) => Effect.Effect<void>;
+  /** Record one ended Effect span (what `Devtools.layerTracer` does for every span). */
+  readonly recordSpan: (span: Tracer.Span) => Effect.Effect<void>;
   /** Project the current snapshot into summarized counts, tables, and runtime rows. */
   readonly getSummary: () => Effect.Effect<DevtoolsSummary>;
   /** Project the current snapshot into renderable panel data. */
@@ -514,100 +388,38 @@ export interface DevtoolsSummaryResource {
   readonly family: string | null;
   readonly input: DevtoolsSerializableValue | null;
   readonly state: string | null;
-  readonly sources: ReadonlyArray<
-    "Invalidation" | "RequestTrace" | "RoutePlan" | "RuntimeEvent" | "Snapshot"
-  >;
+  readonly sources: ReadonlyArray<"Invalidation" | "RoutePlan" | "RuntimeEvent" | "Snapshot">;
   readonly routeHrefs: ReadonlyArray<string>;
   readonly invalidationIndexes: ReadonlyArray<number>;
 }
 
-/** Request-runtime store counts captured before or after teardown. */
-export interface DevtoolsSummaryRequestTraceTeardownSnapshot {
-  /** Live fibers visible in the request runtime store at the snapshot point. */
-  readonly fiberCount: number;
-  /** Registered resource families visible in the request runtime store. */
-  readonly familyCount: number;
-  /** Registered resource modules visible in the request runtime store. */
-  readonly moduleCount: number;
-  /** Registered resource tags visible in the request runtime store. */
-  readonly tagCount: number;
-}
-
-/** Server-function activity summarized from one request trace. */
-export interface DevtoolsSummaryRequestTraceServerFunction {
-  readonly name: string;
-  readonly status: DevtoolsRequestTraceStatus | null;
-  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
-}
-
-/** Action activity summarized from one request trace. */
-export interface DevtoolsSummaryRequestTraceAction {
-  readonly name: string;
-  readonly state: string | null;
-  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
-  readonly invalidationIndexes: ReadonlyArray<number>;
-}
-
-/** Request trace row used by summaries and panel UIs. */
-export interface DevtoolsSummaryRequestTrace {
-  /** Stable ordinal within the summary input. */
+/** One Start request, projected from its `sunfall-arc.start.request` span. */
+export interface DevtoolsSummaryRequest {
   readonly index: number;
-  /** Request trace id emitted by the Start request runtime. */
+  /** Request span id. */
   readonly id: string;
-  /** HTTP method for the traced request. */
+  readonly traceId: string;
+  /** Start request id (`x-sunfall-arc-request-id`). */
+  readonly requestId: string | null;
   readonly method: string;
-  /** URL path without query string. */
   readonly path: string;
-  /** Original request URL when available. */
-  readonly url: string;
-  /** Start transport seam that produced the trace. */
-  readonly transport: DevtoolsRequestTraceTransport;
-  /** Terminal request status. */
-  readonly status: DevtoolsRequestTraceStatus;
-  /** Normalized failure owner/category, when the request failed. */
-  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
-  /** HTTP response status, when one was produced. */
+  /** Matched route path for SSR requests. */
+  readonly route: string | null;
+  /** Resource keys the SSR route plan preloaded. */
+  readonly resources: ReadonlyArray<string>;
+  readonly transport: string;
+  readonly status: "success" | "failure" | "cancelled";
+  readonly failureKind: string | null;
   readonly responseStatus: number | null;
-  /** Services provided to the request runtime. */
-  readonly serviceCount: number;
-  /** Resource refs touched by request preload/render work. */
-  readonly resourceCount: number;
-  /** Server functions invoked during this request. */
-  readonly serverFunctionCount: number;
-  /** Actions invoked during this request. */
-  readonly actionCount: number;
-  /** Fibers observed before teardown. */
-  readonly fiberCount: number;
-  /** Response streams tracked by the request runtime. */
-  readonly streamCount: number;
-  /** Whether request runtime disposal completed. */
+  readonly durationMillis: number;
   readonly runtimeDisposed: boolean | null;
-  /** Disposal reason reported by the Start request runtime. */
-  readonly teardownReason: string | null;
-  /** Timestamp reported by older teardown emitters, when present. */
-  readonly teardownAt: number | null;
-  /** Teardown start timestamp emitted by Start request handlers. */
-  readonly teardownStartedAt: number | null;
-  /** Teardown completion timestamp emitted by Start request handlers. */
-  readonly teardownCompletedAt: number | null;
-  /** Elapsed time from request start to response/teardown when available. */
-  readonly durationMillis: number | null;
-  /** Resource Store snapshot before runtime disposal. */
-  readonly beforeDispose: DevtoolsSummaryRequestTraceTeardownSnapshot | null;
-  /** Resource Store snapshot after runtime disposal. */
-  readonly afterDispose: DevtoolsSummaryRequestTraceTeardownSnapshot | null;
-  /** Back-compat shortcut for `beforeDispose.fiberCount`. */
-  readonly beforeDisposeFiberCount: number | null;
-  /** Back-compat shortcut for `afterDispose.fiberCount`. */
-  readonly afterDisposeFiberCount: number | null;
-  /** Bounded cleanup failure summary when request-runtime disposal failed. */
-  readonly cleanupFailure: DevtoolsRequestTraceCleanupFailure | null;
-  /** Per-server-function request activity, including owner failure kind. */
-  readonly serverFunctions: ReadonlyArray<DevtoolsSummaryRequestTraceServerFunction>;
-  /** Per-action request activity, including owner failure kind and invalidations. */
-  readonly actions: ReadonlyArray<DevtoolsSummaryRequestTraceAction>;
-  /** Matched route href for SSR traces, when available. */
-  readonly routeHref: string | null;
+  /** Live fibers left after request runtime disposal; non-zero is a leak. */
+  readonly fibersAfterDispose: number | null;
+  /** Server-function and Action spans inside this request. */
+  readonly children: ReadonlyArray<{
+    readonly name: string;
+    readonly status: DevtoolsSpan["status"];
+  }>;
 }
 
 /**
@@ -629,7 +441,7 @@ export interface DevtoolsSummaryRuntimeEvent {
         readonly id: string;
       }
     | {
-        readonly kind: "Program";
+        readonly kind: "State";
         readonly id: string;
       }
     | {
@@ -642,10 +454,6 @@ export interface DevtoolsSummaryRuntimeEvent {
       }
     | {
         readonly kind: "RoutePlan";
-        readonly id: string;
-      }
-    | {
-        readonly kind: "RequestTrace";
         readonly id: string;
       }
     | null;
@@ -663,25 +471,21 @@ export interface DevtoolsSummaryRuntimeEvent {
  * summaries for the same underlying route, resource, action, event, or module.
  */
 export type DevtoolsCausalNodeKind =
-  | "RequestTrace"
   | "Route"
   | "RoutePlan"
   | "Resource"
-  | "Program"
+  | "State"
   | "Action"
   | "InvalidationPlan"
   | "ResourceTag"
-  | "RuntimeEvent"
-  | "Endpoint"
-  | "ServerFunction";
+  | "RuntimeEvent";
 
 /**
  * Stable relationship categories in the Devtools causal graph.
  *
- * `Records` links request traces to observed facts. `Matches` links route
- * plans to matched routes. `Preloads` and `Hydrates` explain route/resource
+ * `Matches` links route plans to matched routes. `Preloads` and `Hydrates` explain route/resource
  * loading. `Observes` links runtime events to the facts they
- * report. `UsesEndpoint` links request traces to the transport endpoint they used.
+ * report.
  */
 export type DevtoolsCausalEdgeKind =
   | "Matches"
@@ -691,9 +495,7 @@ export type DevtoolsCausalEdgeKind =
   | "Invalidates"
   | "Causes"
   | "Emits"
-  | "Observes"
-  | "UsesEndpoint"
-  | "Records";
+  | "Observes";
 
 /** One stable fact node in a Devtools causal graph. */
 export interface DevtoolsCausalNode {
@@ -738,7 +540,8 @@ export interface DevtoolsSummary {
     readonly runtimeActionCount: number;
     readonly invalidationPlanCount: number;
     readonly routePlanCount: number;
-    readonly requestTraceCount: number;
+    readonly requestCount: number;
+    readonly spanCount: number;
     readonly runtimeEventCount: number;
     readonly notFoundRoutePlanCount: number;
     readonly causalNodeCount: number;
@@ -771,9 +574,7 @@ export interface DevtoolsSummary {
     readonly plans: ReadonlyArray<DevtoolsSummaryRoutePlan>;
     readonly notFoundHrefs: readonly string[];
   };
-  readonly requests: {
-    readonly traces: ReadonlyArray<DevtoolsSummaryRequestTrace>;
-  };
+  readonly requests: ReadonlyArray<DevtoolsSummaryRequest>;
   readonly resources: ReadonlyArray<DevtoolsSummaryResource>;
   readonly causalGraph: DevtoolsCausalGraph;
 }
@@ -783,7 +584,7 @@ export interface DevtoolsSummaryInput {
   readonly snapshot?: DevtoolsSnapshot;
   readonly invalidations?: ReadonlyArray<DevtoolsInvalidationPlan>;
   readonly routePlans?: ReadonlyArray<DevtoolsRoutePlan>;
-  readonly requestTraces?: ReadonlyArray<DevtoolsRequestTrace>;
+  readonly spans?: ReadonlyArray<DevtoolsSpan>;
   readonly runtimeEvents?: ReadonlyArray<DevtoolsRuntimeEvent>;
 }
 
@@ -797,7 +598,7 @@ export type DevtoolsPanelId =
   | "routes"
   | "resources"
   | "actions"
-  | "programs"
+  | "states"
   | "requests"
   | "diagnostics"
   | "causal-graph";

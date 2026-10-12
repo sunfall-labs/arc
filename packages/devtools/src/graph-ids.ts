@@ -2,29 +2,22 @@ import type {
   DevtoolsCausalEdgeKind,
   DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationTarget,
-  DevtoolsSummaryRequestTrace,
+  DevtoolsSummaryRequest,
   DevtoolsSummaryRuntimeEvent,
 } from "./devtools-contract.js";
 
 export const devtoolsActionNodeId = (name: string): string => `action:${name}`;
 
-export const devtoolsEndpointNodeId = (name: string): string => `endpoint:${name}`;
+export const devtoolsStateNodeId = (name: string): string => `state:${name}`;
 
-export const devtoolsProgramNodeId = (name: string): string => `program:${name}`;
-
-export const devtoolsProgramPanelItemId = (eventId: string): string => `program-event:${eventId}`;
+export const devtoolsStatePanelItemId = (eventId: string): string => `state-event:${eventId}`;
 
 export const devtoolsInvalidationNodeId = (index: number): string => `invalidation:${index}`;
 
 export const devtoolsResourceNodeId = (key: string): string => `resource:${key}`;
 
-export const devtoolsRequestTraceNodeId = (
-  trace: Pick<DevtoolsSummaryRequestTrace, "id">,
-): string => `request-trace:${trace.id}`;
-
-export const devtoolsRequestPanelItemId = (
-  trace: Pick<DevtoolsSummaryRequestTrace, "id">,
-): string => `request:${trace.id}`;
+export const devtoolsRequestPanelItemId = (request: Pick<DevtoolsSummaryRequest, "id">): string =>
+  `request:${request.id}`;
 
 export const devtoolsRouteNodeId = (path: string): string => `route:${path}`;
 
@@ -32,8 +25,6 @@ export const devtoolsRoutePlanNodeId = (index: number, href: string): string =>
   `route-plan:${index}:${href}`;
 
 export const devtoolsRoutePlanPanelItemId = (index: number): string => `route-plan:${index}`;
-
-export const devtoolsServerFunctionNodeId = (name: string): string => `server-function:${name}`;
 
 export const devtoolsResourceTagNodeId = (key: string): string => `resource-tag:${key}`;
 
@@ -56,11 +47,9 @@ export const devtoolsInvalidationTargetNodeId = (
 export const devtoolsRuntimeTargetLabel = (
   target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>,
 ): string =>
-  target.kind === "Program" && target.id.startsWith("program:")
-    ? target.id.slice("program:".length)
-    : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
-      ? target.id.slice("request-trace:".length)
-      : target.id;
+  target.kind === "State" && target.id.startsWith("state:")
+    ? target.id.slice("state:".length)
+    : target.id;
 
 const framedGraphId = (tag: string, parts: ReadonlyArray<string>): string =>
   `${tag}[${parts.map((part) => `${part.length}:${part}`).join("|")}]`;

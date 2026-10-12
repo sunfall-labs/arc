@@ -1,42 +1,38 @@
 import { Deferred, Effect, Fiber, Queue, Scope, Stream } from "effect";
 import { invokeEffectInput } from "./effect-like.js";
 import {
-  type ProgramCommand,
-  type ProgramDefinition,
-  type ProgramDispatchError,
-  type ProgramFailure,
-  type ProgramInstance,
-  type ProgramMessageValue,
-  ProgramDisposed,
-  type ProgramRuntimeError,
-  type ProgramTaggedMessage,
-} from "./program-contract.js";
+  type StateCommand,
+  type StateDefinition,
+  type StateDispatchError,
+  type StateFailure,
+  type StateInstance,
+  type StateMessageValue,
+  StateDisposed,
+  StateRefTypeId,
+  type StateRuntimeError,
+  type StateTaggedMessage,
+} from "./state-contract.js";
 import {
-  makeProgramFailure,
-  normalizeProgramSubscriptions,
-  programStep,
-  validateProgramModelSync,
-  validateProgramMessage,
-} from "./program-primitives.js";
-import { makeProgramRuntimeScheduler } from "./program-runtime-scheduler.js";
+  makeStateFailure,
+  normalizeStateSubscriptions,
+  stateStep,
+  validateStateModelSync,
+  validateStateMessage,
+} from "./state-primitives.js";
+import { makeStateRuntimeScheduler } from "./state-runtime-scheduler.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
-import { Signal } from "./signal.js";
-import type { TimelineProgramCause } from "./timeline.js";
+import { Signal, SignalWrites } from "./signal.js";
+import { readSignalOptimisticBase, writeSignalOptimisticBase } from "./signal-optimistic-layer.js";
+import type { TimelineStateCause } from "./timeline.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
 interface QueuedMessage<Message, E> {
-  readonly message: ProgramMessageValue<Message>;
-  readonly ack?: Deferred.Deferred<void, ProgramFailure<Message, E>>;
+  readonly message: StateMessageValue<Message>;
+  readonly ack?: Deferred.Deferred<void, StateFailure<Message, E>>;
 }
 
-export interface ProgramRuntimeInstanceOptions<
-  Model,
-  Message extends ProgramTaggedMessage,
-  E,
-  R,
-  ER,
-> {
-  readonly definition: ProgramDefinition<Model, Message, E, R>;
+export interface StateRuntimeInstanceOptions<Model, Message extends StateTaggedMessage, E, R, ER> {
+  readonly definition: StateDefinition<Model, Message, E, R>;
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly scope:
     | {
@@ -47,7 +43,7 @@ export interface ProgramRuntimeInstanceOptions<
 
 const completeAck = <Message, E>(
   queued: QueuedMessage<Message, E>,
-  failure?: ProgramFailure<Message, E>,
+  failure?: StateFailure<Message, E>,
 ): Effect.Effect<void> => {
   if (!queued.ack) {
     return Effect.void;
@@ -58,67 +54,65 @@ const completeAck = <Message, E>(
     : Deferred.succeed(queued.ack, undefined).pipe(Effect.asVoid);
 };
 
-export const makeProgramRuntimeInstance = <
+export const makeStateRuntimeInstance = <
   Model,
-  Message extends ProgramTaggedMessage,
+  Message extends StateTaggedMessage,
   E = never,
   R = never,
   ER = never,
 >(
-  options: ProgramRuntimeInstanceOptions<Model, Message, E, R, ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
+  options: StateRuntimeInstanceOptions<Model, Message, E, R, ER>,
+): StateInstance<Model, Message, StateRuntimeError<E, ER>, StateDispatchError<E, ER>> => {
   const { definition, runtime, scope } = options;
-  const initialModel = validateProgramModelSync("Program.initial", definition.initial);
-  const signalName = definition.name ?? "Program";
-  const model = Signal.make(initialModel as Model, { name: `${signalName}.model` });
-  const failures = Signal.make<ReadonlyArray<ProgramFailure<Message, ProgramRuntimeError<E, ER>>>>(
-    [],
-    { name: `${signalName}.failures` },
-  );
+  const initialModel = validateStateModelSync("State.initial", definition.initial);
+  const model = SignalWrites.make(initialModel as Model, { name: definition.name });
+  const failures = SignalWrites.make<
+    ReadonlyArray<StateFailure<Message, StateRuntimeError<E, ER>>>
+  >([], { name: `${definition.name}.failures` });
   const queue = Effect.runSync(
-    Queue.unbounded<QueuedMessage<Message, ProgramDispatchError<E, ER>>>(),
+    Queue.unbounded<QueuedMessage<Message, StateDispatchError<E, ER>>>(),
   );
   let disposed = false;
   let processorFiber: Fiber.Fiber<void, unknown> | undefined;
   let subscriptionFiber: Fiber.Fiber<void, unknown> | undefined;
   let subscriptionGeneration = 0;
-  const pendingDispatches = new Set<QueuedMessage<Message, ProgramDispatchError<E, ER>>>();
-  const committedDispatches = new Set<QueuedMessage<Message, ProgramDispatchError<E, ER>>>();
+  const pendingDispatches = new Set<QueuedMessage<Message, StateDispatchError<E, ER>>>();
+  const committedDispatches = new Set<QueuedMessage<Message, StateDispatchError<E, ER>>>();
 
-  type RuntimeFailure = ProgramRuntimeError<E, ER>;
-  type DispatchFailure = ProgramDispatchError<E, ER>;
+  type RuntimeFailure = StateRuntimeError<E, ER>;
+  type DispatchFailure = StateDispatchError<E, ER>;
 
-  const scheduler = makeProgramRuntimeScheduler(runtime);
+  const scheduler = makeStateRuntimeScheduler(runtime);
 
-  /** Timeline cause for this Program's commits. */
+  /** Timeline cause for this State's commits. */
   const cause = (
-    event: TimelineProgramCause["event"],
+    event: TimelineStateCause["event"],
     message: Message | undefined,
-  ): TimelineProgramCause => ({
-    _tag: "Program",
-    program: definition.name,
+  ): TimelineStateCause => ({
+    _tag: "State",
+    state: definition.name,
     event,
     ...(message === undefined ? {} : { message }),
   });
 
-  const recordFailure = (failure: ProgramFailure<Message, ProgramRuntimeError<E, ER>>): void =>
+  const recordFailure = (failure: StateFailure<Message, StateRuntimeError<E, ER>>): void =>
     batchSignalWrites(
       () => failures.update((current) => [...current, failure]),
       cause("failure", failure.message),
     );
 
   const disposedFailure = (
-    message: ProgramMessageValue<Message>,
-  ): ProgramFailure<Message, DispatchFailure> =>
-    makeProgramFailure(
+    message: StateMessageValue<Message>,
+  ): StateFailure<Message, DispatchFailure> =>
+    makeStateFailure(
       "Update",
-      new ProgramDisposed({
-        reason: "Program was disposed before the message update was applied.",
+      new StateDisposed({
+        reason: "State was disposed before the message update was applied.",
       }),
       message as Message,
     );
 
-  const enqueue = (message: ProgramMessageValue<Message>): Effect.Effect<void> =>
+  const enqueue = (message: StateMessageValue<Message>): Effect.Effect<void> =>
     disposed ? Effect.void : Queue.offer(queue, { message }).pipe(Effect.asVoid);
 
   const completePendingDispatches = (): Effect.Effect<void> => {
@@ -141,13 +135,13 @@ export const makeProgramRuntimeInstance = <
     );
   };
 
-  const runWithProgramRuntime = <A, E2, R2>(
+  const runWithStateRuntime = <A, E2, R2>(
     effect: Effect.Effect<A, E2, R2>,
   ): Effect.Effect<A, E2 | ER> => runtime.provide(effect) as Effect.Effect<A, E2 | ER>;
 
   const runCommands = (
-    commands: ReadonlyArray<ProgramCommand<Message, E, R>>,
-    source: ProgramMessageValue<Message>,
+    commands: ReadonlyArray<StateCommand<Message, E, R>>,
+    source: StateMessageValue<Message>,
   ): Effect.Effect<void, never, R | Scope.Scope> =>
     Effect.forEach(
       commands,
@@ -157,18 +151,18 @@ export const makeProgramRuntimeInstance = <
             onFailure: (error: RuntimeFailure) =>
               Effect.sync(() =>
                 recordFailure(
-                  makeProgramFailure<Message, RuntimeFailure>("Command", error, source as Message),
+                  makeStateFailure<Message, RuntimeFailure>("Command", error, source as Message),
                 ),
               ),
             onSuccess: (message) =>
               message === undefined
                 ? Effect.void
-                : validateProgramMessage<Message>("Program.emit", message as Message).pipe(
+                : validateStateMessage<Message>("State.emit", message as Message).pipe(
                     Effect.matchEffect({
                       onFailure: (error) =>
                         Effect.sync(() =>
                           recordFailure(
-                            makeProgramFailure<Message, RuntimeFailure>(
+                            makeStateFailure<Message, RuntimeFailure>(
                               "Command",
                               error as RuntimeFailure,
                               source as Message,
@@ -187,12 +181,13 @@ export const makeProgramRuntimeInstance = <
   const processMessage = (
     queued: QueuedMessage<Message, DispatchFailure>,
   ): Effect.Effect<void, never, R | Scope.Scope> =>
-    programStep(definition, Signal.peek(model), queued.message).pipe(
+    // Messages apply to the base model; in-flight optimistic patches re-apply over it.
+    stateStep(definition, readSignalOptimisticBase(model), queued.message).pipe(
       Effect.matchEffect({
         onFailure: (error) => failQueuedMessage(queued, error),
         onSuccess: (step) =>
           Effect.gen(function* () {
-            const before = Signal.peek(model);
+            const before = readSignalOptimisticBase(model);
             const committed = yield* Effect.sync(() => {
               if (disposed) {
                 return false;
@@ -200,7 +195,7 @@ export const makeProgramRuntimeInstance = <
               batchSignalWrites(
                 () => {
                   committedDispatches.add(queued);
-                  model.set(step.model as Model);
+                  writeSignalOptimisticBase(model, step.model as Model);
                 },
                 cause("message", queued.message as Message),
               );
@@ -231,7 +226,7 @@ export const makeProgramRuntimeInstance = <
     error: RuntimeFailure,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
-      const failure = makeProgramFailure<Message, RuntimeFailure>(
+      const failure = makeStateFailure<Message, RuntimeFailure>(
         "Update",
         error,
         queued.message as Message,
@@ -250,8 +245,8 @@ export const makeProgramRuntimeInstance = <
     Effect.forever(
       Queue.take(queue).pipe(
         Effect.flatMap((queued) =>
-          runWithProgramRuntime(processMessage(queued)).pipe(
-            Effect.catch((error: ProgramRuntimeError<E, ER>) => failQueuedMessage(queued, error)),
+          runWithStateRuntime(processMessage(queued)).pipe(
+            Effect.catch((error: StateRuntimeError<E, ER>) => failQueuedMessage(queued, error)),
           ),
         ),
       ),
@@ -274,19 +269,19 @@ export const makeProgramRuntimeInstance = <
 
     const runSubscriptions = Effect.gen(function* () {
       const input = yield* invokeEffectInput(
-        "Program.subscriptions",
+        "State.subscriptions",
         subscriptionsForModel,
         nextModel,
       );
-      const subscriptions = normalizeProgramSubscriptions(input);
+      const subscriptions = normalizeStateSubscriptions(input);
       yield* Effect.all(
         subscriptions.map((entry) =>
           entry.stream.pipe(
             Stream.runForEach((message) =>
-              validateProgramMessage<Message>("Program.subscription", message as Message).pipe(
+              validateStateMessage<Message>("State.subscription", message as Message).pipe(
                 Effect.matchEffect({
                   onFailure: (error) => {
-                    const failure = makeProgramFailure<Message, RuntimeFailure>(
+                    const failure = makeStateFailure<Message, RuntimeFailure>(
                       "Subscription",
                       error as RuntimeFailure,
                     );
@@ -310,7 +305,7 @@ export const makeProgramRuntimeInstance = <
               ),
             ),
             Effect.catch((error: RuntimeFailure) => {
-              const failure = makeProgramFailure<Message, RuntimeFailure>("Subscription", error);
+              const failure = makeStateFailure<Message, RuntimeFailure>("Subscription", error);
               return Effect.sync(() => {
                 if (disposed || generation !== subscriptionGeneration) {
                   return;
@@ -325,9 +320,9 @@ export const makeProgramRuntimeInstance = <
     }).pipe(Effect.asVoid);
 
     subscriptionFiber = scheduler.forkProvided(
-      runWithProgramRuntime(Effect.scoped(runSubscriptions)).pipe(
+      runWithStateRuntime(Effect.scoped(runSubscriptions)).pipe(
         Effect.catch((error: RuntimeFailure) => {
-          const failure = makeProgramFailure<Message, RuntimeFailure>("Subscription", error);
+          const failure = makeStateFailure<Message, RuntimeFailure>("Subscription", error);
           return Effect.sync(() => {
             if (disposed || generation !== subscriptionGeneration) {
               return;
@@ -367,6 +362,7 @@ export const makeProgramRuntimeInstance = <
   scope?.addFinalizer(() => disposeEffect);
 
   return {
+    [StateRefTypeId]: model,
     model,
     failures,
     dispatch: instanceDispatchEffect,
@@ -376,17 +372,17 @@ export const makeProgramRuntimeInstance = <
   };
 
   function instanceDispatchEffect(
-    message: ProgramMessageValue<Message>,
-  ): Effect.Effect<void, ProgramFailure<Message, DispatchFailure>> {
+    message: StateMessageValue<Message>,
+  ): Effect.Effect<void, StateFailure<Message, DispatchFailure>> {
     if (disposed) {
       return Effect.fail(disposedFailure(message));
     }
 
-    return validateProgramMessage<Message>("Program.emit", message as Message).pipe(
+    return validateStateMessage<Message>("State.emit", message as Message).pipe(
       Effect.matchEffect({
         onFailure: (error) =>
           Effect.gen(function* () {
-            const failure = makeProgramFailure<Message, RuntimeFailure>(
+            const failure = makeStateFailure<Message, RuntimeFailure>(
               "Update",
               error as RuntimeFailure,
               message as Message,
@@ -401,7 +397,7 @@ export const makeProgramRuntimeInstance = <
           }),
         onSuccess: (validMessage) =>
           Effect.gen(function* () {
-            const ack = yield* Deferred.make<void, ProgramFailure<Message, DispatchFailure>>();
+            const ack = yield* Deferred.make<void, StateFailure<Message, DispatchFailure>>();
             const queued = { message: validMessage, ack };
             const registered = yield* Effect.sync(() => {
               if (disposed) {

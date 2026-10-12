@@ -120,7 +120,8 @@ export { matchRoutes } from "./route-match.js";
 export type { AnySchema, RouteWithComponent } from "./route.js";
 export { ResourceFamily } from "./resource.js";
 export { makeActionInstance } from "./action-instance.js";
-export { startProgramOnRuntime } from "./program-start.js";
+export { SignalWrites, type WritableSignal } from "./signal.js";
+export { startStateOnRuntime } from "./state-start.js";
 export {
   currentOrDefaultRuntime,
   defaultRuntime,
@@ -134,6 +135,7 @@ export * from "./signal-watch.js";
 export {
   batchSignalWrites,
   signalTransaction,
+  SignalWriteOutsideTransition,
   withSignalTransition,
   writeUntracedSignals,
 } from "./signal-transaction.js";

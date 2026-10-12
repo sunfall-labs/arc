@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-import { generateFileRouteManifestArtifact } from "../src/file-routes.js";
+import { generateFileRouteManifest } from "../src/file-routes.js";
 import {
   planStartPrerenderPages,
   resolveStartPrerenderOptions,
@@ -12,41 +12,50 @@ import {
 } from "../src/start-prerender.js";
 import { sunfallArcStart } from "../src/vite.js";
 
-const manifest = generateFileRouteManifestArtifact(
-  [
-    "src/routes/index.tsx",
-    "src/routes/about.tsx",
-    "src/routes/posts/$slug.tsx",
-    "src/routes/admin.tsx",
-  ],
-  { routeDirectory: "src/routes" },
+const manifest = Effect.runSync(
+  generateFileRouteManifest(
+    [
+      "src/routes/index.tsx",
+      "src/routes/about.tsx",
+      "src/routes/posts/$slug.tsx",
+      "src/routes/admin.tsx",
+    ],
+    { routeDirectory: "src/routes" },
+  ),
 );
 
 const writePrerenderFixture = (
   root: string,
   options: {
-    readonly assetBase?: string;
     readonly body?: string;
+    readonly failFirstAttempt?: boolean;
     readonly status?: number;
   } = {},
 ): string => {
   const outDir = join(root, "dist");
-  const assetBase = options.assetBase ?? "";
-  const assetPrefix = assetBase.endsWith("/") ? assetBase.slice(0, -1) : assetBase;
   mkdirSync(join(root, "src"), { recursive: true });
-  mkdirSync(outDir, { recursive: true });
+  mkdirSync(join(outDir, ".vite"), { recursive: true });
   writeFileSync(
-    join(outDir, "index.html"),
-    [
-      "<!doctype html>",
-      `<html><head><link rel="stylesheet" href="${assetPrefix}/assets/app-abc.css" /></head>`,
-      `<body><script type="module" src="${assetPrefix}/assets/app-abc.js"></script></body></html>`,
-    ].join("\n"),
+    join(outDir, ".vite/manifest.json"),
+    JSON.stringify({
+      "index.html": {
+        file: "assets/app-abc.js",
+        src: "index.html",
+        isEntry: true,
+        imports: ["_shared-abc.js"],
+        css: ["assets/app-abc.css"],
+      },
+      "_shared-abc.js": { file: "assets/shared-abc.js", css: ["assets/shared-abc.css"] },
+    }),
   );
   writeFileSync(
     join(root, "src/server.ts"),
     [
+      "let attempts = 0;",
       "export default function handleRequest() {",
+      ...(options.failFirstAttempt
+        ? ["  attempts += 1;", '  if (attempts === 1) throw new Error("flaky render");']
+        : []),
       "  return new Response(",
       `    ${JSON.stringify(
         options.body ??
@@ -140,6 +149,7 @@ describe("Start prerender planning", () => {
 
       expect(result.failures).toEqual([]);
       expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
+      expect(html).toContain('href="/assets/shared-abc.css"');
       expect(html).toContain('href="/assets/app-abc.css"');
       expect(html).toContain('src="/assets/app-abc.js"');
       expect(html).not.toContain("/src/styles.css");
@@ -153,13 +163,14 @@ describe("Start prerender planning", () => {
     const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-"));
 
     try {
-      const outDir = writePrerenderFixture(root, { assetBase: "/arc" });
+      const outDir = writePrerenderFixture(root);
 
       const result = await Effect.runPromise(
         Effect.scoped(
           runStartPrerender({
             root,
             outDir,
+            base: "/arc/",
             manifest,
             configFile: false,
             serverEntry: "/src/server.ts",
@@ -360,45 +371,54 @@ describe("Start prerender planning", () => {
     }
   });
 
-  it("reports Vite prerender server close failures", async () => {
-    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-close-"));
+  it("retries failed renders with the configured schedule", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-retry-"));
+
+    try {
+      const outDir = writePrerenderFixture(root, { failFirstAttempt: true });
+      const result = await Effect.runPromise(
+        runStartPrerender({
+          root,
+          outDir,
+          manifest,
+          configFile: false,
+          serverEntry: "/src/server.ts",
+          prerender: {
+            autoStaticPathsDiscovery: false,
+            crawlLinks: false,
+            retryCount: 1,
+            retryDelay: 1,
+          },
+        }),
+      );
+
+      expect(result.failures).toEqual([]);
+      expect(readFileSync(join(outDir, "index.html"), "utf8")).toContain("Prerendered page");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a missing Vite build manifest", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-manifest-"));
 
     try {
       const outDir = writePrerenderFixture(root);
+      rmSync(join(outDir, ".vite"), { recursive: true, force: true });
       const error = await Effect.runPromise(
         Effect.flip(
-          Effect.scoped(
-            runStartPrerender({
-              root,
-              outDir,
-              manifest,
-              configFile: false,
-              serverEntry: "/src/server.ts",
-              prerender: {
-                autoStaticPathsDiscovery: false,
-                crawlLinks: false,
-              },
-              vite: {
-                plugins: [
-                  {
-                    name: "sunfall-arc-test-close-failure",
-                    configureServer(server) {
-                      const closeWebsocket = server.ws.close.bind(server.ws);
-                      server.ws.close = () => {
-                        closeWebsocket();
-                        throw new Error("websocket close failed");
-                      };
-                    },
-                  },
-                ],
-              },
-            }),
-          ),
+          runStartPrerender({
+            root,
+            outDir,
+            manifest,
+            configFile: false,
+            serverEntry: "/src/server.ts",
+            prerender: { autoStaticPathsDiscovery: false, crawlLinks: false },
+          }),
         ),
       );
 
-      expect(error).toMatchObject({ operation: "close-server" });
-      expect(error.message).toContain("Could not close the Vite prerender websocket server");
+      expect(error).toMatchObject({ operation: "read-assets" });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

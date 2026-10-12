@@ -2,7 +2,7 @@ import {
   Action,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
-  Program,
+  State,
   Resource,
   ResourceFailure,
   Route,
@@ -405,8 +405,8 @@ describe("Component bindings", () => {
       ));
   });
 
-  describe("program, stream, and callback", () => {
-    it("starts Programs with the runtime's services and stops them on unmount", () =>
+  describe("handle, stream, and callback", () => {
+    it("starts States with the runtime's services and stops them on unmount", () =>
       Effect.runPromise(
         Effect.gen(function* () {
           let dispose: (() => void) | undefined;
@@ -415,13 +415,14 @@ describe("Component bindings", () => {
           type Message =
             | { readonly _tag: "Load" }
             | { readonly _tag: "Loaded"; readonly project: Project };
-          const definition = Program.define<{ readonly name: string }, Message, never, ProjectApi>({
+          const definition = State.define<{ readonly name: string }, Message>()({
+            name: "definition",
             initial: { name: "idle" },
             on: {
               Load: (model) =>
-                Program.next(
+                State.next(
                   model,
-                  Program.emit(
+                  State.emit(
                     ProjectApi.use((api) =>
                       api
                         .get("atlas")
@@ -430,27 +431,27 @@ describe("Component bindings", () => {
                   ),
                 ),
               Loaded: (_model, message) =>
-                Program.next(
+                State.next(
                   { name: message.project.name },
-                  Program.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
+                  State.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
                 ),
             },
           });
 
-          const program = createRoot((rootDispose) => {
+          const handle = createRoot((rootDispose) => {
             dispose = rootDispose;
-            return bindInInstance(runtime, Component.program(definition));
+            return bindInInstance(runtime, Component.state(definition));
           });
 
-          expect(program.model()).toEqual({ name: "idle" });
-          yield* program.dispatch({ _tag: "Load" });
+          expect(handle.model()).toEqual({ name: "idle" });
+          yield* handle.dispatch({ _tag: "Load" });
           yield* Deferred.await(loaded);
           flush();
-          expect(program.model()).toEqual({ name: "Atlas" });
+          expect(handle.model()).toEqual({ name: "Atlas" });
 
           dispose?.();
           yield* Effect.sleep(0);
-          const exit = yield* Effect.exit(program.dispatch({ _tag: "Load" }));
+          const exit = yield* Effect.exit(handle.dispatch({ _tag: "Load" }));
           expect(Exit.isFailure(exit)).toBe(true);
           yield* runtime.dispose;
         }),

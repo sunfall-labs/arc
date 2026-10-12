@@ -29,16 +29,11 @@ import type { StartServerApp } from "./start-server-app.js";
 import { validateStartActionRequest, validateStartRpcRequest } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
+  recordStartRequestFailure,
   withStartActionObservability,
   withStartRpcObservability,
-  type StartRequestTraceFacts,
-  type StartRequestTraceFailureKind,
+  type StartRequestFacts,
 } from "./request-trace.js";
-import {
-  recordStartRequestTraceAction,
-  recordStartRequestTraceFailure,
-  recordStartRequestTraceServerFunction,
-} from "./request-trace-recorder.js";
 import {
   actionExitResponse,
   actionFunctionNotFoundResponse,
@@ -66,24 +61,6 @@ import {
 } from "./start-action-request-codec.js";
 import { runStartTransportEndpoint } from "./start-transport-endpoint-runner.js";
 
-const actionResponseTraceFailureKind = (
-  failureKind: StartRequestTraceFailureKind | undefined,
-  response: Response,
-): StartRequestTraceFailureKind | undefined =>
-  failureKind === "interruption" ? failureKind : response.status >= 500 ? "defect" : failureKind;
-
-const actionTraceInvalidationIndexes = (
-  invalidation: { readonly entries: ReadonlyArray<unknown> } | undefined,
-): ReadonlyArray<number> | undefined =>
-  invalidation === undefined ? undefined : invalidation.entries.map((_, index) => index);
-
-const actionTraceInvalidationIndexesEntry = (
-  invalidation: { readonly entries: ReadonlyArray<unknown> } | undefined,
-): { readonly invalidationIndexes: ReadonlyArray<number> } | {} => {
-  const invalidationIndexes = actionTraceInvalidationIndexes(invalidation);
-  return invalidationIndexes === undefined ? {} : { invalidationIndexes };
-};
-
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   ServerServices,
@@ -94,7 +71,7 @@ export const createServerRpcResponseEffectWithRuntime = <
   request: Request,
   runtime: SunfallArcRuntime<ServerServices, ServerError>,
   responseContext: ResponseContext = makeResponseContext(),
-  traceFacts?: StartRequestTraceFacts,
+  facts?: StartRequestFacts,
 ): Effect.Effect<
   Response,
   never,
@@ -109,7 +86,7 @@ export const createServerRpcResponseEffectWithRuntime = <
     runtime,
     responseContext,
     registry: app.registry,
-    ...(traceFacts === undefined ? {} : { traceFacts }),
+    ...(facts === undefined ? {} : { facts }),
     adapter: {
       kind: "rpc",
       validateRequest: validateStartRpcRequest,
@@ -120,7 +97,7 @@ export const createServerRpcResponseEffectWithRuntime = <
           const payload = yield* readRequestJson(request).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
-                recordStartRequestTraceFailure(traceFacts, "protocol");
+                recordStartRequestFailure(facts, "protocol");
                 return protocolFailureResponse(error);
               }),
             ),
@@ -132,7 +109,7 @@ export const createServerRpcResponseEffectWithRuntime = <
           const decoded = yield* Server.decodeRpcRequest(payload).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
-                recordStartRequestTraceFailure(traceFacts, "protocol");
+                recordStartRequestFailure(facts, "protocol");
                 return protocolFailureResponse(
                   new ServerRpcProtocolError({
                     message: error.message,
@@ -148,23 +125,16 @@ export const createServerRpcResponseEffectWithRuntime = <
 
           const fn = app.registry.serverFunctions.get(decoded.name);
           if (!fn) {
-            recordStartRequestTraceServerFunction(traceFacts, {
-              name: decoded.name,
-              status: "failure",
-              failureKind: "protocol",
-            });
+            recordStartRequestFailure(facts, "protocol");
             return functionNotFoundResponse(decoded.name);
           }
 
           const exit = yield* Effect.exit(
             withStartRpcObservability(decoded.name, fn.invoke(decoded.input)),
           );
-          const failureKind = Exit.isSuccess(exit) ? undefined : yield* rpcFailureKind(fn, exit);
-          recordStartRequestTraceServerFunction(traceFacts, {
-            name: decoded.name,
-            status: Exit.isSuccess(exit) ? "success" : "failure",
-            ...(failureKind === undefined ? {} : { failureKind }),
-          });
+          if (Exit.isFailure(exit)) {
+            recordStartRequestFailure(facts, yield* rpcFailureKind(fn, exit));
+          }
           return yield* exitToRpcResponse(fn, exit);
         }),
     },
@@ -233,7 +203,7 @@ export const createServerActionResponseEffectWithRuntime = <
   runtime: SunfallArcRuntime<ServerServices, ServerError>,
   actions?: StartActionSource<Actions>,
   responseContext: ResponseContext = makeResponseContext(),
-  traceFacts?: StartRequestTraceFacts,
+  facts?: StartRequestFacts,
   workflows: StartActionWorkflows = makeStartActionWorkflows(),
 ): Effect.Effect<
   Response,
@@ -249,7 +219,7 @@ export const createServerActionResponseEffectWithRuntime = <
     runtime,
     responseContext,
     registry: app.registry,
-    ...(traceFacts === undefined ? {} : { traceFacts }),
+    ...(facts === undefined ? {} : { facts }),
     adapter: {
       kind: "action",
       validateRequest: validateStartActionRequest,
@@ -260,7 +230,7 @@ export const createServerActionResponseEffectWithRuntime = <
           const decoded = yield* readStartActionRequest(request).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
-                recordStartRequestTraceFailure(traceFacts, "protocol");
+                recordStartRequestFailure(facts, "protocol");
                 return actionProtocolFailureResponse(error);
               }),
             ),
@@ -275,7 +245,7 @@ export const createServerActionResponseEffectWithRuntime = <
           }).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
-                recordStartRequestTraceFailure(traceFacts, "defect");
+                recordStartRequestFailure(facts, "defect");
                 return actionRuntimeFailureResponse(error);
               }),
             ),
@@ -286,11 +256,7 @@ export const createServerActionResponseEffectWithRuntime = <
 
           const action = actionMap.get(decoded.name);
           if (!action) {
-            recordStartRequestTraceAction(traceFacts, {
-              name: decoded.name,
-              state: "Failure",
-              failureKind: "protocol",
-            });
+            recordStartRequestFailure(facts, "protocol");
             return actionFunctionNotFoundResponse(decoded.name);
           }
 
@@ -298,7 +264,7 @@ export const createServerActionResponseEffectWithRuntime = <
             const input = yield* decodeServerWire(action.input, decoded.input).pipe(
               Effect.catch((error) =>
                 Effect.sync(() => {
-                  recordStartRequestTraceFailure(traceFacts, "validation");
+                  recordStartRequestFailure(facts, "validation");
                   return actionProtocolFailureResponse(
                     new ServerRpcProtocolError({
                       message: error.message,
@@ -309,11 +275,6 @@ export const createServerActionResponseEffectWithRuntime = <
               ),
             );
             if (input instanceof Response) {
-              recordStartRequestTraceAction(traceFacts, {
-                name: action.name,
-                state: "Failure",
-                failureKind: "validation",
-              });
               return input;
             }
 
@@ -337,11 +298,7 @@ export const createServerActionResponseEffectWithRuntime = <
               const metaInterrupted = metaExit.cause.reasons.some(Cause.isInterruptReason);
               const metaFailureKind =
                 failureKind === "interruption" || metaInterrupted ? "interruption" : "defect";
-              recordStartRequestTraceAction(traceFacts, {
-                name: action.name,
-                state: "Failure",
-                failureKind: metaFailureKind,
-              });
+              recordStartRequestFailure(facts, metaFailureKind);
               if (failureKind === "interruption") {
                 return yield* actionExitResponse(action, exit, {}, actionResponseMode(request));
               }
@@ -356,13 +313,11 @@ export const createServerActionResponseEffectWithRuntime = <
               metaExit.value,
               actionResponseMode(request),
             );
-            const responseFailureKind = actionResponseTraceFailureKind(failureKind, response);
-            recordStartRequestTraceAction(traceFacts, {
-              name: action.name,
-              state: responseFailureKind === undefined ? "Success" : "Failure",
-              ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind }),
-              ...actionTraceInvalidationIndexesEntry(metaExit.value.invalidation),
-            });
+            const responseFailureKind =
+              failureKind === "interruption" || response.status < 500 ? failureKind : "defect";
+            if (responseFailureKind !== undefined) {
+              recordStartRequestFailure(facts, responseFailureKind);
+            }
             return response;
           });
           const durable = action.durable;

@@ -2,23 +2,16 @@ import type { Resource } from "@sunfall/arc-core";
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
-  devtoolsProgramNodeId as programNodeId,
-  devtoolsRequestTraceNodeId as requestTraceNodeId,
+  devtoolsStateNodeId as stateNodeId,
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsRoutePlanNodeId as routePlanNodeId,
   devtoolsRuntimeEventSummaryId as runtimeEventSummaryId,
 } from "./graph-ids.js";
-import {
-  firstDevtoolsFactIndexes,
-  matchingDevtoolsFactIndex,
-  normalizeRequestTraceFacts,
-} from "./fact-identity.js";
+import { firstDevtoolsFactIndexes, matchingDevtoolsFactIndex } from "./fact-identity.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import type {
   DevtoolsInvalidationPlan,
   DevtoolsInvalidationTarget,
-  DevtoolsRequestTrace,
-  DevtoolsRequestTraceTeardownSnapshot,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSerializableValue,
@@ -26,10 +19,8 @@ import type {
   DevtoolsSummaryInput,
   DevtoolsSummaryInvalidationPlan,
   DevtoolsSummaryInvalidationTarget,
-  DevtoolsSummaryRequestTraceAction,
-  DevtoolsSummaryRequestTraceServerFunction,
-  DevtoolsSummaryRequestTraceTeardownSnapshot,
-  DevtoolsSummaryRequestTrace,
+  DevtoolsSpan,
+  DevtoolsSummaryRequest,
   DevtoolsSummaryResource,
   DevtoolsSummaryResourceRef,
   DevtoolsSummaryRoutePlan,
@@ -48,8 +39,8 @@ export interface NormalizedDevtoolsSummaryInput {
   readonly snapshot: DevtoolsSnapshot;
   readonly invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>;
   readonly routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>;
-  readonly requestTraces: ReadonlyArray<DevtoolsRequestTrace>;
-  readonly requestTraceSummaries: ReadonlyArray<DevtoolsSummaryRequestTrace>;
+  readonly spans: ReadonlyArray<DevtoolsSpan>;
+  readonly requests: ReadonlyArray<DevtoolsSummaryRequest>;
   readonly runtimeEvents: ReadonlyArray<DevtoolsSummaryRuntimeEvent>;
   readonly resources: ReadonlyArray<DevtoolsSummaryResource>;
 }
@@ -116,69 +107,63 @@ export const summarizeRoutePlan = (
   };
 };
 
-const summarizeTeardownSnapshot = (
-  snapshot: DevtoolsRequestTraceTeardownSnapshot | undefined,
-): DevtoolsSummaryRequestTraceTeardownSnapshot | null =>
-  snapshot === undefined
-    ? null
-    : {
-        fiberCount: snapshot.fiberCount,
-        familyCount: snapshot.familyCount,
-        moduleCount: snapshot.moduleCount,
-        tagCount: snapshot.tagCount,
+/** The span name Start gives each handled request. */
+export const startRequestSpanName = "sunfall-arc.start.request";
+
+const stringAttribute = (span: DevtoolsSpan, key: string): string | null => {
+  const value = span.attributes[key];
+  return typeof value === "string" ? value : null;
+};
+
+const requestStatus = (span: DevtoolsSpan): DevtoolsSummaryRequest["status"] => {
+  const status = span.attributes["sunfall-arc.request.status"];
+  return status === "success" || status === "failure" || status === "cancelled"
+    ? status
+    : span.status === "interrupted"
+      ? "cancelled"
+      : span.status;
+};
+
+/** Projects Start request spans (and their child spans) into request rows. */
+export const summarizeRequests = (
+  spans: ReadonlyArray<DevtoolsSpan>,
+): ReadonlyArray<DevtoolsSummaryRequest> =>
+  spans
+    .filter((span) => span.name === startRequestSpanName)
+    .map((span, index) => {
+      const responseStatus = span.attributes["http.response.status_code"];
+      const runtimeDisposed = span.attributes["sunfall-arc.teardown.runtime_disposed"];
+      const fibers = span.attributes["sunfall-arc.teardown.fibers"];
+      const resources = span.attributes["sunfall-arc.route.resources"];
+      return {
+        index,
+        id: span.spanId,
+        traceId: span.traceId,
+        requestId: stringAttribute(span, "sunfall-arc.request.id"),
+        method: stringAttribute(span, "http.request.method") ?? "GET",
+        path: stringAttribute(span, "url.path") ?? "/",
+        route: stringAttribute(span, "http.route"),
+        resources: Array.isArray(resources)
+          ? resources.filter((key): key is string => typeof key === "string")
+          : [],
+        transport: stringAttribute(span, "sunfall-arc.request.transport") ?? "ssr",
+        status: requestStatus(span),
+        failureKind: stringAttribute(span, "sunfall-arc.failure.kind"),
+        responseStatus: typeof responseStatus === "number" ? responseStatus : null,
+        durationMillis: span.durationMillis,
+        runtimeDisposed: typeof runtimeDisposed === "boolean" ? runtimeDisposed : null,
+        fibersAfterDispose: typeof fibers === "number" ? fibers : null,
+        children: spans
+          .filter((child) => child.parentSpanId === span.spanId)
+          .map((child) => ({
+            name:
+              stringAttribute(child, "sunfall-arc.rpc.name") ??
+              stringAttribute(child, "sunfall-arc.action.name") ??
+              child.name,
+            status: child.status,
+          })),
       };
-
-const summarizeTraceServerFunction = (
-  entry: DevtoolsRequestTrace["serverFunctions"][number],
-): DevtoolsSummaryRequestTraceServerFunction => ({
-  name: entry.name,
-  status: entry.status ?? null,
-  failureKind: entry.failureKind ?? null,
-});
-
-const summarizeTraceAction = (
-  entry: DevtoolsRequestTrace["actions"][number],
-): DevtoolsSummaryRequestTraceAction => ({
-  name: entry.name,
-  state: entry.state ?? null,
-  failureKind: entry.failureKind ?? null,
-  invalidationIndexes: [...(entry.invalidationIndexes ?? [])],
-});
-
-export const summarizeRequestTrace = (
-  trace: DevtoolsRequestTrace,
-  index: number,
-): DevtoolsSummaryRequestTrace => ({
-  index,
-  id: trace.request.id ?? `${trace.request.method}:${trace.request.path}:${index}`,
-  method: trace.request.method,
-  path: trace.request.path,
-  url: trace.request.url,
-  transport: trace.request.transport,
-  status: trace.status,
-  failureKind: trace.failureKind ?? null,
-  responseStatus: trace.response?.status ?? null,
-  serviceCount: trace.services.length,
-  resourceCount: trace.resources.length,
-  serverFunctionCount: trace.serverFunctions.length,
-  actionCount: trace.actions.length,
-  fiberCount: trace.fibers.length,
-  streamCount: trace.streams.length,
-  runtimeDisposed: trace.teardown?.runtimeDisposed ?? null,
-  teardownReason: trace.teardown?.reason ?? null,
-  teardownAt: trace.teardown?.at ?? null,
-  teardownStartedAt: trace.teardown?.startedAt ?? null,
-  teardownCompletedAt: trace.teardown?.completedAt ?? null,
-  durationMillis: trace.teardown?.durationMillis ?? null,
-  beforeDispose: summarizeTeardownSnapshot(trace.teardown?.beforeDispose),
-  afterDispose: summarizeTeardownSnapshot(trace.teardown?.afterDispose),
-  beforeDisposeFiberCount: trace.teardown?.beforeDispose?.fiberCount ?? null,
-  afterDisposeFiberCount: trace.teardown?.afterDispose?.fiberCount ?? null,
-  cleanupFailure: trace.teardown?.cleanupFailure ?? null,
-  serverFunctions: trace.serverFunctions.map(summarizeTraceServerFunction),
-  actions: trace.actions.map(summarizeTraceAction),
-  routeHref: trace.routePlan?.href ?? null,
-});
+    });
 
 const resourceEventTarget = (
   event: Resource.StoreEvent,
@@ -206,8 +191,8 @@ const timelineCommitTarget = (
   commit: DevtoolsTimelineCommit,
 ): DevtoolsSummaryRuntimeEvent["target"] => {
   switch (commit.cause._tag) {
-    case "Program":
-      return { kind: "Program", id: programNodeId(commit.cause.program ?? "Program") };
+    case "State":
+      return { kind: "State", id: stateNodeId(commit.cause.state) };
     case "Action":
       return { kind: "Action", id: actionNodeId(commit.cause.action) };
     case "Resource":
@@ -314,22 +299,6 @@ export const summarizeRuntimeEvent = (
         routePlan,
         data: toDevtoolsSerializableValue(event.plan),
       };
-    case "RequestTrace": {
-      const trace = summarizeRequestTrace(event.trace, index);
-      return {
-        index,
-        id: runtimeEventSummaryId(sequence, "RequestTrace"),
-        _tag: event._tag,
-        sequence,
-        at,
-        label: `${trace.method} ${trace.path}`,
-        target: {
-          kind: "RequestTrace",
-          id: requestTraceNodeId(trace),
-        },
-        data: toDevtoolsSerializableValue(event.trace),
-      };
-    }
     case "Custom":
       return {
         index,
@@ -356,7 +325,6 @@ export const resourceIndex = (
   snapshot: DevtoolsSnapshot,
   invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>,
   routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>,
-  requestTraces: ReadonlyArray<DevtoolsRequestTrace>,
   runtimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [],
   runtimeEventSummaries: ReadonlyArray<DevtoolsSummaryRuntimeEvent> = [],
 ): ReadonlyArray<DevtoolsSummaryResource> => {
@@ -444,23 +412,6 @@ export const resourceIndex = (
     }
   }
 
-  for (const trace of requestTraces) {
-    for (const resource of trace.resources) {
-      const entry = entryFor(resource.key);
-      entry.family = resource.family;
-      if (resource.input !== undefined) {
-        entry.input = toDevtoolsSerializableValue(resource.input);
-      }
-      if (resource.state !== undefined) {
-        entry.state = resource.state;
-      }
-      entry.sources.add("RequestTrace");
-      if (trace.routePlan) {
-        entry.routeHrefs.add(trace.routePlan.href);
-      }
-    }
-  }
-
   const stateFromResourceEvent = (event: Resource.StoreEvent): string => {
     switch (event._tag) {
       case "ResourcePending":
@@ -535,17 +486,10 @@ export const normalizeDevtoolsSummaryInput = (
   const snapshot = input.snapshot ?? emptySnapshot();
   const invalidationPlans = input.invalidations ?? snapshot.invalidations;
   const routePlanInputs = input.routePlans ?? snapshot.routePlans;
-  const requestTraceInputs = input.requestTraces ?? snapshot.requestTraces ?? [];
-  const runtimeEventInputsRaw = input.runtimeEvents ?? snapshot.events ?? [];
-  const normalizedRequestTraceFacts = normalizeRequestTraceFacts(
-    requestTraceInputs,
-    runtimeEventInputsRaw,
-  );
-  const requestTraces = normalizedRequestTraceFacts.requestTraces;
-  const runtimeEventInputs = normalizedRequestTraceFacts.events;
+  const spans = input.spans ?? snapshot.spans ?? [];
+  const runtimeEventInputs = input.runtimeEvents ?? snapshot.events ?? [];
   const invalidations = invalidationPlans.map(summarizeInvalidationPlan);
   const routePlans = routePlanInputs.map(summarizeRoutePlan);
-  const requestTraceSummaries = requestTraces.map(summarizeRequestTrace);
   const runtimeEvents = summarizeRuntimeEvents(
     runtimeEventInputs,
     invalidationPlans,
@@ -555,7 +499,6 @@ export const normalizeDevtoolsSummaryInput = (
     snapshot,
     invalidations,
     routePlans,
-    requestTraces,
     runtimeEventInputs,
     runtimeEvents,
   );
@@ -564,8 +507,8 @@ export const normalizeDevtoolsSummaryInput = (
     snapshot,
     invalidations,
     routePlans,
-    requestTraces,
-    requestTraceSummaries,
+    spans,
+    requests: summarizeRequests(spans),
     runtimeEvents,
     resources,
   };

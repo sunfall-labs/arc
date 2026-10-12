@@ -130,7 +130,7 @@ export const docsPages = [
           "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, prerendering, and the Vite plugin. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
           "@sunfall/arc-db: the Query engine: incremental live queries over the rows of Resources.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
-          "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, live queries, streams, and component scopes.",
+          "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, States, live queries, streams, and component scopes.",
         ],
       },
       {

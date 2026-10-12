@@ -19,7 +19,6 @@
         "browser-router-state",
         "effect-like",
         "form",
-        "program",
         "request-context",
         "resource",
         "resource-store",
@@ -28,6 +27,7 @@
         "runtime",
         "server",
         "signal",
+        "state",
         "timeline"
       ],
       "requiredTypeTestImports": [
@@ -87,7 +87,7 @@
         "browser-router-state",
         "definition-registry",
         "effect-like",
-        "program-start",
+        "state-start",
         "resource",
         "resource-failure-snapshot",
         "resource-registry",
@@ -102,11 +102,12 @@
         "runtime",
         "scope",
         "server-wire-codec",
+        "signal",
         "signal-transaction",
         "signal-watch",
         "stable-stringify"
       ],
-      "requiredTypeTestImports": ["makeActionInstance", "startProgramOnRuntime", "stableStringify"]
+      "requiredTypeTestImports": ["makeActionInstance", "startStateOnRuntime", "stableStringify"]
     },
     {
       "package": "@sunfall/arc-db",
@@ -160,9 +161,9 @@
         "Devtools.CausalGraph",
         "Devtools.InvalidationPlan",
         "Devtools.Panels",
-        "Devtools.RequestTrace",
         "Devtools.RuntimeEvent",
         "Devtools.Snapshot",
+        "Devtools.Span",
         "Devtools.Store",
         "Devtools.StoreOptions",
         "Devtools.Summary",
@@ -201,7 +202,6 @@
       "typeTest": "type-tests/start.test-d.ts",
       "sourceSurface": [
         "hydration",
-        "request-trace",
         "start-action-client",
         "start-action-request-codec",
         "start-app",
@@ -305,7 +305,6 @@
         "errorBoundaryById",
         "metadataById",
         "routeFileRouteModules",
-        "routeFileRouteMetadata",
         "RouteTree",
         "RouteById",
         "FileRouteId",
@@ -321,8 +320,7 @@
         "FileRouteLayouts",
         "FileRouteErrorBoundary",
         "FileRouteMetadataModules",
-        "FileRouteModules",
-        "FileRouteMetadata"
+        "FileRouteModules"
       ]
     },
     {

@@ -101,7 +101,7 @@ export const errorBoundaryById = <Id extends FileRouteId>(id: Id): FileRouteErro
 export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
   fileRouteMetadataById[id];
 
-/** Route, layout, error boundary, and metadata modules discovered by Start. */
+/** Route, component, layout, error boundary, and metadata modules discovered by Start. */
 export const fileRouteModules = [
   {
     id: "index",
@@ -219,170 +219,6 @@ export const fileRouteModules = [
     exportName: "route",
   },
 ] as const;
-/** Parent, layout, error boundary, and metadata relationships for each generated route. */
-export const fileRouteMetadata = [
-  {
-    routeId: "route_root",
-    routePath: "/",
-    routeModule: {
-      id: "index",
-      kind: "Route",
-      routeId: "route_root",
-      moduleId: "src/routes/index.ts",
-      filePath: "src/routes/index.ts",
-      routePath: "/",
-      segments: [],
-      params: [],
-      exportName: "route",
-    },
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_blog_introducing_sunfall_arc",
-    routePath: "/blog/introducing-sunfall-arc",
-    routeModule: {
-      id: "blog/introducing-sunfall-arc",
-      kind: "Route",
-      routeId: "route_blog_introducing_sunfall_arc",
-      moduleId: "src/routes/blog/introducing-sunfall-arc.ts",
-      filePath: "src/routes/blog/introducing-sunfall-arc.ts",
-      routePath: "/blog/introducing-sunfall-arc",
-      segments: [
-        {
-          _tag: "Static",
-          value: "blog",
-        },
-        {
-          _tag: "Static",
-          value: "introducing-sunfall-arc",
-        },
-      ],
-      params: [],
-      exportName: "route",
-    },
-    parentRouteId: "route_root",
-    parentRoutePath: "/",
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_cookbook",
-    routePath: "/cookbook",
-    routeModule: {
-      id: "cookbook/index",
-      kind: "Route",
-      routeId: "route_cookbook",
-      moduleId: "src/routes/cookbook/index.ts",
-      filePath: "src/routes/cookbook/index.ts",
-      routePath: "/cookbook",
-      segments: [
-        {
-          _tag: "Static",
-          value: "cookbook",
-        },
-      ],
-      params: [],
-      exportName: "route",
-    },
-    parentRouteId: "route_root",
-    parentRoutePath: "/",
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_cookbook_$slug",
-    routePath: "/cookbook/:slug",
-    routeModule: {
-      id: "cookbook/$slug",
-      kind: "Route",
-      routeId: "route_cookbook_$slug",
-      moduleId: "src/routes/cookbook/$slug.ts",
-      filePath: "src/routes/cookbook/$slug.ts",
-      routePath: "/cookbook/:slug",
-      segments: [
-        {
-          _tag: "Static",
-          value: "cookbook",
-        },
-        {
-          _tag: "Dynamic",
-          name: "slug",
-          optional: false,
-        },
-      ],
-      params: [
-        {
-          name: "slug",
-          optional: false,
-        },
-      ],
-      exportName: "route",
-    },
-    parentRouteId: "route_cookbook",
-    parentRoutePath: "/cookbook",
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_docs",
-    routePath: "/docs",
-    routeModule: {
-      id: "docs/index",
-      kind: "Route",
-      routeId: "route_docs",
-      moduleId: "src/routes/docs/index.ts",
-      filePath: "src/routes/docs/index.ts",
-      routePath: "/docs",
-      segments: [
-        {
-          _tag: "Static",
-          value: "docs",
-        },
-      ],
-      params: [],
-      exportName: "route",
-    },
-    parentRouteId: "route_root",
-    parentRoutePath: "/",
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_docs_$slug",
-    routePath: "/docs/:slug",
-    routeModule: {
-      id: "docs/$slug",
-      kind: "Route",
-      routeId: "route_docs_$slug",
-      moduleId: "src/routes/docs/$slug.ts",
-      filePath: "src/routes/docs/$slug.ts",
-      routePath: "/docs/:slug",
-      segments: [
-        {
-          _tag: "Static",
-          value: "docs",
-        },
-        {
-          _tag: "Dynamic",
-          name: "slug",
-          optional: false,
-        },
-      ],
-      params: [
-        {
-          name: "slug",
-          optional: false,
-        },
-      ],
-      exportName: "route",
-    },
-    parentRouteId: "route_docs",
-    parentRoutePath: "/docs",
-    layouts: [],
-    metadataModules: [],
-  },
-] as const;
 
 /** Tuple type for the generated app-specific route tree. */
 export type RouteTree = typeof routes;
@@ -419,5 +255,3 @@ export type FileRouteErrorBoundary<Id extends FileRouteId> =
 export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
 /** Static metadata for all file-route modules discovered by Start. */
 export type FileRouteModules = typeof fileRouteModules;
-/** Static parent/layout/error/metadata relationships for generated routes. */
-export type FileRouteMetadata = typeof fileRouteMetadata;

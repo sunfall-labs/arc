@@ -5,14 +5,15 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   createFileRouteManifest,
-  generateFileRouteManifestArtifact,
-  makeFileRouteId,
-  makeFileRouteSourceId,
+  generateFileRouteManifest,
+  type FileRouteManifest,
+  type FileRouteManifestOptions,
 } from "../src/file-routes.js";
 import {
   createFileRouteDefinitionsModule,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
+  type FileRouteDefinitionsModuleOptions,
 } from "../src/file-route-modules.js";
 import {
   fileRouteDefinitionsVirtualModuleId,
@@ -24,14 +25,25 @@ import {
   writeFileRouteDefinitionsFile,
 } from "../src/generated-route-definitions.js";
 
+const manifestFor = (
+  filePaths: Iterable<string>,
+  options: FileRouteManifestOptions,
+): FileRouteManifest => Effect.runSync(generateFileRouteManifest(filePaths, options));
+const generatedSource = (
+  manifest: FileRouteManifest,
+  options?: FileRouteDefinitionsModuleOptions,
+): string => Effect.runSync(createFileRouteDefinitionsModule(manifest, options));
+const generationFailure = (manifest: FileRouteManifest): unknown =>
+  Effect.runSync(Effect.flip(createFileRouteDefinitionsModule(manifest)));
+
 describe("file route definition module generation", () => {
   it("turns a validated file route manifest into typed route definitions", () => {
-    const manifest = generateFileRouteManifestArtifact(
+    const manifest = manifestFor(
       ["src/routes/projects/$id.tsx", "src/routes/index.tsx", "src/routes/projects/new.tsx"],
       { routeDirectory: "src/routes" },
     );
 
-    const generated = createFileRouteDefinitionsModule(manifest);
+    const generated = generatedSource(manifest);
 
     expect(generated).toMatchInlineSnapshot(`
       "import { Route } from "@sunfall/arc-core";
@@ -94,7 +106,7 @@ describe("file route definition module generation", () => {
       export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
         fileRouteMetadataById[id];
 
-      /** Route, layout, error boundary, and metadata modules discovered by Start. */
+      /** Route, component, layout, error boundary, and metadata modules discovered by Start. */
       export const fileRouteModules = [
         {
           id: "index",
@@ -154,88 +166,6 @@ describe("file route definition module generation", () => {
           exportName: "route",
         },
       ] as const;
-      /** Parent, layout, error boundary, and metadata relationships for each generated route. */
-      export const fileRouteMetadata = [
-        {
-          routeId: "route_root",
-          routePath: "/",
-          routeModule: {
-            id: "index",
-            kind: "Route",
-            routeId: "route_root",
-            moduleId: "src/routes/index.tsx",
-            filePath: "src/routes/index.tsx",
-            routePath: "/",
-            segments: [],
-            params: [],
-            exportName: "route",
-          },
-          layouts: [],
-          metadataModules: [],
-        },
-        {
-          routeId: "route_projects_new",
-          routePath: "/projects/new",
-          routeModule: {
-            id: "projects/new",
-            kind: "Route",
-            routeId: "route_projects_new",
-            moduleId: "src/routes/projects/new.tsx",
-            filePath: "src/routes/projects/new.tsx",
-            routePath: "/projects/new",
-            segments: [
-              {
-                _tag: "Static",
-                value: "projects",
-              },
-              {
-                _tag: "Static",
-                value: "new",
-              },
-            ],
-            params: [],
-            exportName: "route",
-          },
-          parentRouteId: "route_root",
-          parentRoutePath: "/",
-          layouts: [],
-          metadataModules: [],
-        },
-        {
-          routeId: "route_projects_$id",
-          routePath: "/projects/:id",
-          routeModule: {
-            id: "projects/$id",
-            kind: "Route",
-            routeId: "route_projects_$id",
-            moduleId: "src/routes/projects/$id.tsx",
-            filePath: "src/routes/projects/$id.tsx",
-            routePath: "/projects/:id",
-            segments: [
-              {
-                _tag: "Static",
-                value: "projects",
-              },
-              {
-                _tag: "Dynamic",
-                name: "id",
-                optional: false,
-              },
-            ],
-            params: [
-              {
-                name: "id",
-                optional: false,
-              },
-            ],
-            exportName: "route",
-          },
-          parentRouteId: "route_root",
-          parentRoutePath: "/",
-          layouts: [],
-          metadataModules: [],
-        },
-      ] as const;
 
       /** Tuple type for the generated app-specific route tree. */
       export type RouteTree = typeof routes;
@@ -271,9 +201,7 @@ describe("file route definition module generation", () => {
       /** Metadata modules for one generated route id. */
       export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
       /** Static metadata for all file-route modules discovered by Start. */
-      export type FileRouteModules = typeof fileRouteModules;
-      /** Static parent/layout/error/metadata relationships for generated routes. */
-      export type FileRouteMetadata = typeof fileRouteMetadata;"
+      export type FileRouteModules = typeof fileRouteModules;"
     `);
     expect(generated).toContain(
       [
@@ -314,8 +242,7 @@ describe("file route definition module generation", () => {
     );
     expect(generated).toContain("export const fileRouteModules = ");
     expect(generated).toContain('kind: "Route"');
-    expect(generated).toContain("export const fileRouteMetadata = ");
-    expect(generated).toContain("export type FileRouteMetadata = typeof fileRouteMetadata;");
+    expect(generated).not.toContain("fileRouteMetadata ");
     expect(generated).toContain("export type FileRouteId = keyof RouteById;");
     expect(generated).toContain("export const fileRouteLayoutsById = ");
     expect(generated).toContain("export const fileRouteErrorBoundaryById = ");
@@ -347,15 +274,46 @@ describe("file route definition module generation", () => {
     expect(generated).not.toContain("export type Match<");
   });
 
+  it("attaches a route's sibling component module as a lazy component", () => {
+    const manifest = manifestFor(
+      [
+        "src/routes/index.tsx",
+        "src/routes/projects/$id.tsx",
+        "src/routes/projects/$id.component.tsx",
+      ],
+      { routeDirectory: "src/routes" },
+    );
+
+    expect(manifest.entries.map((entry) => entry.routePath)).toEqual(["/", "/projects/:id"]);
+    expect(manifest.modules.find((module) => module.kind === "Component")).toMatchObject({
+      routePath: "/projects/:id",
+      exportName: "default",
+    });
+    const generated = generatedSource(manifest);
+    expect(generated).toContain('import { Effect } from "effect";');
+    expect(generated).toContain('import { route as route_root } from "./routes/index.js";');
+    expect(generated).toContain(
+      [
+        'import { route as route_projects_$id_definition } from "./routes/projects/$id.js";',
+        "",
+        "const route_projects_$id = Route.withComponent(",
+        "  route_projects_$id_definition,",
+        '  Route.lazyComponent(Effect.tryPromise(() => import("./routes/projects/$id.component.js"))),',
+        ");",
+      ].join("\n"),
+    );
+    expect(generated).toContain("  route_projects_$id: route_projects_$id,");
+  });
+
   it("keeps long generated route definitions formatter-stable by construction", () => {
-    const manifest = generateFileRouteManifestArtifact(
+    const manifest = manifestFor(
       [
         "src/routes/index.tsx",
         "src/routes/blog/introducing-sunfall-arc-and-its-very-long-static-navigation-story.tsx",
       ],
       { routeDirectory: "src/routes" },
     );
-    const generated = createFileRouteDefinitionsModule(manifest);
+    const generated = generatedSource(manifest);
     const longRouteIdentifier =
       "route_blog_introducing_sunfall_arc_and_its_very_long_static_navigation_story";
     const longRoutePath = "/blog/introducing-sunfall-arc-and-its-very-long-static-navigation-story";
@@ -380,7 +338,7 @@ describe("file route definition module generation", () => {
   });
 
   it("emits deterministic typed metadata for layout, error, and metadata modules", () => {
-    const manifest = generateFileRouteManifestArtifact(
+    const manifest = manifestFor(
       [
         "src/routes/layout.tsx",
         "src/routes/error.tsx",
@@ -393,7 +351,7 @@ describe("file route definition module generation", () => {
       ],
       { routeDirectory: "src/routes" },
     );
-    const generated = createFileRouteDefinitionsModule(manifest);
+    const generated = generatedSource(manifest);
 
     expect(generated).toMatchInlineSnapshot(`
       "import { Route } from "@sunfall/arc-core";
@@ -459,7 +417,7 @@ describe("file route definition module generation", () => {
       export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
         fileRouteMetadataById[id];
 
-      /** Route, layout, error boundary, and metadata modules discovered by Start. */
+      /** Route, component, layout, error boundary, and metadata modules discovered by Start. */
       export const fileRouteModules = [
         {
           id: "error",
@@ -580,167 +538,6 @@ describe("file route definition module generation", () => {
           exportName: "route",
         },
       ] as const;
-      /** Parent, layout, error boundary, and metadata relationships for each generated route. */
-      export const fileRouteMetadata = [
-        {
-          routeId: "route_root",
-          routePath: "/",
-          routeModule: {
-            id: "index",
-            kind: "Route",
-            routeId: "route_root",
-            moduleId: "src/routes/index.tsx",
-            filePath: "src/routes/index.tsx",
-            routePath: "/",
-            segments: [],
-            params: [],
-            exportName: "route",
-          },
-          layouts: [
-            {
-              id: "layout",
-              kind: "Layout",
-              routeId: "route_root",
-              moduleId: "src/routes/layout.tsx",
-              filePath: "src/routes/layout.tsx",
-              routePath: "/",
-              segments: [],
-              params: [],
-              exportName: "Layout",
-            },
-          ],
-          errorBoundary: {
-            id: "error",
-            kind: "ErrorBoundary",
-            routeId: "route_root",
-            moduleId: "src/routes/error.tsx",
-            filePath: "src/routes/error.tsx",
-            routePath: "/",
-            segments: [],
-            params: [],
-            exportName: "ErrorBoundary",
-          },
-          metadataModules: [
-            {
-              id: "metadata",
-              kind: "Metadata",
-              routeId: "route_root",
-              moduleId: "src/routes/metadata.ts",
-              filePath: "src/routes/metadata.ts",
-              routePath: "/",
-              segments: [],
-              params: [],
-              exportName: "Metadata",
-            },
-          ],
-        },
-        {
-          routeId: "route_projects_$id",
-          routePath: "/projects/:id",
-          routeModule: {
-            id: "projects/$id",
-            kind: "Route",
-            routeId: "route_projects_$id",
-            moduleId: "src/routes/projects/$id.tsx",
-            filePath: "src/routes/projects/$id.tsx",
-            routePath: "/projects/:id",
-            segments: [
-              {
-                _tag: "Static",
-                value: "projects",
-              },
-              {
-                _tag: "Dynamic",
-                name: "id",
-                optional: false,
-              },
-            ],
-            params: [
-              {
-                name: "id",
-                optional: false,
-              },
-            ],
-            exportName: "route",
-          },
-          parentRouteId: "route_root",
-          parentRoutePath: "/",
-          layouts: [
-            {
-              id: "layout",
-              kind: "Layout",
-              routeId: "route_root",
-              moduleId: "src/routes/layout.tsx",
-              filePath: "src/routes/layout.tsx",
-              routePath: "/",
-              segments: [],
-              params: [],
-              exportName: "Layout",
-            },
-            {
-              id: "projects/_layout",
-              kind: "Layout",
-              routeId: "route_projects",
-              moduleId: "src/routes/projects/_layout.tsx",
-              filePath: "src/routes/projects/_layout.tsx",
-              routePath: "/projects",
-              segments: [
-                {
-                  _tag: "Static",
-                  value: "projects",
-                },
-              ],
-              params: [],
-              exportName: "Layout",
-            },
-          ],
-          errorBoundary: {
-            id: "projects/error",
-            kind: "ErrorBoundary",
-            routeId: "route_projects",
-            moduleId: "src/routes/projects/error.tsx",
-            filePath: "src/routes/projects/error.tsx",
-            routePath: "/projects",
-            segments: [
-              {
-                _tag: "Static",
-                value: "projects",
-              },
-            ],
-            params: [],
-            exportName: "ErrorBoundary",
-          },
-          metadataModules: [
-            {
-              id: "metadata",
-              kind: "Metadata",
-              routeId: "route_root",
-              moduleId: "src/routes/metadata.ts",
-              filePath: "src/routes/metadata.ts",
-              routePath: "/",
-              segments: [],
-              params: [],
-              exportName: "Metadata",
-            },
-            {
-              id: "projects/metadata",
-              kind: "Metadata",
-              routeId: "route_projects",
-              moduleId: "src/routes/projects/metadata.ts",
-              filePath: "src/routes/projects/metadata.ts",
-              routePath: "/projects",
-              segments: [
-                {
-                  _tag: "Static",
-                  value: "projects",
-                },
-              ],
-              params: [],
-              exportName: "Metadata",
-            },
-          ],
-        },
-      ] as const;
 
       /** Tuple type for the generated app-specific route tree. */
       export type RouteTree = typeof routes;
@@ -776,35 +573,30 @@ describe("file route definition module generation", () => {
       /** Metadata modules for one generated route id. */
       export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
       /** Static metadata for all file-route modules discovered by Start. */
-      export type FileRouteModules = typeof fileRouteModules;
-      /** Static parent/layout/error/metadata relationships for generated routes. */
-      export type FileRouteMetadata = typeof fileRouteMetadata;"
+      export type FileRouteModules = typeof fileRouteModules;"
     `);
     expect(generated).toContain('kind: "Layout"');
     expect(generated).toContain('kind: "ErrorBoundary"');
     expect(generated).toContain('kind: "Metadata"');
     expect(generated).toContain('routePath: "/projects/:id"');
     expect(generated).toContain('routePath: "/projects"');
-    expect(generated).toContain('parentRouteId: "route_root"');
-    expect(generated).toContain("errorBoundary");
-    expect(generated).toContain("metadataModules");
+    expect(generated).toContain("route_projects_$id: errorBoundary_route_projects,");
   });
 
   it("emits route module imports relative to a custom generated file", () => {
-    const manifest = generateFileRouteManifestArtifact(
-      ["src/routes/projects/$id.ts", "src/routes/index.ts"],
-      { routeDirectory: "src/routes" },
-    );
+    const manifest = manifestFor(["src/routes/projects/$id.ts", "src/routes/index.ts"], {
+      routeDirectory: "src/routes",
+    });
 
     expect(
-      createFileRouteDefinitionsModule(manifest, {
+      generatedSource(manifest, {
         generatedFile: "src/generated/routeTree.gen.ts",
       }),
     ).toContain('import { route as route_projects_$id } from "../routes/projects/$id.js";');
   });
 
   it("emits source-scoped companion identifiers for sibling route groups", () => {
-    const manifest = generateFileRouteManifestArtifact(
+    const manifest = manifestFor(
       [
         "src/routes/(admin)/_layout.tsx",
         "src/routes/(admin)/dashboard.tsx",
@@ -813,7 +605,7 @@ describe("file route definition module generation", () => {
       ],
       { routeDirectory: "src/routes" },
     );
-    const generated = createFileRouteDefinitionsModule(manifest);
+    const generated = generatedSource(manifest);
 
     expect(generated).toContain("layout_route_root_admin_layout");
     expect(generated).toContain("layout_route_root_marketing_layout");
@@ -823,12 +615,12 @@ describe("file route definition module generation", () => {
   });
 
   it("rejects route ids that cannot be emitted as named TypeScript exports", () => {
-    expect(() =>
-      createFileRouteDefinitionsModule(
+    expect(
+      generationFailure(
         createFileRouteManifest([
           {
-            id: makeFileRouteSourceId("source"),
-            routeId: makeFileRouteId("route-with-dash"),
+            id: "source",
+            routeId: "route-with-dash",
             moduleId: "src/routes/index.tsx",
             filePath: "src/routes/index.tsx",
             routePath: "/",
@@ -837,29 +629,28 @@ describe("file route definition module generation", () => {
           },
         ]),
       ),
-    ).toThrow(FileRouteDefinitionsModuleInvalidIdentifier);
+    ).toBeInstanceOf(FileRouteDefinitionsModuleInvalidIdentifier);
   });
 
   it("rejects invalid companion module export names", () => {
-    const manifest = generateFileRouteManifestArtifact(
-      ["src/routes/index.ts", "src/routes/layout.ts"],
-      { routeDirectory: "src/routes" },
-    );
+    const manifest = manifestFor(["src/routes/index.ts", "src/routes/layout.ts"], {
+      routeDirectory: "src/routes",
+    });
 
-    expect(() =>
-      createFileRouteDefinitionsModule({
+    expect(
+      generationFailure({
         ...manifest,
         modules: manifest.modules.map((module) =>
           module.kind === "Layout" ? { ...module, exportName: "not-valid" } : module,
         ),
       }),
-    ).toThrow(FileRouteDefinitionsModuleInvalidExportName);
+    ).toBeInstanceOf(FileRouteDefinitionsModuleInvalidExportName);
   });
 
   it("reports generated route file write failures through the Effect seam", async () => {
     const root = mkdtempSync(join(tmpdir(), "sunfall-arc-routes-"));
     try {
-      const manifest = generateFileRouteManifestArtifact(["src/routes/index.tsx"], {
+      const manifest = manifestFor(["src/routes/index.tsx"], {
         routeDirectory: "src/routes",
       });
       const blockingPath = join(root, "blocked");
@@ -890,8 +681,8 @@ describe("file route definition module generation", () => {
       const manifest = createFileRouteManifest(
         [
           {
-            id: makeFileRouteSourceId("bad"),
-            routeId: makeFileRouteId("not-valid"),
+            id: "bad",
+            routeId: "not-valid",
             moduleId: "src/routes/bad.ts",
             filePath: "src/routes/bad.ts",
             routePath: "/bad",
@@ -921,8 +712,8 @@ describe("file route definition module generation", () => {
     const manifest = createFileRouteManifest(
       [
         {
-          id: makeFileRouteSourceId("bad"),
-          routeId: makeFileRouteId("not-valid"),
+          id: "bad",
+          routeId: "not-valid",
           moduleId: "src/routes/bad.ts",
           filePath: "src/routes/bad.ts",
           routePath: "/bad",

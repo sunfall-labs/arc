@@ -3,7 +3,6 @@ import { dirname, isAbsolute, relative as relativePath, resolve as resolvePath }
 import { Data, Effect } from "effect";
 import {
   createGeneratedFileRouteDefinitionsModule,
-  isFileRouteDefinitionsModuleError,
   type FileRouteDefinitionsModuleError,
 } from "./file-route-modules.js";
 import {
@@ -14,18 +13,6 @@ import {
   type FileRouteGenerationOptions,
 } from "./start-manifest-wall.js";
 import type { FileRouteManifest } from "./file-routes.js";
-
-/** Plan for a generated route definitions file write. */
-export interface FileRouteDefinitionsFileWritePlan {
-  /** User-facing output path from `fileRouteGeneration.outputFile`. */
-  readonly outputFile: string;
-  /** Absolute filesystem path that will be read or written. */
-  readonly absolutePath: string;
-  /** Root-relative path embedded in the generated module source. */
-  readonly generatedFile: string;
-  /** Complete generated TypeScript module source. */
-  readonly source: string;
-}
 
 /** Result from writing the generated route definitions module. */
 export interface FileRouteDefinitionsFileWriteResult {
@@ -66,114 +53,46 @@ export class FileRouteDefinitionsOutputPathError extends Data.TaggedError(
 }> {}
 
 /**
- * Typed failure channel for generated route definitions file writes.
- *
- * The union separates host filesystem failures, root-escape configuration
- * errors, and generated module validation errors so Vite integrations can keep
- * file-route generation inside Effect instead of catching unknown exceptions.
+ * Typed failure channel for generated route definitions file writes: host
+ * filesystem failures, root-escape configuration errors, and generated module
+ * validation errors.
  */
 export type FileRouteDefinitionsFileWriteFailure =
   | FileRouteDefinitionsFileWriteError
   | FileRouteDefinitionsOutputPathError
   | FileRouteDefinitionsModuleError;
 
-const normalizeGeneratedRouteDefinitionsPath = (path: string): string =>
-  path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
-
-const assertOutputFileInsideRoot = (
-  root: string,
-  outputFile: string,
-  absolutePath: string,
-): void => {
-  const relative = relativePath(root, absolutePath);
-  if (relative === "" || relative.startsWith("..") || isAbsolute(relative)) {
-    throw new FileRouteDefinitionsOutputPathError({
-      root,
-      outputFile,
-      absolutePath,
-      guidance:
-        "Keep fileRouteGeneration.outputFile inside the Vite root. Use a root-relative path such as 'src/routeTree.gen.ts'.",
-    });
-  }
-};
-
 export const shouldWriteFileRouteDefinitionsFile = (
   root: string,
   activeOptions: SunfallArcStartOptions,
   initialOptions: SunfallArcStartOptions,
-): boolean => {
-  if (activeOptions.fileRouteGeneration?.outputFile === false) {
-    return false;
-  }
+): boolean =>
+  activeOptions.fileRouteGeneration?.outputFile !== false &&
+  (initialOptions.fileRoutes !== undefined ||
+    initialOptions.fileRouteManifest !== undefined ||
+    fileRouteDiscoveryDirectoryExists(
+      fileRouteDiscoveryPlan({
+        root,
+        ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
+          ? {}
+          : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
+        ...(activeOptions.fileRouteOptions?.extensions === undefined
+          ? {}
+          : { extensions: activeOptions.fileRouteOptions.extensions }),
+        ...(activeOptions.fileRouteGeneration === undefined
+          ? {}
+          : { fileRouteGeneration: activeOptions.fileRouteGeneration }),
+      }),
+    ));
 
-  if (initialOptions.fileRoutes !== undefined || initialOptions.fileRouteManifest !== undefined) {
-    return true;
-  }
-
-  return fileRouteDiscoveryDirectoryExists(
-    fileRouteDiscoveryPlan({
-      root,
-      ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
-        ? {}
-        : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
-      ...(activeOptions.fileRouteOptions?.extensions === undefined
-        ? {}
-        : { extensions: activeOptions.fileRouteOptions.extensions }),
-      ...(activeOptions.fileRouteGeneration === undefined
-        ? {}
-        : { fileRouteGeneration: activeOptions.fileRouteGeneration }),
-    }),
-  );
-};
-
-export const planFileRouteDefinitionsFileWrite = (
-  root: string,
-  manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {},
-): FileRouteDefinitionsFileWritePlan | undefined => {
-  if (options.outputFile === false) {
-    return undefined;
-  }
-
-  const outputFile = options.outputFile ?? defaultFileRouteGeneratedFile;
-  const absolutePath = isAbsolute(outputFile) ? outputFile : resolvePath(root, outputFile);
-  assertOutputFileInsideRoot(root, outputFile, absolutePath);
-  const generatedFile = isAbsolute(outputFile)
-    ? normalizeGeneratedRouteDefinitionsPath(relativePath(root, absolutePath))
-    : outputFile;
-  const source = createGeneratedFileRouteDefinitionsModule(manifest, {
-    ...options,
-    generatedFile,
-  });
-
-  return {
-    outputFile,
-    absolutePath,
-    generatedFile,
-    source,
-  };
-};
-
-const planFileRouteDefinitionsFileWriteEffect = (
-  root: string,
-  manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {},
-): Effect.Effect<
-  FileRouteDefinitionsFileWritePlan | undefined,
-  FileRouteDefinitionsModuleError | FileRouteDefinitionsOutputPathError
-> =>
-  Effect.suspend(() => {
-    try {
-      return Effect.succeed(planFileRouteDefinitionsFileWrite(root, manifest, options));
-    } catch (cause) {
-      if (
-        isFileRouteDefinitionsModuleError(cause) ||
-        cause instanceof FileRouteDefinitionsOutputPathError
-      ) {
-        return Effect.fail(cause);
-      }
-      throw cause;
-    }
+const fileSystem = <A>(
+  operation: FileRouteDefinitionsFileWriteError["operation"],
+  path: string,
+  run: () => A,
+): Effect.Effect<A, FileRouteDefinitionsFileWriteError> =>
+  Effect.try({
+    try: run,
+    catch: (cause) => new FileRouteDefinitionsFileWriteError({ operation, path, cause }),
   });
 
 /**
@@ -191,54 +110,35 @@ export const writeFileRouteDefinitionsFile = (
   FileRouteDefinitionsFileWriteFailure
 > =>
   Effect.gen(function* () {
-    const plan = yield* planFileRouteDefinitionsFileWriteEffect(root, manifest, options);
-    if (plan === undefined) {
+    if (options.outputFile === false) {
       return undefined;
     }
-
-    const current = yield* Effect.try({
-      try: () =>
-        existsSync(plan.absolutePath) ? readFileSync(plan.absolutePath, "utf8") : undefined,
-      catch: (cause) =>
-        new FileRouteDefinitionsFileWriteError({
-          operation: "read-existing",
-          path: plan.absolutePath,
-          cause,
-        }),
-    });
-
-    if (current === plan.source) {
-      return {
-        outputFile: plan.outputFile,
-        absolutePath: plan.absolutePath,
-        source: plan.source,
-        written: false,
-      };
+    const outputFile = options.outputFile ?? defaultFileRouteGeneratedFile;
+    const absolutePath = isAbsolute(outputFile) ? outputFile : resolvePath(root, outputFile);
+    const relative = relativePath(root, absolutePath);
+    if (relative === "" || relative.startsWith("..") || isAbsolute(relative)) {
+      return yield* new FileRouteDefinitionsOutputPathError({
+        root,
+        outputFile,
+        absolutePath,
+        guidance:
+          "Keep fileRouteGeneration.outputFile inside the Vite root. Use a root-relative path such as 'src/routeTree.gen.ts'.",
+      });
     }
-
-    yield* Effect.try({
-      try: () => mkdirSync(dirname(plan.absolutePath), { recursive: true }),
-      catch: (cause) =>
-        new FileRouteDefinitionsFileWriteError({
-          operation: "create-directory",
-          path: dirname(plan.absolutePath),
-          cause,
-        }),
-    });
-    yield* Effect.try({
-      try: () => writeFileSync(plan.absolutePath, plan.source),
-      catch: (cause) =>
-        new FileRouteDefinitionsFileWriteError({
-          operation: "write-file",
-          path: plan.absolutePath,
-          cause,
-        }),
+    const source = yield* createGeneratedFileRouteDefinitionsModule(manifest, {
+      ...options,
+      generatedFile: isAbsolute(outputFile) ? relative.replace(/\\/g, "/") : outputFile,
     });
 
-    return {
-      outputFile: plan.outputFile,
-      absolutePath: plan.absolutePath,
-      source: plan.source,
-      written: true,
-    };
+    const current = yield* fileSystem("read-existing", absolutePath, () =>
+      existsSync(absolutePath) ? readFileSync(absolutePath, "utf8") : undefined,
+    );
+    const written = current !== source;
+    if (written) {
+      yield* fileSystem("create-directory", dirname(absolutePath), () =>
+        mkdirSync(dirname(absolutePath), { recursive: true }),
+      );
+      yield* fileSystem("write-file", absolutePath, () => writeFileSync(absolutePath, source));
+    }
+    return { outputFile, absolutePath, source, written };
   });

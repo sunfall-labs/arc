@@ -33,7 +33,7 @@ import {
   type ActionOutboxRestoreOptions,
 } from "./action-outbox.js";
 import { getActionDefinition } from "./definition-registry.js";
-import { Signal } from "./signal.js";
+import { SignalWrites } from "./signal.js";
 import type { TimelineActionCause } from "./timeline.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
@@ -128,10 +128,10 @@ export const makeActionOutboxLayer = (
       const wake = yield* Queue.dropping<void>(1);
 
       const queue: Array<LiveSubmission> = [];
-      const pending = Signal.make<ReadonlyArray<ActionOutboxEntry>>([], {
+      const pending = SignalWrites.make<ReadonlyArray<ActionOutboxEntry>>([], {
         name: "ActionOutbox.pending",
       });
-      const failures = Signal.make<ReadonlyArray<ActionOutboxFailure>>([], {
+      const failures = SignalWrites.make<ReadonlyArray<ActionOutboxFailure>>([], {
         name: "ActionOutbox.failures",
       });
       let restored = false;

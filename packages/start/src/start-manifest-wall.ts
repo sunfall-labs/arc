@@ -4,7 +4,7 @@ import { isAbsolute, relative as relativePath, resolve as resolvePath } from "no
 import {
   createFileRouteManifest,
   defaultFileRouteExtensions,
-  generateValidatedFileRouteManifestArtifact,
+  generateFileRouteManifest,
   validateFileRouteManifest,
   type FileRouteManifest,
   type FileRouteManifestEntry,
@@ -38,15 +38,6 @@ export interface SunfallArcStartOptions {
   readonly fileRouteOptions?: FileRouteManifestOptions;
   /** Controls generated route definition file output. */
   readonly fileRouteGeneration?: FileRouteGenerationOptions;
-  /**
-   * Lazy-load the components attached with `Route.withComponent(...)` in the
-   * browser: a component used only in that call moves to its own chunk, and
-   * the route loads it before rendering. Types are unchanged, so the router
-   * still checks the component's services and failures.
-   *
-   * Enabled by default. Set to `false` to keep route components eager.
-   */
-  readonly autoCodeSplitting?: boolean;
   /** Server entry module loaded by Vite dev SSR. */
   readonly serverEntry?: string;
   /** Named handler export to load from the server entry. */
@@ -125,7 +116,7 @@ const isRouteFileName = (fileName: string, extensions: readonly string[]): boole
   !fileName.endsWith(".d.cts") &&
   extensions.some((extension) => fileName.endsWith(extension));
 
-export const absoluteFileRouteGeneratedFile = (
+const absoluteFileRouteGeneratedFile = (
   root: string,
   options: FileRouteGenerationOptions = {},
 ): string | undefined => {
@@ -137,23 +128,7 @@ export const absoluteFileRouteGeneratedFile = (
   return isAbsolute(outputFile) ? outputFile : resolvePath(root, outputFile);
 };
 
-export const isGeneratedFileRouteDefinitionsOutputFile = (
-  root: string,
-  options: SunfallArcStartOptions,
-  filePath: string,
-): boolean => {
-  const generated = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
-  if (generated === undefined) {
-    return false;
-  }
-
-  const absolutePath = isAbsolute(filePath) ? filePath : resolvePath(root, filePath);
-  return (
-    normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(generated)
-  );
-};
-
-export const absoluteFileRouteDirectory = (
+const absoluteFileRouteDirectory = (
   root: string,
   routeDirectory: string = defaultFileRouteDirectory,
 ): string => (isAbsolute(routeDirectory) ? routeDirectory : resolvePath(root, routeDirectory));
@@ -208,7 +183,7 @@ export const isFileRouteDiscoveryFile = (
 };
 
 /** Converts an absolute route module path to the manifest path for a discovery plan. */
-export const discoveredFileRoutePath = (plan: FileRouteDiscoveryPlan, filePath: string): string =>
+const discoveredFileRoutePath = (plan: FileRouteDiscoveryPlan, filePath: string): string =>
   normalizeDiscoveredFileRoutePath(
     isAbsolute(plan.routeDirectory) ? filePath : relativePath(plan.root, filePath),
   );
@@ -311,11 +286,6 @@ const withDefaultFileRouteDirectory = (options: SunfallArcStartOptions): Sunfall
   };
 };
 
-export const withDiscoveredFileRoutesSync = (
-  options: SunfallArcStartOptions,
-  root: string,
-): SunfallArcStartOptions => Effect.runSync(withDiscoveredFileRoutes(options, root));
-
 export const withDiscoveredFileRoutes = (
   options: SunfallArcStartOptions,
   root: string,
@@ -370,7 +340,7 @@ export const makeStartFileRouteManifest = (
   }
 
   if (options.fileRoutes) {
-    return generateValidatedFileRouteManifestArtifact(options.fileRoutes, options.fileRouteOptions);
+    return generateFileRouteManifest(options.fileRoutes, options.fileRouteOptions);
   }
 
   return Effect.succeed(createFileRouteManifest([], options.fileRouteOptions));

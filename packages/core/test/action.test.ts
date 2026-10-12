@@ -9,6 +9,7 @@ import {
   makeRuntime,
   Resource,
   Signal,
+  State,
 } from "../src/index.js";
 import {
   makeActionSubmissionController,
@@ -16,6 +17,17 @@ import {
   withSignalTransition,
 } from "../src/internal.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
+
+/** A running State holding one value: the optimistic target these tests patch. */
+const stateCell = <A>(initial: A, options: { readonly name: string }) =>
+  State.start(
+    {
+      name: options.name,
+      initial,
+      on: { Set: (_current, message) => message.value },
+    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
+    { runtime: defaultRuntime },
+  );
 
 /** Runs optimistic patches as an Action submission does: labelled with the Action. */
 const asSubmission =
@@ -209,7 +221,7 @@ describe("Action", () => {
 
   it("captures optimistic signal updater throws as defects", async () => {
     const cause = new Error("optimistic signal failed");
-    const title = Signal.make("Draft", { name: "title" });
+    const title = stateCell("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-sync-throw",
       optimistic: (_next, transaction) =>
@@ -232,7 +244,7 @@ describe("Action", () => {
         operation: "Action.optimistic(rename.optimistic-signal-sync-throw).set",
         cause,
       });
-      expect(title.get()).toBe("Draft");
+      expect(title.model.get()).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -241,7 +253,7 @@ describe("Action", () => {
   });
 
   it("captures erased Promise-shaped optimistic signal values as defects", async () => {
-    const title = Signal.make<unknown>("Draft", { name: "title" });
+    const title = stateCell<unknown>("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-promise-value",
       optimistic: (_next, transaction) =>
@@ -262,7 +274,7 @@ describe("Action", () => {
         operation: "Action.optimistic(rename.optimistic-signal-promise-value).set",
         cause: expect.any(EffectInputPromiseRejected),
       });
-      expect(title.get()).toBe("Draft");
+      expect(title.model.get()).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -271,7 +283,7 @@ describe("Action", () => {
   });
 
   it("captures erased Promise-shaped optimistic signal updater returns as defects", async () => {
-    const title = Signal.make<unknown>("Draft", { name: "title" });
+    const title = stateCell<unknown>("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-promise-updater",
       optimistic: (_next, transaction) =>
@@ -292,7 +304,7 @@ describe("Action", () => {
         operation: "Action.optimistic(rename.optimistic-signal-promise-updater).set",
         cause: expect.any(EffectInputPromiseRejected),
       });
-      expect(title.get()).toBe("Draft");
+      expect(title.model.get()).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -304,7 +316,7 @@ describe("Action", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const cause = new Error("optimistic rebase failed");
-        const title = Signal.make("Draft", { name: "title" });
+        const title = stateCell("Draft", { name: "title" });
         const first = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
         const second = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
 
@@ -318,7 +330,7 @@ describe("Action", () => {
         });
 
         yield* Effect.sync(() => {
-          expect(title.get()).toBe("First:Second");
+          expect(title.model.get()).toBe("First:Second");
         });
 
         throwOnRebase = true;
@@ -331,7 +343,7 @@ describe("Action", () => {
             operation: "Action.optimistic(rename.optimistic-rebase).set",
             cause,
           });
-          expect(title.get()).toBe("First:Second");
+          expect(title.model.get()).toBe("First:Second");
         });
       }).pipe(asSubmission("rename.optimistic-rebase")),
     ));
@@ -340,8 +352,8 @@ describe("Action", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const cause = new Error("optimistic multi-signal rebase failed");
-        const left = Signal.make("left:base", { name: "left" });
-        const right = Signal.make("right:base", { name: "right" });
+        const left = stateCell("left:base", { name: "left" });
+        const right = stateCell("right:base", { name: "right" });
         const first = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
         const second = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
 
@@ -358,8 +370,8 @@ describe("Action", () => {
         });
 
         yield* Effect.sync(() => {
-          expect(left.get()).toBe("left:first:second");
-          expect(right.get()).toBe("right:first:second");
+          expect(left.model.get()).toBe("left:first:second");
+          expect(right.model.get()).toBe("right:first:second");
         });
 
         throwOnRightRebase = true;
@@ -375,8 +387,8 @@ describe("Action", () => {
             operation: "Action.optimistic(rename.optimistic-atomic).set",
             cause,
           });
-          expect(left.get()).toBe("left:base:second");
-          expect(right.get()).toBe("right:base:second");
+          expect(left.model.get()).toBe("left:base:second");
+          expect(right.model.get()).toBe("right:base:second");
         });
       }).pipe(asSubmission("rename.optimistic-atomic")),
     ));
@@ -881,7 +893,7 @@ describe("Action", () => {
   });
 
   it("commits optimistic signal patches on success", async () => {
-    const title = Signal.make("Draft", { name: "title" });
+    const title = stateCell("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic.success",
       optimistic: (next, transaction) =>
@@ -895,14 +907,14 @@ describe("Action", () => {
     const submission = Effect.runFork(action.submit("Published"));
 
     await expect(Effect.runPromise(Fiber.join(submission))).resolves.toBe("Published");
-    expect(title.get()).toBe("Published");
+    expect(title.model.get()).toBe("Published");
     expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "Published" },
     });
   });
 
   it("commits optimistic patches whose value is undefined", async () => {
-    const selected = Signal.make<string | undefined>("Draft", { name: "selected" });
+    const selected = stateCell<string | undefined>("Draft", { name: "selected" });
     const Clear = Action.define<void, void>({
       name: "clear.optimistic.undefined",
       optimistic: (_, transaction) =>
@@ -914,11 +926,11 @@ describe("Action", () => {
 
     await Effect.runPromise(Action.use(Clear, { runtime: defaultRuntime }).submit(undefined));
 
-    expect(selected.get()).toBeUndefined();
+    expect(selected.model.get()).toBeUndefined();
   });
 
   it("does not invalidate resources when optimistic commit fails", async () => {
-    const title = Signal.make("Draft", { name: "title" });
+    const title = stateCell("Draft", { name: "title" });
     let shouldFailCommit = false;
     let value = 0;
     const load = vi.fn(() => Effect.succeed(value));
@@ -958,11 +970,11 @@ describe("Action", () => {
 
     expect(load).toHaveBeenCalledTimes(1);
     expect(Effect.runSync(Resource.read(ref))).toBe(0);
-    expect(title.get()).toBe("Draft");
+    expect(title.model.get()).toBe("Draft");
   });
 
   it("rolls back optimistic patches on failure", async () => {
-    const title = Signal.make("Draft", { name: "title" });
+    const title = stateCell("Draft", { name: "title" });
     const Rename = Action.define<string, string, string>({
       name: "rename.optimistic.failure",
       optimistic: (next, transaction) => transaction.set(title, next),
@@ -972,7 +984,7 @@ describe("Action", () => {
 
     await expect(Effect.runPromise(action.submit("Published"))).rejects.toBe("boom");
 
-    expect(title.get()).toBe("Draft");
+    expect(title.model.get()).toBe("Draft");
     expect(action.state.get()).toMatchObject({
       result: { _tag: "Failure", waiting: false },
       input: Option.some("Published"),
@@ -980,8 +992,46 @@ describe("Action", () => {
     expect(AsyncResult.error(action.state.get().result)).toEqual(Option.some("boom"));
   });
 
+  it("lands State messages under an in-flight optimistic patch", async () => {
+    const Count = State.define({
+      name: "Optimistic.count",
+      initial: 1,
+      on: { Add: (count, message: { readonly by: number }) => count + message.by },
+    });
+    const count = State.start(Count, { runtime: defaultRuntime });
+    const release = Effect.runSync(Deferred.make<number, string>());
+    const patched = Effect.runSync(Deferred.make<void>());
+    const Scale = Action.define<number, number, string>({
+      name: "count.scale",
+      optimistic: (by, transaction) =>
+        Effect.andThen(
+          transaction.set(count, (current) => current * by),
+          Deferred.succeed(patched, undefined),
+        ),
+      run: () => Deferred.await(release),
+    });
+    const action = Action.use(Scale, { runtime: defaultRuntime });
+
+    const submission = Effect.runFork(action.submit(10));
+    await Effect.runPromise(Deferred.await(patched));
+    expect(count.model.get()).toBe(10);
+
+    // The message applies to the base (1 + 2) and the patch re-applies over it.
+    await Effect.runPromise(count.dispatch({ _tag: "Add", by: 2 }));
+    expect(count.model.get()).toBe(30);
+    expect(Effect.runSync(Action.planOptimistic(Scale, 10))).toEqual([
+      { _tag: "Set", target: count, value: 300 },
+    ]);
+
+    // A failure drops the patch and keeps the message.
+    await Effect.runPromise(Deferred.fail(release, "rejected"));
+    await Effect.runPromise(Fiber.await(submission));
+    expect(count.model.get()).toBe(3);
+    await Effect.runPromise(count.dispose);
+  });
+
   it("rolls back interrupted latest optimism before applying the next patch", async () => {
-    const title = Signal.make("Draft", { name: "title" });
+    const title = stateCell("Draft", { name: "title" });
     const secondOptimisticApplied = Effect.runSync(Deferred.make<void>());
     const Rename = Action.define<string, string>({
       name: "rename.optimistic.latest",
@@ -998,19 +1048,19 @@ describe("Action", () => {
 
     const first = Effect.runFork(action.submit("Stale"));
     await Effect.runPromise(Effect.sleep("10 millis"));
-    expect(title.get()).toBe("Stale");
+    expect(title.model.get()).toBe("Stale");
 
     const second = Effect.runFork(action.submit("Published"));
     await Effect.runPromise(Deferred.await(secondOptimisticApplied));
 
-    expect(title.get()).toBe("Published");
+    expect(title.model.get()).toBe("Published");
     await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("Published");
     await Effect.runPromise(Fiber.await(first));
-    expect(title.get()).toBe("Published");
+    expect(title.model.get()).toBe("Published");
   });
 
   it("rolls back optimistic patches when interrupted inside optimistic work", () => {
-    const title = Signal.make("Draft", { name: "title" });
+    const title = stateCell("Draft", { name: "title" });
     const firstOptimisticApplied = Effect.runSync(Deferred.make<void>());
     const holdFirstOptimistic = Effect.runSync(Deferred.make<void>());
     const Rename = Action.define<string, string>({
@@ -1034,7 +1084,7 @@ describe("Action", () => {
           .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(firstOptimisticApplied);
         yield* Effect.sync(() => {
-          expect(title.get()).toBe("Stale");
+          expect(title.model.get()).toBe("Stale");
         });
 
         const second = yield* action
@@ -1045,7 +1095,7 @@ describe("Action", () => {
 
         yield* Effect.sync(() => {
           expect(secondValue).toBe("Published");
-          expect(title.get()).toBe("Published");
+          expect(title.model.get()).toBe("Published");
           expect(action.state.get()).toMatchObject({
             result: { _tag: "Success", waiting: false, value: "Published" },
           });
@@ -1449,8 +1499,8 @@ describe("Action", () => {
 
 describe("Action.planOptimistic", () => {
   it("reports the value each signal patch would produce without writing it", () => {
-    const title = Signal.make("Atlas", { name: "plan.title" });
-    const count = Signal.make(1, { name: "plan.count" });
+    const title = stateCell("Atlas", { name: "plan.title" });
+    const count = stateCell(1, { name: "plan.count" });
     const Rename = Action.define({
       name: "rename.plan-optimistic-signals",
       optimistic: (name: string, transaction) =>
@@ -1469,8 +1519,8 @@ describe("Action.planOptimistic", () => {
       { _tag: "Set", target: count, value: 2 },
       { _tag: "Set", target: count, value: 20 },
     ]);
-    expect(Signal.peek(title)).toBe("Atlas");
-    expect(Signal.peek(count)).toBe(1);
+    expect(Signal.peek(title.model)).toBe("Atlas");
+    expect(Signal.peek(count.model)).toBe(1);
   });
 
   it("plans nothing for an Action without an optimistic patch", () => {
@@ -1484,7 +1534,7 @@ describe("Action.planOptimistic", () => {
 
   it("treats a throwing signal updater as a defect", () => {
     const cause = new Error("updater failed");
-    const title = Signal.make("Atlas", { name: "plan.title" });
+    const title = stateCell("Atlas", { name: "plan.title" });
     const Rename = Action.define({
       name: "rename.plan-optimistic-throw",
       optimistic: (_name: string, transaction) =>
@@ -1497,6 +1547,6 @@ describe("Action.planOptimistic", () => {
     const exit = Effect.runSyncExit(Action.planOptimistic(Rename, "Apollo"));
 
     expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
-    expect(Signal.peek(title)).toBe("Atlas");
+    expect(Signal.peek(title.model)).toBe("Atlas");
   });
 });

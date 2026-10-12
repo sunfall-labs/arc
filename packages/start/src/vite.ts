@@ -8,7 +8,7 @@ import {
   isFileRouteDiscoveryFile,
   makeStartFileRouteManifest,
   normalizeStartManifestIterableOptions,
-  withDiscoveredFileRoutesSync,
+  withDiscoveredFileRoutes,
   type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
 import {
@@ -30,12 +30,6 @@ import {
 } from "./start-vite-dev-ssr.js";
 import { forkStartHost, runStartHostPromise } from "./start-host-runtime-runner.js";
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
-import {
-  isStartRouteCodeSplitModule,
-  loadStartRouteComponentSplitModule,
-  resolveStartRouteComponentSplitModuleId,
-  transformStartRouteAutoCodeSplitting,
-} from "./route-code-splitting.js";
 import { runStartPrerender } from "./start-prerender.js";
 
 export type {
@@ -70,8 +64,10 @@ export interface SunfallArcStartResolvedConfig {
   readonly command?: "build" | "serve";
   readonly mode?: string;
   readonly configFile?: string | false;
+  readonly base?: string;
   readonly build?: {
     readonly outDir?: string;
+    readonly manifest?: boolean | string;
   };
 }
 
@@ -205,9 +201,11 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let viteCommand: "build" | "serve" | undefined;
   let viteMode: string | undefined;
   let viteOutDir = "dist";
+  let viteBase = "/";
+  let viteBuildManifest: boolean | string | undefined;
 
   const currentOptions = (): SunfallArcStartOptions =>
-    withDiscoveredFileRoutesSync({ ...normalizedOptions, serverEntry }, viteRoot);
+    Effect.runSync(withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot));
 
   const writeCurrentFileRouteDefinitions = (): FileRouteDefinitionsFileWriteResult | undefined => {
     const activeOptions = currentOptions();
@@ -277,8 +275,13 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     config(config: UserConfig = {}, env) {
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());
+      const manifest = config.build?.manifest;
       return {
         appType: "custom",
+        // Prerendering swaps the dev entry for the built assets listed in Vite's build manifest.
+        ...(env?.command === "build" && normalizedOptions.prerender && !config.build?.ssr
+          ? { build: { manifest: typeof manifest === "string" ? manifest : true } }
+          : {}),
         define: {
           // Static-client builds compile the RPC client out of `App.launch`.
           __SUNFALL_ARC_BROWSER_RPC__: JSON.stringify(
@@ -292,6 +295,8 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       viteCommand = config.command;
       viteMode = config.mode;
       viteOutDir = config.build?.outDir ?? "dist";
+      viteBase = config.base ?? "/";
+      viteBuildManifest = config.build?.manifest;
       refreshFileRouteArtifacts();
     },
     buildStart() {
@@ -313,40 +318,27 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
           manifest: Effect.runSync(makeStartFileRouteManifest(activeOptions)),
           prerender: activeOptions.prerender ?? normalizedOptions.prerender,
           vite: prerenderInlineConfig(viteUserConfig, viteRoot, viteMode),
+          base: viteBase,
+          ...(typeof viteBuildManifest === "string" ? { buildManifest: viteBuildManifest } : {}),
           serverEntry,
           ...(normalizedOptions.handlerExport === undefined
             ? {}
             : { handlerExport: normalizedOptions.handlerExport }),
           ...(viteMode === undefined ? {} : { mode: viteMode }),
-          ...(normalizedOptions.nodeRequest === undefined
-            ? {}
-            : { nodeRequest: normalizedOptions.nodeRequest }),
         }).pipe(Effect.asVoid),
         prerenderRunnerOptions,
       );
     },
     resolveId(id) {
-      return resolveStartRouteComponentSplitModuleId(id) ?? resolveStartVirtualModuleId(id);
+      return resolveStartVirtualModuleId(id);
     },
     load(id) {
-      const splitModule = loadStartRouteComponentSplitModule(id);
-      if (splitModule !== null) {
-        return splitModule;
-      }
       const activeOptions = currentOptions();
       return Effect.runSync(loadStartVirtualModule(id, activeOptions));
     },
-    transform(code, id, options) {
+    transform(_code, id, options) {
       if (isServerOnlyModule(id) && !options?.ssr) {
         throw new StartServerOnlyModuleError({ id });
-      }
-      const activeOptions = currentOptions();
-      if (
-        !options?.ssr &&
-        activeOptions.autoCodeSplitting !== false &&
-        isStartRouteCodeSplitModule(id, viteRoot)
-      ) {
-        return transformStartRouteAutoCodeSplitting(code, id, { root: viteRoot });
       }
       return null;
     },

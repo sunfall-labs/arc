@@ -4,7 +4,7 @@ import { Cause, Context, Data, Effect, Layer, pipe, Schema, Scope, Stream } from
 import { Component, RouterProvider } from "@sunfall/arc-solid";
 import {
   Action,
-  Program,
+  State,
   Resource,
   Route,
   type ActionInterrupted,
@@ -264,17 +264,18 @@ const renameSubmit: Effect.Effect<
 > = renameHandle.submit({ id: "atlas", name: "Atlas" });
 void renameSubmit;
 
-// Programs: the definition's services join R.
-const Counter = Program.define<number, { readonly _tag: "Load" }, never, ProjectApi>({
+// States: the definition's services join R.
+const Counter = State.define<number, { readonly _tag: "Load" }>()<never, ProjectApi>({
+  name: "Counter",
   initial: 0,
   on: { Load: (model) => model + 1 },
 });
-const counterBinding = Component.program(Counter);
+const counterBinding = Component.state(Counter);
 type _counterBinding = Assert<
   Eq<
     typeof counterBinding,
     Effect.Effect<
-      Component.ProgramHandle<number, { readonly _tag: "Load" }, never>,
+      Component.StateHandle<number, { readonly _tag: "Load" }, never>,
       never,
       ProjectApi
     >

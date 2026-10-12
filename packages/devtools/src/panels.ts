@@ -1,6 +1,6 @@
 import {
   devtoolsActionNodeId,
-  devtoolsProgramPanelItemId,
+  devtoolsStatePanelItemId,
   devtoolsRequestPanelItemId,
   devtoolsResourceNodeId,
   devtoolsRoutePlanPanelItemId,
@@ -17,7 +17,7 @@ import type {
   DevtoolsPanelsInput,
   DevtoolsSerializableValue,
   DevtoolsSummary,
-  DevtoolsSummaryRequestTrace,
+  DevtoolsSummaryRequest,
 } from "./devtools-contract.js";
 import { devtoolsPanelIds } from "./panel-contract.js";
 
@@ -63,36 +63,28 @@ const maxSeverity = (
     fallback,
   );
 
-const requestTraceSeverity = (trace: DevtoolsSummaryRequestTrace): DevtoolsPanelSeverity => {
-  if (trace.status === "failure") {
-    return "error";
-  }
-  if (trace.status === "cancelled" || trace.runtimeDisposed === false) {
-    return "warning";
-  }
-  return "ok";
+const requestSeverity = (request: DevtoolsSummaryRequest): DevtoolsPanelSeverity =>
+  request.status === "failure"
+    ? "error"
+    : request.status === "cancelled" ||
+        request.runtimeDisposed === false ||
+        (request.fibersAfterDispose ?? 0) > 0
+      ? "warning"
+      : "ok";
+
+const requestDetail = (request: DevtoolsSummaryRequest): string => {
+  const status = `${request.transport} ${request.status}${request.failureKind === null ? "" : ` (${request.failureKind})`}`;
+  const failed = request.children.flatMap((child) =>
+    child.status === "success" ? [] : [`${child.name}:${child.status}`],
+  );
+  return failed.length === 0 ? status : `${status} ${failed.join(", ")}`;
 };
 
-const requestTraceFailureOwners = (trace: DevtoolsSummaryRequestTrace): ReadonlyArray<string> => [
-  ...trace.serverFunctions.flatMap((entry) =>
-    entry.failureKind === null ? [] : [`server:${entry.name}:${entry.failureKind}`],
-  ),
-  ...trace.actions.flatMap((entry) =>
-    entry.failureKind === null ? [] : [`action:${entry.name}:${entry.failureKind}`],
-  ),
-];
-
-const requestTraceDetail = (trace: DevtoolsSummaryRequestTrace): string => {
-  const status = `${trace.transport} ${trace.status}${trace.failureKind === null ? "" : ` (${trace.failureKind})`}`;
-  const failureOwners = requestTraceFailureOwners(trace);
-  return failureOwners.length === 0 ? status : `${status} ${failureOwners.join(", ")}`;
-};
-
-const programEventSeverity = (event: string): DevtoolsPanelSeverity =>
+const stateEventSeverity = (event: string): DevtoolsPanelSeverity =>
   event === "failure" ? "error" : "ok";
 
-/** The Program cause event (`message`, `failure`, `clearFailures`) of a Timeline commit summary. */
-const programCommitEvent = (data: DevtoolsSerializableValue): string => {
+/** The State cause event (`message`, `failure`, `clearFailures`) of a Timeline commit summary. */
+const stateCommitEvent = (data: DevtoolsSerializableValue): string => {
   const cause = isSerializableRecord(data) ? data.cause : undefined;
   const event =
     cause !== undefined && cause !== null && isSerializableRecord(cause) ? cause.event : undefined;
@@ -104,12 +96,12 @@ const isSerializableRecord = (
 ): value is { readonly [key: string]: DevtoolsSerializableValue } =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const programEventMetricValue = (
+const stateEventMetricValue = (
   value: DevtoolsSerializableValue | undefined,
 ): string | number | undefined =>
   typeof value === "string" || typeof value === "number" ? value : undefined;
 
-const programEventMetrics = (
+const stateEventMetrics = (
   event: DevtoolsSummary["runtime"]["events"][number],
 ): ReadonlyArray<DevtoolsPanelMetric> => {
   if (!isSerializableRecord(event.data)) {
@@ -118,32 +110,25 @@ const programEventMetrics = (
 
   const changes = Array.isArray(event.data.changes) ? event.data.changes.length : undefined;
   return [
-    panelMetric("sequence", programEventMetricValue(event.data.sequence) ?? event.sequence),
+    panelMetric("sequence", stateEventMetricValue(event.data.sequence) ?? event.sequence),
     ...(changes === undefined ? [] : [panelMetric("changes", changes)]),
   ];
 };
 
 export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): DevtoolsPanels => {
   const summary = input.summary ?? describeDevtoolsSummary(input);
-  const requestDurations = summary.requests.traces.flatMap((trace) =>
-    trace.durationMillis === null ? [] : [trace.durationMillis],
-  );
+  const requests = summary.requests;
   const requestAverageDuration =
-    requestDurations.length === 0
+    requests.length === 0
       ? 0
       : Number(
           (
-            requestDurations.reduce((total, duration) => total + duration, 0) /
-            requestDurations.length
+            requests.reduce((total, request) => total + request.durationMillis, 0) / requests.length
           ).toFixed(2),
         );
-  const failedRequestCount = summary.requests.traces.filter(
-    (trace) => trace.status === "failure",
-  ).length;
-  const cancelledRequestCount = summary.requests.traces.filter(
-    (trace) => trace.status === "cancelled",
-  ).length;
-  const programRuntimeEvents = new Map<
+  const failedRequestCount = requests.filter((request) => request.status === "failure").length;
+  const cancelledRequestCount = requests.filter((request) => request.status === "cancelled").length;
+  const stateRuntimeEvents = new Map<
     string,
     {
       count: number;
@@ -155,18 +140,18 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     }
   >();
   for (const event of summary.runtime.events) {
-    if (event.target?.kind !== "Program") {
+    if (event.target?.kind !== "State") {
       continue;
     }
-    const name = event.target.id.startsWith("program:")
-      ? event.target.id.slice("program:".length)
+    const name = event.target.id.startsWith("state:")
+      ? event.target.id.slice("state:".length)
       : event.target.id;
-    const tag = programCommitEvent(event.data);
-    const severity = programEventSeverity(tag);
-    const existing = programRuntimeEvents.get(name);
+    const tag = stateCommitEvent(event.data);
+    const severity = stateEventSeverity(tag);
+    const existing = stateRuntimeEvents.get(name);
     const tags = existing?.tags ?? new Set<string>();
     tags.add(tag);
-    programRuntimeEvents.set(name, {
+    stateRuntimeEvents.set(name, {
       count: (existing?.count ?? 0) + 1,
       failures: (existing?.failures ?? 0) + (severity === "error" ? 1 : 0),
       latest: event.label,
@@ -175,27 +160,27 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
       tags,
     });
   }
-  const programEventItems = summary.runtime.events
-    .filter((event) => event.target?.kind === "Program")
+  const stateEventItems = summary.runtime.events
+    .filter((event) => event.target?.kind === "State")
     .map((event) => {
-      const tag = programCommitEvent(event.data);
-      const programName = event.target?.id.startsWith("program:")
-        ? event.target.id.slice("program:".length)
-        : (event.target?.id ?? "Program");
+      const tag = stateCommitEvent(event.data);
+      const stateName = event.target?.id.startsWith("state:")
+        ? event.target.id.slice("state:".length)
+        : (event.target?.id ?? "State");
       return panelItem({
-        id: devtoolsProgramPanelItemId(event.id),
+        id: devtoolsStatePanelItemId(event.id),
         label: event.label,
-        detail: `${programName} ${tag}`,
-        severity: programEventSeverity(tag),
-        metrics: programEventMetrics(event),
+        detail: `${stateName} ${tag}`,
+        severity: stateEventSeverity(tag),
+        metrics: stateEventMetrics(event),
         data: event.data,
       });
     });
-  const programSummaryItems = Array.from(programRuntimeEvents.entries())
+  const stateSummaryItems = Array.from(stateRuntimeEvents.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, runtimeEvents]) =>
       panelItem({
-        id: `program-summary:${name}`,
+        id: `state-summary:${name}`,
         label: name,
         detail: runtimeEvents.latest,
         severity: runtimeEvents.severity,
@@ -209,12 +194,12 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
         }),
       }),
     );
-  const programItems = [...programEventItems, ...programSummaryItems];
-  const programEventCount = Array.from(programRuntimeEvents.values()).reduce(
+  const stateItems = [...stateEventItems, ...stateSummaryItems];
+  const stateEventCount = Array.from(stateRuntimeEvents.values()).reduce(
     (count, entry) => count + entry.count,
     0,
   );
-  const programFailureCount = Array.from(programRuntimeEvents.values()).reduce(
+  const stateFailureCount = Array.from(stateRuntimeEvents.values()).reduce(
     (count, entry) => count + entry.failures,
     0,
   );
@@ -299,82 +284,44 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
         }),
       ),
     },
-    programs: {
-      id: "programs",
-      title: "Programs",
-      summary: `${programRuntimeEvents.size} programs, ${programEventCount} events`,
+    states: {
+      id: "states",
+      title: "States",
+      summary: `${stateRuntimeEvents.size} states, ${stateEventCount} events`,
       severity: maxSeverity(
-        programItems.map((item) => item.severity),
-        programItems.length === 0 ? "info" : "ok",
+        stateItems.map((item) => item.severity),
+        stateItems.length === 0 ? "info" : "ok",
       ),
       metrics: [
-        panelMetric("programs", programRuntimeEvents.size),
-        panelMetric("events", programEventCount),
-        panelMetric("failures", programFailureCount),
+        panelMetric("states", stateRuntimeEvents.size),
+        panelMetric("events", stateEventCount),
+        panelMetric("failures", stateFailureCount),
       ],
-      items: programItems,
+      items: stateItems,
     },
     requests: {
       id: "requests",
       title: "Requests",
-      summary: `${summary.overview.requestTraceCount} traces, ${failedRequestCount} failures, ${cancelledRequestCount} cancelled`,
-      severity: maxSeverity(
-        summary.requests.traces.map(requestTraceSeverity),
-        summary.overview.requestTraceCount === 0 ? "info" : "ok",
-      ),
+      summary: `${requests.length} requests, ${failedRequestCount} failures, ${cancelledRequestCount} cancelled`,
+      severity: maxSeverity(requests.map(requestSeverity), requests.length === 0 ? "info" : "ok"),
       metrics: [
-        panelMetric("traces", summary.overview.requestTraceCount),
+        panelMetric("requests", requests.length),
         panelMetric("failures", failedRequestCount),
         panelMetric("cancelled", cancelledRequestCount),
         panelMetric("average duration", requestAverageDuration, "ms"),
       ],
-      items: summary.requests.traces.map((trace) =>
+      items: requests.map((request) =>
         panelItem({
-          id: devtoolsRequestPanelItemId(trace),
-          label: `${trace.method} ${trace.path}`,
-          detail: requestTraceDetail(trace),
-          severity: requestTraceSeverity(trace),
+          id: devtoolsRequestPanelItemId(request),
+          label: `${request.method} ${request.path}`,
+          detail: requestDetail(request),
+          severity: requestSeverity(request),
           metrics: [
-            panelMetric("resources", trace.resourceCount),
-            panelMetric(
-              "server failures",
-              trace.serverFunctions.filter((entry) => entry.failureKind !== null).length,
-            ),
-            panelMetric(
-              "action failures",
-              trace.actions.filter((entry) => entry.failureKind !== null).length,
-            ),
-            panelMetric("actions", trace.actionCount),
-            panelMetric(
-              "duration",
-              trace.durationMillis ?? "unknown",
-              trace.durationMillis === null ? undefined : "ms",
-            ),
-            panelMetric("before fibers", trace.beforeDisposeFiberCount ?? "unknown"),
-            panelMetric("after fibers", trace.afterDisposeFiberCount ?? "unknown"),
-            panelMetric("before families", trace.beforeDispose?.familyCount ?? "unknown"),
-            panelMetric("after families", trace.afterDispose?.familyCount ?? "unknown"),
-            panelMetric("before modules", trace.beforeDispose?.moduleCount ?? "unknown"),
-            panelMetric("after modules", trace.afterDispose?.moduleCount ?? "unknown"),
-            panelMetric("before tags", trace.beforeDispose?.tagCount ?? "unknown"),
-            panelMetric("after tags", trace.afterDispose?.tagCount ?? "unknown"),
+            panelMetric("duration", request.durationMillis, "ms"),
+            panelMetric("calls", request.children.length),
+            panelMetric("fibers after dispose", request.fibersAfterDispose ?? "unknown"),
           ],
-          data: toDevtoolsSerializableValue({
-            id: trace.id,
-            failureKind: trace.failureKind,
-            routeHref: trace.routeHref,
-            teardownReason: trace.teardownReason,
-            runtimeDisposed: trace.runtimeDisposed,
-            teardownAt: trace.teardownAt,
-            teardownStartedAt: trace.teardownStartedAt,
-            teardownCompletedAt: trace.teardownCompletedAt,
-            durationMillis: trace.durationMillis,
-            beforeDispose: trace.beforeDispose,
-            afterDispose: trace.afterDispose,
-            cleanupFailure: trace.cleanupFailure,
-            serverFunctions: trace.serverFunctions,
-            actions: trace.actions,
-          }),
+          data: toDevtoolsSerializableValue(request),
         }),
       ),
     },

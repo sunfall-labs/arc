@@ -3,7 +3,7 @@ import {
   ActionInterrupted,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
-  Program,
+  State,
   Resource,
   Route,
   RouterRouteNotRegistered,
@@ -81,28 +81,55 @@ const solidProviderRoutesProps: RouterProviderProps<typeof solidRoutes> = {
   // @ts-expect-error RouterProvider renders a router from `Component.router(...)`, not routes.
   routes: solidRoutes,
 };
-const solidCountSignal = Signal.make(0, { name: "solidCountSignal" });
+declare const solidCountSignal: Signal.Readable<number>;
 const solidReadSignalValue: number = solidCountSignal.get();
 const solidEffectRuntime = makeRuntime();
 const solidSignalValue = (): number => solidCountSignal.get();
 const solidStreamValue = Component.stream("status", Stream.succeed("ready"), "idle");
 type SolidTick = { readonly _tag: "Tick" };
-const SolidProgram = Program.define<number, SolidTick>({
+const SolidState = State.define<number, SolidTick>()({
+  name: "SolidState",
   initial: 0,
-  on: { Tick: (model) => Program.next(model + 1) },
+  on: { Tick: (model) => State.next(model + 1) },
 });
-declare const solidProgramHandle: Component.ProgramHandle<number, SolidTick, never>;
-const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, SolidTick, never>> =
-  Component.program(SolidProgram);
-// @ts-expect-error Program history lives on the app Timeline, not on the Program handle.
-solidProgramHandle.clearTimeline();
-const solidProgramDispatch: Effect.Effect<
+declare const solidStateHandle: Component.StateHandle<number, SolidTick, never>;
+const solidStateBinding: Effect.Effect<Component.StateHandle<number, SolidTick, never>> =
+  Component.state(SolidState);
+// @ts-expect-error State history lives on the app Timeline, not on the State handle.
+solidStateHandle.clearTimeline();
+const solidStateDispatch: Effect.Effect<
   void,
-  Program.Failure<SolidTick, EffectInputCallbackError | Program.Disposed>
-> = solidProgramHandle.dispatch({ _tag: "Tick" });
-declare const solidUnknownProgramHandle: Component.ProgramHandle<number, unknown, never>;
-const solidProgramCount: number = solidProgramHandle.model();
-void solidProgramCount;
+  State.Failure<SolidTick, EffectInputCallbackError | State.Disposed>
+> = solidStateHandle.dispatch({ _tag: "Tick" });
+const solidStateCount: number = solidStateHandle.model();
+void solidStateCount;
+
+// `send` has one DOM-ready sender per tag: a message without fields binds to an
+// event as-is, and a message with fields takes them.
+const SolidMenu = State.define({
+  name: "Menu.open",
+  initial: false,
+  on: {
+    Toggle: (open) => !open,
+    Set: (_open, message: { readonly open: boolean }) => message.open,
+  },
+});
+declare const solidMenu: Component.StateHandle<
+  boolean,
+  { readonly _tag: "Toggle" } | { readonly _tag: "Set"; readonly open: boolean },
+  never
+>;
+const solidMenuBinding: Effect.Effect<typeof solidMenu> = Component.state(SolidMenu);
+const solidToggleHandler: (event: MouseEvent) => void = solidMenu.send.Toggle;
+solidMenu.send.Set({ open: true });
+// @ts-expect-error a message with fields needs them
+solidMenu.send.Set();
+// @ts-expect-error fields are typed by the handler's message parameter
+solidMenu.send.Set({ open: "yes" });
+// @ts-expect-error only declared tags have senders
+solidMenu.send.Close();
+void solidMenuBinding;
+void solidToggleHandler;
 
 type SolidTypeEquals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -118,7 +145,7 @@ interface SolidBoardModel {
   selected: { id: number } | null;
   format: (value: number) => string;
 }
-type SolidBoardView = Component.ProgramModelView<SolidBoardModel>;
+type SolidBoardView = Component.StateView<SolidBoardModel>;
 solidTypeEquals<
   SolidBoardView,
   {
@@ -136,16 +163,16 @@ solidTypeEquals<
     readonly format: (value: number) => string;
   }
 >(true);
-solidTypeEquals<Component.ProgramModelView<number>, number>(true);
-solidTypeEquals<Component.ProgramModelView<"idle" | "busy">, "idle" | "busy">(true);
-solidTypeEquals<Component.ProgramModelView<string | undefined>, string | undefined>(true);
-solidTypeEquals<Component.ProgramModelView<unknown>, unknown>(true);
-declare const solidBoardProgram: Program.Definition<SolidBoardModel, { readonly _tag: "Noop" }>;
-const solidBoardOptions: Component.ProgramOptions = {
+solidTypeEquals<Component.StateView<number>, number>(true);
+solidTypeEquals<Component.StateView<"idle" | "busy">, "idle" | "busy">(true);
+solidTypeEquals<Component.StateView<string | undefined>, string | undefined>(true);
+solidTypeEquals<Component.StateView<unknown>, unknown>(true);
+declare const solidBoardState: State.Definition<SolidBoardModel, { readonly _tag: "Noop" }>;
+const solidBoardOptions: Component.StateOptions = {
   key: (row) => ("id" in row ? row.id : undefined),
 };
-void Component.program(solidBoardProgram, solidBoardOptions);
-declare const solidBoardHandle: Component.ProgramHandle<
+void Component.state(solidBoardState, solidBoardOptions);
+declare const solidBoardHandle: Component.StateHandle<
   SolidBoardModel,
   { readonly _tag: "Noop" },
   never
@@ -153,23 +180,22 @@ declare const solidBoardHandle: Component.ProgramHandle<
 const solidBoardView: SolidBoardView = solidBoardHandle.model();
 const solidBoardLabel: string = solidBoardView.rows[0]!.label;
 const solidBoardModelSignal: Signal.Readable<SolidBoardModel> = solidBoardHandle.committed;
-// @ts-expect-error Program model views are read-only
+// @ts-expect-error State model views are read-only
 solidBoardView.title = "renamed";
-// @ts-expect-error nested Program model objects are read-only
+// @ts-expect-error nested State model objects are read-only
 solidBoardView.rows[0]!.meta.done = true;
-// @ts-expect-error Program model arrays are read-only
+// @ts-expect-error State model arrays are read-only
 solidBoardView.tags.push("new");
-// @ts-expect-error Program model Maps are read-only
+// @ts-expect-error State model Maps are read-only
 solidBoardView.owners.set("a", { name: "Ada" });
-// @ts-expect-error Program model reconcile keys are property names, key functions, or null
-const solidInvalidBoardOptions: Component.ProgramOptions = { key: 1 };
+// @ts-expect-error State model reconcile keys are property names, key functions, or null
+const solidInvalidBoardOptions: Component.StateOptions = { key: 1 };
 void solidBoardLabel;
 void solidBoardModelSignal;
 void solidInvalidBoardOptions;
-void Component.program(solidBoardProgram, { key: "id" });
-void Component.program(solidBoardProgram, { key: null });
+void Component.state(solidBoardState, { key: "id" });
+void Component.state(solidBoardState, { key: null });
 
-void solidUnknownProgramHandle.dispatch("any message");
 const SolidProjectById = Resource.define<string, SolidProject>({
   name: "Solid.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" }),
@@ -244,8 +270,8 @@ const solidExports: Array<unknown> = [
   solidRouterOptions,
   solidReadSignalValue,
   solidEffectRuntime,
-  solidProgramBinding,
-  solidProgramDispatch,
+  solidStateBinding,
+  solidStateDispatch,
   solidProjectValue,
   solidProjectWaiting,
   solidResourceRender,
