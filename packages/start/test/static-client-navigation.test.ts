@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 import { Resource, createBrowserRouterHostController, makeRuntime, Route } from "@sunfall/arc-core";
 import { eraseRuntime } from "@sunfall/arc-core/internal";
-import { Deferred, Effect, Fiber } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
 import { createHydrationScriptSync } from "../src/hydration.js";
 import {
   makeStartStaticHistoryAdapter,
+  StartStaticNavigationHydrationError,
   normalizeStartStaticBasePath,
   stripStartStaticBasePath,
   type StartStaticHistoryWindow,
@@ -495,4 +496,38 @@ describe("Start static client navigation", () => {
         }),
       ),
     ));
+
+  it("fails with a typed hydration error when the target document request is not ok", async () => {
+    const runtime = makeRuntime();
+    try {
+      const ProjectRoute = Route.define("/projects/:id", {
+        preloadResources: ["Start.Static.Project.http-status"],
+      });
+      const window = new Window({ url: "https://docs.test/app/" });
+      const history = makeStartStaticHistoryAdapter({
+        runtime,
+        routes: [ProjectRoute] as const,
+        basePath: "/app/",
+        getWindow: () => asHistoryWindow(window),
+        fetch: vi.fn(async () => new Response("missing", { status: 404 })),
+        parseDocument: parseHtmlDocument,
+      });
+
+      const exit = await Effect.runPromiseExit(history.prepareHref!("/projects/1"));
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        const error = exit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toBeInstanceOf(StartStaticNavigationHydrationError);
+        expect(error).toMatchObject({
+          href: "/projects/1",
+          browserHref: "/app/projects/1",
+          reason: "HttpStatus",
+          status: 404,
+        });
+      }
+    } finally {
+      await Effect.runPromise(runtime.dispose);
+    }
+  });
 });

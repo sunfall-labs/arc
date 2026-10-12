@@ -58,6 +58,9 @@ Entries are newest first.
   `StartTransportEndpointOverrides`.
 - Start encodes and decodes Action wire values with core's server wire codec
   instead of its own copy.
+- Static client navigation is one module: the href preparation cache and
+  target-document hydration moved into `static-client-navigation.ts`. No
+  public API changed.
 
 ### Devtools Is One Namespace (Breaking)
 
