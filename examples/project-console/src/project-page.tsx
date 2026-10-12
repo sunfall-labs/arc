@@ -1,8 +1,8 @@
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
-import { Program, Route } from "@sunfall/arc-core";
+import { Route, State } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Schema } from "effect";
-import { For, Loading, Show, createEffect, untrack } from "solid-js";
+import { For, Loading, Show, untrack } from "solid-js";
 import {
   ProjectById,
   SubmitProjectName,
@@ -224,7 +224,6 @@ function WorkQueueRow(props: { readonly item: ProjectWorkQueueItem; readonly onM
 }
 
 interface ProjectActionsModel {
-  readonly project: Project;
   readonly renamePending: boolean;
   readonly advancePending: boolean;
   readonly validation?: string;
@@ -232,20 +231,15 @@ interface ProjectActionsModel {
 }
 
 type ProjectActionsMessage =
-  | { readonly _tag: "ProjectChanged"; readonly project: Project }
   | { readonly _tag: "SubmitRename"; readonly formData: FormData }
   | { readonly _tag: "RenameFinished"; readonly result: ProjectNameSubmissionResult }
   | { readonly _tag: "RenameFailed"; readonly error: unknown }
   | { readonly _tag: "Advance" }
-  | { readonly _tag: "AdvanceFinished"; readonly project: Project }
+  | { readonly _tag: "AdvanceFinished" }
   | { readonly _tag: "AdvanceQueued" }
   | { readonly _tag: "AdvanceFailed"; readonly error: unknown };
 
-const projectActionsInitial = (project: Project): ProjectActionsModel => ({
-  project,
-  renamePending: false,
-  advancePending: false,
-});
+const projectActionsIdle: ProjectActionsModel = { renamePending: false, advancePending: false };
 
 const renameValidationMessage = (result: ProjectNameSubmissionResult): string | undefined =>
   result._tag === "ValidationFailure"
@@ -253,99 +247,72 @@ const renameValidationMessage = (result: ProjectNameSubmissionResult): string | 
     : undefined;
 
 /**
- * Rename and advance controls. Setup runs once per instance, so each mounted
- * form owns its Actions and Program. Both Actions submit the same way: the
- * client runtime's ActionTransport serves the rename on the server (the same
- * Action the no-JS form posts), and the durable advance goes through the
- * Action Outbox.
+ * Rename and advance controls for one project. The page keys this component
+ * on the project id, so each project gets its own instance, and so its own
+ * Actions and State. Both Actions submit the same way: the client runtime's
+ * ActionTransport serves the rename on the server (the same Action the no-JS
+ * form posts), and the durable advance goes through the Action Outbox. The
+ * project itself is read from props: the rename's optimistic patch and
+ * invalidations keep it current, so the State holds only the form's status.
  */
 const ProjectActions = Component.define(
   "ProjectActions",
   function* (props: { readonly project: Project }) {
     // The router only follows redirect hrefs here, so it needs no route typing.
     const router = useRouter();
+    // Fixed for this instance: the page remounts it for another project.
+    const id = untrack(() => props.project.id);
     // The rename patches the sidebar row and the ProjectById header at once,
     // and its invalidations reload both before the redirect lands.
     const rename = yield* Component.action(SubmitProjectName);
     const advance = yield* Component.action(AdvanceProject);
-    const actions = yield* Component.program(
-      Program.define<ProjectActionsModel, ProjectActionsMessage>({
-        // Seed once; later project values arrive as ProjectChanged messages.
-        initial: projectActionsInitial(untrack(() => props.project)),
+    const actions = yield* Component.state(
+      State.define<ProjectActionsModel, ProjectActionsMessage>()({
+        name: "ProjectActions",
+        initial: projectActionsIdle,
         on: {
-          ProjectChanged: (model, message) =>
-            message.project.id === model.project.id
-              ? { ...model, project: message.project }
-              : projectActionsInitial(message.project),
-          SubmitRename: (model, message) => {
-            if (model.renamePending) {
-              return model;
-            }
-
-            return Program.next(
-              {
-                project: model.project,
-                renamePending: true,
-                advancePending: model.advancePending,
-              },
-              Program.emit(
-                StartAction.decodeFormData(ProjectNameFormInput, message.formData).pipe(
-                  Effect.flatMap(({ name }) =>
-                    rename.submit({
-                      id: model.project.id,
-                      name,
-                      redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
-                    }),
+          SubmitRename: (model, message) =>
+            model.renamePending
+              ? model
+              : State.next(
+                  { advancePending: model.advancePending, renamePending: true },
+                  State.emit(
+                    StartAction.decodeFormData(ProjectNameFormInput, message.formData).pipe(
+                      Effect.flatMap(({ name }) =>
+                        rename.submit({
+                          id,
+                          name,
+                          redirectTo: makeProjectReturnTo(projectHref(id, "activity")),
+                        }),
+                      ),
+                      Effect.match({
+                        onFailure: (error): ProjectActionsMessage => ({
+                          _tag: "RenameFailed",
+                          error,
+                        }),
+                        onSuccess: (result): ProjectActionsMessage => ({
+                          _tag: "RenameFinished",
+                          result,
+                        }),
+                      }),
+                    ),
                   ),
-                  Effect.match({
-                    onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
-                    onSuccess: (result): ProjectActionsMessage => ({
-                      _tag: "RenameFinished",
-                      result,
-                    }),
-                  }),
                 ),
-              ),
-            );
-          },
           RenameFinished: (model, message) => {
             const result = message.result;
+            const settled = { advancePending: model.advancePending, renamePending: false };
             switch (result._tag) {
               case "Success":
-                return {
-                  project: result.value,
-                  renamePending: false,
-                  advancePending: model.advancePending,
-                };
+                return settled;
               case "ValidationFailure":
                 const validation = renameValidationMessage(result);
-                return validation === undefined
-                  ? {
-                      project: model.project,
-                      renamePending: false,
-                      advancePending: model.advancePending,
-                    }
-                  : {
-                      project: model.project,
-                      renamePending: false,
-                      advancePending: model.advancePending,
-                      validation,
-                    };
+                return validation === undefined ? settled : { ...settled, validation };
               case "Failure":
-                return {
-                  project: model.project,
-                  renamePending: false,
-                  advancePending: model.advancePending,
-                  error: result.error,
-                };
+                return { ...settled, error: result.error };
               case "Redirect":
-                return Program.next(
-                  {
-                    project: model.project,
-                    renamePending: false,
-                    advancePending: model.advancePending,
-                  },
-                  Program.emit(
+                return State.next(
+                  settled,
+                  State.emit(
                     Effect.sync(() =>
                       router.navigateHref(
                         result.location,
@@ -357,52 +324,35 @@ const ProjectActions = Component.define(
             }
           },
           RenameFailed: (model, message) => ({
-            project: model.project,
-            renamePending: false,
             advancePending: model.advancePending,
+            renamePending: false,
             error: message.error,
           }),
-          Advance: (model) => {
-            if (model.advancePending) {
-              return model;
-            }
-
-            return Program.next(
-              {
-                project: model.project,
-                renamePending: model.renamePending,
-                advancePending: true,
-              },
-              Program.emit(
-                advance.submit({ id: model.project.id }).pipe(
-                  Effect.match({
-                    // Offline, the advance waits in the Action Outbox (the
-                    // top bar counts it) and replays when the browser is back.
-                    onFailure: (error): ProjectActionsMessage =>
-                      error._tag === "ActionQueued"
-                        ? { _tag: "AdvanceQueued" }
-                        : { _tag: "AdvanceFailed", error },
-                    onSuccess: (project): ProjectActionsMessage => ({
-                      _tag: "AdvanceFinished",
-                      project,
-                    }),
-                  }),
+          Advance: (model) =>
+            model.advancePending
+              ? model
+              : State.next(
+                  { renamePending: model.renamePending, advancePending: true },
+                  State.emit(
+                    advance.submit({ id }).pipe(
+                      Effect.match({
+                        // Offline, the advance waits in the Action Outbox (the
+                        // top bar counts it) and replays when the browser is back.
+                        onFailure: (error): ProjectActionsMessage =>
+                          error._tag === "ActionQueued"
+                            ? { _tag: "AdvanceQueued" }
+                            : { _tag: "AdvanceFailed", error },
+                        onSuccess: (): ProjectActionsMessage => ({ _tag: "AdvanceFinished" }),
+                      }),
+                    ),
+                  ),
                 ),
-              ),
-            );
-          },
-          AdvanceFinished: (model, message) => ({
-            project: message.project,
+          AdvanceFinished: (model) => ({
             renamePending: model.renamePending,
             advancePending: false,
           }),
-          AdvanceQueued: (model) => ({
-            project: model.project,
-            renamePending: model.renamePending,
-            advancePending: false,
-          }),
+          AdvanceQueued: (model) => ({ renamePending: model.renamePending, advancePending: false }),
           AdvanceFailed: (model, message) => ({
-            project: model.project,
             renamePending: model.renamePending,
             advancePending: false,
             error: message.error,
@@ -411,23 +361,12 @@ const ProjectActions = Component.define(
       }),
     );
 
-    // Program failures land in `actions.failures()`, so handlers ignore them.
-    const send = yield* Component.callback("send", (message: ProjectActionsMessage) =>
-      actions.dispatch(message).pipe(Effect.ignore),
-    );
-
-    createEffect(
-      () => props.project,
-      (current) => {
-        send({ _tag: "ProjectChanged", project: current });
-      },
-    );
-
+    // State failures land in `actions.failures()`; `send` needs no handling.
     const model = actions.model;
     const renameForm = () =>
       projectNameActionTarget({
-        id: model().project.id,
-        redirectTo: makeProjectReturnTo(projectHref(model().project.id, "activity")),
+        id,
+        redirectTo: makeProjectReturnTo(projectHref(id, "activity")),
       });
 
     return () => (
@@ -438,10 +377,7 @@ const ProjectActions = Component.define(
           action={renameForm().action}
           onSubmit={(event) => {
             event.preventDefault();
-            send({
-              _tag: "SubmitRename",
-              formData: new FormData(event.currentTarget),
-            });
+            actions.send.SubmitRename({ formData: new FormData(event.currentTarget) });
           }}
         >
           <For each={renameForm().hiddenFields}>
@@ -451,7 +387,7 @@ const ProjectActions = Component.define(
             <span>Name</span>
             <input
               name="name"
-              value={model().project.name}
+              value={props.project.name}
               aria-invalid={model().validation === undefined ? "false" : "true"}
               aria-describedby={model().validation === undefined ? undefined : "project-name-error"}
             />
@@ -466,7 +402,7 @@ const ProjectActions = Component.define(
           class="commandButton secondary"
           type="button"
           disabled={model().advancePending}
-          onClick={() => send({ _tag: "Advance" })}
+          onClick={actions.send.Advance}
         >
           <ArrowIcon />
           {model().advancePending ? "Advancing" : "Advance"}
@@ -510,7 +446,10 @@ export const ProjectPage = Component.define(
                     <span style={{ width: `${panel.project.progress}%` }} />
                   </div>
 
-                  <Actions project={panel.project} />
+                  {/* Keyed by id: each project gets its own controls and State. */}
+                  <Show when={panel.project.id} keyed>
+                    {(_id) => <Actions project={panel.project} />}
+                  </Show>
                 </div>
 
                 <aside class="riskPanel" aria-label="Current risks">
