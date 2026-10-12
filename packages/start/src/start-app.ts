@@ -1,4 +1,5 @@
 import {
+  Action,
   makeRuntime,
   Route,
   type ActionTransport,
@@ -7,7 +8,8 @@ import {
 } from "@sunfall/arc-core";
 import type { Collection } from "@sunfall/arc-db";
 import { Component } from "@sunfall/arc-solid";
-import { Data, Effect, Layer } from "effect";
+import { Data, Effect, Layer, Option } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { hydrateFromDocument, type StartHydrationError } from "./hydration.js";
 import { makeActionTransportLayer } from "./start-action-transport.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
@@ -87,6 +89,21 @@ type ClientServicesCheck<RootServices, ClientServices> = [
       };
     };
 
+/**
+ * The Action Outbox over the client Layer's `KeyValueStore`, or over an
+ * in-memory one when the client Layer provides none.
+ */
+const outboxLayer = (options: Action.OutboxOptions = {}) =>
+  Layer.unwrap(
+    Effect.map(Effect.serviceOption(KeyValueStore.KeyValueStore), (store) =>
+      Option.isSome(store)
+        ? Action.outboxLayer(options).pipe(
+            Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore)(store.value)),
+          )
+        : Action.outboxLayer(options).pipe(Layer.provide(KeyValueStore.layerMemory)),
+    ),
+  );
+
 /** Start apps: one definition, served by `createRequestHandler` and launched by `App.launch`. */
 export namespace App {
   /** Props Start passes the root Component: the app-relative href being rendered. */
@@ -111,6 +128,14 @@ export namespace App {
       readonly fetch?: StartFetch;
       readonly headers?: HeadersInit | (() => HeadersInit);
     };
+    /**
+     * Options for the Action Outbox that holds durable Action submissions
+     * (`retry`; see `Action.outboxLayer`). The outbox persists to the
+     * client Layer's `KeyValueStore` (`effect/persistence`), e.g.
+     * `KeyValueStore.layerStorage(() => localStorage)`; without one, pending
+     * submissions last only as long as the page.
+     */
+    readonly outbox?: Action.OutboxOptions;
   }
 
   /**
@@ -160,10 +185,11 @@ export namespace App {
 
   /**
    * The browser entry: builds the client runtime (the app's client Layer plus
-   * the action transport and, outside static builds, the RPC client),
-   * restores the server's hydration payload into it, and hydrates the
-   * server-rendered root. Like `Component.launch`, it keeps the app mounted
-   * until interrupted, then disposes the tree and the runtime.
+   * the action transport, the Action Outbox, and, outside static builds, the
+   * RPC client), restores the server's hydration payload into it, hydrates the
+   * server-rendered root, and then restores pending durable Action
+   * submissions. Like `Component.launch`, it keeps the app mounted until
+   * interrupted, then disposes the tree and the runtime.
    *
    * @example
    * ```ts
@@ -203,14 +229,18 @@ export namespace App {
         const runtime = yield* Effect.acquireRelease(
           Effect.sync(() =>
             makeRuntime(
-              Layer.mergeAll(
-                app.client,
-                makeActionTransportLayer({
-                  ...transport,
-                  actions: app.actions,
-                  collections: app.collections,
-                }),
-                browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
+              outboxLayer(options.outbox).pipe(
+                Layer.provideMerge(
+                  Layer.mergeAll(
+                    app.client,
+                    makeActionTransportLayer({
+                      ...transport,
+                      actions: app.actions,
+                      collections: app.collections,
+                    }),
+                    browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
+                  ),
+                ),
               ) as Layer.Layer<ClientServices | AppLaunchServices, ClientError>,
             ),
           ),
@@ -232,11 +262,16 @@ export namespace App {
           ),
           Effect.ignore,
         );
-        return yield* Component.launch(
+        yield* Component.mount(
           app.root as Component<RootProps, never, ClientServices | AppLaunchServices>,
           container,
           { runtime, props: { href }, hydrate: true },
         );
+        // Pending durable submissions re-apply their optimistic patches after
+        // hydration (so the first client render matches the server's), then
+        // replay.
+        yield* runtime.provide(Action.restoreOutbox);
+        return yield* Effect.never;
       }),
     );
 }

@@ -18,6 +18,15 @@ export interface ActionTransportResponse<A, E> {
   readonly apply: (current: boolean) => Effect.Effect<void, ServerClientError>;
 }
 
+/** Identity of one durable submission, sent with every attempt. */
+export interface ActionTransportSubmission {
+  /**
+   * The submission id. Servers deduplicate by it (with the Action name), so a
+   * replayed attempt returns the original outcome instead of running again.
+   */
+  readonly id: string;
+}
+
 /**
  * Transport seam for Action submissions, the Action counterpart of
  * `ServerClient`.
@@ -32,6 +41,8 @@ export interface ActionTransport {
   readonly submit: <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     input: I,
+    /** Present for durable submissions: the idempotency key to send. */
+    submission?: ActionTransportSubmission,
   ) => Option.Option<Effect.Effect<ActionTransportResponse<A, E>, ServerClientError>>;
 }
 

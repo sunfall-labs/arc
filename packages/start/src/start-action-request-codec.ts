@@ -25,7 +25,15 @@ export { encodeWithSchema } from "./start-schema-codec.js";
 export interface StartActionRequest {
   readonly name: string;
   readonly input: unknown;
+  /**
+   * Durable submission id. The endpoint deduplicates by `name` and `id`, so
+   * a replayed submission returns its original response.
+   */
+  readonly id?: string;
 }
+
+/** Longest submission id the action endpoint accepts. */
+export const startActionSubmissionIdMaxLength = 128;
 
 /** Hidden field emitted by `startActionForm(...)` for progressive HTML POSTs. */
 export interface StartActionFormField {
@@ -172,10 +180,12 @@ export const encodeStartActionPartialInputEffect = (
 export const encodeStartActionRequestEffect = (
   action: StartActionDefinition,
   input: unknown,
+  submissionId?: string,
 ): Effect.Effect<StartActionRequest, Schema.SchemaError> =>
   Effect.map(encodeStartActionInputEffect(action, input), (encodedInput) => ({
     name: action.name,
     input: encodedInput,
+    ...(submissionId === undefined ? {} : { id: submissionId }),
   }));
 
 const startActionFormEncodeError = (
@@ -269,10 +279,21 @@ const readActionJsonEffect = (
         payload,
       });
     }
+    const id = payload.id;
+    if (
+      id !== undefined &&
+      (typeof id !== "string" || id.length === 0 || id.length > startActionSubmissionIdMaxLength)
+    ) {
+      return yield* new ServerRpcProtocolError({
+        message: `Expected the action request id to be a string of 1 to ${startActionSubmissionIdMaxLength} characters.`,
+        payload,
+      });
+    }
 
     return {
       name: payload.name,
       input: payload.input,
+      ...(id === undefined ? {} : { id }),
     };
   });
 

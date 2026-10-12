@@ -19,7 +19,23 @@ export interface TimelineUserCause {
 export interface TimelineActionCause {
   readonly _tag: "Action";
   readonly action: string;
-  readonly event: "submit" | "success" | "failure" | "interrupt" | "reset";
+  /**
+   * `submit`/`success`/`failure`/`interrupt`/`reset` come from an Action
+   * instance's state. The Action Outbox (durable submissions) adds `queue`
+   * (persisted and pending), `restore` (pending submissions restored and
+   * re-patched on launch), `replay` (an attempt to send one), `success` and
+   * `failure` when one settles, and `dismiss` (a failure acknowledged).
+   */
+  readonly event:
+    | "submit"
+    | "success"
+    | "failure"
+    | "interrupt"
+    | "reset"
+    | "queue"
+    | "restore"
+    | "replay"
+    | "dismiss";
 }
 
 /** Commit made by a running Program: a message update, a failure, or a failure reset. */

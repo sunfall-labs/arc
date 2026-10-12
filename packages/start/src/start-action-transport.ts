@@ -2,6 +2,7 @@ import {
   ActionTransport,
   type ActionDefinition,
   type ActionTransportResponse,
+  type ActionTransportSubmission,
   type Server,
 } from "@sunfall/arc-core";
 import { Effect, Exit, Layer, Option } from "effect";
@@ -41,10 +42,11 @@ export interface ActionTransportLayerOptions<
 const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
+  submission: ActionTransportSubmission | undefined,
   options: ActionTransportLayerOptions<FetchError, FetchRequirements>,
 ): Effect.Effect<ActionTransportResponse<A, E>, Server.ClientError> => {
   const exchange = Effect.gen(function* () {
-    const request = yield* encodeStartActionRequestEffect(definition, input);
+    const request = yield* encodeStartActionRequestEffect(definition, input, submission?.id);
     const { body } = yield* executeStartClientTransportEffect({
       kind: "action",
       ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
@@ -111,9 +113,9 @@ export function makeActionTransportLayer<FetchError = never, FetchRequirements =
 ): Layer.Layer<ActionTransport> {
   const served = new Set(options.actions.map((action) => action.name));
   return Layer.succeed(ActionTransport)({
-    submit: (definition, input) =>
+    submit: (definition, input, submission) =>
       served.has(definition.name)
-        ? Option.some(submitRemoteEffect(definition, input, options))
+        ? Option.some(submitRemoteEffect(definition, input, submission, options))
         : Option.none(),
   });
 }

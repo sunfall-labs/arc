@@ -17,7 +17,20 @@ export const publicHoverDocGroups = [
       "Action",
     ],
     namespaceDeclarations: {
-      Action: ["Definition", "Instance", "State", "Concurrency", "Policy", "OptimisticTransaction"],
+      Action: [
+        "Definition",
+        "Instance",
+        "State",
+        "Concurrency",
+        "Policy",
+        "OptimisticTransaction",
+        "DurablePolicy",
+        "OutboxOptions",
+        "Outbox",
+        "outboxLayer",
+        "outbox",
+        "restoreOutbox",
+      ],
     },
   },
   {
@@ -136,7 +149,22 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/core/src/action-transport.ts",
-    declarations: ["ActionTransportResponse", "ActionTransport"],
+    declarations: ["ActionTransportSubmission", "ActionTransportResponse", "ActionTransport"],
+  },
+  {
+    file: "packages/core/src/action-outbox.ts",
+    declarations: [
+      "ActionDurablePolicy",
+      "ActionQueued",
+      "ActionSubmissionExpired",
+      "ActionSubmissionUnrestorable",
+      "isRetryableActionFailure",
+      "ActionOutboxOptions",
+      "ActionOutboxEntry",
+      "ActionOutboxFailure",
+      "ActionOutboxView",
+      "ActionOutbox",
+    ],
   },
   {
     file: "packages/core/src/action-instance.ts",

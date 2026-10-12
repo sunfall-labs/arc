@@ -42,6 +42,7 @@ import type {
   StartTransportEndpointManifestSource,
 } from "./start-transport-endpoints.js";
 import { resolveStartTransportEndpointsEffect } from "./start-transport-endpoints.js";
+import { makeStartActionWorkflows } from "./start-action-workflow.js";
 import {
   createServerActionResponseEffectWithRuntime,
   createServerRpcResponseEffectWithRuntime,
@@ -168,6 +169,9 @@ export const createStartRequestHandler = <
 ): StartRequestHandler<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
   const explicitActionMap =
     options.actions === undefined ? undefined : makeActionMap(options.actions);
+  // Durable Action submissions run as Workflows on the server Layer's
+  // `WorkflowEngine`, or on this handler's in-memory engine.
+  const workflows = makeStartActionWorkflows();
 
   return ((
     request: Request,
@@ -204,6 +208,7 @@ export const createStartRequestHandler = <
             explicitActionMap,
             responseContext,
             traceFacts,
+            workflows,
           );
         }
 

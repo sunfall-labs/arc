@@ -731,7 +731,8 @@ test's Scope and assert on the DOM after `travel`
   and `refresh` return Effects; DOM handlers get them via a callback.
 - **Change server data with Actions.** `optimistic` patches Signals and
   Collection rows for the life of the submission; there is no other write
-  path.
+  path. Add `durable: { maxAge }` when a change must survive going offline
+  or reloading; `Action.outbox` counts what is waiting to sync.
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`
   them. Call `Resource.invalidate(ref)` yourself only for an explicit refresh
   button.

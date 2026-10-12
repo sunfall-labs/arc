@@ -49,7 +49,7 @@ import {
   FileRoute,
 } from "@sunfall/arc-start";
 import { Component } from "@sunfall/arc-solid";
-import { Context, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer, Schedule, Schema } from "effect";
 import { type ActionDefinition, Route } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
@@ -205,3 +205,13 @@ const traceHandler: StartRequestTraceHandler = (trace: StartRequestTrace) => {
   void status;
 };
 void traceHandler;
+
+// Durable Action submissions: App.launch takes outbox options; the storage is
+// the client Layer's `KeyValueStore`, never an App.launch option.
+const launchOutboxOptions: App.LaunchOptions = {
+  outbox: { retry: Schedule.spaced("1 second") },
+};
+// @ts-expect-error -- the outbox persists to the client Layer's KeyValueStore.
+const launchOutboxStorage: App.LaunchOptions = { outbox: { storage: {} } };
+void launchOutboxOptions;
+void launchOutboxStorage;

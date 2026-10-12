@@ -248,6 +248,7 @@ type ProjectActionsMessage =
   | { readonly _tag: "RenameFailed"; readonly error: unknown }
   | { readonly _tag: "Advance" }
   | { readonly _tag: "AdvanceFinished"; readonly project: Project }
+  | { readonly _tag: "AdvanceQueued" }
   | { readonly _tag: "AdvanceFailed"; readonly error: unknown };
 
 const projectActionsInitial = (project: Project): ProjectActionsModel => ({
@@ -265,7 +266,8 @@ const renameValidationMessage = (result: ProjectNameSubmissionResult): string | 
  * Rename and advance controls. Setup runs once per instance, so each mounted
  * form owns its Actions and Program. Both Actions submit the same way: the
  * client runtime's ActionTransport serves the rename on the server (the same
- * Action the no-JS form posts), while advance runs locally.
+ * Action the no-JS form posts), and the durable advance goes through the
+ * Action Outbox.
  */
 const ProjectActions = Component.define(
   "ProjectActions",
@@ -385,7 +387,12 @@ const ProjectActions = Component.define(
               Program.emit(
                 advance.submit({ id: model.project.id }).pipe(
                   Effect.match({
-                    onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
+                    // Offline, the advance waits in the Action Outbox (the
+                    // top bar counts it) and replays when the browser is back.
+                    onFailure: (error): ProjectActionsMessage =>
+                      error._tag === "ActionQueued"
+                        ? { _tag: "AdvanceQueued" }
+                        : { _tag: "AdvanceFailed", error },
                     onSuccess: (project): ProjectActionsMessage => ({
                       _tag: "AdvanceFinished",
                       project,
@@ -397,6 +404,11 @@ const ProjectActions = Component.define(
           },
           AdvanceFinished: (model, message) => ({
             project: message.project,
+            renamePending: model.renamePending,
+            advancePending: false,
+          }),
+          AdvanceQueued: (model) => ({
+            project: model.project,
             renamePending: model.renamePending,
             advancePending: false,
           }),

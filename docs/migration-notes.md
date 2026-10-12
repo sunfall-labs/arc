@@ -5,6 +5,16 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Offline Mutation Queues
+
+Collections no longer keep a pending-mutation queue. A change that must
+survive going offline is a durable Action: give it an input schema and
+`durable: { maxAge }`, provide a `KeyValueStore` in the client Layer
+(`KeyValueStore.layerStorage(() => localStorage)`), and serve it from the Start
+app's `actions` so the server deduplicates replays. Treat `ActionQueued` from
+`submit` as "saved, waiting to sync", and render `Action.outbox` pending and
+failures for the global status.
+
 ## From Effect-Suffixed Names And Path Addressing
 
 This alpha applies three naming rules across every package:

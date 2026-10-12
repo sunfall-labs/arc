@@ -93,7 +93,7 @@ describe("project console SSR", () => {
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
     expect(response.headers.get("x-sunfall-arc-start-graph")).toBe(
-      "routes=3; server-functions=6; actions=1",
+      "routes=3; server-functions=6; actions=2",
     );
     expect(response.headers.get("x-sunfall-arc-start-routes")).toBe("/,/projects,/projects/:id");
     expect(chunks[0]).toContain("<!doctype html>");
@@ -123,7 +123,10 @@ describe("project console SSR", () => {
   });
 
   it("exposes the generated Start route graph used by the Vite preset", () => {
-    expect(app.actions.map((action) => action.name)).toEqual(["Project.name.submit"]);
+    expect(app.actions.map((action) => action.name)).toEqual([
+      "Project.name.submit",
+      "Project.advance",
+    ]);
     expect(app.collections.map((collection) => collection.name)).toEqual([
       "Projects.collection",
       "Project.workItems",
@@ -139,7 +142,7 @@ describe("project console SSR", () => {
     expect(projectConsoleStartGraphSummary).toEqual({
       routes: ["/", "/projects", "/projects/:id"],
       serverFunctions: serverFunctions.map((fn) => fn.name),
-      actions: ["Project.name.submit"],
+      actions: ["Project.name.submit", "Project.advance"],
     });
     expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
   });
@@ -170,6 +173,10 @@ describe("project console SSR", () => {
         client: { _tag: "Import", module: "/src/domain.contract.ts", exportName: "getProject" },
       });
       expect(graph.actions.entries).toMatchObject([
+        {
+          name: "Project.advance",
+          server: { module: "/src/project-collections.ts", exportName: "AdvanceProject" },
+        },
         {
           name: "Project.name.submit",
           server: { module: "/src/domain.ts", exportName: "SubmitProjectName" },

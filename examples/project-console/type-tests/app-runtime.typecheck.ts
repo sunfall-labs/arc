@@ -2,7 +2,8 @@ import { App, createRequestHandler } from "@sunfall/arc-start";
 import { Layer } from "effect";
 import ProjectConsole from "../src/App.js";
 import { app } from "../src/app-definition.js";
-import { ProjectApiLive, projectConsoleActions } from "../src/domain.js";
+import { ProjectApiLive } from "../src/domain.js";
+import { projectConsoleActions } from "../src/project-collections.js";
 import { ProjectDemoStoreLive } from "../src/domain.server.js";
 import { routes } from "../src/routeTree.gen.js";
 

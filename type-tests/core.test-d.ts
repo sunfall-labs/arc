@@ -2,6 +2,8 @@ import { Cause, Context, Effect, Fiber, Option, Schema, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import {
   Action,
+  ActionOutbox,
+  ActionQueued,
   ActionTransport,
   ActionTypeId,
   ActionResult,
@@ -37,6 +39,8 @@ import {
   serializeResponseCookie,
   type ActionConcurrency,
   type ActionDefinition,
+  type ActionDurablePolicy,
+  type ActionOutboxView,
   type ActionInstance,
   type ActionOptions,
   type ActionPolicy,
@@ -907,3 +911,82 @@ const coreInternalProgram = startProgramOnRuntime(
 );
 void coreInternalAction;
 void coreInternalProgram;
+
+// Durable submissions: `durable` requires an input schema and adds
+// `ActionQueued` to the Action's error type; non-durable Actions are unchanged.
+const DurableAdvanceInput = Schema.Struct({ id: Schema.String });
+const durablePolicy: ActionDurablePolicy = { maxAge: "1 day" };
+const DurableAdvance = Action.define({
+  name: "type-tests/durable-advance",
+  input: DurableAdvanceInput,
+  output: Schema.Number,
+  durable: durablePolicy,
+  run: ({ id }): Effect.Effect<number, "Rejected"> =>
+    id.length > 0 ? Effect.succeed(1) : Effect.fail("Rejected"),
+});
+const durableAdvanceDefinition: ActionDefinition<
+  { readonly id: string },
+  number,
+  "Rejected" | ActionQueued
+> = DurableAdvance;
+const DurableNoOutput = Action.define({
+  name: "type-tests/durable-no-output",
+  input: DurableAdvanceInput,
+  durable: { maxAge: "5 minutes" },
+  run: () => Effect.succeed("ok"),
+});
+const durableNoOutputDefinition: ActionDefinition<{ readonly id: string }, string, ActionQueued> =
+  DurableNoOutput;
+const PlainAdvance = Action.define({
+  name: "type-tests/plain-advance",
+  input: DurableAdvanceInput,
+  run: () => Effect.succeed(1),
+});
+const plainAdvanceDefinition: ActionDefinition<{ readonly id: string }, number, never> =
+  PlainAdvance;
+// @ts-expect-error -- a durable Action's error type includes ActionQueued.
+const durableAdvanceWithoutQueued: ActionDefinition<{ readonly id: string }, number, "Rejected"> =
+  DurableAdvance;
+const durableWithoutSchema = Action.define({
+  name: "type-tests/durable-without-schema",
+  // @ts-expect-error -- durable submissions are stored schema-encoded: they need an input schema.
+  durable: { maxAge: "1 day" },
+  run: (id: string) => Effect.succeed(id),
+});
+const durableWithoutMaxAge = Action.define({
+  name: "type-tests/durable-without-max-age",
+  input: DurableAdvanceInput,
+  // @ts-expect-error -- a durable Action declares how stale a replay may be.
+  durable: {},
+  run: () => Effect.succeed(1),
+});
+declare const durableRuntime: SunfallArcRuntime<never>;
+const durableInstance = Action.use(DurableAdvance, { runtime: durableRuntime });
+const durableSubmit: Effect.Effect<
+  number,
+  "Rejected" | ActionQueued | Server.ClientError | ActionInterruptedError
+> = durableInstance.submit({ id: "atlas" });
+type ActionInterruptedError =
+  Effect.Error<ReturnType<typeof durableInstance.submit>> extends infer E
+    ? Extract<E, { readonly _tag: "ActionInterrupted" }>
+    : never;
+const outboxView: Effect.Effect<ActionOutboxView> = Action.outbox;
+const outboxPendingCount: Effect.Effect<number> = Effect.map(
+  Action.outbox,
+  (outbox) => outbox.pending.get().length,
+);
+const outboxRestore: Effect.Effect<void> = Action.restoreOutbox;
+const outboxService: Effect.Effect<ActionOutbox, never, ActionOutbox> = Effect.gen(function* () {
+  return yield* ActionOutbox;
+});
+void durableAdvanceDefinition;
+void durableNoOutputDefinition;
+void plainAdvanceDefinition;
+void durableAdvanceWithoutQueued;
+void durableWithoutSchema;
+void durableWithoutMaxAge;
+void durableSubmit;
+void outboxView;
+void outboxPendingCount;
+void outboxRestore;
+void outboxService;

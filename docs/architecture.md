@@ -451,6 +451,98 @@ an in-flight submission and never crosses a wire. Collections implement the
 the row layering; `Collection.applyChanges` remains the direct write for
 remote feeds and local-only collections, never for server data.
 
+### Durable Submissions
+
+An Action opts into durability with one policy field. It requires an `input`
+schema (the types refuse `durable` without one), because a durable submission
+is stored schema-encoded:
+
+```ts
+export const AdvanceProject = Action.define({
+  name: "Project.advance",
+  input: AdvanceProjectInput,
+  output: ProjectSchema,
+  durable: { maxAge: "1 day" },
+  optimistic: ({ id }, transaction) =>
+    transaction.update(Projects, id, (project) => ({ ...project, progress: project.progress + 8 })),
+  run: (input) => ProjectApi.use((api) => api.advance(input)),
+});
+```
+
+`durable` adds `ActionQueued` to the Action's error type, so every handle and
+`submit` caller sees it. A submission on a client runtime that has an Action
+Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
+`App.launch` provides one) goes through it:
+
+- **Persist before send.** The outbox applies the optimistic patch, appends
+  `{ id, action, input (schema-encoded), createdAt, attempts }` to its queue,
+  and only then sends. The queue lives in the runtime's `effect/persistence`
+  `KeyValueStore` under the prefix `arc/actions/v1/` (key `queue`), encoded
+  with `KeyValueStore.toSchemaStore`. The client Layer chooses the store:
+  `KeyValueStore.layerStorage(() => localStorage)` in browsers,
+  `KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`
+  elsewhere. The optimistic intent is the input itself: `optimistic` is a pure
+  function of it, so restoring re-runs it instead of serializing patches.
+- **`submit` settles or queues.** It succeeds or fails with the outcome when
+  the submission settles while the caller waits (online, this is the same
+  value or typed failure a non-durable submit returns). A retryable failure
+  instead leaves the submission pending and fails the caller with
+  `ActionQueued { actionName, id }`; the handle's `failure()` shows it, and
+  the patch stays applied. Retryable means a transport failure that says
+  nothing about the Action (`isRetryableActionFailure`: `ServerTransportError`
+  with reason `Network`/`Interrupted`, or a 408, 429, or 5xx status that is
+  not a Start defect). Typed domain failures, protocol failures, and defects
+  are final.
+- **Global FIFO replay.** One replay loop sends pending submissions in
+  submission order, across Actions, because later submissions may depend on
+  earlier ones and a retryable failure (connectivity) blocks them all alike.
+  It runs on new durable submissions, on the window `online` event, and on
+  launch, backing off with the outbox's `retry` schedule (exponential from 1
+  second, 10 retries) while the head keeps failing retryably. Every attempt
+  sends the submission id.
+- **Settling.** Success removes the entry, folds the patch in, and applies the
+  response (hydration and invalidations) as any submission does. A final
+  failure removes the entry and rolls the patch back. A waiting caller gets
+  its own outcome; a submission nobody waits on (queued, or restored) reports
+  a final failure in the outbox's `failures` instead.
+- **Reloads.** `App.launch` hydrates the root first (so the first client
+  render matches the server's), then runs `Action.restoreOutbox`: pending
+  submissions are decoded, re-patched in order on top of the hydrated rows and
+  Signals, and replayed. An entry older than its Action's `durable.maxAge`
+  fails with `ActionSubmissionExpired`; one whose Action is no longer defined
+  and durable, or whose input no longer decodes, fails with
+  `ActionSubmissionUnrestorable`. A durable Action must be defined in a module
+  the entry loads, so it is registered before restore.
+- **Observing.** `Action.outbox` is the read side: `pending` (entries in
+  replay order), `failures`, and `dismiss(id)`. A runtime without an outbox,
+  such as a server render, reports nothing pending, so a Component can render
+  "3 changes waiting to sync" without a server-side service. The outbox
+  commits with Timeline causes `Action{event:"queue" | "restore" | "replay" |
+"success" | "failure" | "dismiss"}`.
+- **Client-only.** The endpoint site never consults an outbox, and the server
+  render path never persists anything. Non-durable Actions pay nothing: the
+  workflow checks `definition.durable` before it looks for an outbox.
+
+On the server, Start's action endpoint runs a submission that carries an id as
+an `effect/workflow` Workflow, one per Action
+(`sunfall-arc/action/<name>`), with the submission id as its idempotency key.
+Its single Activity decodes the input, runs the Action at the endpoint, and
+encodes the response; the response record (status, headers, body: the value or
+typed failure encoded with the Action's schemas, plus hydration and
+invalidation metadata) is the Workflow's success value, and its error channel
+is empty, since typed failures are part of the response. A replayed POST with
+the same id returns the recorded response without running `run` again, and a
+duplicate that arrives mid-run joins the running execution. The engine is the
+server Layer's `WorkflowEngine` when it provides one (a cluster or SQL-backed
+engine gives exactly-once across instances and restarts), otherwise a
+per-handler `WorkflowEngine.layerMemory`. Submissions without an id
+(non-durable Actions, progressive forms) run directly.
+
+One window remains: when the server applied a submission but the response was
+lost, a reload re-applies the patch on top of server data that already
+includes it, until the replay returns the recorded response and the
+invalidation reload replaces it. The server never applies it twice.
+
 ## Resource Dependency Graph
 
 Resource dependencies are semantic tags, not string cache keys. Families can say
