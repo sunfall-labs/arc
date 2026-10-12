@@ -262,7 +262,12 @@
       "source": "packages/start/src/node.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-node.test-d.ts",
-      "sourceSurface": ["node-web-exchange", "start-host-runtime-runner"],
+      "sourceSurface": [
+        "node-web-exchange",
+        "start-client-assets",
+        "start-host-runtime-runner",
+        "start-node-serve"
+      ],
       "requiredTypeTestImports": [
         "StartNodeAdapterError",
         "StartNodeHandler",

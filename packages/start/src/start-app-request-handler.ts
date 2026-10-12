@@ -25,6 +25,7 @@ import {
 import { makeStartServerApp } from "./start-server-app.js";
 import { attachStartHandlerRoutes } from "./start-route-preload-warnings.js";
 import { createStartStreamedHtmlResponse, htmlChunk } from "./streaming.js";
+import { documentWithClientAssets } from "./start-client-assets.js";
 import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -80,7 +81,11 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
   Effect.suspend(() => {
     const url = new URL(context.request.url);
     const props: App.RootProps = { href: `${url.pathname}${url.search}` };
-    const page = document?.({ request: context.request, match: context.match }) ?? {};
+    const declared = document?.({ request: context.request, match: context.match }) ?? {};
+    const page =
+      context.clientAssets === undefined
+        ? declared
+        : documentWithClientAssets(declared, context.clientAssets, context.match);
     // The same tree `App.launch` hydrates in the browser.
     const Root = Component.embed(
       app.root as Component<App.RootProps, never, never>,

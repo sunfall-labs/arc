@@ -21,7 +21,9 @@
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/*.test.ts",
     "leak-scan": "node scripts/leak-scan.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
+    "start": "node dist/server/index.js",
+    "smoke": "node scripts/production-smoke.mjs",
+    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan && pnpm smoke"
   },
   "dependencies": {
     "@effect/sql-sqlite-node": "4.0.3",
@@ -43,7 +45,7 @@
     "vitest": "^4.1.6"
   },
   "sunfallArcLeakScan": {
-    "dist": "dist",
+    "dist": "dist/client",
     "patterns": [
       "\\.server\\.(?:ts|js)",
       "sql-sqlite-node",

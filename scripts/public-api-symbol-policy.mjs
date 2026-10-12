@@ -626,7 +626,7 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/start/src/node.ts",
-    allDeclarations: ["createNodeHandler", "createNodeServerHandler"],
+    allDeclarations: ["createNodeHandler", "createNodeServerHandler", "serve", "serveMain"],
   },
 ];
 

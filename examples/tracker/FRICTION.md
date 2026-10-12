@@ -145,6 +145,24 @@ wrapping tagged errors had no message.
 - Fix: `StartDevServerError` and `StartRequestHandlerError` describe the
   operation and the wrapped failure.
 
+### 20. No production SSR server
+
+Start's Vite plugin served the handler in dev and prerendered static sites,
+but there was no server build or runner for a dynamic SSR app: the document's
+entry script was `/src/main.tsx` unless prerendering rewrote it. The tracker
+ran in dev only.
+
+- Fix: `vite build` of an app that does not prerender builds the client into
+  `dist/client` (with its manifest), then the server into `dist/server`,
+  whose `index.js` runs `serveMain` from `@sunfall/arc-start/node`: it serves
+  the client build's files and renders documents that reference the built
+  entry, its stylesheets, and `modulepreload` links for the entry and the
+  matched route's lazy chunk (`packages/start/src/start-server-build.ts`,
+  `start-client-assets.ts`, `start-node-serve.ts`). `serve` is the same
+  server as a scoped Effect for hosts that manage their own process.
+- The tracker runs with `pnpm build && pnpm start`; `pnpm verify` builds it
+  and runs `scripts/production-smoke.mjs` against the production server.
+
 ## Open
 
 ### 13. Every server write needs four definitions
@@ -231,17 +249,6 @@ SSR requests, so the shell passed its handle down through a Solid context.
   (`src/shell.tsx`); the context is gone.
 - Tests: `packages/solid/test/state.test.ts` ("Component.state with an app
   State"), `packages/start/test/server-render.test.ts`.
-
-### 20. No production SSR server
-
-Start's Vite plugin serves the handler in dev and prerenders static sites, but
-there is no server build or runner for a dynamic SSR app: the document's
-entry script is `/src/main.tsx` unless prerendering rewrites it
-(`packages/start/src/start-document.ts`). The tracker runs in dev only.
-
-- Proposal: `vite build` also emits the server entry and a manifest-aware
-  `clientEntry`/stylesheet list, and `@sunfall/arc-start/node` gains a
-  `serve(handler, { dist })` that serves assets and the handler.
 
 ### 21. `document()` cannot read route data
 

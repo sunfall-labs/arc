@@ -40,7 +40,7 @@
     "vitest": "^4.1.6"
   },
   "sunfallArcLeakScan": {
-    "dist": "dist",
+    "dist": "dist/client",
     "patterns": [
       "seedProjects",
       "seedWorkItems",

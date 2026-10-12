@@ -6,6 +6,31 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Production Server Build
+
+- `vite build` with `sunfallArcStart` now builds a server-rendered app for
+  production (any app that does not `prerender`): the client into
+  `dist/client` with Vite's manifest, then the server into `dist/server`,
+  where Start generates `index.js`. `node dist/server/index.js` serves the
+  app on `PORT` (default 3000) and `HOST`, and closes gracefully on
+  `SIGINT`/`SIGTERM`. Previously Start only served in dev or prerendered, and
+  every app wrote its own server and asset wiring.
+- Documents rendered by the production server reference the built entry and
+  its stylesheets, and `modulepreload` the entry, its imports, and the matched
+  route's lazy `*.component.tsx` chunk, so the route's code downloads with the
+  entry instead of after it runs. Dev stylesheet links (`/src/...`) are
+  dropped there.
+- `@sunfall/arc-start/node` gains `serve(handler, { clientDir, assets })`, the
+  production server as a scoped Effect (static files plus the handler), and
+  `serveMain`, which runs it as the process main (what `index.js` calls).
+  `sunfallArcStart` takes `clientEntry` (default `/src/main.tsx`) for the
+  client build's input when the app sets none.
+- The client build moves from `dist` to `dist/client`; the examples' leak
+  scans read `dist/client`. `examples/tracker` runs in production with
+  `pnpm build && pnpm start`, and its `verify` smoke-tests the production
+  server (`scripts/production-smoke.mjs`). `benchmarks/compare/arc` drops its
+  hand-written `server.mjs` for the built server.
+
 ### Live Queries Move To `@sunfall/arc-solid/live-query` (Breaking)
 
 - `Component.liveQuery(query, options?)` is now

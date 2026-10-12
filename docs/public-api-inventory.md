@@ -596,8 +596,14 @@ Subpath exports:
   the Effect-first adapter; `createNodeServerHandler(handler, options?)` is the
   `node:http.createServer(...)` callback facade. It also exports
   `nodeRequestOrigin`, `nodeRequestToWebRequest`, `writeNodeResponse`, and
-  `StartNodeAdapterError`. Manifest-pinned Source Surface Modules:
-  `node-web-exchange` and `start-host-runtime-runner`. `trustForwardedHeaders`
+  `StartNodeAdapterError`. `serve(handler, { clientDir, assets })` is the
+  production server (a scoped Effect yielding the listening `http.Server`)
+  that serves a client build and renders documents referencing it
+  (`StartClientAssets`, `StartPageAssets`, `StartNodeServeOptions`,
+  `StartNodeServeError`); `serveMain` runs it as the process main, and is
+  what `vite build`'s `dist/server/index.js` calls. Manifest-pinned Source
+  Surface Modules: `node-web-exchange`, `start-client-assets`,
+  `start-host-runtime-runner`, and `start-node-serve`. `trustForwardedHeaders`
   defaults to `false`; enable it only behind a proxy that overwrites
   `x-forwarded-proto` / `x-forwarded-host`.
 - `./vite` exports only `sunfallArcStart`, its option types, and its errors.

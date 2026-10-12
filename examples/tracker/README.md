@@ -20,9 +20,18 @@ already has issues assigned. The database lives in `.data/tracker.db` (set
 `TRACKER_DB` to move it, or `:memory:` for a throwaway one) and is migrated
 and seeded on first start.
 
+In production, `vite build` emits the client (`dist/client`) and a Node server
+(`dist/server/index.js`) that serves it, listening on `PORT` (default 3000) and
+`HOST`:
+
+```sh
+pnpm --filter @sunfall/arc-example-tracker build
+pnpm --filter @sunfall/arc-example-tracker start   # node dist/server/index.js
+```
+
 ```sh
 pnpm tracker:test     # domain, Action, and SSR tests (in-memory SQLite)
-pnpm tracker:verify   # typecheck, tests, client build, server-only leak scan
+pnpm tracker:verify   # typecheck, tests, build, server-only leak scan, production smoke test
 ```
 
 ## What it uses

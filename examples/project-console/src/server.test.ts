@@ -20,7 +20,9 @@ import { projectConsoleStartOptions } from "./start-options.js";
 
 const textDecoder = new TextDecoder();
 const projectRoot = new URL("..", import.meta.url).pathname;
-const testDist = join(projectRoot, ".test-dist/client");
+// Start builds the client into `<outDir>/client` (the server goes to `<outDir>/server`).
+const testOutDir = join(projectRoot, ".test-dist");
+const testDist = join(testOutDir, "client");
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
 const runRequest = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
@@ -242,7 +244,7 @@ describe("project console SSR", () => {
       configFile: join(projectRoot, "vite.config.ts"),
       logLevel: "silent",
       build: {
-        outDir: testDist,
+        outDir: testOutDir,
         emptyOutDir: true,
         minify: false,
         sourcemap: false,
@@ -268,7 +270,9 @@ describe("project console SSR", () => {
     const assets = await readdir(join(testDist, "assets"));
     const pageChunk = assets.find((name) => /^_id\.component-.*\.js$/.test(name));
     expect(pageChunk).toBeDefined();
-    const entryChunk = assets.find((name) => /^index-.*\.js$/.test(name));
+    // The client entry is `clientEntry` (`/src/main.tsx`).
+    const entryChunk = assets.find((name) => /^main-.*\.js$/.test(name));
+    expect(entryChunk).toBeDefined();
     expect(await readFile(join(testDist, "assets", pageChunk!), "utf8")).toContain("Risk register");
     expect(await readFile(join(testDist, "assets", entryChunk!), "utf8")).not.toContain(
       "Risk register",

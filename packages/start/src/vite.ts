@@ -31,6 +31,13 @@ import {
 import { forkStartHost, runStartHostPromise } from "./start-host-runtime-runner.js";
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
 import { runStartPrerender } from "./start-prerender.js";
+import { defaultStartClientEntry } from "./start-document.js";
+import {
+  isProductionServerEntry,
+  productionServerEntryModule,
+  resolveProductionServerEntryId,
+  startServerBuildConfig,
+} from "./start-server-build.js";
 
 export type {
   SunfallArcStartOptions,
@@ -80,6 +87,10 @@ export interface SunfallArcStartPlugin {
   ) => UserConfig;
   readonly configResolved: (config: SunfallArcStartResolvedConfig) => void;
   readonly buildStart: () => void;
+  readonly buildApp: {
+    readonly order: "pre";
+    readonly handler: (builder: StartViteBuilder) => Promise<void>;
+  };
   readonly closeBundle: () => void | Promise<void>;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
@@ -120,6 +131,12 @@ export interface SunfallArcStartPlugin {
       };
     };
   }) => void;
+}
+
+/** The parts of Vite's app builder the Start plugin drives. */
+export interface StartViteBuilder {
+  readonly environments: Readonly<Record<string, unknown>>;
+  build(environment: never): Promise<unknown>;
 }
 
 /** Error thrown when a browser build imports a `.server.*` module. */
@@ -203,6 +220,9 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let viteOutDir = "dist";
   let viteBase = "/";
   let viteBuildManifest: boolean | string | undefined;
+  // `vite build` of an app that does not prerender builds the client, then
+  // the production server (`<outDir>/server/index.js`) that serves it.
+  let serverBuild: { readonly outDir: string } | undefined;
 
   const currentOptions = (): SunfallArcStartOptions =>
     Effect.runSync(withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot));
@@ -276,8 +296,21 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());
       const manifest = config.build?.manifest;
+      const isServerBuild = env?.command === "build" && normalizedOptions.prerender === undefined;
+      const outDir = config.build?.outDir ?? "dist";
+      serverBuild = isServerBuild ? { outDir } : undefined;
       return {
         appType: "custom",
+        ...(isServerBuild
+          ? startServerBuildConfig({
+              root: viteRoot,
+              outDir,
+              serverEntry,
+              clientEntry: normalizedOptions.clientEntry ?? defaultStartClientEntry,
+              clientInput:
+                config.build?.rolldownOptions?.input ?? config.build?.rollupOptions?.input,
+            })
+          : {}),
         // Prerendering swaps the dev entry for the built assets listed in Vite's build manifest.
         ...(env?.command === "build" && normalizedOptions.prerender && !config.build?.ssr
           ? { build: { manifest: typeof manifest === "string" ? manifest : true } }
@@ -301,6 +334,24 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     },
     buildStart() {
       refreshFileRouteArtifacts();
+    },
+    buildApp: {
+      order: "pre",
+      // The server entry embeds the client manifest, so the client builds first.
+      handler(builder) {
+        return runStartHostPromise(
+          Effect.forEach(
+            serverBuild === undefined ? [] : ["client", "ssr"],
+            (name) => {
+              const environment = builder.environments[name];
+              return environment === undefined
+                ? Effect.void
+                : Effect.promise(() => builder.build(environment as never));
+            },
+            { discard: true },
+          ),
+        );
+      },
     },
     closeBundle() {
       if (viteCommand !== "build" || normalizedOptions.prerender === undefined) {
@@ -330,10 +381,21 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       );
     },
     resolveId(id) {
-      return resolveStartVirtualModuleId(id);
+      return resolveStartVirtualModuleId(id) ?? resolveProductionServerEntryId(id);
     },
     load(id) {
       const activeOptions = currentOptions();
+      if (isProductionServerEntry(id)) {
+        return productionServerEntryModule({
+          root: viteRoot,
+          outDir: serverBuild?.outDir ?? viteOutDir,
+          base: viteBase,
+          serverEntry,
+          clientEntry: normalizedOptions.clientEntry ?? defaultStartClientEntry,
+          handlerExport: normalizedOptions.handlerExport,
+          fileRoutes: Effect.runSync(makeStartFileRouteManifest(activeOptions)),
+        });
+      }
       return Effect.runSync(loadStartVirtualModule(id, activeOptions));
     },
     transform(_code, id, options) {
