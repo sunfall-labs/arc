@@ -8,7 +8,4 @@ export const handleRequest = createRequestHandler(app, {
   // Provides what the implementations need (`ProjectStore`).
   server: ProjectStoreMemory,
   implementations: [projectList, projectById, renameProject],
-  document: ({ match }) => ({
-    title: match === undefined ? "Projects" : `Projects · ${match.href}`,
-  }),
 });

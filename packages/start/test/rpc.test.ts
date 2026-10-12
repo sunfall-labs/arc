@@ -423,7 +423,6 @@ describe("served Resources", () => {
   const servedApp = makeStartServerApp({
     routes: [
       Route.define("/", {
-        preloadResources: [ProjectName],
         preload: () => Resource.preload(ProjectName("atlas")).pipe(Effect.orDie),
       }),
     ] as const,

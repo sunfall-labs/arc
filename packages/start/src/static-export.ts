@@ -58,7 +58,7 @@ export const normalizeStartStaticPath = (path: string): string => {
     throw pathError(
       path,
       "empty",
-      "Provide a root-relative path such as '/' or '/cookbook/resource-from-server-function'.",
+      "Provide a root-relative path such as '/' or '/cookbook/served-resource'.",
     );
   }
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(path) || path.startsWith("//")) {

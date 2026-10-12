@@ -410,43 +410,6 @@ describe("route", () => {
     );
   });
 
-  it("describes declared route preload resource families without executing preload", () => {
-    let ran = false;
-    const Project = Resource.define({
-      name: "Route.Project.preload-diagnostics",
-      load: (id: string) => Effect.succeed({ id }),
-    });
-    const ProjectRoute = Route.define("/projects/:id", {
-      preloadResources: [Project, Project("atlas"), "Route.Project.extra"],
-      preload: () =>
-        Effect.sync(() => {
-          ran = true;
-        }),
-    });
-    const UnknownRoute = Route.define("/unknown", {
-      preload: () => Effect.void,
-    });
-    const PlainRoute = Route.define("/plain", {});
-
-    expect(Route.preloadResourceFamilies(ProjectRoute)).toEqual([
-      "Route.Project.extra",
-      "Route.Project.preload-diagnostics",
-    ]);
-    expect(Route.describePreloadResources(ProjectRoute)).toEqual({
-      status: "declared",
-      families: ["Route.Project.extra", "Route.Project.preload-diagnostics"],
-    });
-    expect(Route.describePreloadResources(UnknownRoute)).toEqual({
-      status: "unknown",
-      families: [],
-    });
-    expect(Route.describePreloadResources(PlainRoute)).toEqual({
-      status: "none",
-      families: [],
-    });
-    expect(ran).toBe(false);
-  });
-
   it("plans not found routes without running preload", () => {
     const Home = Route.define("/", {});
 

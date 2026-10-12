@@ -4,6 +4,7 @@ import {
   Action,
   ActionQueued,
   ActionTransport,
+  makeMemoryBrowserHistoryAdapter,
   makeRuntime,
   Resource,
   Route,
@@ -226,6 +227,83 @@ describe("App.launch", () => {
           // the mount, and no server node went unclaimed.
           expect(renders).toHaveLength(1);
           expect(warnings).toEqual([]);
+
+          yield* Fiber.interrupt(fiber);
+        }),
+      ),
+    ));
+
+  it("keeps document.title and the head's meta tags in step with client navigation", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const ProjectName = Resource.define({
+            name: "AppLaunch.head.projectName",
+            input: Schema.String,
+            output: Schema.String,
+            load: (id) => Effect.succeed(id === "atlas" ? "Atlas" : "Curie"),
+          });
+          const ProjectRoute = Route.define("/head-projects/:id", {
+            params: Schema.Struct({ id: Schema.String }),
+            preload: ({ params }) => Resource.preload(ProjectName(params.id)),
+            head: ({ params, read }) => ({
+              title: read(ProjectName(params.id)),
+              description: `Project ${params.id}`,
+            }),
+          });
+          const routes = [ProjectRoute] as const;
+          const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/head-projects/atlas" });
+          const Root = Component.define("Root", function* (props: App.RootProps) {
+            yield* Component.router(routes, { initialHref: props.href, history });
+            return () => "app";
+          });
+          const app = App.define({
+            root: Root,
+            routes,
+            head: (page) => ({
+              ...page,
+              title: page.title === undefined ? "Projects" : `${page.title} · Projects`,
+            }),
+          });
+
+          // What the server sends for /head-projects/atlas.
+          const server = makeRuntime();
+          yield* Effect.addFinalizer(() => server.dispose.pipe(Effect.orDie));
+          yield* server.provide(Resource.preload(ProjectName("atlas")));
+          const resources = yield* server.provide(
+            Resource.hydrationPayload([ProjectName("atlas")]),
+          );
+          const hydrationGlobal = globalThis as { _$HY?: unknown };
+          hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
+          document.head.innerHTML =
+            '<meta name="description" content="Project atlas" data-arc-head="" /><title>Atlas · Projects</title>';
+          document.body.innerHTML = `<div id="root">app</div>${createHydrationScriptSync(
+            createStartHydrationPayload(resources),
+          )}`;
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              delete hydrationGlobal._$HY;
+              document.head.innerHTML = "";
+              document.body.innerHTML = "";
+            }),
+          );
+          const description = () =>
+            Array.from(document.head.querySelectorAll("meta[data-arc-head]")).map((meta) =>
+              meta.getAttribute("content"),
+            );
+
+          const fiber = Effect.runFork(App.launch(app, { href: "/head-projects/atlas" }));
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(document.getElementById("root")?.textContent).toBe("app")),
+          );
+          expect(document.title).toBe("Atlas · Projects");
+          expect(description()).toEqual(["Project atlas"]);
+
+          history.externalNavigate("/head-projects/curie");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(document.title).toBe("Curie · Projects")),
+          );
+          expect(description()).toEqual(["Project curie"]);
 
           yield* Fiber.interrupt(fiber);
         }),

@@ -36,6 +36,7 @@ export {
   type ActionSubmissionRun,
 } from "./action-submission.js";
 export { makeWindowBrowserHistoryAdapter } from "./browser-router-history-adapter.js";
+export { routeHeadOf, settledRouteHead } from "./route-head.js";
 export {
   browserRouterInitialMatchedState,
   createBrowserRouterKernel,

@@ -38,7 +38,6 @@ import {
   Callout,
   CloseIcon,
   CodeBlock,
-  DocumentTitle,
   GitHubIcon,
   InlineText,
   MenuIcon,
@@ -69,7 +68,6 @@ function DocsOverviewView() {
   const [featured, ...rest]: ReadonlyArray<DocsPage> = docsPages;
   return (
     <article class="docPage wide">
-      <DocumentTitle title="Documentation" />
       <div class="docColumn">
         <header class="pageHeader">
           <p class="eyebrow">Documentation</p>
@@ -148,7 +146,6 @@ function DocsPageView(props: Route.Props<typeof DocsPageRoute>) {
 
   return (
     <article class="docPage">
-      <DocumentTitle title={page.title} />
       <div class="docColumn">
         <header class="pageHeader">
           <p class="eyebrow">{page.section}</p>
@@ -267,7 +264,6 @@ const CookbookIndexView = Component.define("CookbookIndexView", function* () {
   const Recipes = yield* RecipeIndexGrid;
   return () => (
     <article class="docPage wide">
-      <DocumentTitle title="Cookbook" />
       <div class="docColumn">
         <header class="pageHeader">
           <p class="eyebrow">Cookbook</p>

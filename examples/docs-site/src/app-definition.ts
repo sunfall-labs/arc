@@ -1,5 +1,6 @@
 import { App } from "@sunfall/arc-start";
 import DocsSite from "./App.js";
+import { docsSiteHead } from "./page-meta.js";
 import { routes } from "./routeTree.gen.js";
 
 // The one app definition. In dev the browser loads the served recipe
@@ -8,4 +9,5 @@ import { routes } from "./routeTree.gen.js";
 export const app = App.define({
   root: DocsSite,
   routes,
+  head: docsSiteHead,
 });

@@ -1033,6 +1033,20 @@ export interface ResourceOptimisticTarget {
   readonly entry: ResourceEntry<any, any>;
 }
 
+/**
+ * The visible value of `ref` in `store`, patches included, or `undefined`
+ * until it loads. Read inside `Signal.derive`, it tracks the entry.
+ */
+export const readResourceValue = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+  store: ResourceStoreState,
+): A | undefined => {
+  const entry = peekResourceEntry(ref, store);
+  return entry === undefined
+    ? undefined
+    : Option.getOrUndefined(AsyncResult.value(entry.state.get()));
+};
+
 /** The visible value of `ref` in the caller's store, patches included; none until loaded. */
 export const peekResourceValueEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,

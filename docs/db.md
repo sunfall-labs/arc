@@ -417,7 +417,6 @@ hydration, and navigation render the rows without a fallback:
 // Rows hydrate as their Resource does: preload it, and SSR, hydration, and
 // navigation render the rows without a fallback.
 const ProjectRoute = Route.define("/projects/:id", {
-  preloadResources: [ProjectList, TaskList],
   preload: () => Resource.preload([ProjectsRef, TasksRef]),
 });
 ```

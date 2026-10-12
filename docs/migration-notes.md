@@ -5,6 +5,43 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From The Streamed Document Body
+
+A server-rendered page is one complete body now, so the HTML stream that built
+it is gone.
+
+| Before                                              | After                                                                                    |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `StartStreamError` (a document stream phase failed) | removed: the document is built before the response; a failure is the request's own error |
+| `sunfall-arc.stream.failure_phase` on request spans | removed; `sunfall-arc.stream.state` still records a custom streamed body's end           |
+| reading a page's body in several chunks             | one chunk; the Node adapter sends it with `content-length`                               |
+
+## From `document({ title, meta })`
+
+The page's head is the matched route's `head`, through the app's `head`. The
+server renders it and `App.launch` keeps it current on navigation.
+
+| Before                                                                                                 | After                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `document: ({ match }) => ({ title: Route.isMatch(IssueRoute, match) ? match.params.id : "Tracker" })` | `Route.define("/issues/:id", { preload, head: ({ params, read }) => ({ title: read(IssueById(params.id))?.title }) })`   |
+| a title suffix or fallback in `document`                                                               | `App.define({ head: (page, status) => ({ ...page, title: page.title === undefined ? "App" : `${page.title} · App` }) })` |
+| `document: () => ({ meta: [{ name: "color-scheme", content: "light dark" }] })`                        | the app's `head` returns the `meta` every page carries                                                                   |
+| `document: () => ({ meta: [{ name: "description", content }] })` per route                             | the route's `head` returns `description`                                                                                 |
+| a `createEffect` that writes `document.title` on navigation                                            | nothing: `App.launch` writes `document.title` and the head's `<meta>` tags                                               |
+| `StartDocument.title`, `StartDocument.meta`                                                            | removed; `document` returns `lang`, `links`, `clientEntry`, and `headers`                                                |
+
+## From `preloadResources`
+
+A route's `preload` is the only place it says what it loads; Start hydrates
+the Resources the preload touched, as it always did.
+
+| Before                                                                              | After                                                  |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `Route.define(path, { preloadResources: [ProjectById], preload })`                  | `Route.define(path, { preload })`                      |
+| `Route.describePreloadResources(route)`, `Route.preloadResourceFamilies(route)`     | `Route.planNavigation(routes, href)`: the touched refs |
+| `Route.PreloadResourceInput`, `PreloadResourceDiagnostics`, `PreloadResourceStatus` | removed                                                |
+| the Vite dev warning for a `preload` without `preloadResources`                     | removed                                                |
+
 ## From Server-Function Resources And Listed Actions
 
 Server reads and writes are now declared once. A Resource with `input` and
@@ -198,7 +235,7 @@ Resource reader, and patch them on the Resource ref.
 | `SolidDb.liveQuery(query)` from `@sunfall/arc-solid-db`                        | `LiveQuery.bind(query)` from `@sunfall/arc-solid/live-query`; the package is deleted        |
 | `persistence: { key, version }`, `persist()`, `restore()`                      | `policy: { persist: { key, version } }` on the Resource (restore is automatic)              |
 | `snapshot()` / `hydrate()` / `Collection.HydrationPayload`                     | Resource hydration: rows hydrate as their Resource                                          |
-| `preloadCollections: [Projects]`, `Projects.preload()` in a route              | `preloadResources: [ProjectList]`, `Resource.preload(ProjectsRef)`                          |
+| `preloadCollections: [Projects]`, `Projects.preload()` in a route              | `Resource.preload(ProjectsRef)` in the route's `preload`                                    |
 | `App.define({ collections: [Projects] })`                                      | removed: preloaded Resources hydrate on their own                                           |
 | `Timeline` cause `Collection`                                                  | `Resource` causes (`change` for a `rows.changes` batch)                                     |
 | `QueryPlanSourceDiagnostics.collection`, join strategy `"collection-index"`    | `.resource`, `"index"` (and `"scan"`)                                                       |
@@ -466,18 +503,18 @@ addressed by their definitions.
 
 Start no longer builds an app graph, so the tooling that read it is gone:
 
-| Before                                                                                                                            | Now                                                                                              |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `sunfall-arc-start diagnostics` / `graph` / `impact` (the package `bin`)                                                          | removed; read `routeTree.gen.ts`, `Resource.diagnostics()`, and `Route.describePreloadResources` |
-| `@sunfall/arc-start/diagnostics-report`, `createStartAgentGraph(...)`                                                             | removed                                                                                          |
-| `virtual:sunfall-arc/app-graph`, `virtual:sunfall-arc/app-graph/runtime-diagnostics`                                              | removed                                                                                          |
-| `virtual:sunfall-arc/server-functions`, `virtual:sunfall-arc/actions`, `__SUNFALL_ARC_*__` manifest defines                       | removed (`virtual:sunfall-arc/file-routes` and `virtual:sunfall-arc/routes` remain)              |
-| `buildPolicy: true`, `buildPolicy.wireSchemas`                                                                                    | removed; `buildPolicy` is `{ staticClient }`                                                     |
-| `buildPolicy.diagnostics.routePreloadResources.requireDeclaredForPreload`                                                         | Vite dev logs a warning for each route whose `preload` declares no `preloadResources`            |
-| `@sunfall/arc-start/internal`                                                                                                     | removed                                                                                          |
-| Vite plugin `rpcPath` / `actionPath`, `createRequestHandler(app, { endpoints })`, `App.launch(app, { transport: { endpoints } })` | removed: the endpoints are fixed at `/__sunfall-arc/rpc` and `/__sunfall-arc/action`             |
-| `StartTransportEndpointPathError`, `StartTransportEndpointConflictError`, `StartTransportEndpointOverrides`                       | removed                                                                                          |
-| `StartAction.form(action, { action: url })`                                                                                       | `StartAction.form(action)`                                                                       |
+| Before                                                                                                                            | Now                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `sunfall-arc-start diagnostics` / `graph` / `impact` (the package `bin`)                                                          | removed; read `routeTree.gen.ts`, `Resource.diagnostics()`, and `Route.planNavigation` |
+| `@sunfall/arc-start/diagnostics-report`, `createStartAgentGraph(...)`                                                             | removed                                                                                |
+| `virtual:sunfall-arc/app-graph`, `virtual:sunfall-arc/app-graph/runtime-diagnostics`                                              | removed                                                                                |
+| `virtual:sunfall-arc/server-functions`, `virtual:sunfall-arc/actions`, `__SUNFALL_ARC_*__` manifest defines                       | removed (`virtual:sunfall-arc/file-routes` and `virtual:sunfall-arc/routes` remain)    |
+| `buildPolicy: true`, `buildPolicy.wireSchemas`                                                                                    | removed; `buildPolicy` is `{ staticClient }`                                           |
+| `buildPolicy.diagnostics.routePreloadResources.requireDeclaredForPreload`                                                         | removed: a route's `preload` is its only declaration of what it loads                  |
+| `@sunfall/arc-start/internal`                                                                                                     | removed                                                                                |
+| Vite plugin `rpcPath` / `actionPath`, `createRequestHandler(app, { endpoints })`, `App.launch(app, { transport: { endpoints } })` | removed: the endpoints are fixed at `/__sunfall-arc/rpc` and `/__sunfall-arc/action`   |
+| `StartTransportEndpointPathError`, `StartTransportEndpointConflictError`, `StartTransportEndpointOverrides`                       | removed                                                                                |
+| `StartAction.form(action, { action: url })`                                                                                       | `StartAction.form(action)`                                                             |
 
 The plugin also no longer loads the server entry through a second Vite server
 at startup to name server functions and Actions: nothing consumed those names.
@@ -576,8 +613,7 @@ behind Resource families and Actions:
   defined without `run` is served (its `Action.implement` runs on the
   server) and submits over the network through the same handle, and
   `StartAction.form(...)` renders it as a progressive no-JS form.
-- Route loaders call `Resource.preload(...)` in `preload` and declare
-  `preloadResources`; file routes export
+- Route loaders call `Resource.preload(...)` in `preload`; file routes export
   `route = Route.define(path, options)`, the same constructor as any route.
 
 Keep Promise-returning query functions at the host boundary only. Inside the
@@ -601,8 +637,8 @@ implementations })`; Promise handlers are host convenience boundaries.
 - Start renders the app root into its own streamed document; a route sets its
   head and headers through the handler's `document` function instead of
   hand-written HTML.
-- Routes with a `preload` declare `preloadResources`; Vite dev warns for every
-  route that does not.
+- A route's loader becomes its `preload`; Start server renders and hydrates
+  what it loads.
 
 When moving a route, migrate the route path, schemas, Resource preloads, and
 served definitions together. A route that compiles but hides preload ownership is

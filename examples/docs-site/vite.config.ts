@@ -1,10 +1,14 @@
 import tailwindcss from "@tailwindcss/vite";
-import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
+import { sunfallArcTsrx } from "../../packages/tsrx/src/index.js";
 import { defineConfig } from "vite";
-import { sunfallArcStart } from "@sunfall/arc-start/vite";
+import { sunfallArcStart } from "../../packages/start/src/vite.js";
 import { normalizeDocsSiteBasePath } from "./src/base-path.js";
 import { docsSiteStartOptions } from "./src/start-options.js";
 
+// The Start and tsrx plugins load from source like the app's modules (an app
+// outside this repository imports `@sunfall/arc-start/vite` and
+// `@sunfall/arc-tsrx`), so a plugin change restarts the dev server without a
+// package build.
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;
 const docsSiteBasePath = normalizeDocsSiteBasePath(
   process.env.DOCS_SITE_BASE_PATH ?? process.env.VITE_DOCS_SITE_BASE_PATH ?? "/",

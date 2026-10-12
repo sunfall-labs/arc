@@ -6,7 +6,8 @@ import { App } from "../src/index.js";
 /*
  * A small Start app for route verdicts and render-loaded Resources: items
  * that may not exist (`Route.notFound()`), a page that sends visitors away
- * (`Route.redirect`), and a shell that reads a Resource no route preloads.
+ * (`Route.redirect`), a shell that reads a Resource no route preloads, and
+ * a page head from the preloaded item.
  */
 
 export class ItemMissing extends Schema.TaggedError<ItemMissing>()("ItemMissing", {
@@ -37,12 +38,15 @@ export const ItemName = Resource.define({
 
 export const ItemRoute = Route.define("/items/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preloadResources: [ViewerName, ItemName],
   preload: ({ params }) =>
     Resource.preload(ViewerName("me")).pipe(
       Effect.andThen(Resource.preload(ItemName(params.id))),
       Effect.catchTag("ItemMissing", () => Route.notFound()),
     ),
+  head: ({ params, read }) => ({
+    title: read(ItemName(params.id)) ?? params.id,
+    description: `The <${params.id}> item`,
+  }),
 });
 
 export const PrivateRoute = Route.define("/private", {
@@ -70,4 +74,12 @@ const Root = Component.define("Root", function* (props: App.RootProps) {
   );
 });
 
-export const verdictsApp = App.define({ root: Root, routes });
+export const verdictsApp = App.define({
+  root: Root,
+  routes,
+  head: (page) => ({
+    ...page,
+    title: page.title === undefined ? "Items" : `${page.title} · Items`,
+    meta: [{ name: "color-scheme", content: "light dark" }],
+  }),
+});

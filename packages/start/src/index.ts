@@ -33,11 +33,6 @@ export {
 } from "./start-request-handler.js";
 
 export {
-  /** Error raised when an HTML response stream fails. */
-  StartStreamError,
-} from "./streaming.js";
-
-export {
   /** Reads and hydrates Start payloads from a document as an Effect. */
   hydrateFromDocument,
   /** Error raised when a streamed hydration chunk cannot be parsed. */

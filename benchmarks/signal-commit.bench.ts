@@ -2,11 +2,12 @@ import { Signal } from "@sunfall/arc-core";
 import { withSignalTransition, SignalWrites } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
 import { bench, describe } from "vitest";
+import { benchOptions } from "./bench-options.js";
 
 // Guards the unrecorded commit path: without `Timeline.record`, solo writes
 // (inside a named transition, as a `Component.callback` makes them), batches,
 // and reads must cost what they did before the recorder seam existed.
-const microBenchOptions = { throws: true, time: 1_000, warmupTime: 250 };
+const microBenchOptions = benchOptions(1_000, 250);
 
 const assertBench = (condition: unknown, message: string): void => {
   if (!condition) {

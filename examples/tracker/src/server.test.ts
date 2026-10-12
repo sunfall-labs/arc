@@ -90,7 +90,7 @@ describe("tracker SSR", () => {
     const response = await request("/projects/TRK", { headers: { cookie } });
     const html = await response.text();
     expect(response.status).toBe(200);
-    expect(html).toContain("<title>TRK board · Tracker</title>");
+    expect(html).toContain("<title>Tracker board · Tracker</title>");
     expect(html).toContain('data-testid="board"');
     expect(html).toContain("Draft the onboarding checklist");
     expect(hydratedResources(html)).toEqual(
@@ -117,6 +117,13 @@ describe("tracker SSR", () => {
     expect(second).toContain("Page 2 of 2");
   });
 
+  it("titles an issue page with the preloaded issue", async () => {
+    const response = await request("/issues/TRK-1", { headers: { cookie } });
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain("<title>TRK-1 Draft the onboarding checklist · Tracker</title>");
+  });
+
   it("answers 404 for an issue that does not exist, inside the signed-in shell", async () => {
     const response = await request("/issues/TRK-9999", { headers: { cookie } });
     const html = await response.text();
@@ -124,6 +131,7 @@ describe("tracker SSR", () => {
     expect(html).toContain('data-testid="not-found"');
     expect(html).toContain("Mara Chen");
     expect(rootPayload(html).notFound).toBe(true);
+    expect(html).toContain("<title>Not found · Tracker</title>");
     // What the preload loaded before its verdict hydrates the shell around the 404.
     expect(hydratedResources(html)).toEqual(
       expect.arrayContaining(["Tracker.currentUser", "Tracker.projects"]),

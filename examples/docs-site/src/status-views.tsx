@@ -1,6 +1,5 @@
 import { RouterLink } from "@sunfall/arc-solid";
 import { CookbookRoute, DocsOverviewRoute, HomeRoute } from "./site-routes.js";
-import { DocumentTitle } from "./ui.js";
 
 export function LoadingView() {
   return (
@@ -15,7 +14,6 @@ export function LoadingView() {
 export function FailureView(props: { readonly error: unknown }) {
   return (
     <section class="statusView failure" role="alert">
-      <DocumentTitle title="Could not load this page" />
       <p class="statusCode">Error</p>
       <h1>Could not load this page</h1>
       <p>
@@ -33,7 +31,6 @@ export function FailureView(props: { readonly error: unknown }) {
 export function NotFoundView() {
   return (
     <section class="statusView">
-      <DocumentTitle title="Page not found" />
       <p class="statusCode">404</p>
       <h1>Page not found</h1>
       <p>This page does not exist, or it moved. These are good places to pick the trail back up.</p>

@@ -32,6 +32,7 @@ import { forkStartHost, runStartHostPromise } from "./start-host-runtime-runner.
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
 import { runStartPrerender } from "./start-prerender.js";
 import { defaultStartClientEntry } from "./start-document.js";
+import { startChunkNamingConfig } from "./start-chunk-naming.js";
 import {
   isProductionServerEntry,
   productionServerEntryModule,
@@ -311,9 +312,16 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
                 config.build?.rolldownOptions?.input ?? config.build?.rollupOptions?.input,
             })
           : {}),
-        // Prerendering swaps the dev entry for the built assets listed in Vite's build manifest.
-        ...(env?.command === "build" && normalizedOptions.prerender && !config.build?.ssr
-          ? { build: { manifest: typeof manifest === "string" ? manifest : true } }
+        ...(env?.command === "build"
+          ? {
+              build: {
+                ...startChunkNamingConfig(viteRoot),
+                // Prerendering swaps the dev entry for the built assets listed in Vite's build manifest.
+                ...(normalizedOptions.prerender && !config.build?.ssr
+                  ? { manifest: typeof manifest === "string" ? manifest : true }
+                  : {}),
+              },
+            }
           : {}),
         define: {
           // Static-client builds compile the RPC client out of `App.launch`.

@@ -1,310 +1,53 @@
-import { Cause, Deferred, Effect, Exit, Fiber, Stream } from "effect";
+import { Deferred, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
-import type { Resource } from "@sunfall/arc-core";
-import {
-  StartHydrationPayloadSerializeError,
-  type StartHydrationPayload,
-} from "../src/hydration.js";
 import { responseWithScopeLifetime } from "../src/response-lifetime.js";
 import {
-  createHtmlResponse,
-  createHtmlStream,
-  htmlChunk,
+  completeResponse,
+  completeResponseBytes,
   responseWithStreamFinalizer,
-  StartStreamError,
-  streamHydrationAttribute,
-  streamHydrationSequenceAttribute,
-  streamHydrationChunk,
   type StartResponseStreamFinalizeEvent,
 } from "../src/streaming.js";
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
-const decodeChunks = (chunks: ReadonlyArray<Uint8Array>): ReadonlyArray<string> =>
-  chunks.map((chunk) => textDecoder.decode(chunk));
-
-const firstFailure = <E>(cause: Cause.Cause<E>): E | undefined =>
-  cause.reasons.find(Cause.isFailReason)?.error;
-
-const cyclicHydrationPayload = (): StartHydrationPayload => {
-  const value: Record<string, unknown> = {};
-  value.self = value;
-  return {
-    resources: [
-      {
-        name: "Streaming.Project.cyclic",
-        key: "Streaming.Project.cyclic:1",
-        input: "1",
-        state: {
-          _tag: "Success",
-          waiting: false,
-          value,
-          timestamp: 1,
-        },
-      },
-    ],
-  };
-};
-
 describe("Start streaming", () => {
-  it("emits shell, HTML chunks, hydration chunks, and tail in order", () => {
-    const payload: Resource.HydrationPayload = {
-      resources: [
-        {
-          name: "Streaming.Project.byId",
-          key: 'Streaming.Project.byId:"atlas"',
-          input: "atlas",
-          state: {
-            _tag: "Success",
-            waiting: false,
-            value: { id: "atlas", name: "Atlas" },
-            timestamp: 1,
-          },
-        },
-      ],
-    };
-
-    return Effect.runPromise(
+  it("builds a complete response that Fetch hosts read and re-wrapping keeps complete", () =>
+    Effect.runPromise(
       Effect.gen(function* () {
-        const stream = yield* createHtmlStream({
-          shell: "<html><body>",
-          chunks: Stream.make(htmlChunk("<main>Atlas</main>"), streamHydrationChunk(payload)),
-          tail: "</body></html>",
+        const response = completeResponse("<html>ready</html>", {
+          headers: { "content-type": "text/html; charset=utf-8" },
         });
+        expect(textDecoder.decode(completeResponseBytes(response))).toBe("<html>ready</html>");
+        // ResponseContext and transport diagnostics re-wrap the body as is.
+        const rewrapped = new Response(response.body, { status: 404, headers: response.headers });
+        expect(textDecoder.decode(completeResponseBytes(rewrapped))).toBe("<html>ready</html>");
+        expect(yield* Effect.promise(() => rewrapped.text())).toBe("<html>ready</html>");
+        // Read, it is an ordinary used body.
+        expect(completeResponseBytes(rewrapped)).toBeUndefined();
+        expect(completeResponseBytes(new Response("<p>stream</p>"))).toBeUndefined();
+      }),
+    ));
 
-        const chunks = yield* Stream.runCollect(stream);
-
-        yield* Effect.sync(() =>
-          expect(decodeChunks(chunks)).toEqual([
-            "<html><body>",
-            "<main>Atlas</main>",
-            `<script type="application/json" ${streamHydrationAttribute} ${streamHydrationSequenceAttribute}="0">{"_tag":"StartHydrationChunk","version":1,"sequence":0,"payload":{"resources":[{"name":"Streaming.Project.byId","key":"Streaming.Project.byId:\\"atlas\\"","input":"atlas","state":{"_tag":"Success","waiting":false,"value":{"id":"atlas","name":"Atlas"},"timestamp":1}}]}}</script>`,
-            "</body></html>",
-          ]),
+  it("releases a response scope at once for a complete response", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const events: string[] = [];
+        const response = yield* responseWithScopeLifetime(
+          Effect.gen(function* () {
+            yield* Effect.addFinalizer(() =>
+              Effect.sync(() => {
+                events.push("scope");
+              }),
+            );
+            return completeResponse("<html />", {});
+          }),
         );
+        // Released before anything read the body, which stays complete.
+        expect(events).toEqual(["scope"]);
+        expect(completeResponseBytes(response)).toBeDefined();
       }),
-    );
-  });
-
-  it("assigns stable sequence numbers to streamed hydration chunks", () => {
-    const first: StartHydrationPayload = {
-      resources: [
-        {
-          name: "Streaming.Project.first",
-          key: "Streaming.Project.first:1",
-          input: "1",
-          state: {
-            _tag: "Success",
-            waiting: false,
-            value: { id: "1" },
-            timestamp: 1,
-          },
-        },
-      ],
-    };
-    const second: StartHydrationPayload = {
-      resources: [
-        {
-          name: "Streaming.Project.second",
-          key: "Streaming.Project.second:2",
-          input: "2",
-          state: {
-            _tag: "Success",
-            waiting: false,
-            value: { id: "2" },
-            timestamp: 2,
-          },
-        },
-      ],
-    };
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const stream = yield* createHtmlStream({
-          shell: "<html>",
-          chunks: Stream.make(
-            streamHydrationChunk(first),
-            htmlChunk("<main />"),
-            streamHydrationChunk(second),
-          ),
-        });
-
-        const chunks = yield* Stream.runCollect(stream);
-        const decoded = decodeChunks(chunks);
-
-        yield* Effect.sync(() => {
-          expect(decoded[1]).toContain(`${streamHydrationSequenceAttribute}="0"`);
-          expect(decoded[3]).toContain(`${streamHydrationSequenceAttribute}="1"`);
-          expect(decoded[1]).toContain('"sequence":0');
-          expect(decoded[3]).toContain('"sequence":1');
-        });
-      }),
-    );
-  });
-
-  it("represents chunk failures as typed stream errors", () => {
-    return Effect.runPromise(
-      Effect.exit(
-        Effect.gen(function* () {
-          const stream = yield* createHtmlStream({
-            shell: "<html>",
-            chunks: Stream.concat(Stream.make(htmlChunk("<body>")), Stream.fail("boom")),
-          });
-
-          return yield* Stream.runCollect(stream);
-        }),
-      ).pipe(
-        Effect.tap((exit) =>
-          Effect.sync(() => {
-            expect(Exit.isFailure(exit)).toBe(true);
-            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-            expect(error).toBeInstanceOf(StartStreamError);
-            expect(error).toMatchObject({
-              reason: "Chunk",
-              cause: "boom",
-            });
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    );
-  });
-
-  it("wraps shell hydration serialization failures in StartStreamError", () => {
-    return Effect.runPromise(
-      Effect.exit(
-        Effect.gen(function* () {
-          const stream = yield* createHtmlStream({
-            shell: streamHydrationChunk(cyclicHydrationPayload()),
-          });
-
-          return yield* Stream.runCollect(stream);
-        }),
-      ).pipe(
-        Effect.tap((exit) =>
-          Effect.sync(() => {
-            expect(Exit.isFailure(exit)).toBe(true);
-            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-            expect(error).toBeInstanceOf(StartStreamError);
-            expect(error).toMatchObject({ reason: "Shell" });
-            expect((error as StartStreamError<unknown> | undefined)?.cause).toBeInstanceOf(
-              StartHydrationPayloadSerializeError,
-            );
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    );
-  });
-
-  it("wraps streamed chunk hydration serialization failures in StartStreamError", () => {
-    return Effect.runPromise(
-      Effect.exit(
-        Effect.gen(function* () {
-          const stream = yield* createHtmlStream({
-            shell: "<html>",
-            chunks: Stream.make(streamHydrationChunk(cyclicHydrationPayload())),
-          });
-
-          return yield* Stream.runCollect(stream);
-        }),
-      ).pipe(
-        Effect.tap((exit) =>
-          Effect.sync(() => {
-            expect(Exit.isFailure(exit)).toBe(true);
-            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-            expect(error).toBeInstanceOf(StartStreamError);
-            expect(error).toMatchObject({ reason: "Chunk" });
-            expect((error as StartStreamError<unknown> | undefined)?.cause).toBeInstanceOf(
-              StartHydrationPayloadSerializeError,
-            );
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    );
-  });
-
-  it("wraps tail hydration serialization failures in StartStreamError", () => {
-    return Effect.runPromise(
-      Effect.exit(
-        Effect.gen(function* () {
-          const stream = yield* createHtmlStream({
-            shell: "<html>",
-            tail: streamHydrationChunk(cyclicHydrationPayload()),
-          });
-
-          return yield* Stream.runCollect(stream);
-        }),
-      ).pipe(
-        Effect.tap((exit) =>
-          Effect.sync(() => {
-            expect(Exit.isFailure(exit)).toBe(true);
-            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-            expect(error).toBeInstanceOf(StartStreamError);
-            expect(error).toMatchObject({ reason: "Tail" });
-            expect((error as StartStreamError<unknown> | undefined)?.cause).toBeInstanceOf(
-              StartHydrationPayloadSerializeError,
-            );
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    );
-  });
-
-  it("lets Effect interruption close a running stream", () => {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const reachedBlockingChunk = yield* Deferred.make<void>();
-        const interrupted = yield* Deferred.make<void>();
-        const blockingChunkEffect: Effect.Effect<ReturnType<typeof htmlChunk>> = Effect.gen(
-          function* () {
-            yield* Deferred.succeed(reachedBlockingChunk, undefined);
-            yield* Effect.never.pipe(
-              Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-            );
-            return htmlChunk("");
-          },
-        );
-        const blockingChunk = Stream.fromEffect(blockingChunkEffect);
-        const stream = yield* createHtmlStream({
-          shell: "<html>",
-          chunks: Stream.concat(Stream.make(htmlChunk("<body>")), blockingChunk),
-        });
-        const fiber = yield* Stream.runCollect(stream).pipe(
-          Effect.forkChild({ startImmediately: true }),
-        );
-
-        yield* Deferred.await(reachedBlockingChunk);
-        yield* Fiber.interrupt(fiber);
-        yield* Deferred.await(interrupted);
-      }),
-    );
-  });
-
-  it("adapts the Effect stream to a Web Response host boundary", () => {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createHtmlResponse({
-          shell: "<html>",
-          chunks: Stream.make("<body>ready</body>"),
-          tail: "</html>",
-          headers: {
-            "x-sunfall-arc": "streaming",
-          },
-        });
-        const text = yield* Effect.tryPromise(() => response.text());
-
-        yield* Effect.sync(() => {
-          expect(text).toBe("<html><body>ready</body></html>");
-          expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-          expect(response.headers.get("x-sunfall-arc")).toBe("streaming");
-        });
-      }),
-    );
-  });
+    ));
 
   it("closes response scopes when stream finalizer attachment fails", () =>
     Effect.runPromise(
@@ -489,43 +232,6 @@ describe("Start streaming", () => {
             status: "cancelled",
             teardownReason: "request-abort",
           });
-        });
-      }),
-    );
-  });
-
-  it("preserves StartStreamError phases when wrapped Web response streams fail", () => {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const events: StartResponseStreamFinalizeEvent[] = [];
-        const response = yield* createHtmlResponse({
-          shell: "<html>",
-          chunks: Stream.fail("chunk failed"),
-        });
-        const wrapped = responseWithStreamFinalizer(response, {
-          onFinalize: (event) =>
-            Effect.sync(() => {
-              events.push(event);
-            }),
-        });
-        const exit = yield* Effect.exit(Effect.tryPromise(() => wrapped.text()));
-
-        yield* Effect.sync(() => {
-          expect(Exit.isFailure(exit)).toBe(true);
-          expect(events).toEqual([
-            {
-              stream: {
-                name: "response",
-                state: "errored",
-                chunkCount: 0,
-                failurePhase: "Chunk",
-              },
-              status: "failure",
-              failureKind: "domain",
-              teardownReason: "stream-error",
-              failurePhase: "Chunk",
-            },
-          ]);
         });
       }),
     );

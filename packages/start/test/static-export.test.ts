@@ -36,7 +36,7 @@ describe("static export helpers", () => {
   it("extracts crawlable internal links from prerendered HTML", () => {
     const html = `
       <a href="/cookbook">Cookbook</a>
-      <a href="/cookbook/resource-from-server-function#example">Recipe</a>
+      <a href="/cookbook/served-resource#example">Recipe</a>
       <a href="semantic-invalidation">Relative</a>
       <a href="/cookbook?tag=resources">Query</a>
       <a href="https://example.com/external">External</a>
@@ -48,10 +48,6 @@ describe("static export helpers", () => {
         origin: "https://docs.test",
         fromPath: "/cookbook/",
       }),
-    ).toEqual([
-      "/cookbook",
-      "/cookbook/resource-from-server-function",
-      "/cookbook/semantic-invalidation",
-    ]);
+    ).toEqual(["/cookbook", "/cookbook/served-resource", "/cookbook/semantic-invalidation"]);
   });
 });

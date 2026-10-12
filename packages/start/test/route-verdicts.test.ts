@@ -36,6 +36,10 @@ describe("route verdicts in Start", () => {
     const { response, html } = await render("https://arc.test/items/atlas");
     expect(response.status).toBe(200);
     expect(html).toContain('<p class="item">Atlas</p>');
+    // The route's head reads the preloaded item; the app's head adds its suffix.
+    expect(html).toContain(
+      '<meta name="description" content="The &lt;atlas&gt; item" data-arc-head="" /><meta name="color-scheme" content="light dark" data-arc-head="" /><title>Atlas · Items</title>',
+    );
   });
 
   it("answers 404 when the preload says Route.notFound(), hydrating what loaded before it", async () => {
@@ -46,6 +50,9 @@ describe("route verdicts in Start", () => {
     expect(html).not.toContain("missing");
     expect(html).toContain("<header>Ada</header>");
     expect(rootPayload(html).notFound).toBe(true);
+    // A not-found page has no route head: the app's fallback title.
+    expect(html).toContain("<title>Items</title>");
+    expect(html).not.toContain('name="description"');
     expect(hydrated(html)).toEqual(['RouteVerdicts.viewer:"me"']);
   });
 

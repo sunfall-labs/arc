@@ -1024,34 +1024,64 @@ reading private cache maps.
 
 ## Streaming Responses
 
-Start renders every page into one document shell. The app supplies only the
-parts it owns through `document`:
+Start renders every page into one document shell. The app supplies the parts
+it owns: the head through routes and `App.define({ head })`, the rest through
+the handler's `document`:
 
 ```ts
+const ProjectRoute = Route.define("/projects/:id", {
+  params: Schema.Struct({ id: ProjectId }),
+  preload: ({ params }) => Resource.preload(ProjectById(params.id)),
+  head: ({ params, read }) => ({ title: read(ProjectById(params.id))?.name ?? params.id }),
+});
+
+const app = App.define({
+  root: Root,
+  routes: [ProjectRoute] as const,
+  head: (page, status) => ({
+    ...page,
+    title:
+      status === "NotFound"
+        ? "Not found · Projects"
+        : page.title === undefined
+          ? "Projects"
+          : `${page.title} · Projects`,
+  }),
+});
+
 createRequestHandler(app, {
   server: AppServerLive,
-  document: ({ match }) => ({
-    title: match === undefined ? "Projects" : `Projects · ${match.href}`,
+  document: () => ({
     links: [{ rel: "stylesheet", href: "/src/styles.css" }],
     headers: { "x-app": "projects" },
   }),
 });
 ```
 
-Start writes the doctype, charset and viewport, the escaped `meta`/`link`
-tags, Solid's hydration bootstrap, `<div id="root">` with the rendered root,
+A route's `head` runs once its preload succeeded; `read(ref)` is what the
+preload loaded. The browser router records the page it settles on in the
+runtime's Resource Store (a ready route's match, or a not-found or failed
+page), and that record is the one source for the head on both sides. On the
+server, Start reads it after rendering the root, so the head describes the page
+the body shows. In the browser, `App.launch` derives the head from it, tracking
+the Resources the route's `head` reads, and writes `document.title` and the
+head's `<meta>` tags (marked `data-arc-head`) when it changes: after each
+navigation, and when a value the head reads changes.
+
+Start writes the doctype, charset and viewport, the head's escaped `meta` tags
+and `<title>`, the document's `link` tags, Solid's hydration bootstrap, `<div id="root">` with the rendered root,
 the streamed Resource chunks, the root hydration payload, and the browser
 entry script, in that order. There is no hand-written HTML to drift from what
 hydration needs.
 
-Underneath, an internal Effect-native streaming Module builds the response:
-`createHtmlStream` returns an Effect `Stream` of bytes, and the Start
-render step appends `StartRenderHydrationPlan` streamed chunks before the tail.
-Shell, chunk, and tail failures become typed `StartStreamError` values, so
-streaming remains Effect-native until the final web platform seam.
-When a Start render returns a streamed `Response`, the Request Runtime is held
-open until the body is consumed or cancelled, and finalizer/request-trace facts
-preserve the stream failure phase for diagnostics.
+The root renders to a string, so the document is complete when the render
+returns: Start builds it as one `completeResponse` body (shell, root markup,
+the `StartRenderHydrationPlan` streamed chunks, then the tail). Fetch hosts
+read that body like any other; Start's own adapters skip the stream: the
+Request Runtime is disposed at once, and the Node adapter writes the bytes in
+one `end` with a `content-length`. When a custom render returns a streamed
+`Response`, the Request Runtime is held open until the body is consumed or
+cancelled, and finalizer/request-trace facts record how the stream ended.
 The render step receives a `StartRenderHydrationPlan` that separates the root
 payload script (`hydrationPlan.root.script`, the one name for it) from
 streamed resource chunks, so the document never emits a Resource pair twice.
@@ -1064,7 +1094,6 @@ Routes are schema-typed values with href generation, matching, and preload:
 export const ProjectRoute = Route.define("/projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-  preloadResources: [ProjectById],
   preload: ({ params }) => Resource.preload(ProjectById(params.id)),
 });
 
@@ -1209,14 +1238,9 @@ SSR preload. If a touched resource cannot be serialized, planning fails through
 the typed `Resource.SnapshotCodecError` Effect error channel. Resources with
 `rows` are ordinary Resources here: their rows are the preloaded value.
 
-Routes can also declare the resource families their preload is expected to
-touch through `preloadResources`. `Route.describePreloadResources(route)`
-reports those declarations as static facts (`declared`, `none`, or `unknown`
-for a preload without a declaration) and keeps runtime
-`Route.planNavigation(...)` as the dynamic proof for a concrete href. In Vite
-dev, the Start SSR middleware logs a warning (`Effect.logWarning`) once per
-loaded server entry for each route whose preload declares no
-`preloadResources`.
+A route declares what it loads once, in `preload`. The plan's record of the
+Resources the preload touched is the hydration plan, so it cannot drift from
+the preload, and nothing else lists them.
 
 File routes are manifest-first. The Start Vite plugin is the filesystem
 boundary: when no explicit `fileRoutes` or `fileRouteManifest` is supplied, it
@@ -1255,7 +1279,6 @@ attached where the app builds its router, or in a sibling
 export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
-  preloadResources: [ProjectById, ProjectSummaries],
   preload: ({ params }) => Resource.preload([ProjectById(params.id), ProjectSummaries("all")]),
 });
 ```

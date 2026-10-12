@@ -2,12 +2,14 @@ import {
   isActionDefinition,
   isServerFunction,
   Resource,
+  Signal,
   type Action,
   type Route,
   type RuntimeSource,
   type Server,
 } from "@sunfall/arc-core";
 import {
+  settledRouteHead,
   storeResourceRefs,
   type ActionDefinitionRequirements,
   type AppDefinitionRegistry,
@@ -15,7 +17,7 @@ import {
 } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
-import { Effect, Stream } from "effect";
+import { Effect } from "effect";
 import type { RequestRuntimeProvidedRequirements } from "./request-runtime.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import type { App, AppDefinition } from "./start-app.js";
@@ -31,10 +33,13 @@ import {
   type StartRequestRequirements,
 } from "./start-request-handler.js";
 import { makeStartServerApp } from "./start-server-app.js";
-import { attachStartHandlerRoutes } from "./start-route-preload-warnings.js";
-import { createStartStreamedHtmlResponse, htmlChunk } from "./streaming.js";
+import { completeResponse } from "./streaming.js";
 import { documentWithClientAssets } from "./start-client-assets.js";
-import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
+import {
+  createStartHydrationPayload,
+  createStreamHydrationScript,
+  type StartHydrationPayload,
+} from "./hydration.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 type AnyServerFunction = Server.Fn<any, any, any, any>;
@@ -67,7 +72,11 @@ export interface CreateRequestHandlerOptions<
    * modules, which never reach the browser bundle.
    */
   readonly implementations?: ReadonlyArray<Implementations>;
-  /** The page's head and response headers, per request. */
+  /**
+   * The document's language, links, browser entry, and response headers, per
+   * request. The head's title and `<meta>` tags come from the matched route's
+   * `head` through `App.define({ head })`.
+   */
   readonly document?: (context: StartDocumentContext<Routes>) => StartDocument;
 }
 
@@ -97,6 +106,14 @@ type ServerServicesCheck<RootServices, ServerServices> = [
       };
     };
 
+const htmlHeaders = (input: Readonly<Record<string, string>> | undefined): Headers => {
+  const headers = new Headers(input);
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "text/html; charset=utf-8");
+  }
+  return headers;
+};
+
 const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServices, ServerError>(
   app: AppDefinition<Routes, any, any, any>,
   document: ((context: StartDocumentContext<Routes>) => StartDocument) | undefined,
@@ -116,30 +133,38 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
       context.runtime as never,
     );
     const body = renderToString(() => createComponent(Root, props));
-    const shell = renderStartDocumentShell(page, {
+    // The head of the page the render's router settled on, read after the
+    // render so it is the page the body shows. A root without a router has
+    // no route head.
+    const settled = Signal.peek(settledRouteHead(context.resourceStore));
+    const head = app.head(
+      settled?.head ?? {},
+      settled?.status ?? (context.match === undefined ? "NotFound" : "Ready"),
+    );
+    const shell = renderStartDocumentShell(page, head, {
       solidHydration: generateHydrationScript(),
       rootHydration: context.hydrationPlan.root.script,
     });
     return renderedResourcesChunk(context).pipe(
-      Effect.map((rendered) =>
-        createStartStreamedHtmlResponse({
-          shell: htmlChunk(shell.open),
-          chunks: Stream.make(htmlChunk(`${body}${shell.closeRoot}`)),
-          hydrationPlan:
-            rendered === undefined
-              ? context.hydrationPlan
-              : {
-                  ...context.hydrationPlan,
-                  streamedResourceChunks: [
-                    ...context.hydrationPlan.streamedResourceChunks,
-                    rendered,
-                  ],
-                },
-          tail: htmlChunk(shell.close),
-          ...(page.headers === undefined ? {} : { headers: page.headers }),
-        }),
+      Effect.flatMap((rendered) =>
+        Effect.forEach(
+          rendered === undefined
+            ? context.hydrationPlan.streamedResourceChunks
+            : [...context.hydrationPlan.streamedResourceChunks, rendered],
+          (payload, sequence) => createStreamHydrationScript(payload, sequence),
+        ),
       ),
-      Effect.flatten,
+      // Payloads hold schema-encoded values, so serializing them cannot fail
+      // unless an encoder produced something JSON cannot carry: a defect.
+      Effect.orDie,
+      // Rendered to a string, the page is complete: one body, written at once,
+      // with the hydration chunks after the root as a streamed page has them.
+      Effect.map((hydrationScripts) =>
+        completeResponse(
+          `${shell.open}${body}${shell.closeRoot}${hydrationScripts.join("")}${shell.close}`,
+          { headers: htmlHeaders(page.headers) },
+        ),
+      ),
     );
   });
 
@@ -211,7 +236,7 @@ type ServerlessApp<RootServices> = [
  * export const handleRequest = createRequestHandler(app, {
  *   server: AppServerLive,
  *   implementations: [renameProject, projectById],
- *   document: () => ({ title: "Projects" }),
+ *   document: () => ({ headers: { "cache-control": "no-store" } }),
  * });
  * ```
  */
@@ -281,10 +306,5 @@ export function createRequestHandler<
         context as StartRenderContext<Routes, ServerServices, ServerError, any>,
       ),
   });
-  // Vite dev SSR reads the routes to warn about undeclared preload resources.
-  return attachStartHandlerRoutes(handler, app.routes) as AppRequestHandler<
-    Routes,
-    ServerServices,
-    Implementations
-  >;
+  return handler as AppRequestHandler<Routes, ServerServices, Implementations>;
 }

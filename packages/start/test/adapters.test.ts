@@ -28,6 +28,7 @@ import {
   StartRequestHandlerInvalidReturn,
 } from "../src/start-request-handler-error.js";
 import { startRequestHandlerError } from "../src/start-host-adapter.js";
+import { completeResponse } from "../src/streaming.js";
 
 const listen = (server: ReturnType<typeof createServer>): Promise<number> =>
   Effect.runPromise(
@@ -382,6 +383,34 @@ describe("Start deployment adapters", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("x-sunfall-arc-adapter")).toBe("node-head");
       await expect(response.text()).resolves.toBe("");
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("writes a complete response in one end, without reading its stream", async () => {
+    let response: Response | undefined;
+    const nodeHandler = createNodeHandler(() =>
+      Effect.sync(() => {
+        response = completeResponse("<p>complete</p>", {
+          status: 404,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+        return response;
+      }),
+    );
+    const server = createServer((request, nodeResponse) => {
+      void Effect.runFork(nodeHandler(request, nodeResponse));
+    });
+    const port = await listen(server);
+
+    try {
+      const answer = await fetch(`http://127.0.0.1:${port}/complete`);
+      expect(answer.status).toBe(404);
+      expect(answer.headers.get("content-length")).toBe(String("<p>complete</p>".length));
+      await expect(answer.text()).resolves.toBe("<p>complete</p>");
+      // The adapter wrote the bytes; the body stream was never read.
+      expect(response?.bodyUsed).toBe(false);
     } finally {
       await close(server);
     }

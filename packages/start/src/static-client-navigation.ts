@@ -142,7 +142,7 @@ export const currentStartStaticHref = (
 };
 
 const routeNeedsStaticHydration = <R extends AnyRoute>(match: Route.Match<R>): boolean =>
-  Route.describePreloadResources(match.route).status !== "none";
+  match.route.options.preload !== undefined;
 
 /**
  * How an href was prepared. `Hydrated` keeps the hydrated refs so a later

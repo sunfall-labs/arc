@@ -4,10 +4,11 @@ import {
   Route,
   Signal,
   type ActionTransport,
+  type ResourceStore,
   type Resource,
   type Server,
 } from "@sunfall/arc-core";
-import { PostedActions } from "@sunfall/arc-core/internal";
+import { PostedActions, settledRouteHead } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
@@ -17,7 +18,7 @@ import { hydrateFromDocument, type StartHydrationError } from "./hydration.js";
 import { postedActionSubmission } from "./start-action-form-post.js";
 import { startActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { actionTransportLayer } from "./start-action-transport.js";
-import { startRootElementId } from "./start-document.js";
+import { startHeadAttribute, startHeadMetaTags, startRootElementId } from "./start-document.js";
 import { rpcClientLayer } from "./start-rpc-client.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -50,6 +51,8 @@ export interface AppDefinition<
   readonly routes: Routes;
   /** Browser services; `App.launch` builds the browser runtime from it. */
   readonly client: Layer.Layer<ClientServices, ClientError>;
+  /** The document head for a page's route head (see `App.define`). */
+  readonly head: (page: Route.Head, status: Route.HeadStatus) => Route.Head;
 }
 
 /** Any app definition, for APIs that accept every app. */
@@ -123,6 +126,68 @@ const clientHttpClient = Layer.unwrap(
   ),
 );
 
+/**
+ * Keeps `document.title` and the head's `<meta>` tags (marked
+ * `data-arc-head`) in step with the head of the route the app's router
+ * settles on, for as long as the scope lives.
+ */
+const followDocumentHead = (app: AnyAppDefinition, store: ResourceStore) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const head = settledRouteHead(store);
+      let applied = "";
+      const apply = (): void => {
+        const settled = Signal.peek(head);
+        if (settled === undefined) {
+          return;
+        }
+        const next = app.head(settled.head, settled.status);
+        const serialized = JSON.stringify(next);
+        if (serialized !== applied) {
+          applied = serialized;
+          applyDocumentHead(globalThis.document, next);
+        }
+      };
+      const unsubscribe = head.subscribe(apply);
+      apply();
+      return unsubscribe;
+    }),
+    (unsubscribe) => Effect.sync(unsubscribe),
+  );
+
+const applyDocumentHead = (document: Document, head: Route.Head): void => {
+  if (head.title !== undefined && document.title !== head.title) {
+    document.title = head.title;
+  }
+  const tags = startHeadMetaTags(head);
+  const current = Array.from(document.head.querySelectorAll(`meta[${startHeadAttribute}]`));
+  const same =
+    current.length === tags.length &&
+    current.every((element, index) => {
+      const attributes = Object.entries(tags[index] ?? {});
+      return (
+        element.attributes.length === attributes.length + 1 &&
+        attributes.every(([name, value]) => element.getAttribute(name) === value)
+      );
+    });
+  if (same) {
+    return;
+  }
+  // Where the server renders them: before the title.
+  const title = document.head.querySelector("title");
+  for (const element of current) {
+    element.remove();
+  }
+  for (const attributes of tags) {
+    const element = document.createElement("meta");
+    for (const [name, value] of Object.entries(attributes)) {
+      element.setAttribute(name, value);
+    }
+    element.setAttribute(startHeadAttribute, "");
+    document.head.insertBefore(element, title);
+  }
+};
+
 /** Start apps: one definition, served by `createRequestHandler` and launched by `App.launch`. */
 export namespace App {
   /** A Start app definition built by `App.define`. */
@@ -184,6 +249,10 @@ export namespace App {
    *   root: Root,
    *   routes,
    *   client: ProjectApiLive,
+   *   head: (page) => ({
+   *     ...page,
+   *     title: page.title === undefined ? "Projects" : `${page.title} · Projects`,
+   *   }),
    * });
    * ```
    */
@@ -197,11 +266,22 @@ export namespace App {
       readonly root: Component<RootProps, never, RootServices>;
       readonly routes: Routes;
       readonly client?: Layer.Layer<ClientServices, ClientError>;
+      /**
+       * The document head for a page, from the head of its route (`page`:
+       * the matched route's `head`, empty for a route without one) and how
+       * the page settled (`status`: `Ready`, or `NotFound` and `Failure`,
+       * whose `page` is empty). Put the app's title suffix, its fallback and
+       * error titles, and the `<meta>` tags every page carries here. Start
+       * renders it on the server and re-applies it in the browser when the
+       * page's head changes. Defaults to `page` itself.
+       */
+      readonly head?: (page: Route.Head, status: Route.HeadStatus) => Route.Head;
     } & ClientServicesCheck<RootServices, ClientServices>,
   ): AppDefinition<Routes, RootServices, ClientServices, ClientError> => ({
     root: config.root,
     routes: config.routes,
     client: (config.client ?? Layer.empty) as Layer.Layer<ClientServices, ClientError>,
+    head: config.head ?? ((page) => page),
   });
 
   /**
@@ -283,6 +363,9 @@ export namespace App {
         );
         // Hydrated: a binding created later (another visit to the form) starts idle.
         postedActions.current = undefined;
+        // The server rendered this page's head; navigations and the Resources
+        // a route's head reads change it from here.
+        yield* followDocumentHead(app, runtime.resourceStore);
         // The outbox cookie tells the next document request which durable
         // submissions this page holds; the server reports back the ones it
         // already settled (`settledSubmissions`).

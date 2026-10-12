@@ -1,21 +1,15 @@
-import { Route } from "@sunfall/arc-core";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { app } from "./app-definition.js";
 import { implementations, ProjectDemoStoreLive } from "./domain.server.js";
-import { routeById } from "./routeTree.gen.js";
 import { projectConsoleStartGraphHeader, projectConsoleStartGraphSummary } from "./start-graph.js";
 import "./styles.css";
 
 export const handleRequest = createRequestHandler(app, {
   server: ProjectDemoStoreLive,
   implementations,
-  document: ({ match }) => ({
-    title: Route.isMatch(routeById.route_projects_$id, match)
-      ? `${match.params.id} · Sunfall Arc Project Console`
-      : "Sunfall Arc Project Console",
-    meta: [{ name: "sunfall-arc-start-graph", content: projectConsoleStartGraphHeader }],
+  document: () => ({
     headers: {
-      "x-sunfall-arc-render": "streaming",
+      "x-sunfall-arc-render": "ssr",
       "x-sunfall-arc-start-graph": projectConsoleStartGraphHeader,
       "x-sunfall-arc-start-routes": projectConsoleStartGraphSummary.routes.join(","),
     },

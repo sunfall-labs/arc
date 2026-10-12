@@ -8,4 +8,5 @@ import { routes } from "./routeTree.gen.js";
 export const app = App.define({
   root: Root,
   routes,
+  head: (page) => ({ title: page.title ?? "Items" }),
 });

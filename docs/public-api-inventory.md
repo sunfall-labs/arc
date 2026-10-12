@@ -530,9 +530,9 @@ includes:
 
 - Local source modules: `hydration`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
-  `start-document`, `start-request-handler`,
-  `static-client-navigation`, and `streaming`.
-- the app: `App.define({ root, routes, client? })`
+  `start-document`, `start-request-handler`, and
+  `static-client-navigation`.
+- the app: `App.define({ root, routes, client?, head? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
   client Layer must provide `R` (minus `App.LaunchServices`) or `App.define`
@@ -554,12 +554,13 @@ includes:
   hand-written HTML shell. Requests are traced as Effect spans
   (`sunfall-arc.start.request`); there is no request-trace callback.
 - documents: `document: (context: StartDocumentContext) => StartDocument`
-  sets `lang`, `title`, `meta` and `links` (`StartDocumentTagAttributes`,
-  HTML-escaped), `clientEntry`, and response `headers`. Start emits the
-  doctype, charset and viewport, Solid's hydration bootstrap, the
+  sets `lang`, `links` (`StartDocumentTagAttributes`, HTML-escaped),
+  `clientEntry`, and response `headers`; the head's `<title>` and `<meta>`
+  tags are each route's `head` through
+  `App.define({ head: (page, status) => Route.Head })`. Start emits the
+  doctype, charset and viewport, the head, Solid's hydration bootstrap, the
   `<div id="root">` app markup, the streamed and root hydration payloads, and
-  the entry script, in that order. `StartStreamError` names an HTML stream
-  failure.
+  the entry script, in that order, as one complete body.
 - hydration: `hydrateFromDocument(document?, options?)` (`options.id` selects
   the root payload script) is the document hydration primitive `App.launch`
   runs; there is no positional id and no synchronous facade.
@@ -598,9 +599,7 @@ includes:
 - file routes: a route module exports `route = Route.define(path, options)`;
   Start has no route constructor of its own. The generated route tree checks
   the declared `path` against the path derived from the file, as a type error
-  and again when the tree loads. Static preload hints use core
-  `preloadResources`, and runtime work lives in
-  `preload`.
+  and again when the tree loads. What a route loads is its `preload`.
 - actions: served Actions (defined without `run`) run on the server;
   `App.launch` routes their submissions from the single UI binding (Solid's
   `Component.action(...)`) over the network with the same result and error

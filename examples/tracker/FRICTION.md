@@ -244,6 +244,65 @@ ran in dev only.
 - The tracker runs with `pnpm build && pnpm start`; `pnpm verify` builds it
   and runs `scripts/production-smoke.mjs` against the production server.
 
+### 23. The shared client chunk was named after a route file
+
+The production build's 430 kB framework chunk was `_key-*.js`, named after
+`routes/projects/$key/index.ts`, which made bundle reports misleading.
+
+- Fix: every Start build groups what the entry loads into named chunks:
+  `vendor-*.js` (Arc, Effect, Solid, and other packages) and `app-*.js` (app
+  modules the entry and lazy routes share)
+  (`packages/start/src/start-chunk-naming.ts`). Test:
+  `packages/start/test/production-server.test.ts` ("chunk naming").
+
+### 24. Framework development: the dev server mixed dist and source
+
+`vite.config.ts` loaded `@sunfall/arc-start/vite` from `dist` (Node resolves
+it, not Vite's aliases) while the app's SSR modules used the source aliases,
+so a framework change needed `pnpm build` and a dev-server restart before the
+plugin half of it took effect. Repository-only; copied apps are unaffected.
+
+- Fix: the tracker's and the docs site's `vite.config.ts` import the Start
+  and tsrx plugins from `packages/*/src`; Vite bundles them into the config,
+  so a plugin change restarts the dev server on its own. What still loads
+  from `dist` (the plugins' imports of `@sunfall/arc-core`, and the starter
+  templates' plugins) is in `CONTRIBUTING.md`.
+
+### 22. `preloadResources` repeated the preload
+
+Every route listed its Resource families twice: in `preloadResources` and in
+`preload` (`src/routes/**`). They drifted silently; only a dev warning caught
+a missing list.
+
+- Fix: `preloadResources` is gone. It drove nothing but that warning: the
+  hydration plan Start sends was always the Resources the preload touched,
+  recorded by `Route.planNavigation` (`Resource.collect`). `preload` is now
+  the only declaration, so there is nothing to drift from and nothing to warn
+  about (`packages/core/src/route.ts`; `start-route-preload-warnings.ts` is
+  deleted).
+
+### 21. `document()` could not read route data
+
+The tab title for an issue page could only use the URL (`TRK-12 · Tracker`),
+not the issue's title: `document` received `{ request, match }`, not the
+preloaded Resources, and client navigation never updated the title at all.
+
+- Fix: a route derives its head from its data, `Route.define(path, { head:
+({ params, read }) => ({ title, description, meta }) })`, where
+  `read(ref)` is what the preload loaded; `App.define({ head: (page, status)
+=> ... })` adds the app's suffix, fallback, not-found title, and shared
+  tags. The browser router records the page it settles on in the runtime's
+  Resource Store (`packages/core/src/route-head.ts`); Start renders the head
+  from that record on the server, and `App.launch` keeps `document.title`
+  and the head's `<meta>` tags in step with it, following the Resources the
+  head reads (`packages/start/src/start-app.ts`). `document` no longer takes
+  `title` or `meta`. The tracker's issue tab reads `TRK-12 <title> · Tracker`
+  (`src/routes/**`, `src/page-head.ts`).
+- Tests: `packages/core/test/route-head.test.ts`,
+  `packages/start/test/route-verdicts.test.ts`,
+  `packages/solid/test/app-launch.test.ts` ("keeps document.title ...");
+  app: `examples/tracker/src/server.test.ts`.
+
 ## Open
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
@@ -274,35 +333,3 @@ SSR requests, so the shell passed its handle down through a Solid context.
   (`src/shell.tsx`); the context is gone.
 - Tests: `packages/solid/test/state.test.ts` ("Component.state with an app
   State"), `packages/start/test/server-render.test.ts`.
-
-### 21. `document()` cannot read route data
-
-The tab title for an issue page can only use the URL (`TRK-12 · Tracker`), not
-the issue's title: `document` receives `{ request, match }`, not the preloaded
-Resources (`src/server.tsx`).
-
-- Proposal: pass `document` a synchronous `read(ref)` over the request's
-  preloaded Resources.
-
-### 22. `preloadResources` repeats the preload
-
-Every route lists its Resource families twice: in `preloadResources` and in
-`preload` (`src/routes/**`). They drift silently; only a dev warning catches a
-missing list.
-
-- Proposal: derive the static list from the families `preload` touches in the
-  route plan at build time, or check them against each other in dev.
-
-### 23. The shared client chunk is named after a route file
-
-The production build's 430 kB framework chunk is `_key-*.js`, named after
-`routes/projects/$key/index.ts`, which makes bundle reports misleading.
-
-- Proposal: the Start Vite preset names the shared framework chunk (`arc`).
-
-### 24. Framework development: the dev server mixes dist and source
-
-`vite.config.ts` loads `@sunfall/arc-start/vite` from `dist` (Node resolves
-it, not Vite's aliases) while the app's SSR modules use the source aliases,
-so a framework change needs `pnpm build` and a dev-server restart before the
-plugin half of it takes effect. Repository-only; copied apps are unaffected.

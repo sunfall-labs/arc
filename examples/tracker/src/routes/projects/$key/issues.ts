@@ -1,7 +1,8 @@
 import { Resource, Route } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import { IssueListSearch, ProjectKey, TrackerError, issueQueryOf } from "../../../model.js";
-import { CurrentUser, IssueSearch, Labels, Projects, Team } from "../../../resources.js";
+import { IssueSearch, Labels } from "../../../resources.js";
+import { projectName } from "../../../page-head.js";
 import { preloadShell, routeVerdicts } from "../../../session.js";
 
 /**
@@ -12,7 +13,6 @@ export const route = Route.define("/projects/:key/issues", {
   params: Schema.Struct({ key: ProjectKey }),
   search: IssueListSearch,
   error: TrackerError,
-  preloadResources: [CurrentUser, Projects, Team, Labels, IssueSearch],
   preload: ({ params, search, href }) =>
     preloadShell(href).pipe(
       Effect.andThen(
@@ -20,4 +20,5 @@ export const route = Route.define("/projects/:key/issues", {
       ),
       routeVerdicts(href),
     ),
+  head: ({ params, read }) => ({ title: `${projectName(read, params.key)} issues` }),
 });

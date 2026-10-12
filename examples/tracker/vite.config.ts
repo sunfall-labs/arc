@@ -1,8 +1,12 @@
-import { sunfallArcStart } from "@sunfall/arc-start/vite";
-import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
+import { sunfallArcStart } from "../../packages/start/src/vite.js";
+import { sunfallArcTsrx } from "../../packages/tsrx/src/index.js";
 import { defineConfig } from "vite";
 import { trackerStartOptions } from "./src/start-options.js";
 
+// The Start and tsrx plugins load from source like the app's modules (an app
+// outside this repository imports `@sunfall/arc-start/vite` and
+// `@sunfall/arc-tsrx`), so a plugin change restarts the dev server without a
+// package build.
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;
 
 export default defineConfig({

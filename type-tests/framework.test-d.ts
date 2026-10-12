@@ -1401,6 +1401,44 @@ const changeFedProjectsPreload: Effect.Effect<
 > = Resource.preload(ChangeFedProjectRows("all"));
 void changeFedProjectsPreload;
 
+// A route's head sees its typed params and search, and `read` types what it loaded.
+const HeadRoute = Route.define("/head-projects/:id", {
+  params: Schema.Struct({ id: Schema.String }),
+  search: Schema.Struct({ tab: Schema.optional(Schema.String) }),
+  head: ({ params, search, read }) => {
+    const id: string = params.id;
+    const tab: string | undefined = search.tab;
+    const project: Project | undefined = read(ProjectById(id));
+    return { title: project?.name ?? id, ...(tab === undefined ? {} : { description: tab }) };
+  },
+});
+void HeadRoute;
+Route.define("/head-projects/:id", {
+  params: Schema.Struct({ id: Schema.String }),
+  // @ts-expect-error a head's title is a string
+  head: () => ({ title: 1 }),
+});
+Route.define("/head-projects/:id", {
+  params: Schema.Struct({ id: Schema.String }),
+  head: ({ params, read }) => {
+    // @ts-expect-error `read` returns the Resource's value or undefined
+    const project: Project = read(ProjectById(params.id));
+    return { title: project.name };
+  },
+});
+const headApp = App.define({
+  root: Component.define("HeadRoot", function* () {
+    yield* Effect.void;
+    return () => "head";
+  }),
+  routes: [HeadRoute] as const,
+  head: (page: Route.Head, status: Route.HeadStatus): Route.Head => ({
+    ...page,
+    title: status === "Ready" ? (page.title ?? "Projects") : "Not found",
+  }),
+});
+void headApp;
+
 const StartRoot = Component.define("StartRoot", function* () {
   yield* Effect.void;
   return () => "start";
@@ -1414,8 +1452,7 @@ const startLaunchEffect: Effect.Effect<never, App.LaunchError> = App.launch(Star
 void startLaunchEffect;
 createRequestHandler(StartApp, {
   document: ({ match, request }) => ({
-    title: match?.href ?? request.url,
-    meta: [{ name: "description", content: "Projects" }],
+    lang: match === undefined && request.url.endsWith("/de") ? "de" : "en",
     links: [{ rel: "stylesheet", href: "/src/styles.css" }],
     headers: { "x-start": "yes" },
   }),
@@ -2306,7 +2343,6 @@ const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
 const FileRoutePreloadHelperRoute = Route.define("/file-preload-helper/:id", {
-  preloadResources: [ProjectById, ProjectRows],
   preload: ({ params }) =>
     Effect.all(
       [
@@ -2329,7 +2365,6 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
 const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-  preloadResources: [BrandedProjectById, ProjectRows],
   preload: ({ params, search }) => {
     const id: ProjectId = params.id;
     const tab: "overview" | "activity" | undefined = search.tab;

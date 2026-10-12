@@ -1,8 +1,6 @@
-import { Route } from "@sunfall/arc-core";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { app } from "./app-definition.js";
 import { implementations } from "./items.server.js";
-import { routeById } from "./routeTree.gen.js";
 
 /**
  * The Start handler. `vite dev` serves it; `vite build` also emits
@@ -11,7 +9,4 @@ import { routeById } from "./routeTree.gen.js";
  */
 export default createRequestHandler(app, {
   implementations,
-  document: ({ match }) => ({
-    title: Route.isMatch(routeById.route_items_$id, match) ? `Item ${match.params.id}` : "Items",
-  }),
 });

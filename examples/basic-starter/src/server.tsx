@@ -6,7 +6,6 @@ import "./starter.server.js";
 // streams the hydration payload `App.launch` restores in the browser.
 export const handleRequest = createRequestHandler(app, {
   document: () => ({
-    title: "Sunfall Arc Starter",
     headers: { "x-sunfall-arc-starter": "basic" },
   }),
 });

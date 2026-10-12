@@ -154,7 +154,7 @@ describe("docs site", () => {
 
         expect(response.status).toBe(200);
         expect(html).toContain("<title>Introducing Sunfall Arc</title>");
-        expect(html).toContain('<meta property="og:type" content="article" />');
+        expect(html).toContain('<meta property="og:type" content="article" data-arc-head="" />');
         expect(html).toContain(
           "Full-stack TypeScript where failures, services, and state changes are typed.",
         );

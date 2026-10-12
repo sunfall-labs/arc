@@ -9,7 +9,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import { App, createRequestHandler } from "../src/index.js";
 import { serve } from "../src/node.js";
 import { clientAssetsFromViteManifest, type ViteManifest } from "../src/start-client-assets.js";
+import { isStartDependencyModule } from "../src/start-chunk-naming.js";
 import { routeModulesByPath } from "../src/start-server-build.js";
+import { sunfallArcStart } from "../src/vite.js";
 
 // A client build manifest shaped like Vite's: an entry with a shared chunk and
 // CSS, and two lazy route components that share a chunk of their own.
@@ -79,6 +81,37 @@ describe("clientAssetsFromViteManifest", () => {
         ] as never,
       }),
     ).toEqual({ "/": ["src/routes/index.component.tsx", "src/routes/_layout.tsx"] });
+  });
+});
+
+describe("chunk naming", () => {
+  it("tells the app's modules from its dependencies", () => {
+    const root = "/repo/app";
+    expect(isStartDependencyModule(root, "/repo/app/src/routes/index.ts")).toBe(false);
+    expect(isStartDependencyModule(root, "\0virtual:sunfall-arc/routes")).toBe(false);
+    expect(
+      isStartDependencyModule(
+        root,
+        "/repo/app/node_modules/.pnpm/effect@4/node_modules/effect/x.js",
+      ),
+    ).toBe(true);
+    // A workspace package resolved to its source, outside the app's root.
+    expect(isStartDependencyModule(root, "/repo/packages/core/src/index.ts")).toBe(true);
+  });
+
+  it("groups the entry's dependencies into `vendor` and shared app code into `app`", () => {
+    const output = sunfallArcStart().config({ root: "/repo/app" }, { command: "build" }).build
+      ?.rolldownOptions?.output;
+    const groups = (Array.isArray(output) ? undefined : output?.codeSplitting) as
+      | { readonly groups: ReadonlyArray<{ readonly name: string; readonly tags?: unknown }> }
+      | undefined;
+    expect(groups?.groups.map(({ name, tags }) => ({ name, tags }))).toEqual([
+      { name: "vendor", tags: ["$initial"] },
+      { name: "app", tags: ["$initial"] },
+    ]);
+    expect(sunfallArcStart().config({ root: "/repo/app" }, { command: "serve" }).build).toBe(
+      undefined,
+    );
   });
 });
 

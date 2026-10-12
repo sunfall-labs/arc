@@ -69,9 +69,7 @@ describe("Start static client navigation", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/projects/1" });
-          const ProjectRoute = Route.define("/projects/:id", {
-            preloadResources: ["Start.Static.Project.initial-handoff"],
-          });
+          const ProjectRoute = Route.define("/projects/:id", { preload: () => Effect.void });
           const fetch = vi.fn(
             async (_input: RequestInfo | URL, _init?: RequestInit) =>
               new Response("<!doctype html><html></html>"),
@@ -107,7 +105,6 @@ describe("Start static client navigation", () => {
               Effect.fail(new Error("static host has no RPC loader")),
           });
           const ProjectRoute = Route.define("/projects/:id", {
-            preloadResources: [ProjectById],
             preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const routes = [ProjectRoute] as const;
@@ -180,7 +177,6 @@ describe("Start static client navigation", () => {
           });
           const ProjectRoute = Route.define("/projects/:id", {
             params: Schema.Struct({ id: Schema.Literals(["1"]) }),
-            preloadResources: [ProjectById],
             preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const routes = [ProjectRoute] as const;
@@ -269,7 +265,6 @@ describe("Start static client navigation", () => {
               },
             });
             const ProjectRoute = Route.define("/projects/:id", {
-              preloadResources: [ProjectById],
               preload: ({ params }) => Resource.preload(ProjectById(params.id)),
             });
             const runtime = makeRuntime();
@@ -333,7 +328,6 @@ describe("Start static client navigation", () => {
               Effect.fail(new Error("static host has no RPC loader")),
           });
           const ProjectRoute = Route.define("/projects/:id", {
-            preloadResources: [ProjectById],
             preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const ref = ProjectById("1");
@@ -403,7 +397,6 @@ describe("Start static client navigation", () => {
               },
             });
             const ProjectRoute = Route.define("/projects/:id", {
-              preloadResources: [ProjectById],
               preload: ({ params }) => Resource.preload(ProjectById(params.id)),
             });
             const runtime = makeRuntime();
@@ -465,7 +458,6 @@ describe("Start static client navigation", () => {
               Effect.fail(new Error("static host has no RPC loader")),
           });
           const ProjectRoute = Route.define("/projects/:id", {
-            preloadResources: [ProjectById],
             preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const runtime = makeRuntime();
@@ -520,9 +512,7 @@ describe("Start static client navigation", () => {
         Effect.gen(function* () {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
-          const ProjectRoute = Route.define("/projects/:id", {
-            preloadResources: ["Start.Static.Project.environment"],
-          });
+          const ProjectRoute = Route.define("/projects/:id", { preload: () => Effect.void });
           const window = new Window({ url: "https://docs.test/app/" });
           let windowLike: StartStaticHistoryWindow | undefined;
           const fetch = vi.fn(
@@ -548,7 +538,7 @@ describe("Start static client navigation", () => {
       ),
     ));
 
-  it("hydrates preload-declared routes and skips routes without preload work", () =>
+  it("hydrates routes with a preload and skips routes without one", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -556,9 +546,7 @@ describe("Start static client navigation", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const PlainRoute = Route.define("/plain");
-          const DeclaredRoute = Route.define("/declared", {
-            preloadResources: ["Start.Static.Resource.projects"],
-          });
+          const DeclaredRoute = Route.define("/declared", { preload: () => Effect.void });
           const fetch = vi.fn(
             async (_input: RequestInfo | URL, _init?: RequestInit) =>
               new Response("<!doctype html><html></html>"),
@@ -584,9 +572,7 @@ describe("Start static client navigation", () => {
   it("fails with a typed hydration error when the target document request is not ok", async () => {
     const runtime = makeRuntime();
     try {
-      const ProjectRoute = Route.define("/projects/:id", {
-        preloadResources: ["Start.Static.Project.http-status"],
-      });
+      const ProjectRoute = Route.define("/projects/:id", { preload: () => Effect.void });
       const window = new Window({ url: "https://docs.test/app/" });
       const history = makeStartStaticHistoryAdapter({
         runtime,
@@ -621,9 +607,7 @@ describe("Start static client navigation", () => {
         Effect.gen(function* () {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
-          const ProjectRoute = Route.define("/projects/:id", {
-            preloadResources: ["Start.Static.Project.not-prerendered"],
-          });
+          const ProjectRoute = Route.define("/projects/:id", { preload: () => Effect.void });
           const window = new Window({ url: "https://docs.test/app/" });
           const fetch = vi.fn(
             async (_input: RequestInfo | URL, _init?: RequestInit) =>

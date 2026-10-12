@@ -2,7 +2,7 @@
 {
   "title": "Route preload and hydration",
   "category": "routing",
-  "summary": "Declare the Resources a route owns so SSR, streamed hydration, diagnostics, and agents share the same route-data contract.",
+  "summary": "Load a route's Resources in its preload so SSR, streamed hydration, and navigation share the same route data.",
   "order": 2,
   "related": ["served-resource"],
 }
@@ -12,12 +12,11 @@
 
 ## Declare route-owned data
 
-File routes should declare the data they own. Arc can then explain and verify what a page needs before rendering it.
+A route declares the data it owns once, in `preload`. Start records the Resources the preload loads, server renders the page with them, and hydrates exactly those, so nothing else lists them.
 
 ```ts
 export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
-  preloadResources: [ProjectById],
   preload: ({ params }) => Resource.preload(ProjectById(params.id)),
 });
 ```

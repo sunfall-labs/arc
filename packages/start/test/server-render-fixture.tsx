@@ -41,7 +41,6 @@ export const Toast = State.define({
 });
 
 const BoardRoute = Route.define("/board", {
-  preloadResources: [Cards],
   preload: () => Resource.preload(Cards("all")),
 });
 

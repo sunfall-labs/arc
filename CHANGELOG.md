@@ -6,6 +6,71 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### A Rendered Page Is One Complete Body
+
+- The root renders to a string, so the document is complete when the render
+  returns. Start now builds it as one body (`completeResponse`) instead of an
+  Effect `Stream` turned into a Web stream, wrapped again by the request
+  runtime's finalizer, and pumped to Node one `reader.read()` at a time. The
+  request runtime is disposed as soon as the response exists, the Node
+  adapter writes the bytes in one `end` with a `content-length`, and Fetch
+  hosts read the same body as before.
+- The internal HTML stream builder is gone, and with it the public
+  `StartStreamError` and the `sunfall-arc.stream.failure_phase` span
+  attribute. A custom `render` that returns a streamed `Response` still holds
+  the request runtime until its body ends.
+- Server CPU per request for the `benchmarks/compare` detail page
+  (`/items/42`, production server, interleaved A/B on a loaded machine):
+  median 0.66 ms to 0.54 ms over 12 rounds (min 0.53 ms to 0.37 ms); the 1,000-row list page did not regress (median 9.7 ms to 8.6 ms, 6 rounds).
+
+### Page Heads Come From The Route's Data
+
+Found by `examples/tracker`, whose issue tab could only show the issue's id:
+`document` saw the URL, not what the preload loaded.
+
+- `Route.define(path, { head })` derives the page's head (`title`,
+  `description`, `meta`) from the typed match and `read(ref)`, the value a
+  Resource the preload loaded (`Route.Head`, `Route.HeadContext`). It runs
+  once the preload succeeded.
+- `App.define({ head: (page, status) => Route.Head })` turns a route's head
+  into the page's: the app's title suffix, its fallback, not-found
+  (`status: "NotFound"`) and failure titles, and the `<meta>` tags every page
+  carries (`Route.HeadStatus`). It defaults to the route's head.
+- The server renders that head into the document. In the browser,
+  `App.launch` keeps `document.title` and the head's `<meta>` tags (marked
+  `data-arc-head`) in step: after every navigation settles, and when a
+  Resource the route's `head` reads changes (renaming an issue retitles its
+  tab). Pending navigations keep the previous head.
+- `StartDocument` loses `title` and `meta`: the head has one source, so the
+  server's document and client navigation cannot disagree. `document` keeps
+  `lang`, `links`, `clientEntry`, and `headers`.
+- The tracker, the docs site (whose per-component `DocumentTitle` and raw
+  frontmatter parsing in `server.tsx` are gone), the project console (and its
+  hand-written `document.title` effect), the starter, and the compare app use
+  route heads.
+
+### A Route Declares What It Loads Once
+
+- `Route.define`'s `preloadResources` is gone, with
+  `Route.describePreloadResources`, `Route.preloadResourceFamilies`, and the
+  `Route.PreloadResourceInput` / `PreloadResourceDiagnostics` /
+  `PreloadResourceStatus` types. It restated the families `preload` loads and
+  drove nothing but a dev warning: the hydration plan Start sends was always
+  the Resources the preload touched, recorded by `Route.planNavigation`. Now
+  `preload` is the only declaration, so the two cannot drift.
+- Vite dev no longer warns about routes whose `preload` declares no
+  `preloadResources`. A static site hydrates a route on client navigation
+  when it has a `preload`.
+
+### Build Chunks Have Meaningful Names
+
+- Start builds group the modules the entry loads into named chunks:
+  `vendor-*.js` for its dependencies (Arc, Effect, Solid, and other packages)
+  and `app-*.js` for app modules the entry and lazy routes share. Rolldown
+  named the shared chunk after whichever module it picked, so the tracker's
+  430 kB framework chunk was `_key-*.js` (after `routes/projects/$key`).
+  Packages only lazy routes import stay in their chunks.
+
 ### No-JavaScript Forms Post To Their Page
 
 - `StartAction.form(action, { input })` returns `{ method, hiddenFields }`
