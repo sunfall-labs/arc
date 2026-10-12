@@ -6,12 +6,11 @@ harness, and the raw results are in
 [`benchmarks/compare/`](../benchmarks/compare). One command reproduces all of
 it.
 
-The short version, after the optimizations described below: Arc now
-server-renders the 1,000-row page fastest of the three and still settles a
-mutation fastest. It still ships the most JavaScript, has the most blocking
-time on load, uses the most memory, and costs the most server CPU for a small
-page, each by a smaller margin than in the first run (kept under
-[History](#history-the-first-run)).
+The short version: Arc server-renders the 1,000-row page fastest of the
+three, settles a mutation fastest, and paints first. It ships the most
+JavaScript, has the most blocking time on load, uses the most memory, and
+costs the most server CPU for a small page. The two earlier runs are kept
+under [History](#history-earlier-runs).
 
 ## The app
 
@@ -93,26 +92,29 @@ All numbers come from [`scripts/run.mjs`](../benchmarks/compare/scripts/run.mjs)
 
 Run on 2026-10-12: Apple M5 Pro (18 cores, 48 GB), macOS 26 (Darwin 25.6.0),
 Node 25.9.0, Chromium 156 headless shell, 7 interleaved rounds. Raw data:
-[`results/2026-10-12-20-41.json`](../benchmarks/compare/results/2026-10-12-20-41.json).
-Arc is this repository after the optimizations below; the first run, before
-them, is kept in [History](#history-the-first-run).
+[`results/2026-10-12-22-27.json`](../benchmarks/compare/results/2026-10-12-22-27.json).
+Arc is this repository after the optimizations below, including a rendered
+page sent as one complete body. The two earlier runs are kept in
+[History](#history-earlier-runs).
 
 > [!NOTE]
-> The machine was shared: the 1-minute load average fell from 21 to 4 during
-> the run. Ranges show the spread. CPU per request, bytes, and heap sizes are
-> the stable numbers; the first run was taken under heavier load (12 to 35),
-> so compare its absolute browser timings and requests per second with this
-> run's only through the ratios between frameworks.
+> The machine was shared. The 1-minute load average was 6.2 at the start and
+> 6.9 at the end, and 5.5 to 12.2 (median 8) across the samples; the harness
+> itself adds about 3. A retry in a quieter window was discarded because
+> other work pushed the load to 15 to 29 during its SSR phase. CPU per
+> request, bytes, and heap sizes are the stable numbers; compare browser
+> timings and requests per second with earlier runs only through the ratios
+> between frameworks.
 
 ### First visit to `/`: bytes downloaded
 
 | Metric     |      Arc |  SolidStart | TanStack Start |
 | ---------- | -------: | ----------: | -------------: |
-| JS files   |        6 |           5 |          **4** |
-| JS, raw    | 416.9 KB | **96.8 KB** |       376.3 KB |
-| JS, gzip   | 137.7 KB | **33.6 KB** |       120.5 KB |
-| JS, brotli | 120.6 KB | **30.2 KB** |       105.8 KB |
-| HTML, raw  | 424.2 KB |    470.6 KB |   **366.0 KB** |
+| JS files   |    **4** |           5 |          **4** |
+| JS, raw    | 415.7 KB | **96.8 KB** |       376.3 KB |
+| JS, gzip   | 136.4 KB | **33.6 KB** |       120.5 KB |
+| JS, brotli | 118.8 KB | **30.2 KB** |       105.8 KB |
+| HTML, raw  | 424.1 KB |    470.6 KB |   **366.0 KB** |
 | HTML, gzip |  40.5 KB |     43.2 KB |    **38.5 KB** |
 
 ### Timings
@@ -122,101 +124,98 @@ Median of 7 rounds; the range below each is min–max. Bold is the best median.
 | Metric                                    |                                   Arc |                            SolidStart |                            TanStack Start |
 | ----------------------------------------- | ------------------------------------: | ------------------------------------: | ----------------------------------------: |
 | **SSR, `/` (1,000 rows)**                 |                                       |                                       |                                           |
-| Server CPU per request                    |   **5.24 ms**<br><sub>4.43–9.03</sub> |    19.45 ms<br><sub>15.03–24.52</sub> |          7.75 ms<br><sub>6.98–11.18</sub> |
-| Requests/s                                |         **324**<br><sub>131–397</sub> |               77<br><sub>52–101</sub> |                  134<br><sub>80–145</sub> |
-| Latency p50                               |         **26 ms**<br><sub>22–67</sub> |           115 ms<br><sub>84–169</sub> |                66 ms<br><sub>57–111</sub> |
-| Latency p99                               |        **65 ms**<br><sub>49–244</sub> |          263 ms<br><sub>187–439</sub> |              164 ms<br><sub>140–299</sub> |
+| Server CPU per request                    |   **5.41 ms**<br><sub>5.11–7.05</sub> |    15.78 ms<br><sub>14.61–18.52</sub> |           6.88 ms<br><sub>5.90–7.88</sub> |
+| Requests/s                                |         **309**<br><sub>232–322</sub> |               97<br><sub>82–104</sub> |                 145<br><sub>138–179</sub> |
+| Latency p50                               |         **29 ms**<br><sub>26–39</sub> |            91 ms<br><sub>85–109</sub> |                 58 ms<br><sub>49–67</sub> |
+| Latency p99                               |         **68 ms**<br><sub>62–90</sub> |          207 ms<br><sub>180–308</sub> |              134 ms<br><sub>108–173</sub> |
 | **SSR, `/items/42`**                      |                                       |                                       |                                           |
-| Server CPU per request                    |       0.51 ms<br><sub>0.45–1.39</sub> |   **0.28 ms**<br><sub>0.17–0.43</sub> |           0.33 ms<br><sub>0.18–0.83</sub> |
-| Requests/s                                |         2,765<br><sub>727–2,932</sub> |   **3,910**<br><sub>1,978–5,734</sub> |           3,436<br><sub>1,031–7,215</sub> |
-| Latency p50                               |               2 ms<br><sub>2–12</sub> |            **1 ms**<br><sub>1–3</sub> |                    2 ms<br><sub>1–7</sub> |
-| Latency p99                               |              12 ms<br><sub>8–39</sub> |              12 ms<br><sub>4–76</sub> |               **8 ms**<br><sub>3–43</sub> |
+| Server CPU per request                    |       0.57 ms<br><sub>0.37–0.62</sub> |   **0.20 ms**<br><sub>0.18–0.25</sub> |           0.28 ms<br><sub>0.21–0.33</sub> |
+| Requests/s                                |       2,282<br><sub>1,760–3,759</sub> |   **5,336**<br><sub>4,830–5,465</sub> |           4,312<br><sub>3,686–6,351</sub> |
+| Latency p50                               |                3 ms<br><sub>2–4</sub> |            **1 ms**<br><sub>1–1</sub> |                **1 ms**<br><sub>1–2</sub> |
+| Latency p99                               |              11 ms<br><sub>6–27</sub> |            **5 ms**<br><sub>4–9</sub> |                    6 ms<br><sub>4–7</sub> |
 | **Cold load of `/`, CPU 4x slower**       |                                       |                                       |                                           |
-| TTFB                                      |            **5 ms**<br><sub>4–8</sub> |             15 ms<br><sub>10–30</sub> |                   9 ms<br><sub>8–12</sub> |
-| FCP (= LCP)                               |      **132 ms**<br><sub>120–140</sub> |          144 ms<br><sub>128–160</sub> |              148 ms<br><sub>128–152</sub> |
-| First click handled                       |          309 ms<br><sub>294–331</sub> |      **264 ms**<br><sub>224–289</sub> |              289 ms<br><sub>284–317</sub> |
-| Total blocking time                       |             61 ms<br><sub>52–73</sub> |                2 ms<br><sub>0–6</sub> |                **0 ms**<br><sub>0–0</sub> |
+| TTFB                                      |            **6 ms**<br><sub>4–6</sub> |             13 ms<br><sub>12–17</sub> |                    8 ms<br><sub>7–9</sub> |
+| FCP (= LCP)                               |      **124 ms**<br><sub>124–136</sub> |          148 ms<br><sub>140–152</sub> |              136 ms<br><sub>128–140</sub> |
+| First click handled                       |          308 ms<br><sub>273–314</sub> |      **250 ms**<br><sub>246–264</sub> |              283 ms<br><sub>245–296</sub> |
+| Total blocking time                       |             63 ms<br><sub>46–70</sub> |                1 ms<br><sub>0–5</sub> |                **0 ms**<br><sub>0–0</sub> |
 | **Client updates on `/`, CPU 4x slower**  |                                       |                                       |                                           |
-| Filter: type `amber` (5 keystrokes)       |             75 ms<br><sub>70–94</sub> |         **65 ms**<br><sub>59–77</sub> |                 88 ms<br><sub>75–94</sub> |
-| Filter: clear (back to 1,000 rows)        |           104 ms<br><sub>94–108</sub> |           100 ms<br><sub>90–105</sub> |            **95 ms**<br><sub>91–101</sub> |
-| Toggle: optimistic row update             |   **10.5 ms**<br><sub>10.0–11.2</sub> |       14.7 ms<br><sub>13.9–15.4</sub> |           21.2 ms<br><sub>19.6–23.1</sub> |
-| Toggle: settled (server + revalidation)   |         **25 ms**<br><sub>21–33</sub> |          131 ms<br><sub>122–142</sub> |                 35 ms<br><sub>33–38</sub> |
-| Navigate list → detail                    |             41 ms<br><sub>31–53</sub> |             40 ms<br><sub>34–45</sub> |             **38 ms**<br><sub>32–45</sub> |
-| Navigate detail → list                    |           114 ms<br><sub>95–129</sub> |           112 ms<br><sub>95–116</sub> |           **108 ms**<br><sub>83–144</sub> |
+| Filter: type `amber` (5 keystrokes)       |             93 ms<br><sub>73–96</sub> |         **65 ms**<br><sub>62–82</sub> |                 77 ms<br><sub>66–96</sub> |
+| Filter: clear (back to 1,000 rows)        |           104 ms<br><sub>94–108</sub> |            99 ms<br><sub>96–109</sub> |             **92 ms**<br><sub>88–98</sub> |
+| Toggle: optimistic row update             |    **11.1 ms**<br><sub>9.5–11.4</sub> |       14.9 ms<br><sub>13.5–15.2</sub> |           20.6 ms<br><sub>18.4–22.0</sub> |
+| Toggle: settled (server + revalidation)   |         **24 ms**<br><sub>21–25</sub> |          130 ms<br><sub>125–136</sub> |                 35 ms<br><sub>31–36</sub> |
+| Navigate list → detail                    |         **37 ms**<br><sub>33–43</sub> |             41 ms<br><sub>37–45</sub> |                 39 ms<br><sub>36–44</sub> |
+| Navigate detail → list                    |           119 ms<br><sub>83–127</sub> |          111 ms<br><sub>100–115</sub> |           **103 ms**<br><sub>94–126</sub> |
 | **Memory on `/` (unthrottled, after GC)** |                                       |                                       |                                           |
-| JS heap after load                        |       7.96 MB<br><sub>7.96–7.96</sub> |       6.25 MB<br><sub>6.25–6.25</sub> |       **5.27 MB**<br><sub>5.27–5.29</sub> |
-| JS heap after 100 toggles                 |       9.42 MB<br><sub>9.41–9.43</sub> |   **7.44 MB**<br><sub>7.41–7.44</sub> |           7.44 MB<br><sub>7.43–7.45</sub> |
-| 100 toggles, each settled                 | 12,476 ms<br><sub>12,387–12,499</sub> | 13,307 ms<br><sub>13,135–13,554</sub> | **11,668 ms**<br><sub>11,408–12,405</sub> |
+| JS heap after load                        |       7.94 MB<br><sub>7.94–7.95</sub> |       6.25 MB<br><sub>6.25–6.25</sub> |       **5.27 MB**<br><sub>5.26–5.27</sub> |
+| JS heap after 100 toggles                 |       9.37 MB<br><sub>9.37–9.38</sub> |       7.44 MB<br><sub>7.43–7.44</sub> |       **7.41 MB**<br><sub>7.41–7.42</sub> |
+| 100 toggles, each settled                 | 12,493 ms<br><sub>12,153–12,564</sub> | 13,215 ms<br><sub>12,877–13,462</sub> | **11,257 ms**<br><sub>11,051–11,669</sub> |
 
-### Arc before and after
+### Arc across the runs
 
-Arc's numbers in the first run and in this one, with each framework's
-standing relative to the best of the other two (lower is better; 1.0x means
-level with it). The ratios are the comparable figures across the two runs.
+Arc's numbers in each run, and its standing in this run relative to the best
+of the other two (lower is better; 1.0x means level with it). Ratios are the
+comparable figures across runs taken under different load.
 
-| Metric                                  | First run | This run | vs best other, first run | vs best other, this run |
-| --------------------------------------- | --------: | -------: | -----------------------: | ----------------------: |
-| JS, brotli                              |  130.2 KB | 120.6 KB |                     4.3x |                    4.0x |
-| SSR `/`: server CPU per request         |  19.62 ms |  5.24 ms |                     1.8x |  0.68x (fastest of all) |
-| SSR `/items/42`: server CPU per request |   1.62 ms |  0.51 ms |                     3.8x |                    1.8x |
-| First click handled (4x)                |    627 ms |   309 ms |                     1.5x |                    1.2x |
-| Total blocking time (4x)                |    259 ms |    61 ms |          7.8x (vs 33 ms) |           30x (vs 2 ms) |
-| JS heap after load                      |  11.57 MB |  7.96 MB |                     2.2x |                    1.5x |
-| Navigate detail → list (4x)             |    263 ms |   114 ms |                     1.3x |                    1.1x |
+| Metric                                  | First run | Second run | This run | vs best other, this run |
+| --------------------------------------- | --------: | ---------: | -------: | ----------------------: |
+| JS, brotli                              |  130.2 KB |   120.6 KB | 118.8 KB |                    3.9x |
+| SSR `/`: server CPU per request         |  19.62 ms |    5.24 ms |  5.41 ms |  0.79x (fastest of all) |
+| SSR `/items/42`: server CPU per request |   1.62 ms |    0.51 ms |  0.57 ms |                    2.9x |
+| First click handled (4x)                |    627 ms |     309 ms |   308 ms |                    1.2x |
+| Total blocking time (4x)                |    259 ms |      61 ms |    63 ms | 63 ms against 0 to 1 ms |
+| Toggle: settled (4x)                    |     61 ms |      25 ms |    24 ms |  0.69x (fastest of all) |
+| JS heap after load                      |  11.57 MB |    7.96 MB |  7.94 MB |                    1.5x |
+| Navigate detail → list (4x)             |    263 ms |     114 ms |   119 ms |                    1.2x |
 
 ### Correctness
 
 | Check                  |     Arc | SolidStart | TanStack Start |
 | ---------------------- | ------: | ---------: | -------------: |
 | `/items/9999` status   |     404 |        404 |            404 |
-| `/` HTML bytes         | 434,389 |    481,859 |        374,805 |
+| `/` HTML bytes         | 434,270 |    481,859 |        374,805 |
 | Filter `amber` matches |      51 |         51 |             51 |
 
 ## Read the table honestly
 
-**Arc now server-renders the 1,000-row page fastest.** 5.2 ms of CPU per
-render against 7.8 ms for TanStack Start and 19.5 ms for SolidStart, with the
-best requests per second and latency. Before the optimizations it was 1.8x
-TanStack Start. `RouterLink` was half of that render, and every copy of the
-hydration payload was a copy of 1,000 rows.
+**Arc server-renders the 1,000-row page fastest.** 5.4 ms of CPU per render
+against 6.9 ms for TanStack Start and 15.8 ms for SolidStart, with twice
+TanStack Start's requests per second and half its latency. In the first run
+it was 1.8x TanStack Start: `RouterLink` was half of that render, and every
+copy of the hydration payload was a copy of 1,000 rows.
 
-**Arc still loses the first load, by less.** It downloads 4x SolidStart's
-JavaScript (121 KB brotli against 30 KB) and 1.14x TanStack Start's. A click
-is handled 45 ms after SolidStart's and 20 ms after TanStack Start's (309 ms
-against 264 ms and 289 ms at 4x), where it was about 200 ms behind. Total
-blocking time is 61 ms against 2 ms and 0 ms: two long tasks remain,
-evaluating the Effect-heavy chunk and hydrating the rows, and the other two
-frameworks break theirs up or have less to do. FCP is a wash.
+**Arc wins the mutation.** The optimistic flip paints in 11.1 ms (SolidStart
+14.9 ms, TanStack Start 20.6 ms) and the toggle settles, server and
+revalidation included, in 24 ms (TanStack Start 35 ms, SolidStart 130 ms):
+the Action patches one row, and the reloaded list shares unchanged rows by
+identity. Arc also paints first (FCP 124 ms against 136 ms and 148 ms) and
+navigates list to detail fastest, by a few milliseconds.
 
-**Arc still loses server rendering of a small page, by less.** `/items/42`
-costs 0.51 ms of CPU against 0.28 ms (SolidStart) and 0.33 ms (TanStack
-Start): 1.8x, down from 3.8x. What remains is per-request Effect and
-framework overhead (see below), not rendering. Since this run, a rendered page is one complete body
-written in one `end` (no Web stream, finalizer, or chunk pump); an
-interleaved A/B of the production server on a loaded machine measured
-`/items/42` at a median 0.66 ms before and 0.54 ms after (see the
-CHANGELOG). The table above is from the run, which was not repeated.
+**Arc loses the first load.** It downloads 3.9x SolidStart's JavaScript
+(119 KB brotli against 30 KB) and 1.12x TanStack Start's. A click is handled
+58 ms after SolidStart's and 25 ms after TanStack Start's (308 ms against
+250 ms and 283 ms at 4x). Total blocking time is 63 ms against 1 ms and 0 ms:
+two long tasks remain, evaluating the Effect-heavy JavaScript and hydrating
+the rows, and the other two frameworks break theirs up or have less to do.
 
-**Arc wins the mutation, as before.** The optimistic flip paints in 10.5 ms
-(SolidStart 14.7 ms, TanStack Start 21.2 ms) and the toggle settles, server
-and revalidation included, in 25 ms (TanStack Start 35 ms, SolidStart 131
-ms), for the reasons the first run gave: the Action patches one row, and the
-reloaded list shares unchanged rows by identity.
+**Arc loses server rendering of a small page, by the widest ratio.**
+`/items/42` costs 0.57 ms of CPU against 0.20 ms (SolidStart) and 0.28 ms
+(TanStack Start): 2.9x, against 1.8x in the second run. Arc's own cost did
+not move beyond the noise (0.51 ms then, 0.57 ms now, with a 0.37 ms minimum);
+the other two measured lower than before. Sending the page as one complete
+body is in this run; an interleaved A/B had measured it at 0.66 ms to 0.54 ms
+(see the CHANGELOG). What remains is per-request Effect and framework work,
+not rendering (see below).
 
-**Client re-rendering is level now.** Clearing the filter (1,000 rows back)
-and returning to the list from a detail page are within 10 ms of the others;
-both were Arc's weak spots, mostly because every re-created row built a
-`RouterLink` with its memos, effect, and preloader.
+**Client re-rendering is close, with one regression to watch.** Clearing the
+filter and returning to the list from a detail page are within about 15 ms of
+the others. Typing `amber` took 93 ms against 75 ms in the second run (range
+73–96 here), the slowest of the three; with the load this run had, that is
+not yet a confirmed regression.
 
-**Arc still uses the most memory, by less.** 7.96 MB of JS heap after load
-against 6.25 MB and 5.27 MB, down from 11.57 MB. Per row it is about 5.4 KB
+**Arc uses the most memory.** 7.94 MB of JS heap after load against 6.25 MB
+and 5.27 MB, down from 11.57 MB in the first run. Per row it is about 5.4 KB
 (SolidStart about 5 KB, TanStack Start 3.4 KB); the rest is the Effect
 runtime and Arc's stores, about 2.6 MB on the detail page.
-
-**Arc answers an unknown item with 404.** The run above answered 500: the
-compare app ended its preload with the route's typed failure. It now ends it
-with `Route.notFound()`, which Start answers with 404; the status was checked
-against the production build after the run, which was not repeated.
 
 ## What changed
 
@@ -269,7 +268,7 @@ Measured and not changed:
 
 ## What Arc still pays for
 
-- **The browser's first task.** The entry chunk is 417 KB raw: Effect is 44%
+- **The browser's first task.** The JavaScript is 416 KB raw: Effect is 44%
   (the fiber runtime, `Schema`/`SchemaAST`, `PubSub`, `Queue`, `Stream`,
   `Cache`), Arc core 26%, Solid 2's `@solidjs/signals` 16%. Evaluating it and
   starting the runtime is one long task; hydrating the 1,000 rows (about 66
@@ -277,15 +276,37 @@ Measured and not changed:
   the other.
 - **Per-request Effect overhead on the server.** On `/items/42`,
   `renderToString` is about a third of the request. Most of the rest is
-  Effect fibers (request runtime, preload, hydration plan, response
-  lifecycle) and the Web stream between Start's HTML stream and the Node
-  response (about 10%). Writing a fully rendered document to Node without a
-  Web stream is the next candidate.
+  Effect fibers: the request runtime, the preload, the hydration plan, and
+  the response lifecycle. The page itself reaches Node as one complete body,
+  written in one `end`.
 
-## History: the first run
+## History: earlier runs
 
-The first run, before the changes above, on the same machine under heavier
-load (1-minute load average 12 to 35). Raw data:
+### The second run
+
+After the changes above except the complete-body response, on the same
+machine (1-minute load average 21 falling to 4). Raw data:
+[`results/2026-10-12-20-41.json`](../benchmarks/compare/results/2026-10-12-20-41.json).
+Its `/items/9999` answered 500; the compare app now ends that preload with
+`Route.notFound()`, and this run answers 404.
+
+| Metric                                  |         Arc |  SolidStart | TanStack Start |
+| --------------------------------------- | ----------: | ----------: | -------------: |
+| JS, brotli                              |    120.6 KB | **30.2 KB** |       105.8 KB |
+| SSR `/`: server CPU per request         | **5.24 ms** |    19.45 ms |        7.75 ms |
+| SSR `/items/42`: server CPU per request |     0.51 ms | **0.28 ms** |        0.33 ms |
+| FCP (4x)                                |  **132 ms** |      144 ms |         148 ms |
+| First click handled (4x)                |      309 ms |  **264 ms** |         289 ms |
+| Total blocking time (4x)                |       61 ms |        2 ms |       **0 ms** |
+| Filter: type `amber` (4x)               |       75 ms |   **65 ms** |          88 ms |
+| Toggle: settled (4x)                    |   **25 ms** |      131 ms |          35 ms |
+| Navigate detail → list (4x)             |      114 ms |      112 ms |     **108 ms** |
+| JS heap after load                      |     7.96 MB |     6.25 MB |    **5.27 MB** |
+
+### The first run
+
+Before the changes above, on the same machine under heavier load (1-minute
+load average 12 to 35). Raw data:
 [`results/2026-10-12-19-08.json`](../benchmarks/compare/results/2026-10-12-19-08.json).
 
 | Metric                                  |       Arc |  SolidStart | TanStack Start |

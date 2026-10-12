@@ -331,6 +331,16 @@ const allowed = [
       ),
       seam(
         "packages/start/src/vite.ts",
+        "Vite plugin load hook contract",
+        /readonly load:\s*\(this:\s*SunfallArcStartLoadContext,\s*id:\s*string\)\s*=>\s*string\s*\|\s*null\s*\|\s*Promise<string>;/,
+      ),
+      seam(
+        "packages/start/src/vite.ts",
+        "Vite plugin context load method",
+        /readonly load:\s*\(options:\s*\{\s*readonly id:\s*string;\s*\}\)\s*=>\s*Promise<\{\s*readonly exports\?:\s*readonly string\[\]\s*\|\s*null\s*\}>;/,
+      ),
+      seam(
+        "packages/start/src/vite.ts",
         "Vite app builder build method",
         /build\(environment:\s*never\):\s*Promise<unknown>;/,
       ),

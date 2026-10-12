@@ -100,6 +100,25 @@ export const routeModulesByPath = (
   return byPath;
 };
 
+/** Absolute path of the app's server entry, which the production server imports. */
+export const productionServerEntryPath = (root: string, serverEntry: string): string =>
+  resolve(root, rootRelative(root, serverEntry));
+
+/**
+ * The server entry export the production server serves: `handlerExport` when
+ * set, else `default`, else `handleRequest`. `undefined` when the entry does
+ * not export it.
+ */
+export const productionServerHandlerExport = (
+  exports: readonly string[],
+  handlerExport: string | undefined,
+): string | undefined =>
+  handlerExport === undefined
+    ? ["default", "handleRequest"].find((name) => exports.includes(name))
+    : exports.includes(handlerExport)
+      ? handlerExport
+      : undefined;
+
 /**
  * Source of `<outDir>/server/index.js`: imports the app's handler, embeds the
  * client build's assets (read from the client manifest, which the client
@@ -111,7 +130,8 @@ export const productionServerEntryModule = (options: {
   readonly base: string;
   readonly serverEntry: string;
   readonly clientEntry: string;
-  readonly handlerExport: string | undefined;
+  /** The server entry's handler export (`productionServerHandlerExport`). */
+  readonly handlerExport: string;
   readonly fileRoutes: FileRouteManifest;
 }): string => {
   const layout = startServerBuildLayout(options.outDir);
@@ -124,20 +144,16 @@ export const productionServerEntryModule = (options: {
     entry: rootRelative(options.root, options.clientEntry),
     routeModules: routeModulesByPath(options.root, options.fileRoutes),
   });
-  const serverEntry = resolve(options.root, rootRelative(options.root, options.serverEntry));
+  const serverEntry = productionServerEntryPath(options.root, options.serverEntry);
   const clientDirFromServer = relative(resolve(options.root, layout.serverOutDir), clientDir)
     .split("\\")
     .join("/");
-  const handler =
-    options.handlerExport === undefined
-      ? "entry.default ?? entry.handleRequest"
-      : `entry[${JSON.stringify(options.handlerExport)}]`;
   return [
     `import { fileURLToPath } from "node:url";`,
     `import { serveMain } from "@sunfall/arc-start/node";`,
-    `import * as entry from ${JSON.stringify(serverEntry)};`,
+    `import { ${JSON.stringify(options.handlerExport)} as handler } from ${JSON.stringify(serverEntry)};`,
     ``,
-    `serveMain(${handler}, {`,
+    `serveMain(handler, {`,
     `  clientDir: fileURLToPath(new URL(${JSON.stringify(`${clientDirFromServer}/`)}, import.meta.url)),`,
     `  assets: ${JSON.stringify(assets)},`,
     `  base: ${JSON.stringify(options.base)},`,

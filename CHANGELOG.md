@@ -238,6 +238,12 @@ props?)` or load as their own chunk with `Route.lazyComponent(importer)`;
   Documents `modulepreload` the entry, its imports, and the matched route's
   lazy chunk, and the entry's modules are grouped into `vendor-*.js` and
   `app-*.js` chunks.
+- The server build imports the server entry's handler by name (its
+  `handlerExport`, else `default`, else `handleRequest`) and fails the build
+  when the entry exports none of them. A server that cannot start fails with
+  `StartNodeServeError`, whose message names the client build directory or
+  the host and port (for example, that the port is already in use);
+  `serveMain` prints it and exits with status 1.
 - Static prerender runs through the app's handler, swaps in the built entry
   from Vite's build manifest, and writes the app's not-found page to
   `404.html`; unmatched URLs answer 404 everywhere.

@@ -5,11 +5,34 @@ import { Data, Effect, type Scope } from "effect";
 import { ClientAssets, type StartClientAssets } from "./start-client-assets.js";
 import type { StartRequestHandlerInput } from "./start-host-adapter.js";
 
-/** Error raised when the production server cannot read its build or listen. */
+/**
+ * Error raised when the production server cannot read its build or listen. It
+ * names the client build directory and the address, with `host` undefined
+ * when binding all interfaces.
+ */
 export class StartNodeServeError extends Data.TaggedError("StartNodeServeError")<{
   readonly operation: "read-client" | "listen";
+  readonly clientDir: string;
+  readonly host: string | undefined;
+  readonly port: number;
   readonly error: unknown;
-}> {}
+}> {
+  override get message(): string {
+    const reason = this.error instanceof Error ? this.error.message : String(this.error);
+    if (this.operation === "read-client") {
+      return `Cannot read the client build at ${this.clientDir}: ${reason}`;
+    }
+    const address = `${this.host ?? "all interfaces"} port ${this.port}`;
+    const code = (this.error as { readonly code?: unknown } | null)?.code;
+    if (code === "EADDRINUSE") {
+      return `Cannot listen on ${address}: the port is already in use (set PORT to another port)`;
+    }
+    if (code === "EACCES") {
+      return `Cannot listen on ${address}: permission denied`;
+    }
+    return `Cannot listen on ${address}: ${reason}`;
+  }
+}
 
 /** Options for `serve`: where the client build lives and where to listen. */
 export interface StartNodeServeOptions {
@@ -107,9 +130,13 @@ export const listenStartNodeServer = (
   Effect.acquireRelease(
     Effect.gen(function* () {
       const base = options.base ?? "/";
+      const port = options.port ?? Number(process.env.PORT ?? 3000);
+      const host = options.host ?? process.env.HOST;
+      const fail = (operation: "read-client" | "listen", error: unknown) =>
+        new StartNodeServeError({ operation, clientDir: options.clientDir, host, port, error });
       const files = yield* Effect.try({
         try: () => staticFiles(options.clientDir, base),
-        catch: (error) => new StartNodeServeError({ operation: "read-client", error }),
+        catch: (error) => fail("read-client", error),
       });
       const server = createServer((request, response) => {
         const method = request.method;
@@ -121,11 +148,8 @@ export const listenStartNodeServer = (
           handler(request, response);
         }
       });
-      const port = options.port ?? Number(process.env.PORT ?? 3000);
-      const host = options.host ?? process.env.HOST;
       yield* Effect.callback<void, StartNodeServeError>((resume) => {
-        const onError = (error: unknown): void =>
-          resume(Effect.fail(new StartNodeServeError({ operation: "listen", error })));
+        const onError = (error: unknown): void => resume(Effect.fail(fail("listen", error)));
         server.once("error", onError);
         server.listen(port, host, () => {
           server.off("error", onError);

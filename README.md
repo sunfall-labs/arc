@@ -241,20 +241,21 @@ and measured in production builds on Node
 
 | On the 1,000-row page                   | Arc (first run) |     Arc | SolidStart | TanStack Start |
 | --------------------------------------- | --------------: | ------: | ---------: | -------------: |
-| JS on first visit (brotli)              |          130 KB |  121 KB |      30 KB |         106 KB |
-| First click handled (4x CPU throttle)   |          627 ms |  309 ms |     264 ms |         289 ms |
-| Total blocking time (4x CPU throttle)   |          259 ms |   61 ms |       2 ms |           0 ms |
-| Server CPU per render                   |         19.6 ms |  5.2 ms |    19.5 ms |         7.8 ms |
-| Server CPU, small page (`/items/42`)    |         1.62 ms | 0.51 ms |    0.28 ms |        0.33 ms |
-| Toggle a row, settled with revalidation |           61 ms |   25 ms |     131 ms |          35 ms |
-| JS heap after load                      |         11.6 MB |  8.0 MB |     6.3 MB |         5.3 MB |
+| JS on first visit (brotli)              |          130 KB |  119 KB |      30 KB |         106 KB |
+| First click handled (4x CPU throttle)   |          627 ms |  308 ms |     250 ms |         283 ms |
+| Total blocking time (4x CPU throttle)   |          259 ms |   63 ms |       1 ms |           0 ms |
+| Server CPU per render                   |         19.6 ms |  5.4 ms |    15.8 ms |         6.9 ms |
+| Server CPU, small page (`/items/42`)    |         1.62 ms | 0.57 ms |    0.20 ms |        0.28 ms |
+| Toggle a row, settled with revalidation |           61 ms |   24 ms |     130 ms |          35 ms |
+| JS heap after load                      |         11.6 MB |  7.9 MB |     6.3 MB |         5.3 MB |
 
-Arc now server-renders the list fastest and settles a mutation fastest. It
-still ships the most JavaScript, blocks the main thread longest on load, uses
-the most memory, and costs the most server CPU for a small page, each by less
-than in the first run. The first run was taken under heavier machine load, so
-compare its timings through the ratios; [the benchmark page](docs/benchmarks.md)
-has both runs, what changed, and what Arc still pays for.
+Arc server-renders the list fastest, settles a mutation fastest, and paints
+first. It ships the most JavaScript (3.9x SolidStart's), blocks the main
+thread longest on load, uses the most memory, and costs the most server CPU
+for a small page (2.9x SolidStart's). The runs were taken on a shared machine
+under different load, so compare across them through the ratios;
+[the benchmark page](docs/benchmarks.md) has every run, what changed, and what
+Arc still pays for.
 
 ## Documentation
 
