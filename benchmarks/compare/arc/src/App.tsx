@@ -1,6 +1,8 @@
+import { Route } from "@sunfall/arc-core";
 import { Component, RouterOutlet, RouterProvider } from "@sunfall/arc-solid";
 import "../../shared/styles.css";
 import { routes } from "./routeTree.gen.js";
+import { route as ItemRoute } from "./routes/items/$id.js";
 import { NotFoundView } from "./views.js";
 
 /** The app root: Start renders it on the server and `App.launch` hydrates it. */
@@ -17,14 +19,10 @@ const Root = Component.define("Root", function* (props: { readonly href: string 
         <main class="page">
           <RouterOutlet
             router={router}
-            failure={({ error }) =>
-              error?._tag === "RoutePreloadError" && error.cause._tag === "ItemNotFound" ? (
-                <NotFoundView id={error.cause.id} />
-              ) : (
-                <p role="alert">Something went wrong.</p>
-              )
-            }
-            notFound={() => <NotFoundView id="" />}
+            failure={() => <p role="alert">Something went wrong.</p>}
+            notFound={({ href }) => (
+              <NotFoundView id={Route.match([ItemRoute], href)?.params.id ?? ""} />
+            )}
           />
         </main>
       </div>

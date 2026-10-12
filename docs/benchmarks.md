@@ -34,7 +34,7 @@ Each framework uses its own idiomatic data and mutation path:
 | Toggle           | served `Action` with an `optimistic` row patch and `invalidates` tags                                              | `action` + `useSubmissions` for the optimistic flip; default revalidation, which the router sends back in the action's response (single flight) | `useMutation` with an `onMutate` cache patch and `onSettled` `invalidateQueries`                                             |
 | After the toggle | refetches the list (one RPC)                                                                                       | the action response carries the refreshed list                                                                                                  | refetches the list                                                                                                           |
 | Links            | `RouterLink`                                                                                                       | `<A>`                                                                                                                                           | `<Link>`                                                                                                                     |
-| Not found        | route `error: ItemNotFound` with a typed failure view                                                              | `<HttpStatusCode code={404} />`                                                                                                                 | `notFound()` + `notFoundComponent`                                                                                           |
+| Not found        | `Route.notFound()` in the preload + the outlet's `notFound` view                                                   | `<HttpStatusCode code={404} />`                                                                                                                 | `notFound()` + `notFoundComponent`                                                                                           |
 | Code splitting   | lazy `*.component.tsx` route modules                                                                               | per route, by default                                                                                                                           | per route, by default (`autoCodeSplitting`)                                                                                  |
 | Node server      | `node dist/server/index.js`, the production server `vite build` emits (`serveMain` from `@sunfall/arc-start/node`) | Nitro `node-server` preset                                                                                                                      | Nitro `node-server` preset                                                                                                   |
 
@@ -168,7 +168,7 @@ level with it). The ratios are the comparable figures across the two runs.
 
 | Check                  |     Arc | SolidStart | TanStack Start |
 | ---------------------- | ------: | ---------: | -------------: |
-| `/items/9999` status   | **500** |        404 |            404 |
+| `/items/9999` status   |     404 |        404 |            404 |
 | `/` HTML bytes         | 434,389 |    481,859 |        374,805 |
 | Filter `amber` matches |      51 |         51 |             51 |
 
@@ -209,10 +209,10 @@ against 6.25 MB and 5.27 MB, down from 11.57 MB. Per row it is about 5.4 KB
 (SolidStart about 5 KB, TanStack Start 3.4 KB); the rest is the Effect
 runtime and Arc's stores, about 2.6 MB on the detail page.
 
-**Arc answers an unknown item with 500.** The compare app ends its preload
-with the route's typed failure, which Start answers with 500. `Route.notFound()`
-(added since the first run) is the way to answer 404; the app has not been
-changed to use it, so this check still differs.
+**Arc answers an unknown item with 404.** The run above answered 500: the
+compare app ended its preload with the route's typed failure. It now ends it
+with `Route.notFound()`, which Start answers with 404; the status was checked
+against the production build after the run, which was not repeated.
 
 ## What changed
 
