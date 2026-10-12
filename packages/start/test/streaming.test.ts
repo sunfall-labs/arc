@@ -9,7 +9,6 @@ import { responseWithScopeLifetime } from "../src/response-lifetime.js";
 import {
   createHtmlResponse,
   createHtmlStream,
-  createStreamHydrationScriptSync,
   htmlChunk,
   responseWithStreamFinalizer,
   StartStreamError,
@@ -140,44 +139,6 @@ describe("Start streaming", () => {
           expect(decoded[1]).toContain('"sequence":0');
           expect(decoded[3]).toContain('"sequence":1');
         });
-      }),
-    );
-  });
-
-  it("emits collection payloads in hydration stream chunks", () => {
-    const payload: StartHydrationPayload = {
-      resources: [],
-      collections: [
-        {
-          name: "Streaming.Collection.projects",
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Atlas" },
-              synced: true,
-              origin: "remote",
-            },
-          ],
-          updatedAt: 2,
-        },
-      ],
-    };
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const stream = yield* createHtmlStream({
-          shell: "<html>",
-          chunks: Stream.make(streamHydrationChunk(payload)),
-        });
-
-        const chunks = yield* Stream.runCollect(stream);
-
-        yield* Effect.sync(() =>
-          expect(decodeChunks(chunks)).toEqual([
-            "<html>",
-            createStreamHydrationScriptSync(payload),
-          ]),
-        );
       }),
     );
   });

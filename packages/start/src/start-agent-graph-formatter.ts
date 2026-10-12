@@ -139,20 +139,16 @@ const formatOverview = (graph: StartAgentGraph): string => {
   const resources = graph.nodes
     .filter((node) => node.kind === "ResourceFamily")
     .map((node) => node.label);
-  const collections = graph.nodes
-    .filter((node) => node.kind === "Collection")
-    .map((node) => node.label);
   const lines = [
     "Sunfall Arc Start Agent Graph",
     `Status: ${graph.selfReview.status}`,
-    `Scope: ${graph.summary.routes} routes, ${graph.summary.serverFunctions} server functions, ${graph.summary.actions} actions, ${graph.summary.resourceFamilies} resource families, ${graph.summary.collections} collections`,
+    `Scope: ${graph.summary.routes} routes, ${graph.summary.serverFunctions} server functions, ${graph.summary.actions} actions, ${graph.summary.resourceFamilies} resource families`,
     `Self review: ${selfReviewText(graph.selfReview)}`,
     "",
     "Affordances",
     `- routes: ${inlineList(routes)}`,
     `- actions: ${inlineList(actions)}`,
     `- resource families: ${inlineList(resources)}`,
-    `- collections: ${inlineList(collections)}`,
   ];
 
   if (graph.findings.length > 0) {
@@ -182,7 +178,6 @@ const formatStartAgentGraphVerbose = (
     `actions: ${graph.summary.actions}`,
     `resource families: ${graph.summary.resourceFamilies}`,
     `resource tags: ${graph.summary.resourceTags}`,
-    `collections: ${graph.summary.collections}`,
     `findings: ${graph.summary.findings}`,
     `self review: policy ${graph.selfReview.policyClean ? "clean" : "needs-attention"}, wire ${graph.selfReview.wireComplete ? "complete" : "needs-attention"}, route preloads ${graph.selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`,
   ];

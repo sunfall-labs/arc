@@ -24,14 +24,6 @@ export const sampleDevtoolsPanels = (): DevtoolsPanels =>
             state: "Success",
           },
         ],
-        collections: [
-          {
-            name: "ProjectSummaries",
-            state: "Success",
-            waiting: false,
-            eventCount: 2,
-          },
-        ],
         serverFunctions: [
           {
             name: "Project.get",

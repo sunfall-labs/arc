@@ -1,4 +1,4 @@
-import { projectConsoleActions } from "./project-collections.js";
+import { projectConsoleActions } from "./project-actions.js";
 import { serverFunctions } from "./domain.server.js";
 import { routeById, routes } from "./routeTree.gen.js";
 

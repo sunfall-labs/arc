@@ -53,20 +53,13 @@ export {
   StartHydrationPayloadSerializeError,
   /** Options for `hydrateFromDocument`. */
   type HydrateFromDocumentOptions,
-  /** Shared options for request preload and client hydration collections. */
-  type StartCollectionHydrationOptions,
   /** Minimal document shape required for root and streamed hydration. */
   type StartHydrationDocument,
   /** Errors produced while reading or applying hydration payloads. */
   type StartHydrationError,
-  /** Start SSR hydration payload for resources and collections. */
+  /** Start SSR hydration payload for resources. */
   type StartHydrationPayload,
 } from "./hydration.js";
-
-export {
-  /** Error raised when request preload finds duplicate collection names. */
-  StartCollectionDuplicateName,
-} from "./start-collection-resolution.js";
 
 export type {
   /** Effect-returning fetch used by Start transports. */

@@ -3,6 +3,5 @@ import { RecipeIndex } from "../../content.js";
 
 export const route = Route.define("/blog/introducing-sunfall-arc", {
   preloadResources: [RecipeIndex],
-  preloadCollections: [],
   preload: () => Resource.preload(RecipeIndex("all")),
 });

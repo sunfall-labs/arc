@@ -10,8 +10,6 @@ import type {
 
 export const devtoolsActionNodeId = (name: string): string => `action:${name}`;
 
-export const devtoolsCollectionNodeId = (collection: string): string => `collection:${collection}`;
-
 export const devtoolsEndpointNodeId = (name: string): string => `endpoint:${name}`;
 
 export const devtoolsProgramNodeId = (name: string): string => `program:${name}`;
@@ -60,9 +58,6 @@ export const devtoolsServerFunctionNodeId = (name: string): string => `server-fu
 
 export const devtoolsResourceTagNodeId = (key: string): string => `resource-tag:${key}`;
 
-export const devtoolsUnknownRoutePreloadCollectionsPanelItemId = (routeId: string): string =>
-  `unknown-preload-collections:${routeId}`;
-
 export const devtoolsUnknownRoutePreloadResourcesPanelItemId = (routeId: string): string =>
   `unknown-preload-resources:${routeId}`;
 
@@ -85,13 +80,11 @@ export const devtoolsInvalidationTargetNodeId = (
 export const devtoolsRuntimeTargetLabel = (
   target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>,
 ): string =>
-  target.kind === "Collection" && target.id.startsWith("collection:")
-    ? target.id.slice("collection:".length)
-    : target.kind === "Program" && target.id.startsWith("program:")
-      ? target.id.slice("program:".length)
-      : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
-        ? target.id.slice("request-trace:".length)
-        : target.id;
+  target.kind === "Program" && target.id.startsWith("program:")
+    ? target.id.slice("program:".length)
+    : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
+      ? target.id.slice("request-trace:".length)
+      : target.id;
 
 const framedGraphId = (tag: string, parts: ReadonlyArray<string>): string =>
   `${tag}[${parts.map((part) => `${part.length}:${part}`).join("|")}]`;

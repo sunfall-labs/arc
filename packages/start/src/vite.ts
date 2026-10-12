@@ -81,10 +81,7 @@ export {
   FileRouteDefinitionsFileWriteError,
 } from "./generated-route-definitions.js";
 export { StartAppGraphMissingWireSchemas } from "./app-graph.js";
-export {
-  StartAppGraphUnknownRoutePreloadCollections,
-  StartAppGraphUnknownRoutePreloadResources,
-} from "./start-app-graph-diagnostics-policy.js";
+export { StartAppGraphUnknownRoutePreloadResources } from "./start-app-graph-diagnostics-policy.js";
 export { StartDevServerError, StartHandlerNotFound } from "./start-vite-dev-ssr.js";
 export { StartAppGraphDiagnosticsRunnerError } from "./start-vite-diagnostics-loader.js";
 

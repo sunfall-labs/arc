@@ -27,7 +27,6 @@
     "@sunfall/arc-core": "workspace:*",
     "@sunfall/arc-db": "workspace:*",
     "@sunfall/arc-solid": "workspace:*",
-    "@sunfall/arc-solid-db": "workspace:*",
     "@sunfall/arc-start": "workspace:*",
     "@sunfall/arc-tsrx": "workspace:*",
     "effect": "4.0.3",

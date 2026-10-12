@@ -1,5 +1,4 @@
 import type { Resource, Route } from "@sunfall/arc-core";
-import type { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
   createHydrationScriptSync,
@@ -31,8 +30,6 @@ export interface StartRenderHydrationPlan {
 export interface CreateStartRenderHydrationPlanOptions {
   /** Resource hydration payload collected during request preload/render. */
   readonly resources: Resource.HydrationPayload;
-  /** Collection hydration payload captured for the request runtime. */
-  readonly collections: Collection.HydrationPayload;
   /** Route preload failure the request renders; carried by the root payload. */
   readonly routeFailure?: Route.PreloadFailureSnapshot;
   /** Pending durable submissions the server settled before rendering; carried by the root payload. */
@@ -44,7 +41,8 @@ const emptyResourceHydrationPayload: Resource.HydrationPayload = { resources: []
 /**
  * Builds the hydration plan used by streamed renderers.
  *
- * The root payload carries non-streamed state such as DB collection snapshots.
+ * The root payload carries non-streamed state: the route failure and settled
+ * durable submissions.
  * Route resource refs move into streamed chunks so a renderer cannot emit the
  * same resource pair in both the root script and the stream.
  */
@@ -57,16 +55,12 @@ export const createStartRenderHydrationPlan = (
         ? {}
         : { settledSubmissions: options.settledSubmissions };
     const rootPayload: StartHydrationPayload = {
-      ...createStartHydrationPayload(
-        emptyResourceHydrationPayload,
-        options.collections,
-        options.routeFailure,
-      ),
+      ...createStartHydrationPayload(emptyResourceHydrationPayload, options.routeFailure),
       ...settled,
     };
     const rootScript = yield* createHydrationScript(rootPayload);
     const legacyPayload: StartHydrationPayload = {
-      ...createStartHydrationPayload(options.resources, options.collections, options.routeFailure),
+      ...createStartHydrationPayload(options.resources, options.routeFailure),
       ...settled,
     };
     const streamedResourceChunks =

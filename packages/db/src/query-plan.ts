@@ -75,12 +75,11 @@ export type QuerySourceError<S> = S extends Resource.Ref<any, any, infer E, any>
 /** The load services of a rows Resource ref. */
 export type QuerySourceRequirements<S> = S extends Resource.Ref<any, any, any, infer R> ? R : never;
 /** The index names a rows Resource ref declares. */
-export type QuerySourceIndex<S> =
-  S extends Resource.RowsRef<any, any>
-    ? S extends { readonly [key: symbol]: Resource.RowsSpec<any, any, infer Indexes> }
-      ? keyof Indexes & string
-      : string
+export type QuerySourceIndex<S> = {
+  readonly [K in keyof S]: S[K] extends Resource.RowsSpec<any, any, infer Indexes>
+    ? keyof Indexes & string
     : never;
+}[keyof S];
 
 /**
  * Union of the sources' declared load errors for a query source map (their

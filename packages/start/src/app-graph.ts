@@ -1,5 +1,4 @@
 import { Data, Effect } from "effect";
-import { defaultCollectionDefinitionRegistry } from "@sunfall/arc-db/internal";
 import type {
   ActionManifest,
   ActionManifestError,
@@ -34,18 +33,15 @@ export {
   enforceStartAppGraphDiagnosticsPolicy,
   formatStartAppGraphDiagnosticsPolicyViolation,
   StartAppGraphDiagnosticsPolicyException,
-  StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   validateStartAppGraphDiagnosticsPolicy,
   validateStartAppGraphDiagnosticsPolicyException,
-  validateStartAppGraphRoutePreloadCollectionsDiagnostics,
   validateStartAppGraphRoutePreloadResourcesDiagnostics,
 } from "./start-app-graph-diagnostics-policy.js";
 export type {
   StartAppGraphDiagnosticsPolicy,
   StartAppGraphDiagnosticsPolicyError,
   StartAppGraphDiagnosticsPolicyViolation,
-  StartAppGraphRoutePreloadCollectionsPolicy,
   StartAppGraphRoutePreloadResourcesPolicy,
 } from "./start-app-graph-diagnostics-policy.js";
 
@@ -95,7 +91,6 @@ export interface StartAppGraphRouteDiagnostics {
   readonly searchSchema: StartAppGraphRouteFeaturePresence;
   readonly preload: StartAppGraphRouteFeaturePresence;
   readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
-  readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
 }
 
 /** Wire schema fields tracked for server function and action contracts. */
@@ -174,20 +169,6 @@ export type StartAppGraphResourceFamilyDiagnostics =
 export type StartAppGraphResourceTagDiagnostics =
   import("@sunfall/arc-core").Resource.TagDiagnostics;
 
-/**
- * Collection diagnostics included in the Start app graph.
- *
- * Includes `readOnly` so tooling can distinguish derived/live-query
- * collections that reject direct writes from concrete writable definitions.
- */
-export type StartAppGraphCollectionDiagnostics =
-  import("@sunfall/arc-db/internal").CollectionDefinitionDiagnostics;
-
-/** Reads collection definition diagnostics through Start's DB dependency. */
-export const startAppGraphCollectionDefinitions =
-  (): readonly StartAppGraphCollectionDiagnostics[] =>
-    defaultCollectionDefinitionRegistry.diagnostics().collections;
-
 /** Contract missing one or more input/output/error schemas. */
 export interface StartAppGraphMissingSchema {
   readonly kind: "serverFunction" | "action";
@@ -208,17 +189,6 @@ export interface StartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
 }
 
-/** Route whose preload collection declarations are unknown or incomplete. */
-export interface StartAppGraphUnknownRoutePreloadCollectionsEntry {
-  readonly kind: "route";
-  readonly routeId: string;
-  readonly routePath: string;
-  readonly moduleId: string;
-  readonly filePath: string;
-  readonly preload: StartAppGraphRouteFeaturePresence;
-  readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
-}
-
 /** Full diagnostic projection of a Start app graph for LSPs, CI, and devtools. */
 export interface StartAppGraphDiagnostics {
   readonly version: 1;
@@ -231,7 +201,6 @@ export interface StartAppGraphDiagnostics {
   readonly actionModules: readonly StartAppGraphActionDiagnostics[];
   readonly resourceFamilies: readonly StartAppGraphResourceFamilyDiagnostics[];
   readonly resourceTags: readonly StartAppGraphResourceTagDiagnostics[];
-  readonly collectionDefinitions: readonly StartAppGraphCollectionDiagnostics[];
   readonly serverOnlyModules: readonly string[];
   readonly browserClientModules: readonly string[];
   readonly rpcPath: string;
@@ -242,14 +211,13 @@ export interface StartAppGraphDiagnostics {
   };
   readonly missingSchemas: readonly StartAppGraphMissingSchema[];
   readonly unknownRoutePreloadResources: readonly StartAppGraphUnknownRoutePreloadResourcesEntry[];
-  readonly unknownRoutePreloadCollections: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
 
 /**
  * Runtime route candidate used to enrich static app graph diagnostics with
  * route-module features discovered from loaded route definitions.
  *
- * Includes preload resource and collection diagnostics from the runtime route
+ * Includes preload resource diagnostics from the runtime route
  * object.
  */
 export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
@@ -262,7 +230,6 @@ export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
     };
   };
   readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
-  readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
 }
 
 /** Runtime diagnostics facts merged into static Start app graph diagnostics. */
@@ -270,7 +237,6 @@ export interface StartAppGraphDiagnosticsRuntimeCandidates {
   readonly routeModules?: Iterable<StartAppGraphRouteDiagnosticsRuntimeCandidate>;
   readonly resourceFamilies?: readonly StartAppGraphResourceFamilyDiagnostics[];
   readonly resourceTags?: readonly StartAppGraphResourceTagDiagnostics[];
-  readonly collectionDefinitions?: readonly StartAppGraphCollectionDiagnostics[];
 }
 
 /** Build policy for required server-function/action wire schemas. */
@@ -365,11 +331,6 @@ const isPreloadResourceDiagnostics = (
 ): value is import("@sunfall/arc-core").Route.PreloadResourceDiagnostics =>
   isRecord(value) && isPreloadDiagnosticsStatus(value.status) && isStringArray(value.families);
 
-const isPreloadCollectionDiagnostics = (
-  value: unknown,
-): value is import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics =>
-  isRecord(value) && isPreloadDiagnosticsStatus(value.status) && isStringArray(value.collections);
-
 const isResourceFamilyDiagnostics = (
   value: unknown,
 ): value is StartAppGraphResourceFamilyDiagnostics =>
@@ -385,48 +346,6 @@ const isResourceFamilyDiagnostics = (
 const isResourceTagDiagnostics = (value: unknown): value is StartAppGraphResourceTagDiagnostics =>
   isRecord(value) && typeof value.name === "string" && typeof value.keyed === "boolean";
 
-const isCollectionIndexDiagnostics = (
-  value: unknown,
-): value is StartAppGraphCollectionDiagnostics["indexes"][number] =>
-  isRecord(value) && typeof value.name === "string" && typeof value.unique === "boolean";
-
-const isCollectionPolicyDiagnostics = (
-  value: unknown,
-): value is StartAppGraphCollectionDiagnostics["policy"] =>
-  isRecord(value) && typeof value.retry === "boolean";
-
-const isCollectionPersistenceDiagnostics = (
-  value: unknown,
-): value is StartAppGraphCollectionDiagnostics["persistence"] =>
-  isRecord(value) &&
-  typeof value.enabled === "boolean" &&
-  (value.key === undefined || typeof value.key === "string") &&
-  typeof value.hydrate === "boolean" &&
-  typeof value.restoreOnPreload === "boolean" &&
-  typeof value.loadAfterRestore === "boolean" &&
-  typeof value.persistOnLoad === "boolean" &&
-  typeof value.persistOnWrite === "boolean";
-
-const isCollectionSyncDiagnostics = (
-  value: unknown,
-): value is NonNullable<StartAppGraphCollectionDiagnostics["sync"]> =>
-  isRecord(value) && typeof value.adapter === "string";
-
-const isCollectionDefinitionDiagnostics = (
-  value: unknown,
-): value is StartAppGraphCollectionDiagnostics =>
-  isRecord(value) &&
-  typeof value.name === "string" &&
-  typeof value.readOnly === "boolean" &&
-  typeof value.outputSchema === "boolean" &&
-  typeof value.initialData === "boolean" &&
-  Array.isArray(value.indexes) &&
-  value.indexes.every(isCollectionIndexDiagnostics) &&
-  typeof value.load === "boolean" &&
-  isCollectionPolicyDiagnostics(value.policy) &&
-  (value.sync === undefined || isCollectionSyncDiagnostics(value.sync)) &&
-  isCollectionPersistenceDiagnostics(value.persistence);
-
 const isRouteDiagnostics = (value: unknown): value is StartAppGraphRouteDiagnostics =>
   isRecord(value) &&
   typeof value.routeId === "string" &&
@@ -440,8 +359,7 @@ const isRouteDiagnostics = (value: unknown): value is StartAppGraphRouteDiagnost
   isFeaturePresence(value.paramsSchema) &&
   isFeaturePresence(value.searchSchema) &&
   isFeaturePresence(value.preload) &&
-  isPreloadResourceDiagnostics(value.preloadResources) &&
-  isPreloadCollectionDiagnostics(value.preloadCollections);
+  isPreloadResourceDiagnostics(value.preloadResources);
 
 const isWireDiagnostics = (value: unknown): value is StartAppGraphWireDiagnostics =>
   isRecord(value) &&
@@ -543,18 +461,6 @@ const isUnknownRoutePreloadResourcesDiagnostics = (
   isFeaturePresence(value.preload) &&
   isPreloadResourceDiagnostics(value.preloadResources);
 
-const isUnknownRoutePreloadCollectionsDiagnostics = (
-  value: unknown,
-): value is StartAppGraphUnknownRoutePreloadCollectionsEntry =>
-  isRecord(value) &&
-  value.kind === "route" &&
-  typeof value.routeId === "string" &&
-  typeof value.routePath === "string" &&
-  typeof value.moduleId === "string" &&
-  typeof value.filePath === "string" &&
-  isFeaturePresence(value.preload) &&
-  isPreloadCollectionDiagnostics(value.preloadCollections);
-
 const isStartAppGraphDiagnostics = (value: unknown): value is StartAppGraphDiagnostics =>
   isRecord(value) &&
   value.version === 1 &&
@@ -572,8 +478,6 @@ const isStartAppGraphDiagnostics = (value: unknown): value is StartAppGraphDiagn
   value.resourceFamilies.every(isResourceFamilyDiagnostics) &&
   Array.isArray(value.resourceTags) &&
   value.resourceTags.every(isResourceTagDiagnostics) &&
-  Array.isArray(value.collectionDefinitions) &&
-  value.collectionDefinitions.every(isCollectionDefinitionDiagnostics) &&
   isStringArray(value.serverOnlyModules) &&
   isStringArray(value.browserClientModules) &&
   typeof value.rpcPath === "string" &&
@@ -584,9 +488,7 @@ const isStartAppGraphDiagnostics = (value: unknown): value is StartAppGraphDiagn
   Array.isArray(value.missingSchemas) &&
   value.missingSchemas.every(isMissingSchemaDiagnostics) &&
   Array.isArray(value.unknownRoutePreloadResources) &&
-  value.unknownRoutePreloadResources.every(isUnknownRoutePreloadResourcesDiagnostics) &&
-  Array.isArray(value.unknownRoutePreloadCollections) &&
-  value.unknownRoutePreloadCollections.every(isUnknownRoutePreloadCollectionsDiagnostics);
+  value.unknownRoutePreloadResources.every(isUnknownRoutePreloadResourcesDiagnostics);
 
 const isSafeNonNegativeInteger = (value: number): boolean =>
   Number.isSafeInteger(value) && value >= 0;
@@ -668,11 +570,9 @@ const isStartAppGraphDiagnosticsPolicyViolation = (
 ): value is StartAppGraphDiagnosticsPolicyViolation =>
   isRecord(value) &&
   typeof value.message === "string" &&
-  (value._tag === "UnknownRoutePreloadResources"
-    ? Array.isArray(value.routes) && value.routes.every(isUnknownRoutePreloadResourcesDiagnostics)
-    : value._tag === "UnknownRoutePreloadCollections" &&
-      Array.isArray(value.routes) &&
-      value.routes.every(isUnknownRoutePreloadCollectionsDiagnostics));
+  value._tag === "UnknownRoutePreloadResources" &&
+  Array.isArray(value.routes) &&
+  value.routes.every(isUnknownRoutePreloadResourcesDiagnostics);
 
 /** Decodes a resolved app graph diagnostics DTO before tooling consumes it. */
 export const decodeStartAppGraphDiagnostics = (
@@ -762,7 +662,6 @@ export const describeFileRouteManifestEntry = (
     readonly searchSchema?: StartAppGraphRouteFeaturePresence;
     readonly preload?: StartAppGraphRouteFeaturePresence;
     readonly preloadResources?: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
-    readonly preloadCollections?: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
   } = {},
 ): StartAppGraphRouteDiagnostics => ({
   routeId: String(entry.routeId),
@@ -779,10 +678,6 @@ export const describeFileRouteManifestEntry = (
     status: "unknown",
     families: [],
   },
-  preloadCollections: moduleFeatures.preloadCollections ?? {
-    status: "unknown",
-    collections: [],
-  },
 });
 
 const runtimeFeaturePresence = (value: unknown): StartAppGraphRouteFeaturePresence =>
@@ -797,7 +692,6 @@ export const describeStartAppGraphRouteDiagnosticsRuntimeCandidate = (
     searchSchema: runtimeFeaturePresence(candidate.route.options?.search),
     preload: runtimeFeaturePresence(candidate.route.options?.preload),
     preloadResources: candidate.preloadResources,
-    preloadCollections: candidate.preloadCollections,
   });
 
 const routeModuleDiagnosticsKey = (
@@ -939,27 +833,6 @@ export const unknownRoutePreloadResourcesForDiagnostics = (
       }),
     );
 
-/** Finds route diagnostics whose preload collection declarations are unknown. */
-export const unknownRoutePreloadCollectionsForDiagnostics = (
-  diagnostics: Pick<StartAppGraphDiagnostics, "routeModules">,
-): readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
-  diagnostics.routeModules
-    .filter(
-      (routeModule) =>
-        routeModule.preload === "present" && routeModule.preloadCollections.status === "unknown",
-    )
-    .map(
-      (routeModule): StartAppGraphUnknownRoutePreloadCollectionsEntry => ({
-        kind: "route",
-        routeId: routeModule.routeId,
-        routePath: routeModule.routePath,
-        moduleId: routeModule.moduleId,
-        filePath: routeModule.filePath,
-        preload: routeModule.preload,
-        preloadCollections: routeModule.preloadCollections,
-      }),
-    );
-
 /** Projects static manifests into Start app graph diagnostics for CI and tools. */
 export const describeStartAppGraph = (graph: StartAppGraph): StartAppGraphDiagnostics => {
   const routeModules = graph.routes.entries.map((entry) => describeFileRouteManifestEntry(entry));
@@ -1003,7 +876,6 @@ export const describeStartAppGraph = (graph: StartAppGraph): StartAppGraphDiagno
     actionModules: graph.actions.entries.map((entry) => describeActionManifestEntry(entry)),
     resourceFamilies: [],
     resourceTags: [],
-    collectionDefinitions: [],
     serverOnlyModules: uniqueSorted([
       ...graph.serverFunctions.entries.flatMap((entry) =>
         entry.server.moduleKind === "server-only" ? [entry.server.module] : [],
@@ -1030,9 +902,6 @@ export const describeStartAppGraph = (graph: StartAppGraph): StartAppGraphDiagno
     unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
       routeModules,
     }),
-    unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-      routeModules,
-    }),
   };
 };
 
@@ -1041,7 +910,7 @@ export const describeStartAppGraph = (graph: StartAppGraph): StartAppGraphDiagno
  * definition facts.
  *
  * Runtime route candidates enrich matching static route-module placeholders and
- * unknown preload-resource/preload-collection diagnostics are recomputed from
+ * unknown preload-resource diagnostics are recomputed from
  * the merged static/runtime evidence. Static manifest routes without runtime
  * candidates remain present in the output.
  */
@@ -1069,12 +938,7 @@ export const describeStartAppGraphRuntimeDiagnostics = (
     routeModules,
     resourceFamilies: candidates.resourceFamilies ?? staticDiagnostics.resourceFamilies,
     resourceTags: candidates.resourceTags ?? staticDiagnostics.resourceTags,
-    collectionDefinitions:
-      candidates.collectionDefinitions ?? staticDiagnostics.collectionDefinitions,
     unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
-      routeModules,
-    }),
-    unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
       routeModules,
     }),
   };

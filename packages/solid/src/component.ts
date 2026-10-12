@@ -69,7 +69,7 @@ const RouteViewKey: typeof RouteViewTypeId = "~@sunfall/arc-core/RouteView";
  * props, under its Solid owner. It binds resources, actions, programs, and
  * streams (each adding its services and failures to the component type) and
  * returns the render function. Anything shared per runtime is shared by
- * construction: Resources and Collections live in the runtime's stores, and
+ * construction: Resources live in the runtime's Resource Store, and
  * `Component.provide` builds its Layer once per runtime. The instance's Scope
  * closes when Solid disposes the instance.
  *
@@ -632,7 +632,7 @@ export namespace Component {
      * Throws a render-time read failure to the nearest `<Errored>`, the way a
      * Resource reader does: the typed failure in `cause` reaches `catchTags`
      * and `catchAll`; a defect rethrows past them. Bindings whose failures
-     * join `E` (like `SolidDb.collection`) throw through it.
+     * join `E` (like `Component.liveQuery`) throw through it.
      */
     fail(cause: Cause.Cause<unknown>): never;
   }

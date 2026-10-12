@@ -13,7 +13,6 @@ import type {
   StartActionInvalidationTarget,
   StartActionResponseBody,
 } from "./start-action-response-codec.js";
-import type { StartCollectionHydrationOptions } from "./hydration.js";
 
 const startActionInvalidationTransportError = (
   body: StartActionResponseBody,
@@ -208,16 +207,15 @@ export const applyStartActionInvalidation = (
  * Effect (the submitting runtime).
  *
  * The workflow validates serialized invalidation targets, hydrates returned
- * resources and collections, filters hydrated refs out of follow-up refresh
+ * resources, filters hydrated refs out of follow-up refresh
  * work, and maps malformed metadata to `ServerTransportError`.
  */
 export const applyStartActionResponse = (
   body: StartActionResponseBody,
-  options: StartCollectionHydrationOptions = {},
 ): Effect.Effect<void, ServerTransportError> =>
   Effect.gen(function* () {
     if ("hydration" in body && body.hydration !== undefined) {
-      yield* hydrateStartPayload(body.hydration, options).pipe(
+      yield* hydrateStartPayload(body.hydration).pipe(
         Effect.mapError((error) => startActionHydrationTransportError(body, error)),
       );
     }

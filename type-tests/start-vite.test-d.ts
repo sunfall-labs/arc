@@ -7,7 +7,6 @@ import {
   FileRouteDiscoveryError,
   StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   StartDevServerError,
   StartHandlerNotFound,
@@ -39,7 +38,6 @@ const viteExports: Array<unknown> = [
   FileRouteDiscoveryError,
   StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   StartDevServerError,
   StartHandlerNotFound,
@@ -72,7 +70,6 @@ const diagnosticsBuildPolicyOptions = {
       routePreloadResources: {
         requireDeclaredForPreload: false,
       },
-      routePreloadCollections: false,
     },
   },
 } satisfies SunfallArcStartOptions;
@@ -82,10 +79,7 @@ type _StartBuildPolicyErrorIsStaticOnly = Assert<
   StartBuildPolicyError extends StaticStartBuildPolicyErrors ? true : false
 >;
 type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
-  Extract<
-    StartBuildPolicyError,
-    StartAppGraphUnknownRoutePreloadCollections | StartAppGraphUnknownRoutePreloadResources
-  > extends never
+  Extract<StartBuildPolicyError, StartAppGraphUnknownRoutePreloadResources> extends never
     ? true
     : false
 >;

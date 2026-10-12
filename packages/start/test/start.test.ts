@@ -61,13 +61,6 @@ import {
   resourceDefinitionRegistry,
   ResourceFamily,
 } from "@sunfall/arc-core/internal";
-import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
-import {
-  collectCollections,
-  defaultCollectionDefinitionRegistry,
-  defineCollection,
-  makeCollectionDefinitionRegistry,
-} from "@sunfall/arc-db/internal";
 import type { DevtoolsRequestTrace } from "@sunfall/arc-devtools";
 import {
   hydrateFromDocument,
@@ -76,7 +69,6 @@ import {
   StartHydrationPayloadSerializeError,
   StartPreloadError,
   StartRequestHandlerError,
-  StartCollectionDuplicateName,
   StartAction,
   StartActionFormEncodeError,
   StartActionDuplicateName,
@@ -246,7 +238,6 @@ const runInRuntime = <A, E, Services, RuntimeError>(
 
 const startAgentGraphCliQueryTextByKind = {
   action: "Project.rename",
-  collection: "ProjectRows",
   endpoint: "rpc",
   finding: "wire-schema",
   module: "project.server",
@@ -632,26 +623,7 @@ describe("Sunfall Arc Start", () => {
         },
       ],
     };
-    const collections = {
-      collections: [
-        {
-          name: "Start.Collection.render-plan",
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Atlas" },
-              synced: true,
-              origin: "remote" as const,
-            },
-          ],
-          updatedAt: 1,
-        },
-      ],
-    };
-
-    const plan = await Effect.runPromise(
-      createStartRenderHydrationPlan({ resources, collections }),
-    );
+    const plan = await Effect.runPromise(createStartRenderHydrationPlan({ resources }));
     const rootPairs = new Set(
       plan.root.payload.resources.map((resource) => `${resource.name}:${resource.key}`),
     );
@@ -660,15 +632,11 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(plan.root.payload.resources).toEqual([]);
-    expect(plan.root.payload.collections?.map((collection) => collection.name)).toEqual([
-      "Start.Collection.render-plan",
-    ]);
     expect(plan.legacy.payload.resources.map((resource) => resource.name)).toEqual([
       "Start.Project.render-plan",
     ]);
     expect(plan.legacy.script).toContain("Start.Project.render-plan");
     expect(plan.root.script).toContain("__SUNFALL_ARC_HYDRATION__");
-    expect(plan.root.script).toContain("Start.Collection.render-plan");
     expect(plan.root.script).not.toContain("Start.Project.render-plan");
     expect(streamedPairs).toEqual(["Start.Project.render-plan:Start.Project.render-plan:atlas"]);
     expect(streamedPairs.filter((pair) => rootPairs.has(pair))).toEqual([]);
@@ -692,7 +660,6 @@ describe("Sunfall Arc Start", () => {
             },
           ],
         },
-        collections: { collections: [] },
       }),
     );
 
@@ -702,27 +669,15 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("surfaces render hydration plan root serialization failures as typed errors", async () => {
-    const collections = {
-      collections: [
-        {
-          name: "Start.Collection.render-plan.invalid",
-          rows: [
-            {
-              key: "bigint",
-              value: { count: 1n },
-              synced: true,
-              origin: "remote" as const,
-            },
-          ],
-          updatedAt: 1,
-        },
-      ],
-    };
-
     const exit = await Effect.runPromiseExit(
       createStartRenderHydrationPlan({
         resources: { resources: [] },
-        collections,
+        // The root payload carries the route failure; a BigInt cannot be JSON.
+        routeFailure: {
+          path: "/projects/:id",
+          href: "/projects/atlas",
+          failure: { _tag: "Encoded", value: { count: 1n } as never },
+        },
       }),
     );
     const failure = Exit.isFailure(exit)
@@ -817,7 +772,6 @@ describe("Sunfall Arc Start", () => {
             input: "atlas",
           },
         ],
-        collections: [],
         serverFunctions: [],
         actions: [],
         fibers: [
@@ -944,352 +898,6 @@ describe("Sunfall Arc Start", () => {
     expect(response.status).toBe(209);
     expect(response.headers.get("x-sunfall-arc-local-server-client")).toBe("yes");
     await expect(response.text()).resolves.toContain("<main>atlas</main>");
-  });
-
-  it("dehydrates DB collections from the SSR request runtime", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
-    const Projects = Collection.define<{
-      readonly id: string;
-      readonly name: string;
-      readonly sequence: number;
-    }>({
-      name: "Start.Collection.request-store",
-      getKey: (project) => project.id,
-    });
-    let sequence = 0;
-    const ProjectRoute = Route.define("/projects/:id", {
-      params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) =>
-        Projects.applyChanges([
-          {
-            _tag: "Upsert",
-            value: {
-              id: params.id,
-              name: `Project ${params.id}`,
-              sequence: ++sequence,
-            },
-          },
-        ]),
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-    const handler = createStartRequestHandler(app, {
-      collections: [Projects],
-      onRequestTrace: (trace) =>
-        Effect.sync(() => {
-          traces.push(trace);
-        }),
-      render: ({ collections, hydrationPlan }) => {
-        const project = Projects.rows()[0];
-        return `<html><body><main>${project?.id}:${project?.sequence}</main><aside>${collections.collections[0]?.rows.length}</aside>${hydrationPlan.legacy.script}</body></html>`;
-      },
-    });
-
-    const first = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
-    );
-    const second = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
-    );
-    const firstHtml = await first.text();
-    const secondHtml = await second.text();
-
-    expect(firstHtml).toContain("<main>atlas:1</main>");
-    expect(firstHtml).toContain("<aside>1</aside>");
-    expect(firstHtml).toContain("Start.Collection.request-store");
-    expect(firstHtml).toContain('"collections"');
-    expect(traces[0]?.collections).toEqual([
-      {
-        name: "Start.Collection.request-store",
-        state: "Initial",
-        waiting: false,
-      },
-    ]);
-    expect(traces[0]?.collections[0]).not.toHaveProperty("eventCount");
-    expect(secondHtml).toContain("<main>atlas:2</main>");
-  });
-
-  it("leaves registered collections the request never loaded out of the hydration payload", async () => {
-    let loads = 0;
-    const Projects = Collection.define<{ readonly id: string }>({
-      name: "Start.Collection.unloaded-registered",
-      getKey: (project) => project.id,
-      sync: {
-        load: () =>
-          Effect.sync(() => {
-            loads++;
-            return [{ id: "atlas" }];
-          }),
-      },
-    });
-    const ProjectsRoute = Route.define("/projects", {
-      preload: () => Projects.preload(),
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectsRoute] as const,
-    });
-    const handler = createStartRequestHandler(app, {
-      collections: [Projects],
-      render: ({ collections }) =>
-        JSON.stringify(collections.collections.map((snapshot) => snapshot.name)),
-    });
-
-    // An unmatched URL runs no preload: the client must load the collection
-    // itself rather than hydrate it as loaded-and-empty.
-    const unmatched = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/nope"))),
-    );
-    await expect(unmatched.text()).resolves.toBe("[]");
-    expect(loads).toBe(0);
-
-    const matched = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/projects"))),
-    );
-    await expect(matched.text()).resolves.toBe(JSON.stringify([Projects.name]));
-    expect(loads).toBe(1);
-  });
-
-  it("automatically dehydrates route-touched collection preloads", async () => {
-    let projectLoads = 0;
-    let taskLoads = 0;
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.route-touched.projects",
-      getKey: (project) => project.id,
-      sync: {
-        load: () =>
-          Effect.sync(() => {
-            projectLoads += 1;
-            return [{ id: "atlas", name: "Atlas" }];
-          }),
-      },
-    });
-    const _Tasks = Collection.define<{ readonly id: string; readonly title: string }>({
-      name: "Start.Collection.route-touched.tasks",
-      getKey: (task) => task.id,
-      sync: {
-        load: () =>
-          Effect.sync(() => {
-            taskLoads += 1;
-            return [{ id: "ship", title: "Ship it" }];
-          }),
-      },
-    });
-    const ProjectRoute = Route.define("/projects/:id", {
-      params: Schema.Struct({ id: Schema.String }),
-      preload: () => Projects.preload(),
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/projects/atlas")),
-    );
-
-    expect(projectLoads).toBe(1);
-    expect(taskLoads).toBe(0);
-    expect(
-      result.collectionPreload.routeTouchedCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.route-touched.projects"]);
-    expect(result.collectionPreload.registeredCollections).toEqual([]);
-    expect(
-      result.collectionPreload.dehydratedCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.route-touched.projects"]);
-    expect(result.collections.collections.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-touched.projects",
-    ]);
-    expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-touched.projects",
-    ]);
-    expect(result.collections.collections[0]?.rows).toEqual([
-      {
-        key: "atlas",
-        value: { id: "atlas", name: "Atlas" },
-        synced: true,
-        origin: "remote",
-      },
-    ]);
-
-    const handler = createStartRequestHandler(app, {
-      render: ({ collectionPreload, collections, hydrationPlan }) =>
-        `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${hydrationPlan.legacy.script}</body></html>`,
-    });
-    const response = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
-    );
-    const html = await response.text();
-
-    expect(projectLoads).toBe(2);
-    expect(taskLoads).toBe(0);
-    expect(html).toContain("<main>Start.Collection.route-touched.projects</main>");
-    expect(html).toContain("<aside>1</aside>");
-    expect(html).toContain('"Start.Collection.route-touched.projects"');
-    expect(html).not.toContain("Start.Collection.route-touched.tasks");
-  });
-
-  it("dehydrates route collection preloads captured inside nested collectors", async () => {
-    let projectLoads = 0;
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.route-nested-collector.projects",
-      getKey: (project) => project.id,
-      sync: {
-        load: () =>
-          Effect.sync(() => {
-            projectLoads += 1;
-            return [{ id: "atlas", name: "Atlas" }];
-          }),
-      },
-    });
-    const ProjectRoute = Route.define("/nested-collector-projects", {
-      preload: () => collectCollections(Projects.preload()).pipe(Effect.asVoid),
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/nested-collector-projects")),
-    );
-
-    expect(projectLoads).toBe(1);
-    expect(
-      result.collectionPreload.routeTouchedCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.route-nested-collector.projects"]);
-    expect(result.collections.collections.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-nested-collector.projects",
-    ]);
-    expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-nested-collector.projects",
-    ]);
-  });
-
-  it("excludes route-touched live query collections from hydration payloads", async () => {
-    const Projects = Collection.define<{
-      readonly id: string;
-      readonly name: string;
-      readonly progress: number;
-    }>({
-      name: "Start.Collection.live-query-source.projects",
-      getKey: (project) => project.id,
-      sync: {
-        load: () => Effect.succeed([{ id: "atlas", name: "Atlas", progress: 72 }]),
-      },
-    });
-    const ProjectCards = Collection.liveQuery<
-      { readonly id: string; readonly name: string },
-      string,
-      CollectionSnapshotCodecError | EffectInputCallbackError
-    >({
-      name: "Start.Collection.live-query-derived.cards",
-      getKey: (project) => project.id,
-      query: (query) =>
-        query.from({ project: Projects }).select(({ project }) => ({
-          id: project.id,
-          name: project.name,
-        })),
-    });
-    const ProjectRoute = Route.define("/live-query-projects", {
-      preload: () => ProjectCards.preload(),
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/live-query-projects")),
-    );
-
-    expect(
-      result.collectionPreload.routeTouchedCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.live-query-source.projects"]);
-    expect(
-      result.collectionPreload.routeTouchedCollections.some(
-        (collection) => collection.name === ProjectCards.name,
-      ),
-    ).toBe(false);
-    expect(
-      result.collectionPreload.dehydratedCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.live-query-source.projects"]);
-    expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.live-query-source.projects",
-    ]);
-    expect(
-      result.hydration.collections?.some((snapshot) => snapshot.name === ProjectCards.name),
-    ).toBe(false);
-
-    const clientRuntime = makeRuntime();
-    try {
-      await Effect.runPromise(
-        clientRuntime.provide(
-          hydrateStartPayload(result.hydration, {
-            collections: [Projects, ProjectCards],
-          }),
-        ),
-      );
-      expect(
-        runWithRuntime(clientRuntime, () => ProjectCards.rows().map((project) => project.name)),
-      ).toEqual(["Atlas"]);
-    } finally {
-      await Effect.runPromise(clientRuntime.dispose);
-    }
-  });
-
-  it("preloads and dehydrates matched route-declared collections", async () => {
-    let projectLoads = 0;
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.route-declared.projects",
-      getKey: (project) => project.id,
-      sync: {
-        load: () =>
-          Effect.sync(() => {
-            projectLoads += 1;
-            return [{ id: "atlas", name: "Atlas" }];
-          }),
-      },
-    });
-    const ProjectRoute = Route.define("/declared-projects", {
-      preloadCollections: [Projects],
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/declared-projects")),
-    );
-
-    expect(projectLoads).toBe(1);
-    expect(result.collectionPreload.routeTouchedCollections).toEqual([]);
-    expect(
-      result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.route-declared.projects"]);
-    expect(result.collectionPreload.registeredCollections).toEqual([]);
-    expect(
-      result.collectionPreload.dehydratedCollections.map((collection) => collection.name),
-    ).toEqual(["Start.Collection.route-declared.projects"]);
-    expect(result.collections.collections[0]?.rows).toEqual([
-      {
-        key: "atlas",
-        value: { id: "atlas", name: "Atlas" },
-        synced: true,
-        origin: "remote",
-      },
-    ]);
-
-    const handler = createStartRequestHandler(app, {
-      render: ({ collectionPreload, collections, hydrationPlan }) =>
-        `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${hydrationPlan.legacy.script}</body></html>`,
-    });
-    const response = await Effect.runPromise(
-      Effect.scoped(handler(new Request("https://example.com/declared-projects"))),
-    );
-    const html = await response.text();
-
-    expect(projectLoads).toBe(2);
-    expect(html).toContain("<main>Start.Collection.route-declared.projects</main>");
-    expect(html).toContain("<aside>1</aside>");
-    expect(html).toContain('"Start.Collection.route-declared.projects"');
   });
 
   it("renders a failed route preload as the router Failure state on server and hydrating client", async () => {
@@ -1452,139 +1060,6 @@ describe("Sunfall Arc Start", () => {
 
     expect(failure).toBeInstanceOf(StartPreloadError);
     expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-  });
-
-  it("resolves route-declared collections from registered request collections before the default registry", async () => {
-    let projectLoads = 0;
-    const registry = makeCollectionDefinitionRegistry();
-    const Projects = defineCollection<{ readonly id: string; readonly name: string }>(
-      {
-        name: "Start.Collection.route-declared.isolated-projects",
-        getKey: (project) => project.id,
-        sync: {
-          load: () =>
-            Effect.sync(() => {
-              projectLoads += 1;
-              return [{ id: "atlas", name: "Atlas" }];
-            }),
-        },
-      },
-      registry,
-    );
-    const ProjectRoute = Route.define("/isolated-declared-projects", {
-      preloadCollections: [Projects],
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    expect(defaultCollectionDefinitionRegistry.definitions().has(Projects.name)).toBe(false);
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/isolated-declared-projects"), {
-        collections: [Projects],
-      }),
-    );
-
-    expect(projectLoads).toBe(1);
-    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
-    expect(result.collectionPreload.dehydratedCollections).toEqual([Projects]);
-    expect(result.collections.collections[0]?.rows).toEqual([
-      {
-        key: "atlas",
-        value: { id: "atlas", name: "Atlas" },
-        synced: true,
-        origin: "remote",
-      },
-    ]);
-  });
-
-  it("requires an explicit registry to resolve route-declared collection strings", async () => {
-    let projectLoads = 0;
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.route-declared.default-string",
-      getKey: (project) => project.id,
-      sync: {
-        load: () =>
-          Effect.sync(() => {
-            projectLoads += 1;
-            return [{ id: "atlas", name: "Atlas" }];
-          }),
-      },
-    });
-    const ProjectRoute = Route.define("/default-string-declared-projects", {
-      preloadCollections: [Projects.name],
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    expect(defaultCollectionDefinitionRegistry.definitions().get(Projects.name)).toBe(Projects);
-
-    const error = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/default-string-declared-projects")),
-      ),
-    );
-
-    expect(error).toBeInstanceOf(StartPreloadError);
-    expect(error).toMatchObject({
-      operation: "declared-collection-resolution",
-      collectionName: Projects.name,
-    });
-    expect(projectLoads).toBe(0);
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/default-string-declared-projects"), {
-        collectionRegistry: defaultCollectionDefinitionRegistry,
-      }),
-    );
-
-    expect(projectLoads).toBe(1);
-    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
-    expect(result.collectionPreload.dehydratedCollections).toEqual([Projects]);
-  });
-
-  it("rejects duplicate direct collection definitions before route-declared name resolution", async () => {
-    const name = "Start.Collection.route-declared.duplicate-direct";
-    const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name,
-      getKey: (project) => project.id,
-      sync: {
-        load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-      },
-    });
-    const ShadowProjects = defineCollection<{ readonly slug: string; readonly title: string }>(
-      {
-        name,
-        getKey: (project) => project.slug,
-        sync: {
-          load: () => Effect.succeed([{ slug: "shadow", title: "Shadow" }]),
-        },
-      },
-      makeCollectionDefinitionRegistry(),
-    );
-    const ProjectRoute = Route.define("/duplicate-direct-declared-projects", {
-      preloadCollections: [name],
-    });
-    const app = makeStartServerApp({
-      routes: [ProjectRoute] as const,
-    });
-
-    const error = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/duplicate-direct-declared-projects"), {
-          collections: [PrimaryProjects, ShadowProjects],
-        }),
-      ),
-    );
-
-    expect(error).toBeInstanceOf(StartPreloadError);
-    expect(error).toMatchObject({
-      operation: "declared-collection-resolution",
-      collectionName: name,
-    });
-    expect(error.cause).toBeInstanceOf(StartCollectionDuplicateName);
   });
 
   it("preloads and renders with an app server layer", async () => {
@@ -2190,7 +1665,6 @@ describe("Sunfall Arc Start", () => {
         requestId: "req-malformed-cookie",
         transport: "ssr",
         startedAt: 0,
-        collections: [],
         serverFunctions: [],
         actions: [],
       },
@@ -2227,7 +1701,6 @@ describe("Sunfall Arc Start", () => {
         requestId: "req-no-get-set-cookie",
         transport: "ssr",
         startedAt: 0,
-        collections: [],
         serverFunctions: [],
         actions: [],
       },
@@ -5641,243 +5114,6 @@ describe("Sunfall Arc Start", () => {
     expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Hydrated" });
   });
 
-  it("hydrates DB collections from a document script", () => {
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.document",
-      getKey: (project) => project.id,
-    });
-    const payload = {
-      resources: [],
-      collections: [
-        {
-          name: "Start.Collection.document",
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Hydrated Atlas" },
-              synced: true,
-              origin: "remote" as const,
-            },
-          ],
-          updatedAt: Date.now(),
-        },
-      ],
-    };
-    const script = createHydrationScriptSync(payload);
-    const document = {
-      getElementById: (id: string) =>
-        id === "__SUNFALL_ARC_HYDRATION__"
-          ? {
-              textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
-            }
-          : null,
-    };
-
-    Effect.runSync(
-      hydrateFromDocument(document as Pick<Document, "getElementById">, {
-        id: "__SUNFALL_ARC_HYDRATION__",
-        collections: [Projects],
-      }),
-    );
-
-    expect(Projects.get("atlas")).toMatchObject({
-      id: "atlas",
-      name: "Hydrated Atlas",
-      $synced: true,
-    });
-  });
-
-  it("resolves Start hydration collections from a registry when concrete collections are not supplied", async () => {
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.registry-hydration",
-      getKey: (project) => project.id,
-    });
-
-    await Effect.runPromise(
-      hydrateStartPayload(
-        {
-          resources: [],
-          collections: [
-            {
-              name: Projects.name,
-              rows: [
-                {
-                  key: "atlas",
-                  value: { id: "atlas", name: "Registry Atlas" },
-                  synced: true,
-                  origin: "remote" as const,
-                },
-              ],
-              updatedAt: Date.now(),
-            },
-          ],
-        },
-        {
-          collectionRegistry: defaultCollectionDefinitionRegistry,
-        },
-      ),
-    );
-
-    expect(Projects.get("atlas")).toMatchObject({
-      id: "atlas",
-      name: "Registry Atlas",
-      $synced: true,
-    });
-  });
-
-  it("surfaces collection snapshot codec failures from Start hydration effects", async () => {
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.invalid-hydration",
-      getKey: (project) => project.id,
-    });
-
-    const exit = await Effect.runPromiseExit(
-      hydrateStartPayload(
-        {
-          resources: [],
-          collections: [
-            {
-              name: "Start.Collection.invalid-hydration",
-              rows: "not-rows",
-              updatedAt: 1,
-            } as never,
-          ],
-        },
-        {
-          collections: [Projects],
-        },
-      ),
-    );
-
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
-    expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
-  });
-
-  it("fails Start hydration when collection snapshots have no resolvable definition", async () => {
-    const exit = await Effect.runPromiseExit(
-      hydrateStartPayload(
-        {
-          resources: [],
-          collections: [
-            {
-              name: "Start.Collection.missing-hydration-definition",
-              rows: [],
-              updatedAt: 1,
-            },
-          ],
-        },
-        {
-          collectionRegistry: makeCollectionDefinitionRegistry(),
-        },
-      ),
-    );
-
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
-    expect(firstFailure(exit.cause)).toMatchObject({
-      _tag: "CollectionSnapshotCodecError",
-      operation: "hydrate",
-      path: "$.collections[0].name",
-    });
-  });
-
-  it("fails Start hydration when direct collection definitions share a name", async () => {
-    const name = "Start.Collection.duplicate-hydration-definition";
-    const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name,
-      getKey: (project) => project.id,
-    });
-    const ShadowProjects = defineCollection<{ readonly slug: string; readonly title: string }>(
-      {
-        name,
-        getKey: (project) => project.slug,
-      },
-      makeCollectionDefinitionRegistry(),
-    );
-
-    const exit = await Effect.runPromiseExit(
-      hydrateStartPayload(
-        {
-          resources: [],
-          collections: [
-            {
-              name,
-              rows: [],
-              updatedAt: 1,
-            },
-          ],
-        },
-        {
-          collections: [PrimaryProjects, ShadowProjects],
-        },
-      ),
-    );
-
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
-    expect(firstFailure(exit.cause)).toMatchObject({
-      _tag: "CollectionSnapshotCodecError",
-      operation: "hydrate",
-      path: "$.collections",
-    });
-  });
-
-  it("does not partially apply resources when collection hydration validation fails", async () => {
-    const runtime = makeRuntime();
-    try {
-      const User = Resource.define({
-        name: "Start.User.invalid-collection-hydration",
-        load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
-      });
-      const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-        name: "Start.Collection.invalid-after-resource",
-        getKey: (project) => project.id,
-      });
-      const ref = User("1");
-      const exit = await Effect.runPromiseExit(
-        runtime.provide(
-          hydrateStartPayload(
-            {
-              resources: [
-                {
-                  name: "Start.User.invalid-collection-hydration",
-                  key: ref.key,
-                  input: "1",
-                  state: {
-                    _tag: "Success" as const,
-                    waiting: false as const,
-                    value: { id: "1", name: "Hydrated" },
-                    timestamp: 1,
-                  },
-                },
-              ],
-              collections: [
-                {
-                  name: "Start.Collection.invalid-after-resource",
-                  rows: "not-rows",
-                  updatedAt: 1,
-                } as never,
-              ],
-            },
-            {
-              collections: [Projects],
-            },
-          ),
-        ),
-      );
-
-      expect(Exit.isFailure(exit)).toBe(true);
-      if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
-      expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
-      expect(runWithRuntime(runtime, () => Effect.runSync(Resource.status(ref)).result._tag)).toBe(
-        "Initial",
-      );
-    } finally {
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
   it("surfaces malformed document hydration JSON through the Effect error channel", async () => {
     const document = {
       getElementById: (id: string) =>
@@ -5894,11 +5130,11 @@ describe("Sunfall Arc Start", () => {
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
   });
 
-  it("rejects root hydration payloads with malformed collection data", async () => {
+  it("rejects root hydration payloads with malformed settled submissions", async () => {
     const document = {
       getElementById: (id: string) =>
         id === "__SUNFALL_ARC_HYDRATION__"
-          ? { textContent: JSON.stringify({ resources: [], collections: "not-array" }) }
+          ? { textContent: JSON.stringify({ resources: [], settledSubmissions: "not-array" }) }
           : null,
       querySelectorAll: () => [],
     };
@@ -5992,13 +5228,13 @@ describe("Sunfall Arc Start", () => {
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
   });
 
-  it("rejects streamed hydration chunks with malformed collection data", async () => {
+  it("rejects streamed hydration chunks with malformed settled submissions", async () => {
     const element = {
       textContent: JSON.stringify({
         _tag: "StartHydrationChunk",
         version: 1,
         sequence: 0,
-        payload: { resources: [], collections: "not-array" },
+        payload: { resources: [], settledSubmissions: "not-array" },
       }),
       getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "0" : null),
     };
@@ -6038,10 +5274,6 @@ describe("Sunfall Arc Start", () => {
         name: "Start.User.document-explicit-runtime",
         load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
       });
-      const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-        name: "Start.Collection.document-explicit-runtime",
-        getKey: (project) => project.id,
-      });
       const ref = User("1");
       const payload = {
         resources: [
@@ -6055,20 +5287,6 @@ describe("Sunfall Arc Start", () => {
               value: { id: "1", name: "Runtime Hydrated" },
               timestamp: 1,
             },
-          },
-        ],
-        collections: [
-          {
-            name: "Start.Collection.document-explicit-runtime",
-            rows: [
-              {
-                key: "atlas",
-                value: { id: "atlas", name: "Runtime Atlas" },
-                synced: true,
-                origin: "remote" as const,
-              },
-            ],
-            updatedAt: 1,
           },
         ],
       };
@@ -6085,20 +5303,13 @@ describe("Sunfall Arc Start", () => {
       runtime.runSync(
         hydrateFromDocument(document as Pick<Document, "getElementById">, {
           id: "__SUNFALL_ARC_HYDRATION__",
-          collections: [Projects],
         }),
       );
 
       expect(Effect.runSync(Resource.status(ref)).result._tag).toBe("Initial");
-      expect(Projects.get("atlas")).toBeUndefined();
       expect(runtime.runSync(Resource.read(ref))).toEqual({
         id: "1",
         name: "Runtime Hydrated",
-      });
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        id: "atlas",
-        name: "Runtime Atlas",
-        $synced: true,
       });
     } finally {
       await Effect.runPromise(runtime.dispose);
@@ -6244,87 +5455,6 @@ describe("Sunfall Arc Start", () => {
         id: "stream",
         name: "Stream",
       });
-    } finally {
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("hydrates streamed collection chunks in sequence without replacing earlier chunks", async () => {
-    const runtime = makeRuntime();
-    try {
-      const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-        name: "Start.Collection.streamed-sequence",
-        getKey: (project) => project.id,
-      });
-      const atlasPayload = {
-        resources: [],
-        collections: [
-          {
-            name: "Start.Collection.streamed-sequence",
-            rows: [
-              {
-                key: "atlas",
-                value: { id: "atlas", name: "Atlas" },
-                synced: true,
-                origin: "remote" as const,
-              },
-            ],
-            updatedAt: 1,
-          },
-        ],
-      };
-      const keplerPayload = {
-        resources: [],
-        collections: [
-          {
-            name: "Start.Collection.streamed-sequence",
-            rows: [
-              {
-                key: "kepler",
-                value: { id: "kepler", name: "Kepler" },
-                synced: true,
-                origin: "remote" as const,
-              },
-            ],
-            updatedAt: 2,
-          },
-        ],
-      };
-      const streamElements = [
-        makeStreamHydrationElement(createStreamHydrationScriptSync(keplerPayload, 1), 1),
-        makeStreamHydrationElement(createStreamHydrationScriptSync(atlasPayload, 0), 0),
-      ];
-      const document = {
-        getElementById: () => null,
-        querySelectorAll: (selector: string) =>
-          selector === `[${streamHydrationAttribute}]` ? streamElements : [],
-      };
-
-      const hydrated = await runInRuntime(
-        runtime,
-        hydrateStartHydrationChunksFromDocument(document, {
-          collections: [Projects],
-        }),
-      );
-      const secondHydration = await runInRuntime(
-        runtime,
-        hydrateStartHydrationChunksFromDocument(document, {
-          collections: [Projects],
-        }),
-      );
-
-      expect(hydrated.map((chunk) => chunk.payload.collections?.[0]?.rows[0]?.key)).toEqual([
-        "atlas",
-        "kepler",
-      ]);
-      expect(secondHydration).toEqual([]);
-      expect(
-        streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute)),
-      ).toEqual(["true", "true"]);
-      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
-        "atlas",
-        "kepler",
-      ]);
     } finally {
       await Effect.runPromise(runtime.dispose);
     }
@@ -7120,7 +6250,7 @@ describe("Sunfall Arc Start", () => {
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toMatchInlineSnapshot(`
       "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}]}};
-      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]}},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]}}],"serverFunctionModules":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":["/src/project/project.actions.ts","/src/project/project.contract.ts"],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Fixture.project.get","input":true,"output":true,"error":false},{"kind":"action","name":"Fixture.project.rename","input":true,"output":true,"error":false}],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
+      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]}},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]}}],"serverFunctionModules":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}],"resourceFamilies":[],"resourceTags":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":["/src/project/project.actions.ts","/src/project/project.contract.ts"],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Fixture.project.get","input":true,"output":true,"error":false},{"kind":"action","name":"Fixture.project.rename","input":true,"output":true,"error":false}],"unknownRoutePreloadResources":[]};
       export const diagnosticsPolicyViolations = [];
       export const routes = graph.routes;
       export const serverFunctions = graph.serverFunctions;
@@ -7130,7 +6260,6 @@ describe("Sunfall Arc Start", () => {
     expect(String(loaded)).toContain("export const graph = ");
     expect(String(loaded)).toContain("export const diagnostics = {");
     expect(String(loaded)).not.toContain('import { Resource, Route } from "@sunfall/arc-core";');
-    expect(String(loaded)).not.toContain("startAppGraphCollectionDefinitions");
     expect(String(loaded)).not.toContain("describeStartAppGraphRuntimeDiagnostics");
     expect(String(loaded)).not.toContain("validateStartAppGraphDiagnosticsPolicyException");
     expect(String(loaded)).not.toContain('import { Effect } from "effect";');
@@ -7145,9 +6274,6 @@ describe("Sunfall Arc Start", () => {
     expect(String(loaded)).not.toContain("const routeModuleCandidates = [");
     expect(String(loaded)).not.toContain(
       "preloadResources: Route.describePreloadResources(route_projects_$id)",
-    );
-    expect(String(loaded)).not.toContain(
-      "preloadCollections: Route.describePreloadCollections(route_projects_$id)",
     );
     expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
@@ -7253,9 +6379,6 @@ describe("Sunfall Arc Start", () => {
           routePreloadResources: {
             requireDeclaredForPreload: true,
           },
-          routePreloadCollections: {
-            requireDeclaredForPreload: true,
-          },
         },
       },
       fileRoutes: ["src/routes/projects/$id.tsx"],
@@ -7269,28 +6392,25 @@ describe("Sunfall Arc Start", () => {
     expect(String(loaded)).toMatchInlineSnapshot(`
       "import { Effect } from "effect";
       import { Resource, Route } from "@sunfall/arc-core";
-      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyException } from "@sunfall/arc-start/internal";
+      import { describeStartAppGraphRuntimeDiagnostics, validateStartAppGraphDiagnosticsPolicyException } from "@sunfall/arc-start/internal";
 
       import { route as route_projects_$id } from "/src/routes/projects/$id.js";
 
       export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[]}};
       const resourceDiagnostics = Resource.diagnostics();
-      const collectionDefinitions = startAppGraphCollectionDefinitions();
       const routeModuleCandidates = [
       {
           entry: graph.routes.entries[0],
           route: route_projects_$id,
-          preloadResources: Route.describePreloadResources(route_projects_$id),
-          preloadCollections: Route.describePreloadCollections(route_projects_$id)
+          preloadResources: Route.describePreloadResources(route_projects_$id)
         }
       ];
       export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
         routeModules: routeModuleCandidates,
         resourceFamilies: resourceDiagnostics.families,
         resourceTags: resourceDiagnostics.tags,
-        collectionDefinitions
       });
-      const diagnosticsPolicy = {"routePreloadResources":{"requireDeclaredForPreload":true},"routePreloadCollections":{"requireDeclaredForPreload":true}};
+      const diagnosticsPolicy = {"routePreloadResources":{"requireDeclaredForPreload":true}};
       export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyException(diagnostics, diagnosticsPolicy));
       export const routes = graph.routes;
       export const serverFunctions = graph.serverFunctions;
@@ -7298,9 +6418,6 @@ describe("Sunfall Arc Start", () => {
       export default graph;"
     `);
     expect(String(loaded)).toContain('"routePreloadResources":{"requireDeclaredForPreload":true}');
-    expect(String(loaded)).toContain(
-      '"routePreloadCollections":{"requireDeclaredForPreload":true}',
-    );
     expect(String(loaded)).toContain(
       "export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyException(diagnostics, diagnosticsPolicy));",
     );
@@ -7339,19 +6456,12 @@ describe("Sunfall Arc Start", () => {
         join(root, "src/routes/index.ts"),
         [
           'import { Resource, Route } from "@sunfall/arc-core";',
-          'import { Collection } from "@sunfall/arc-db";',
           "const ProjectById = Resource.define({",
           '  name: "Runner.Project.byId",',
           "  load: (id: string) => ({ id })",
           "});",
-          "const Projects = Collection.define<{ readonly id: string }>({",
-          '  name: "Runner.Projects",',
-          "  getKey: (project) => project.id,",
-          '  load: () => [{ id: "atlas" }]',
-          "});",
           'export const route = Route.define("/", {',
           "  preloadResources: [ProjectById],",
-          "  preloadCollections: [Projects],",
           "  preload: () => undefined",
           "});",
         ].join("\n"),
@@ -7372,9 +6482,6 @@ describe("Sunfall Arc Start", () => {
                 routePreloadResources: {
                   requireDeclaredForPreload: true,
                 },
-                routePreloadCollections: {
-                  requireDeclaredForPreload: true,
-                },
               },
             },
           },
@@ -7391,17 +6498,10 @@ describe("Sunfall Arc Start", () => {
             status: "declared",
             families: ["Runner.Project.byId"],
           },
-          preloadCollections: {
-            status: "declared",
-            collections: ["Runner.Projects"],
-          },
         }),
       ]);
       expect(result.diagnostics.resourceFamilies).toEqual(
         expect.arrayContaining([expect.objectContaining({ name: "Runner.Project.byId" })]),
-      );
-      expect(result.diagnostics.collectionDefinitions).toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: "Runner.Projects" })]),
       );
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7489,7 +6589,6 @@ describe("Sunfall Arc Start", () => {
                 routePreloadResources: {
                   requireDeclaredForPreload: false,
                 },
-                routePreloadCollections: false,
               },
             },
           },
@@ -7499,7 +6598,6 @@ describe("Sunfall Arc Start", () => {
 
       expect(result.diagnosticsPolicyViolations).toEqual([]);
       expect(result.diagnostics.unknownRoutePreloadResources).toHaveLength(1);
-      expect(result.diagnostics.unknownRoutePreloadCollections).toHaveLength(1);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -7720,9 +6818,6 @@ describe("Sunfall Arc Start", () => {
                   routePreloadResources: {
                     requireDeclaredForPreload: true,
                   },
-                  routePreloadCollections: {
-                    requireDeclaredForPreload: true,
-                  },
                 },
               },
             },
@@ -7783,9 +6878,6 @@ describe("Sunfall Arc Start", () => {
                   routePreloadResources: {
                     requireDeclaredForPreload: true,
                   },
-                  routePreloadCollections: {
-                    requireDeclaredForPreload: true,
-                  },
                 },
               },
             }),
@@ -7797,7 +6889,6 @@ describe("Sunfall Arc Start", () => {
 
       expect(buildError).toBeDefined();
       expect(String(buildError)).toContain("preloadResources");
-      expect(String(buildError)).toContain("preloadCollections");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -8200,7 +7291,6 @@ describe("Sunfall Arc Start", () => {
               actionModules: [],
               resourceFamilies: [],
               resourceTags: [],
-              collectionDefinitions: [],
               serverOnlyModules: [],
               browserClientModules: [],
               rpcPath: "/__sunfall-arc/rpc",
@@ -8211,7 +7301,6 @@ describe("Sunfall Arc Start", () => {
               },
               missingSchemas: [],
               unknownRoutePreloadResources: [],
-              unknownRoutePreloadCollections: [],
             },
             diagnosticsPolicyViolations: [],
           }),
@@ -8269,17 +7358,12 @@ describe("Sunfall Arc Start", () => {
                     status: "declared",
                     families: ["Project.byId"],
                   },
-                  preloadCollections: {
-                    status: "declared",
-                    collections: ["ProjectRows"],
-                  },
                 },
               ],
               serverFunctionModules: [],
               actionModules: [],
               resourceFamilies: [],
               resourceTags: [],
-              collectionDefinitions: [],
               serverOnlyModules: [],
               browserClientModules: [],
               rpcPath: "/__sunfall-arc/rpc",
@@ -8290,7 +7374,6 @@ describe("Sunfall Arc Start", () => {
               },
               missingSchemas: [],
               unknownRoutePreloadResources: [],
-              unknownRoutePreloadCollections: [],
             },
             diagnosticsPolicyViolations: [],
           }),
@@ -8304,9 +7387,7 @@ describe("Sunfall Arc Start", () => {
     expect(stdout.join("\n")).toContain("Status: pass");
     expect(stdout.join("\n")).toContain("Edit: src/routes/projects/$id.tsx");
     expect(stdout.join("\n")).toContain("Params: id");
-    expect(stdout.join("\n")).toContain(
-      "Preloads: resources Project.byId; collections ProjectRows",
-    );
+    expect(stdout.join("\n")).toContain("Preloads: resources Project.byId");
     expect(stdout.join("\n")).toContain("Related: module: src/routes/projects/$id.tsx");
     expect(stdout.join("\n")).not.toContain("route:route_projects_$id");
   });
@@ -8341,10 +7422,6 @@ describe("Sunfall Arc Start", () => {
               preloadResources: {
                 status: "declared" as const,
                 families: ["Project.byId"],
-              },
-              preloadCollections: {
-                status: "declared" as const,
-                collections: ["ProjectRows"],
               },
             },
           ],
@@ -8423,27 +7500,6 @@ describe("Sunfall Arc Start", () => {
               keyed: true,
             },
           ],
-          collectionDefinitions: [
-            {
-              name: "ProjectRows",
-              readOnly: false,
-              outputSchema: false,
-              initialData: false,
-              indexes: [],
-              load: false,
-              policy: {
-                retry: false,
-              },
-              persistence: {
-                enabled: false,
-                hydrate: false,
-                restoreOnPreload: false,
-                loadAfterRestore: false,
-                persistOnLoad: false,
-                persistOnWrite: false,
-              },
-            },
-          ],
           serverOnlyModules: ["/src/project/project.server.ts"],
           browserClientModules: [
             "/src/project/project.contract.ts",
@@ -8465,7 +7521,6 @@ describe("Sunfall Arc Start", () => {
             },
           ],
           unknownRoutePreloadResources: [],
-          unknownRoutePreloadCollections: [],
         },
         diagnosticsPolicyViolations: [],
       });
@@ -8602,17 +7657,12 @@ describe("Sunfall Arc Start", () => {
                       status: "none",
                       families: [],
                     },
-                    preloadCollections: {
-                      status: "none",
-                      collections: [],
-                    },
                   },
                 ],
                 serverFunctionModules: [],
                 actionModules: [],
                 resourceFamilies: [],
                 resourceTags: [],
-                collectionDefinitions: [],
                 serverOnlyModules: [],
                 browserClientModules: [],
                 rpcPath: "/__sunfall-arc/rpc",
@@ -8623,7 +7673,6 @@ describe("Sunfall Arc Start", () => {
                 },
                 missingSchemas: [],
                 unknownRoutePreloadResources: [],
-                unknownRoutePreloadCollections: [],
               },
               diagnosticsPolicyViolations: [],
             });
@@ -8776,17 +7825,12 @@ describe("Sunfall Arc Start", () => {
                       status: "declared",
                       families: ["Project.byId"],
                     },
-                    preloadCollections: {
-                      status: "declared",
-                      collections: ["ProjectRows"],
-                    },
                   },
                 ],
                 serverFunctionModules: [],
                 actionModules: [],
                 resourceFamilies: [],
                 resourceTags: [],
-                collectionDefinitions: [],
                 serverOnlyModules: [],
                 browserClientModules: [],
                 rpcPath: "/__sunfall-arc/rpc",
@@ -8797,7 +7841,6 @@ describe("Sunfall Arc Start", () => {
                 },
                 missingSchemas: [],
                 unknownRoutePreloadResources: [],
-                unknownRoutePreloadCollections: [],
               },
               diagnosticsPolicyViolations: [],
             }),
@@ -8810,7 +7853,7 @@ describe("Sunfall Arc Start", () => {
     expect(stderr).toEqual([]);
     expect(text).toContain("Impact: route /projects/:id");
     expect(text).toContain("Contracts");
-    expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
+    expect(text).toContain("- preloads: resources Project.byId");
     expect(text).toContain("Depends on");
     expect(text).toContain("- sunfall-arc-start diagnostics --root=examples/project-console");
     expect(text).toContain(
@@ -8962,10 +8005,6 @@ describe("Sunfall Arc Start", () => {
               status: "unknown" as const,
               families: [],
             },
-            preloadCollections: {
-              status: "unknown" as const,
-              collections: [],
-            },
           },
         ],
         serverFunctionModules: [
@@ -9021,7 +8060,6 @@ describe("Sunfall Arc Start", () => {
         ],
         resourceFamilies: [],
         resourceTags: [],
-        collectionDefinitions: [],
         serverOnlyModules: ["src/project/project.actions.ts", "src/project/project.server.ts"],
         browserClientModules: [],
         rpcPath: "/__sunfall-arc/rpc",
@@ -9060,20 +8098,6 @@ describe("Sunfall Arc Start", () => {
             },
           },
         ],
-        unknownRoutePreloadCollections: [
-          {
-            kind: "route" as const,
-            routeId: "route_projects_$id",
-            routePath: "/projects/:id",
-            moduleId: "/src/routes/projects/$id.tsx",
-            filePath: "src/routes/projects/$id.tsx",
-            preload: "present" as const,
-            preloadCollections: {
-              status: "unknown" as const,
-              collections: [],
-            },
-          },
-        ],
       },
       diagnosticsPolicyViolations: [],
     };
@@ -9093,7 +8117,6 @@ describe("Sunfall Arc Start", () => {
     expect(report.status).toBe("needs-attention");
     expect(formatted).toContain("Owner: src/routes/projects/$id.tsx");
     expect(formatted).toContain("Add `preloadResources: [...]`");
-    expect(formatted).toContain("Add `preloadCollections: [...]`");
     expect(formatted).toContain("Owner: src/project/project.actions.ts#renameProject");
     expect(formatted).toContain("Add `input` and `error` schemas");
     expect(formatted).toContain("Owner: src/project/project.server.ts#loadProject");
@@ -9147,17 +8170,12 @@ describe("Sunfall Arc Start", () => {
               status: "unknown" as const,
               families: [],
             },
-            preloadCollections: {
-              status: "none" as const,
-              collections: [],
-            },
           },
         ],
         serverFunctionModules: [],
         actionModules: [],
         resourceFamilies: [],
         resourceTags: [],
-        collectionDefinitions: [],
         serverOnlyModules: [],
         browserClientModules: [],
         rpcPath: "/__sunfall-arc/rpc",
@@ -9168,7 +8186,6 @@ describe("Sunfall Arc Start", () => {
         },
         missingSchemas: [],
         unknownRoutePreloadResources: [unknownPreloadRoute],
-        unknownRoutePreloadCollections: [],
       },
     });
     const result = await Effect.runPromise(

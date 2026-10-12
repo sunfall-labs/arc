@@ -27,7 +27,6 @@ import {
   type DevtoolsCausalEdgeKind,
   type DevtoolsCausalGraph,
   type DevtoolsCausalNodeKind,
-  type DevtoolsCollectionStoreEvent,
   type DevtoolsInvalidationPlan,
   type DevtoolsPanel,
   type DevtoolsPanelBoot,
@@ -52,7 +51,6 @@ import {
   type DevtoolsSnapshot,
   type DevtoolsStartAppGraphDiagnostics,
   type DevtoolsStartAppGraphSchemaCoverage,
-  type DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   type DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
   type DevtoolsStore,
   type DevtoolsStoreOptions,
@@ -252,7 +250,6 @@ const devtoolsRequestTrace: DevtoolsRequestTrace = {
   },
   services: [],
   resources: [],
-  collections: [],
   serverFunctions: [],
   actions: [],
   fibers: [],
@@ -290,17 +287,9 @@ const devtoolsTimelineCommitWithSignal: DevtoolsTimelineCommit = {
   // @ts-expect-error Timeline commits label changed signals by name, not by signal reference.
   changes: [{ signal: devtoolsTimelineEntry.changes[0]!.signal, previous: 0, next: 1 }],
 };
-const devtoolsCollectionStoreEvent: DevtoolsCollectionStoreEvent = {
-  _tag: "CollectionWritten",
-  collection: "Projects",
-  mutations: 1,
-};
 Effect.runSync(devtoolsStore.recordTimelineEntry(devtoolsTimelineEntry));
 const devtoolsRecordTimelineEntryEffect: Effect.Effect<void> =
   devtoolsStore.recordTimelineEntry(devtoolsTimelineEntry);
-Effect.runSync(devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent));
-const devtoolsRecordCollectionEventEffect: Effect.Effect<void> =
-  devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent);
 const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
   {
     _tag: "ResourceStoreEvent",
@@ -312,10 +301,6 @@ const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
       force: false,
       previous: false,
     },
-  },
-  {
-    _tag: "CollectionStoreEvent",
-    event: devtoolsCollectionStoreEvent,
   },
   {
     _tag: "TimelineCommit",
@@ -463,9 +448,7 @@ const devtoolsBridgeUninstall: Effect.Effect<void, never, Scope.Scope> = Effect.
 declare const devtoolsAppGraph: DevtoolsStartAppGraphDiagnostics;
 const devtoolsStartSchemaCoverage: DevtoolsStartAppGraphSchemaCoverage =
   devtoolsAppGraph.schemaCoverage.actions;
-type DevtoolsStartUnknowns =
-  | DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
-  | DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry;
+type DevtoolsStartUnknowns = DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry;
 Effect.runSync(devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph));
 const devtoolsSetAppGraphDiagnosticsEffect: Effect.Effect<void> =
   devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph);
@@ -504,7 +487,6 @@ void devtoolsSerializedRoutePlanIndex;
 void devtoolsSerializedRoutePlanIndexEffect;
 void devtoolsRecordTimelineEntryEffect;
 void devtoolsTimelineCommitWithSignal;
-void devtoolsRecordCollectionEventEffect;
 void devtoolsRecordActionStateEffect;
 void devtoolsRecordActionStateConflictEffect;
 void devtoolsRecordRuntimeEventEffect;

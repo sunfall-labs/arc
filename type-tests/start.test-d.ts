@@ -10,7 +10,6 @@ import {
   StartAction,
   StartActionDuplicateName,
   StartActionFormEncodeError,
-  StartCollectionDuplicateName,
   StartHydrationChunkParseError,
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
@@ -24,7 +23,6 @@ import {
   StartTransportEndpointPathError,
   type CreateRequestHandlerOptions,
   type HydrateFromDocumentOptions,
-  type StartCollectionHydrationOptions,
   type StartDocument,
   type StartDocumentContext,
   type StartDocumentTagAttributes,
@@ -58,7 +56,6 @@ const startExports: Array<unknown> = [
   StartAction,
   StartActionDuplicateName,
   StartActionFormEncodeError,
-  StartCollectionDuplicateName,
   StartHydrationChunkParseError,
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
@@ -82,7 +79,6 @@ type StartTypes =
   | HydrateFromDocumentOptions
   | StartAction.FormOptions<{ readonly id: string }>
   | StartAction.InvalidationPlan
-  | StartCollectionHydrationOptions
   | StartDocument
   | StartDocumentContext
   | StartDocumentTagAttributes

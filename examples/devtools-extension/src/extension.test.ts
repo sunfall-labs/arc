@@ -790,16 +790,11 @@ const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGrap
       status: "declared",
       families: [],
     },
-    preloadCollections: {
-      status: "declared",
-      collections: [],
-    },
   })),
   serverFunctionModules: [],
   actionModules: [],
   resourceFamilies: [],
   resourceTags: [],
-  collectionDefinitions: [],
   serverOnlyModules: [],
   browserClientModules: [],
   rpcPath: "/__sunfall-arc/rpc",
@@ -820,5 +815,4 @@ const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGrap
   },
   missingSchemas: [],
   unknownRoutePreloadResources: [],
-  unknownRoutePreloadCollections: [],
 });

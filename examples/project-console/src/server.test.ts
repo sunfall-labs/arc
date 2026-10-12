@@ -114,8 +114,7 @@ describe("project console SSR", () => {
     expect(document.querySelector(`[${streamHydrationAttribute}]`)).not.toBeNull();
     expect(html).toContain('data-sunfall-arc-hydration-sequence="0"');
     expect(html).toContain('"_tag":"StartHydrationChunk"');
-    expect(html).toContain("Projects.collection");
-    expect(html).toContain("Project.workItems");
+    expect(html).toContain("Project.workItems.list");
     expect(html).toContain("Projects.list");
     expect(html).toContain("Project.byId");
     expect(html).toContain('"id":"atlas"');
@@ -126,10 +125,6 @@ describe("project console SSR", () => {
     expect(app.actions.map((action) => action.name)).toEqual([
       "Project.name.submit",
       "Project.advance",
-    ]);
-    expect(app.collections.map((collection) => collection.name)).toEqual([
-      "Projects.collection",
-      "Project.workItems",
     ]);
     expect(serverFunctions.map((fn) => fn.name).sort()).toEqual([
       "Project.advance",
@@ -175,7 +170,7 @@ describe("project console SSR", () => {
       expect(graph.actions.entries).toMatchObject([
         {
           name: "Project.advance",
-          server: { module: "/src/project-collections.ts", exportName: "AdvanceProject" },
+          server: { module: "/src/project-actions.ts", exportName: "AdvanceProject" },
         },
         {
           name: "Project.name.submit",

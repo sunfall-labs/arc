@@ -1,11 +1,5 @@
 import { type EffectInputCallbackError, Resource, Route } from "@sunfall/arc-core";
 import { validateResourceHydrationPayload } from "@sunfall/arc-core/internal";
-import { type Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
-import {
-  dehydrateCollections,
-  hydrateCollections,
-  validateCollectionsHydration,
-} from "@sunfall/arc-db/internal";
 import { Cause, Data, Effect, Exit, type Schema } from "effect";
 import {
   hydrationScriptId,
@@ -20,19 +14,6 @@ import {
   type StartHydrationChunkScriptElement,
   type StartHydrationDocument,
 } from "./hydration-dom.js";
-import {
-  makeStartCollectionResolution,
-  validateStartCollectionResolutionOptions,
-  type StartCollectionDefinitionRegistry,
-  type StartCollectionDefinitionResolver,
-  type StartCollectionDuplicateName,
-  type StartCollectionResolutionOptions,
-} from "./start-collection-resolution.js";
-export type {
-  StartCollectionDefinitionRegistry,
-  StartCollectionDefinitionResolver,
-  StartCollectionResolutionOptions,
-} from "./start-collection-resolution.js";
 export {
   hydrationScriptId,
   markStartHydrationChunkElementConsumed,
@@ -53,7 +34,6 @@ export const startHydrationChunkVersion = 1;
 
 /** Codec errors that can occur while applying decoded hydration snapshots. */
 export type StartHydrationCodecError =
-  | CollectionSnapshotCodecError
   | EffectInputCallbackError
   | Resource.SnapshotCodecError
   | Resource.HydrationApplyError
@@ -101,19 +81,17 @@ export class StartHydrationPayloadSerializeError extends Data.TaggedError(
 /**
  * Typed failures emitted by Effect-first Start hydration helpers.
  *
- * Snapshot codec and Schema errors report malformed Resource/Collection
- * payloads. Payload and chunk parse errors report malformed hydration script
- * contents before any Resource or Collection hydration runs.
+ * Snapshot codec and Schema errors report malformed Resource payloads.
+ * Payload and chunk parse errors report malformed hydration script contents
+ * before any Resource hydration runs.
  */
 export type StartHydrationError =
   | StartHydrationCodecError
   | StartHydrationChunkParseError
   | StartHydrationPayloadParseError;
 
-/** Serialized Resource and Collection state transported from Start SSR to the browser. */
+/** Serialized Resource state transported from Start SSR to the browser. */
 export interface StartHydrationPayload extends Resource.HydrationPayload {
-  /** Collection snapshots fail hydration with `CollectionSnapshotCodecError` when malformed. */
-  readonly collections?: Collection.HydrationPayload["collections"];
   /** Route preload failure the server rendered; the hydrating router starts in that `Failure` state. */
   readonly routeFailure?: Route.PreloadFailureSnapshot;
   /**
@@ -132,31 +110,18 @@ export interface StartHydrationChunk {
   readonly version: typeof startHydrationChunkVersion;
   /** Stable ordering key used before applying streamed chunks. */
   readonly sequence: number;
-  /** Resource and Collection snapshots carried by this chunk. */
+  /** Resource snapshots carried by this chunk. */
   readonly payload: StartHydrationPayload;
 }
 
-/** Collections available when creating or applying Start hydration payloads. */
-export interface StartCollectionHydrationOptions extends StartCollectionResolutionOptions {
-  /** Collection definitions that can receive collection snapshots from payloads. */
-  readonly collections?: Iterable<Collection.Any>;
-  /** Explicit collection registry used to resolve route-declared or payload collection names. */
-  readonly collectionRegistry?:
-    | StartCollectionDefinitionRegistry
-    | ReadonlyMap<string, Collection.Any>;
-  /** Explicit resolver used to resolve route-declared or payload collection names. */
-  readonly resolveCollection?: StartCollectionDefinitionResolver;
-}
-
 /** Effect-first options for applying a Start hydration payload. */
-export interface HydrateStartPayloadEffectOptions
-  extends StartCollectionHydrationOptions, Collection.HydrateOptions, Resource.HydrationOptions {}
+export interface HydrateStartPayloadEffectOptions extends Resource.HydrationOptions {}
 
 /**
  * Options for applying streamed hydration chunks from a document.
  *
  * Streamed chunk hydration is progressive: each Start hydration payload is
- * validated before that payload mutates Resource or Collection state, but a
+ * validated before that payload mutates Resource state, but a
  * later chunk failure does not roll back chunks that were already applied.
  * `markConsumed` defaults to true when hydrating from a document so repeated
  * hydration passes skip chunks after the full chunk scan succeeds.
@@ -173,17 +138,12 @@ export interface HydrateFromDocumentOptions extends HydrateStartHydrationChunksF
   readonly id?: string;
 }
 
-/** Options for preloading request-time collections into the Start hydration payload. */
-export interface PreloadRequestOptions extends StartCollectionHydrationOptions {}
-
 interface StartHydrationChunkElement extends Pick<
   StartHydrationChunkScriptElement,
   "element" | "index"
 > {
   readonly chunk: StartHydrationChunk;
 }
-
-const emptyCollectionHydrationPayload: Collection.HydrationPayload = { collections: [] };
 
 const escapeJsonForHtml = (json: string): string =>
   json.replace(/[<>&\u2028\u2029]/g, (character) => {
@@ -221,77 +181,6 @@ const escapeHtmlAttribute = (value: string): string =>
     })
     .replaceAll("\u0000", "\uFFFD");
 
-const collectionHydrateOptions = (
-  options: HydrateStartPayloadEffectOptions,
-): Collection.HydrateOptions => (options.replace === undefined ? {} : { replace: options.replace });
-
-const duplicateHydrationCollection = (
-  cause: StartCollectionDuplicateName,
-): CollectionSnapshotCodecError =>
-  new CollectionSnapshotCodecError({
-    operation: "hydrate",
-    path: "$.collections",
-    reason: `Multiple collection definitions were provided for '${cause.name}'. Collection names must identify one hydration definition in a Start hydration scope.`,
-  });
-
-const collectionsForHydrationPayloadEffect = (
-  payload: StartHydrationPayload,
-  options: HydrateStartPayloadEffectOptions,
-): Effect.Effect<ReadonlyArray<Collection.Any>, CollectionSnapshotCodecError> => {
-  const snapshots = payload.collections;
-  if (!snapshots || snapshots.length === 0) {
-    return Effect.succeed([]);
-  }
-
-  return Effect.gen(function* () {
-    yield* validateStartCollectionResolutionOptions(options).pipe(
-      Effect.mapError(duplicateHydrationCollection),
-    );
-    const resolution = makeStartCollectionResolution(options);
-    const resolved = new Map<string, Collection.Any>();
-    for (const [index, snapshot] of snapshots.entries()) {
-      const collection = resolution.resolve(snapshot.name);
-      if (collection === undefined) {
-        return yield* Effect.fail(
-          new CollectionSnapshotCodecError({
-            operation: "hydrate",
-            path: `$.collections[${index}].name`,
-            reason: `No collection definition was provided for '${snapshot.name}'.`,
-          }),
-        );
-      }
-      if (collection.name !== snapshot.name) {
-        return yield* Effect.fail(
-          new CollectionSnapshotCodecError({
-            operation: "hydrate",
-            path: `$.collections[${index}].name`,
-            reason: `Collection resolver returned '${collection.name}' for payload collection '${snapshot.name}'.`,
-          }),
-        );
-      }
-      const existing = resolved.get(collection.name);
-      if (existing !== undefined && existing !== collection) {
-        return yield* Effect.fail(
-          new CollectionSnapshotCodecError({
-            operation: "hydrate",
-            path: `$.collections[${index}].name`,
-            reason: `Multiple collection definitions were resolved for '${collection.name}'.`,
-          }),
-        );
-      }
-      resolved.set(collection.name, collection);
-    }
-    return Array.from(resolved.values());
-  });
-};
-
-const streamCollectionHydrateOptions = (
-  options: HydrateStartPayloadEffectOptions,
-): HydrateStartPayloadEffectOptions => ({
-  ...options,
-  replace: false,
-});
-
 const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A => {
   const exit = Effect.runSyncExit(effect);
   if (Exit.isSuccess(exit)) {
@@ -306,31 +195,12 @@ const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A =>
   throw Cause.squash(exit.cause);
 };
 
-/**
- * Dehydrates Start collection snapshots into a payload Effect.
- *
- * When no collections are provided the payload is empty. Snapshot codec errors
- * and collection callback failures stay in the Effect error channel so SSR and
- * streaming adapters can report typed hydration failures.
- */
-export const collectionHydrationPayload = (
-  options: StartCollectionHydrationOptions = {},
-): Effect.Effect<
-  Collection.HydrationPayload,
-  CollectionSnapshotCodecError | EffectInputCallbackError
-> =>
-  options.collections
-    ? dehydrateCollections(options.collections)
-    : Effect.succeed(emptyCollectionHydrationPayload);
-
-/** Combines Resource and Collection dehydration output into one Start payload. */
+/** Builds a Start payload from Resource dehydration output and a route failure. */
 export const createStartHydrationPayload = (
   resources: Resource.HydrationPayload,
-  collections: Collection.HydrationPayload = emptyCollectionHydrationPayload,
   routeFailure?: Route.PreloadFailureSnapshot,
 ): StartHydrationPayload => ({
   resources: resources.resources,
-  ...(collections.collections.length > 0 ? { collections: collections.collections } : {}),
   ...(routeFailure === undefined ? {} : { routeFailure }),
 });
 
@@ -354,7 +224,6 @@ const isRoutePreloadFailureSnapshot = (value: unknown): value is Route.PreloadFa
 const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload =>
   isRecord(value) &&
   Array.isArray(value.resources) &&
-  (value.collections === undefined || Array.isArray(value.collections)) &&
   (value.routeFailure === undefined || isRoutePreloadFailureSnapshot(value.routeFailure)) &&
   (value.settledSubmissions === undefined ||
     (Array.isArray(value.settledSubmissions) &&
@@ -463,8 +332,7 @@ const startHydrationPayloadSerializeError = (
     operation,
     value,
     cause,
-    guidance:
-      "Start hydration payloads must contain JSON-serializable Resource and Collection state.",
+    guidance: "Start hydration payloads must contain JSON-serializable Resource state.",
   });
 
 const encodeStartHydrationValueEffect = (
@@ -501,20 +369,16 @@ export const sortStartHydrationChunks = (
     )
     .map(({ chunk }) => chunk);
 
-/** Merge several root or streamed payloads into one Resource/Collection payload. */
+/** Merge several root or streamed payloads into one payload. */
 export const mergeStartHydrationPayloads = (
   payloads: Iterable<StartHydrationPayload>,
 ): StartHydrationPayload => {
   const resources: Array<StartHydrationPayload["resources"][number]> = [];
-  const collections: Array<NonNullable<StartHydrationPayload["collections"]>[number]> = [];
   const settledSubmissions = new Set<string>();
   let routeFailure: Route.PreloadFailureSnapshot | undefined;
 
   for (const payload of payloads) {
     resources.push(...payload.resources);
-    if (payload.collections) {
-      collections.push(...payload.collections);
-    }
     routeFailure = payload.routeFailure ?? routeFailure;
     for (const id of payload.settledSubmissions ?? []) {
       settledSubmissions.add(id);
@@ -523,7 +387,6 @@ export const mergeStartHydrationPayloads = (
 
   return {
     resources,
-    ...(collections.length > 0 ? { collections } : {}),
     ...(routeFailure === undefined ? {} : { routeFailure }),
     ...(settledSubmissions.size > 0 ? { settledSubmissions: [...settledSubmissions] } : {}),
   };
@@ -627,7 +490,7 @@ export const readStartHydrationChunks = (
 /**
  * Applies a Start hydration payload inside Effect.
  *
- * Malformed resource or collection snapshots fail as typed codec errors; host
+ * Malformed resource snapshots fail as typed codec errors; host
  * adapters should keep those failures instead of catching them as `unknown`.
  */
 export const hydrateStartPayload = (
@@ -636,20 +499,7 @@ export const hydrateStartPayload = (
 ): Effect.Effect<void, StartHydrationCodecError> =>
   Effect.gen(function* () {
     yield* validateResourceHydrationPayload(payload);
-    const collections = yield* collectionsForHydrationPayloadEffect(payload, options);
-    if (payload.collections && collections.length > 0) {
-      yield* validateCollectionsHydration(collections, {
-        collections: payload.collections,
-      });
-    }
     yield* Resource.hydrate(payload, options);
-    if (payload.collections && collections.length > 0) {
-      yield* hydrateCollections(
-        collections,
-        { collections: payload.collections },
-        collectionHydrateOptions(options),
-      );
-    }
     if (payload.routeFailure !== undefined) {
       yield* Route.hydratePreloadFailure(payload.routeFailure);
     }
@@ -667,7 +517,7 @@ export const hydrateStartHydrationChunks = (
 ): Effect.Effect<void, StartHydrationCodecError> =>
   Effect.forEach(
     sortStartHydrationChunks(chunks),
-    (chunk) => hydrateStartPayload(chunk.payload, streamCollectionHydrateOptions(options)),
+    (chunk) => hydrateStartPayload(chunk.payload, options),
     { discard: true },
   );
 

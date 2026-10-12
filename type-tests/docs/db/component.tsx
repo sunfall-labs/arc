@@ -1,9 +1,9 @@
 import { Component } from "@sunfall/arc-solid";
-import { SolidDb } from "@sunfall/arc-solid-db";
 import { Cause, Effect } from "effect";
-import { For, Show } from "solid-js";
+import { For, Loading, Show } from "solid-js";
+import { type Project, type ProjectId, type ProjectsUnavailable } from "./model.js";
+import { ProjectList, ProjectsRef, TasksRef } from "./rows.js";
 import { ArchiveProject } from "./writes.js";
-import { Projects, type Project, type ProjectId, type ProjectsUnavailable } from "./model.js";
 
 const ProjectRow = (props: { readonly project: Project; readonly onArchive: () => void }) => (
   <li>
@@ -15,27 +15,51 @@ const ProjectError = (props: { readonly cause: Cause.Cause<ProjectsUnavailable> 
 );
 
 // #region component
-const ProjectList = Component.define("ProjectList", function* () {
-  const projects = yield* SolidDb.collection(Projects); // E += the load error
+const ActiveProjects = Component.define("ActiveProjects", function* () {
+  const projects = yield* Component.resource(ProjectList); // E += ProjectsUnavailable
   const archive = yield* Component.action(ArchiveProject);
   const onArchive = yield* Component.callback("archive", (id: ProjectId) =>
     archive.submit({ id }).pipe(Effect.ignore),
   );
 
-  // Rows are their own signal: render them once, keyed by id, and let
-  // `waiting` and `failure` drive only the status chrome around them.
+  // `index` reads like `projects("all")`: it suspends `<Loading>` on the first
+  // load only, then follows reloads and optimistic row patches.
   return () => (
-    <>
-      <For each={projects.rows()} keyed={(project) => project.id}>
-        {(project) => <ProjectRow project={project()} onArchive={() => onArchive(project().id)} />}
-      </For>
-      <Show when={projects.waiting()}>
-        <p class="status">Refreshing</p>
-      </Show>
-      <Show when={projects.failure()}>{(cause) => <ProjectError cause={cause()} />}</Show>
-    </>
+    <Loading fallback={<p>Loading projects</p>}>
+      <ul class={{ refreshing: projects.waiting("all") }}>
+        <For each={projects.index("all", "status", "active")} keyed={(project) => project.id}>
+          {(project) => (
+            <ProjectRow project={project()} onArchive={() => onArchive(project().id)} />
+          )}
+        </For>
+      </ul>
+      <Show when={projects.failure("all")}>{(cause) => <ProjectError cause={cause()} />}</Show>
+    </Loading>
   );
 }).pipe(Component.catchTags({ ProjectsUnavailable: () => <p>Projects are unavailable.</p> }));
 // #endregion
 
-export { ProjectList };
+// #region live-query
+const ProjectTaskTitles = Component.define(
+  "ProjectTaskTitles",
+  function* (props: { readonly projectId: ProjectId }) {
+    // The factory runs tracked: reading `props.projectId` rebuilds the query.
+    const titles = yield* Component.liveQuery((query) =>
+      query
+        .from({ project: ProjectsRef })
+        .where(({ project }) => project.id === props.projectId)
+        .joinIndexed("task", TasksRef, ({ project }) => project.id, "byProject")
+        .orderBy(({ task }) => task.title)
+        .select(({ task }) => task.title),
+    );
+
+    return () => (
+      <ul class={{ refreshing: titles.waiting() }}>
+        <For each={titles.rows()}>{(title) => <li>{title}</li>}</For>
+      </ul>
+    );
+  },
+).pipe(Component.catchTags({ ProjectsUnavailable: () => <p>Tasks are unavailable.</p> }));
+// #endregion
+
+export { ActiveProjects, ProjectTaskTitles };

@@ -31,7 +31,7 @@ export const docsPages = [
     section: "Start here",
     title: "The golden path",
     summary:
-      "Which Arc tool to use for each job, then one feature built end to end: Resource, Component, Route, Action, Collection, SSR, and Timeline.",
+      "Which Arc tool to use for each job, then one feature built end to end: Resource, Component, Route, Action, Resource rows, SSR, and Timeline.",
     blocks: goldenPathBlocks,
   },
   {
@@ -71,7 +71,7 @@ export const docsPages = [
         _tag: "List",
         items: [
           "Basic starter: the smallest checked full-stack app shell.",
-          "Use the project console example when you want actions, collections, mocks, and diagnostics together.",
+          "Use the project console example when you want actions, Resource rows, live queries, mocks, and diagnostics together.",
           "Use this docs site when you want to see server functions, Capabilities, Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
         ],
       },
@@ -102,9 +102,9 @@ export const docsPages = [
           "Server contract: a schema-described boundary between browser-safe clients and server-only handlers.",
           "Resource: a named async data family with input/output schemas, cache state, retry policy, and semantic tags.",
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
-          "Route: a typed URL definition that can declare the Resources and Collections it owns before render.",
-          "Collection: a local-first data definition for persistence, optimistic queues, sync adapters, and live queries.",
-          "Start graph: deterministic metadata about routes, resources, actions, collections, endpoints, and modules for diagnostics, CI, devtools, and agents.",
+          "Route: a typed URL definition that can declare the Resources it owns before render.",
+          "Resource rows: a keyed list Resource with indexes, optimistic row patches, change feeds, and live queries.",
+          "Start graph: deterministic metadata about routes, resources, actions, endpoints, and modules for diagnostics, CI, devtools, and agents.",
         ],
       },
       {
@@ -128,10 +128,9 @@ export const docsPages = [
         items: [
           "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, Capabilities, server contracts, and runtime helpers.",
           "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
-          "@sunfall/arc-db: Collections, live queries, persistence, optimistic mutation queues, and sync adapter seams.",
+          "@sunfall/arc-db: the Query engine: incremental live queries over the rows of Resources.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, app graph summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
-          "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, streams, and component scopes.",
-          "@sunfall/arc-solid-db: Solid Collection and live-query bindings.",
+          "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, live queries, streams, and component scopes.",
         ],
       },
       {
@@ -214,7 +213,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in Route.define(path, options). Start diagnostics can require those declarations at build time.",
+        text: "Make sure the file route declares the Resources it owns with preloadResources in Route.define(path, options). Start diagnostics can require those declarations at build time.",
       },
       {
         _tag: "Heading",
@@ -257,7 +256,7 @@ createServer(
         _tag: "List",
         items: [
           "Basic starter: the smallest checked full-stack shell with SSR, hydration, route-owned Resource preload, and leak scanning.",
-          "Project console: the larger golden path for actions, local-first Collections, optimistic work, mocks, and diagnostics.",
+          "Project console: the larger golden path for actions, Resource rows, optimistic work, mocks, and diagnostics.",
           "Docs site: the live cookbook and public alpha docs app you are reading now.",
           "Devtools panel and extension examples: checked hosts for JSON-safe runtime summaries and inspected-window bridge contracts.",
         ],

@@ -1,24 +1,23 @@
-import { Collection, Query } from "@sunfall/arc-db";
-import { Tasks } from "./indexes.js";
-import { Projects } from "./model.js";
+import { Query } from "@sunfall/arc-db";
+import { ProjectsRef, TasksRef } from "./rows.js";
 
 // #region active-names
 const ActiveProjectNames = Query.live((query) =>
   query
-    .from({ project: Projects })
+    .from({ project: ProjectsRef })
     .where(({ project }) => project.status === "active")
-    .select(({ project }) => project.name)
-    .orderBy(({ project }) => project.name),
+    .orderBy(({ project }) => project.name)
+    .select(({ project }) => project.name),
 );
 // #endregion
 
 // #region join
 const ProjectTasks = Query.live((query) =>
   query
-    .from({ project: Projects })
+    .from({ project: ProjectsRef })
     .join(
       "task",
-      Tasks,
+      TasksRef,
       ({ project }) => project.id,
       (task) => task.projectId,
     )
@@ -29,8 +28,9 @@ const ProjectTasks = Query.live((query) =>
 // #region indexed-join
 const IndexedProjectTasks = Query.live((query) =>
   query
-    .from({ project: Projects })
-    .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
+    .from({ project: ProjectsRef })
+    // "byProject" is checked against TaskList's `rows.indexes`.
+    .joinIndexed("task", TasksRef, ({ project }) => project.id, "byProject")
     .select(({ project, task }) => `${project.name}: ${task.title}`),
 );
 // #endregion
@@ -38,14 +38,16 @@ const IndexedProjectTasks = Query.live((query) =>
 // #region diagnostics
 const plan = Query.diagnostics((query) =>
   query
-    .from({ project: Projects })
-    .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
+    .from({ project: ProjectsRef })
+    .joinIndexed("task", TasksRef, ({ project }) => project.id, "byProject")
     .select(({ project, task }) => `${project.name}: ${task.title}`),
 );
 
 plan.joins[0];
 // {
-//   strategy: "collection-index",
+//   alias: "task",
+//   resource: "Tasks.list",
+//   strategy: "index",
 //   index: "byProject",
 //   leftRows: 4,
 //   rightRows: 24,
@@ -57,7 +59,7 @@ plan.joins[0];
 // #region group-by
 const ProjectStatusCounts = Query.live((query) =>
   query
-    .from({ project: Projects })
+    .from({ project: ProjectsRef })
     .groupBy(({ project }) => ({ status: project.status }), {
       count: Query.count(),
       avgProgress: Query.avg(({ project }) => project.progress),
@@ -66,26 +68,19 @@ const ProjectStatusCounts = Query.live((query) =>
 );
 // #endregion
 
-// #region live-query-collection
-const ActiveProjectCards = Collection.liveQuery({
-  name: "ProjectCards.active",
-  query: (query) =>
-    query
-      .from({ project: Projects })
-      .where(({ project }) => project.status === "active")
-      .select(({ project }) => ({
-        id: project.id,
-        name: project.name,
-        progress: project.progress,
-      })),
-  // After `query`, so the row type is inferred from its `select`.
-  getKey: (card) => card.id,
-});
+// #region once
+// Preloads the sources, then evaluates once. E is the sources' load errors.
+const archivedCount = Query.once((query) =>
+  query
+    .from({ project: ProjectsRef })
+    .where(({ project }) => project.status === "archived")
+    .select(({ project }) => project.id),
+);
 // #endregion
 
 export {
-  ActiveProjectCards,
   ActiveProjectNames,
+  archivedCount,
   IndexedProjectTasks,
   ProjectStatusCounts,
   ProjectTasks,

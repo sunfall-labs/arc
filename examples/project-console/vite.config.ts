@@ -20,7 +20,6 @@ export default defineConfig({
       { find: "@sunfall/arc-db/internal", replacement: fromRoot("packages/db/src/internal.ts") },
       { find: "@sunfall/arc-db", replacement: fromRoot("packages/db/src/index.ts") },
       { find: "@sunfall/arc-solid", replacement: fromRoot("packages/solid/src/index.ts") },
-      { find: "@sunfall/arc-solid-db", replacement: fromRoot("packages/solid-db/src/index.ts") },
       { find: "@sunfall/arc-start/vite", replacement: fromRoot("packages/start/src/vite.ts") },
       {
         find: "@sunfall/arc-start/internal",

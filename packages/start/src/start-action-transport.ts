@@ -18,8 +18,7 @@ import type { StartActionClientOptions } from "./start-transport-protocol.js";
 
 /**
  * Options for `makeActionTransportLayer`: the Actions the Start server serves,
- * plus action transport settings (endpoint, fetch, headers, and the
- * collections action responses may hydrate).
+ * plus action transport settings (endpoint, fetch, and headers).
  */
 export interface ActionTransportLayerOptions<
   FetchError = never,
@@ -56,27 +55,18 @@ const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
   const transported = (
     options.transportRuntime === undefined ? exchange : options.transportRuntime.provide(exchange)
   ) as Effect.Effect<Effect.Success<typeof exchange>, Server.ClientError>;
-  const collections = {
-    ...(options.collections === undefined ? {} : { collections: options.collections }),
-    ...(options.collectionRegistry === undefined
-      ? {}
-      : { collectionRegistry: options.collectionRegistry }),
-    ...(options.resolveCollection === undefined
-      ? {}
-      : { resolveCollection: options.resolveCollection }),
-  };
   return Effect.map(transported, ({ body, outcome }) => ({
     exit: outcome._tag === "Value" ? Exit.succeed(outcome.value) : Exit.fail(outcome.error),
     // Runs inside the Action workflow, which the submitting runtime provides.
     apply: (current) =>
-      current ? applyStartActionResponse(body, collections) : applyStartActionInvalidation(body),
+      current ? applyStartActionResponse(body) : applyStartActionInvalidation(body),
   }));
 };
 
 /**
  * Layer that provides Start's `ActionTransport`: submissions of the Actions
  * the server serves run on the server, and their responses (hydrated
- * Resources and Collections, Resource invalidations) apply to the submitting
+ * Resources, Resource invalidations) apply to the submitting
  * runtime. UI code is unchanged: the same `Component.action(...)` handle
  * submits locally or remotely, with the same result and error types (plus
  * `Server.ClientError` for transport failures).

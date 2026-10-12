@@ -8,7 +8,6 @@ import {
 } from "@sunfall/arc-core";
 import { type CoreDefinitionRegistry, actionDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
-import type { StartCollectionHydrationOptions } from "./hydration.js";
 import {
   startJsonMediaType,
   validateStartRpcResponse,
@@ -74,14 +73,13 @@ export type {
 
 /**
  * Action transport settings for clients that submit Start actions: RPC-style
- * fetch options, the action endpoint, and the collections responses may
- * hydrate. Responses always apply to the submitting runtime.
+ * fetch options and the action endpoint. Responses always apply to the
+ * submitting runtime.
  */
 export interface StartActionClientOptions<FetchError = never, FetchRequirements = never>
   extends
     ServerRpcClientOptions<FetchError, FetchRequirements, never>,
-    Pick<StartActionEndpointSource, "actionPath" | "actionManifest" | "appGraph" | "endpoints">,
-    StartCollectionHydrationOptions {}
+    Pick<StartActionEndpointSource, "actionPath" | "actionManifest" | "appGraph" | "endpoints"> {}
 
 /** Extracts the input value type from a core `ActionDefinition`. */
 export type ActionDefinitionInputValue<D> =

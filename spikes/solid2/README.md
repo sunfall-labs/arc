@@ -25,14 +25,14 @@ pnpm --filter @sunfall/arc-spike-solid2 test
   signal lazily projects into a Solid signal for rendering. Raw Solid signals
   would lose updates in the Program runtime when two messages land in one tick.
 - **Unified on `AsyncResult` (supersedes "keep `ResourceState`").** Resources,
-  Actions, Collections, and Live Queries now hold Effect's `AsyncResult`
+  Actions, and Live Queries now hold Effect's `AsyncResult`
   (`effect/reactivity`) directly: errors stay visible while retrying (`Failure`
   with `waiting: true`) and failures carry the full `Cause`.
 - **Keep TSRX**; `@tsrx/solid@0.3.x` already targets Solid 2.
 
 ## Next
 
-1. Port `@sunfall/arc-solid` and `@sunfall/arc-solid-db` to Solid 2: replace the
+1. Port `@sunfall/arc-solid` (and its live query binding) to Solid 2: replace the
    thrown-Promise Suspense bridge and `createResource` with `src/effect-memo.ts`
    style async memos; drop the signal copy layer now that Arc signals track
    natively.

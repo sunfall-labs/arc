@@ -90,26 +90,7 @@ import type { MutableResourceStore } from "@sunfall/arc-core";
 import { unsafeMutableResourceStore } from "@sunfall/arc-core";
 // @ts-expect-error makeMutableResourceStore is an internal store constructor, not a root export.
 import { makeMutableResourceStore } from "@sunfall/arc-core";
-import {
-  Collection,
-  CollectionRowKeyChanged,
-  CollectionRowNotFound,
-  CollectionSnapshotCodecError,
-  Query,
-  QueryEvaluationError,
-  ReadonlyCollectionMutation,
-} from "@sunfall/arc-db";
-import {
-  collectCollections,
-  activeCollectionStore,
-  dehydrateCollectionsSync,
-  dehydrateCollections,
-  hydrateCollections,
-  validateCollectionsHydration,
-  type CollectionStoreDiagnosticsSnapshot,
-  type CollectionStoreEvent,
-} from "@sunfall/arc-db/internal";
-import { SolidDb } from "@sunfall/arc-solid-db";
+import { Query, QueryEvaluationError } from "@sunfall/arc-db";
 import {
   Component,
   RouterContextMissing,
@@ -123,7 +104,6 @@ import {
   describeDevtoolsPanels,
   describeDevtoolsSummary,
   makeDevtoolsStore,
-  type DevtoolsCollectionStoreEvent,
   type DevtoolsInvalidationPlan,
   type DevtoolsTimelineCommit,
   type DevtoolsPanels,
@@ -131,19 +111,11 @@ import {
   type DevtoolsRequestTraceTeardown,
   type DevtoolsRuntimeEvent,
   type DevtoolsSnapshot,
-  type DevtoolsStartAppGraphCollectionDiagnostics,
   type DevtoolsStartAppGraphDiagnostics,
-  type DevtoolsStartAppGraphRoutePreloadCollections,
-  type DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   type DevtoolsStore,
   type DevtoolsSummary,
 } from "@sunfall/arc-devtools";
-import {
-  normalizeAppGraphCollectionDefinitions,
-  normalizeAppGraphUnknownRoutePreloadCollections,
-  normalizeDevtoolsAppGraphDiagnostics,
-  normalizeRouteModulePreloadCollections,
-} from "../packages/devtools/src/app-graph-normalizer.js";
+import { normalizeDevtoolsAppGraphDiagnostics } from "../packages/devtools/src/app-graph-normalizer.js";
 import {
   App,
   createRequestHandler,
@@ -1537,261 +1509,40 @@ void inferredProjectEffect;
 // @ts-expect-error inferred branded resource inputs reject accidental plain strings
 InferredProjectById("atlas");
 
-const ProjectsCollection = Collection.define<
-  Project,
-  string,
+// A Resource with `rows`: its row callbacks are typed by the output's element.
+const ProjectRows = Resource.define({
+  name: "Projects.rows",
+  input: Schema.Literal("all"),
+  output: Schema.Array(ProjectSchema),
+  rows: { key: (project) => project.id, indexes: { byName: (project) => project.name } },
+  load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
+});
+const ProjectsRowsRef = ProjectRows("all");
+const projectRowsPreload: Effect.Effect<
+  ReadonlyArray<Project>,
   ProjectError | Server.ClientError,
   ProjectApi
->({
-  name: "Projects.collection",
-  output: Schema.Array(ProjectSchema),
-  getKey: (project) => project.id,
-  indexes: {
-    byName: {
-      key: (project) => project.name,
-      unique: true,
-    },
-  },
-  sync: {
-    load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
-  },
-});
-
-ProjectsCollection.rows().map((project) => {
-  project.name;
-  project.$synced;
-  // @ts-expect-error live collection rows preserve row shape
-  project.slug;
-});
-ProjectsCollection.index("byName", "Atlas").map((project) => project.name.toUpperCase());
-ProjectsCollection.firstByIndex("byName", "Atlas")?.name.toUpperCase();
-
-const InferredProjectsCollection = Collection.define({
-  name: "Projects.inferredCollection",
-  output: Schema.Array(ProjectSchema),
-  getKey: (project) => project.id,
-  sync: {
-    load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
-  },
-});
-const inferredCollectionPreload: Effect.Effect<
-  void,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | EffectInputCallbackError,
-  ProjectApi
-> = InferredProjectsCollection.preload();
-void inferredCollectionPreload;
-InferredProjectsCollection.applyChanges([
-  { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
-]);
-
-// @ts-expect-error inferred collections preserve row shape
-InferredProjectsCollection.applyChanges([{ _tag: "Upsert", value: { id: "atlas" } }]);
-
-const projectsSnapshot = Effect.runSync(ProjectsCollection.snapshot());
-projectsSnapshot.rows.map((row) => {
-  row.key.toUpperCase();
-  row.value.name.toUpperCase();
-  // @ts-expect-error collection snapshots preserve row value shape
-  row.value.slug;
-});
-// @ts-expect-error snapshots carry synced rows only; optimistic patches stay with their Action
-projectsSnapshot.pendingMutations;
-
-Effect.map(ProjectsCollection.snapshot(), (snapshot) => snapshot.rows.map((row) => row.value.name));
-// @ts-expect-error Actions change rows: a collection has no write methods for server data
-ProjectsCollection.update("atlas", { name: "Atlas" });
-const projectHydrateEffect: Effect.Effect<
-  void,
-  CollectionSnapshotCodecError | EffectInputCallbackError
-> = ProjectsCollection.hydrate(projectsSnapshot);
-void projectHydrateEffect;
-
-// Persistence reads and writes the runtime's KeyValueStore.
-const projectPersistEffect: Effect.Effect<
-  void,
-  KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError | EffectInputCallbackError,
-  KeyValueStore.KeyValueStore
-> = ProjectsCollection.persist({ key: "projects", version: 2 });
-const projectRestoreEffect: Effect.Effect<
-  void,
-  KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError | EffectInputCallbackError,
-  KeyValueStore.KeyValueStore
-> = ProjectsCollection.restore({ key: "projects", replace: false });
-// @ts-expect-error persisting requires the runtime's KeyValueStore
-const projectPersistWithoutStore: Effect.Effect<void, unknown> = ProjectsCollection.persist();
-void projectPersistEffect;
-void projectRestoreEffect;
-void projectPersistWithoutStore;
-Effect.map(activeCollectionStore, (store) => {
-  const diagnosticsEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot> =
-    store.diagnostics.snapshot;
-  const diagnostics: CollectionStoreDiagnosticsSnapshot = Effect.runSync(diagnosticsEffect);
-  diagnostics.collectionCount.toFixed();
-  diagnostics.rowCount.toFixed();
-  diagnostics.pendingMutationCount.toFixed();
-  void diagnosticsEffect;
-});
-// @ts-expect-error custom storage adapters are gone: provide a KeyValueStore Layer instead
-Collection.memoryStorage();
-// @ts-expect-error custom storage adapters are gone: provide a KeyValueStore Layer instead
-Collection.storage(localStorage);
-
-const ListProjectsForCollection = Server.implement(
-  Server.contract<void, readonly Project[], ProjectError>("Projects.collection.list"),
-  () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-);
-
-// Server functions plug into sync adapters directly.
-const ServerProjectsCollection = Collection.define<
-  Project,
-  string,
-  ProjectError | Server.ClientError | EffectInputCallbackError
->({
-  name: "Projects.serverCollection",
-  getKey: (project) => project.id,
-  sync: {
-    load: ListProjectsForCollection,
-  },
-});
-
-declare const projectRowsPromise: Promise<readonly Project[]>;
-declare const promisedBoolean: Promise<boolean>;
-const syncAdapter: Collection.SyncAdapter<Project> = {
-  name: "projects-sync",
-  load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-};
-const promiseSyncAdapter: Collection.SyncAdapter<Project> = {
-  name: "projects-promise-sync",
-  // @ts-expect-error sync adapter loaders must return Effect or a pure value, not Promise
-  load: () => projectRowsPromise,
-};
-Collection.define<Project, string, Server.ClientError>({
-  name: "Projects.syncCollection",
-  getKey: (project) => project.id,
-  sync: syncAdapter,
-});
-const ProjectRowsResource = Resource.define<void, ReadonlyArray<Project>, ProjectError>({
-  name: "Project.rows",
-  load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-});
-// A Resource ref backs a collection: loads, refreshes, and follows Resource.changes.
-const ResourceProjectsCollection = Collection.define({
-  name: "Projects.resourceSyncCollection",
-  output: ProjectSchema,
-  getKey: (project) => project.id,
-  sync: ProjectRowsResource(undefined),
-});
-// A collection preload fails only with its declared error: a rejected row or a
-// throwing sync callback is a defect.
-const resourceProjectsPreload: Effect.Effect<void, ProjectError> =
-  ResourceProjectsCollection.preload();
-type ResourceProjectsPreloadError =
-  ReturnType<typeof ResourceProjectsCollection.preload> extends Effect.Effect<any, infer E, any>
-    ? E
-    : never;
-const resourceProjectsPreloadFailsOnlyWithProjectError: [ResourceProjectsPreloadError] extends [
-  ProjectError,
-]
-  ? true
-  : false = true;
-void resourceProjectsPreloadFailsOnlyWithProjectError;
-void resourceProjectsPreload;
-// Remote changes stream through sync.changes; the collection owns the subscription.
+> = Resource.preload(ProjectsRowsRef);
+void projectRowsPreload;
+// Remote changes stream through `rows.changes`; the feed's services join R.
 declare const projectChangeStream: Stream.Stream<
-  ReadonlyArray<Collection.Change<Project, string>>,
+  ReadonlyArray<Resource.RowChange<Project, string>>,
   ProjectError,
-  ProjectApi
+  RuntimeMissingService
 >;
-const ChangeFedProjectsCollection = Collection.define({
-  name: "Projects.changeFedCollection",
-  output: ProjectSchema,
-  getKey: (project) => project.id,
-  sync: { changes: () => projectChangeStream },
+const ChangeFedProjectRows = Resource.define({
+  name: "Projects.changeFedRows",
+  input: Schema.Literal("all"),
+  output: Schema.Array(ProjectSchema),
+  rows: { key: (project) => project.id, changes: () => projectChangeStream },
+  load: () => Effect.succeed([] as ReadonlyArray<Project>),
 });
-const changeFedProjectsPreload: Effect.Effect<void, ProjectError, ProjectApi> =
-  ChangeFedProjectsCollection.preload();
+const changeFedProjectsPreload: Effect.Effect<
+  ReadonlyArray<Project>,
+  never,
+  RuntimeMissingService
+> = Resource.preload(ChangeFedProjectRows("all"));
 void changeFedProjectsPreload;
-
-Collection.define<Project>({
-  name: "Projects.badServerCollection",
-  getKey: (project) => project.id,
-  sync: {
-    // @ts-expect-error sync loader output must satisfy the row type
-    load: () => Effect.succeed([{ id: "atlas" }]),
-  },
-});
-
-const collectionChanges: ReadonlyArray<Collection.Change<Project, string>> = [
-  { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
-  { _tag: "Delete", key: "lumen" },
-];
-ProjectsCollection.applyChanges(collectionChanges, {
-  origin: "remote",
-  synced: true,
-});
-// Schema-inferred persisted collections add the KeyValueStore channels.
-const PersistedProjectsCollection = Collection.define({
-  name: "Projects.persistedCollection",
-  output: ProjectSchema,
-  getKey: (project) => project.id,
-  persistence: {
-    key: "projects",
-    version: 2,
-    loadAfterRestore: true,
-  },
-  sync: {
-    load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-  },
-});
-const persistedProjectsPreload: Effect.Effect<
-  void,
-  KeyValueStore.KeyValueStoreError,
-  KeyValueStore.KeyValueStore
-> = PersistedProjectsCollection.preload();
-// @ts-expect-error a persisted collection's preload requires KeyValueStore
-const persistedProjectsPreloadWithoutStore: Effect.Effect<void, unknown> =
-  PersistedProjectsCollection.preload();
-void persistedProjectsPreload;
-void persistedProjectsPreloadWithoutStore;
-PersistedProjectsCollection.applyChanges([
-  { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
-]);
-
-// Explicitly typed persisted collections must declare the KeyValueStore channels.
-Collection.define<Project, string, KeyValueStore.KeyValueStoreError, KeyValueStore.KeyValueStore>({
-  name: "Projects.explicitPersistedCollection",
-  getKey: (project) => project.id,
-  persistence: { key: "projects" },
-});
-Collection.define<Project>({
-  name: "Projects.missingPersistenceChannels",
-  getKey: (project) => project.id,
-  // @ts-expect-error persistence needs KeyValueStoreError in E and KeyValueStore in R
-  persistence: {},
-});
-
-const collectionPayload = dehydrateCollectionsSync([ProjectsCollection]);
-const collectionDehydrateEffect: Effect.Effect<
-  Collection.HydrationPayload,
-  CollectionSnapshotCodecError | EffectInputCallbackError
-> = dehydrateCollections([ProjectsCollection]);
-const collectionHydratePayloadEffect: Effect.Effect<
-  void,
-  CollectionSnapshotCodecError | EffectInputCallbackError
-> = hydrateCollections([ProjectsCollection], collectionPayload);
-const collectionValidateHydrationPayloadEffect: Effect.Effect<
-  void,
-  CollectionSnapshotCodecError | EffectInputCallbackError
-> = validateCollectionsHydration([ProjectsCollection], collectionPayload, {
-  replace: false,
-});
-void collectionDehydrateEffect;
-void collectionHydratePayloadEffect;
-void collectionValidateHydrationPayloadEffect;
-Effect.map(collectCollections(ProjectsCollection.preload()), (collected) => {
-  collected.value;
-  collected.definitions.map((definition) => definition.name);
-});
 
 const StartRoot = Component.define("StartRoot", function* () {
   yield* Effect.void;
@@ -1800,7 +1551,6 @@ const StartRoot = Component.define("StartRoot", function* () {
 const StartApp = App.define({
   root: StartRoot,
   routes: [ProjectRoute] as const,
-  collections: [ProjectsCollection],
 });
 const StartServerApp = makeStartServerApp({ routes: [ProjectRoute] as const });
 const startLaunchEffect: Effect.Effect<never, App.LaunchError> = App.launch(StartApp);
@@ -1856,9 +1606,6 @@ virtualDiagnosticsPolicyViolations.map((violation) => {
   if (violation._tag === "UnknownRoutePreloadResources") {
     violation.routes.map((route) => route.preloadResources.families.length);
   }
-  if (violation._tag === "UnknownRoutePreloadCollections") {
-    violation.routes.map((route) => route.preloadCollections.collections.length);
-  }
 });
 createRequestHandler(StartApp, {
   // @ts-expect-error Start document functions return a StartDocument, not a Promise
@@ -1909,9 +1656,6 @@ void promiseViteStartSsrRequestHandler;
 void scopedViteStartSsrRequestHandler;
 void serviceViteStartSsrRequestHandler;
 void startVitePlugin;
-preloadRequest(StartServerApp, new Request("https://example.com/projects/atlas"), {
-  collections: [ProjectsCollection],
-});
 Effect.map(
   preloadRequest(StartServerApp, new Request("https://example.com/projects/atlas")),
   (result) => result.routePlan.href,
@@ -1985,20 +1729,11 @@ void rootNodeRuntimeOptions;
 void rootFetchPromiseOptions;
 void rootFetchRuntimeOptions;
 void rootFetchPromise;
-Effect.map(
-  preloadRequest(StartServerApp, new Request("https://example.com/projects/atlas")),
-  (result) =>
-    result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
-);
 const hydrationDocument: Pick<Document, "getElementById"> = {
   getElementById: () => null,
 };
 const hydrationRuntime = makeRuntime();
-hydrationRuntime.runSync(
-  hydrateFromDocument(hydrationDocument, {
-    collections: [ProjectsCollection],
-  }),
-);
+hydrationRuntime.runSync(hydrateFromDocument(hydrationDocument));
 interface RuntimeDocumentService {
   readonly readDocument: () => string;
 }
@@ -2065,17 +1800,9 @@ void viteDevSsrEffect;
 void servicefulDevSsrEffect;
 // @ts-expect-error Runtime Spine exposes provide/runFork/runSync, not Promise runners
 hydrationRuntime.runPromise(Effect.void);
-hydrationRuntime.runSync(
-  hydrateFromDocument(hydrationDocument, {
-    collections: [ProjectsCollection],
-  }),
-);
-const startHydrationEffect: Effect.Effect<unknown, StartHydrationError> = hydrateFromDocument(
-  hydrationDocument,
-  {
-    collections: [ProjectsCollection],
-  },
-);
+hydrationRuntime.runSync(hydrateFromDocument(hydrationDocument));
+const startHydrationEffect: Effect.Effect<unknown, StartHydrationError> =
+  hydrateFromDocument(hydrationDocument);
 void startHydrationEffect;
 const streamHydrationDocument = {
   querySelectorAll: () => [
@@ -2089,29 +1816,28 @@ const streamHydrationDocument = {
 readStartHydrationChunks(streamHydrationDocument, { includeConsumed: true });
 hydrationRuntime.runSync(
   hydrateStartHydrationChunksFromDocument(streamHydrationDocument, {
-    collections: [ProjectsCollection],
     markConsumed: false,
   }),
 );
 
-// Actions patch collection rows optimistically, typed by the collection's row and key.
+// Actions patch Resource rows optimistically, typed by the Resource's row and key.
 const RenameProjectRow = Action.define({
   name: "Projects.renameRow",
   input: Schema.Struct({ id: Schema.String, name: Schema.String }),
   output: ProjectSchema,
   optimistic: (input, transaction) =>
     Effect.gen(function* () {
-      yield* transaction.update(ProjectsCollection, input.id, { name: input.name });
-      yield* transaction.update(ProjectsCollection, input.id, (draft) => ({ ...draft, name: "x" }));
-      yield* transaction.insert(ProjectsCollection, { id: input.id, name: input.name });
-      yield* transaction.insert(ProjectsCollection, [{ id: input.id, name: input.name }]);
-      yield* transaction.delete(ProjectsCollection, input.id);
-      // @ts-expect-error collection key type is preserved
-      yield* transaction.update(ProjectsCollection, 123, { name: input.name });
+      yield* transaction.update(ProjectsRowsRef, input.id, { name: input.name });
+      yield* transaction.update(ProjectsRowsRef, input.id, (draft) => ({ ...draft, name: "x" }));
+      yield* transaction.insert(ProjectsRowsRef, { id: input.id, name: input.name });
+      yield* transaction.insert(ProjectsRowsRef, [{ id: input.id, name: input.name }]);
+      yield* transaction.delete(ProjectsRowsRef, input.id);
+      // @ts-expect-error the row key type is preserved
+      yield* transaction.update(ProjectsRowsRef, 123, { name: input.name });
       // @ts-expect-error optimistic patches are checked against the row type
-      yield* transaction.update(ProjectsCollection, input.id, { slug: input.name });
+      yield* transaction.update(ProjectsRowsRef, input.id, { slug: input.name });
       // @ts-expect-error inserted rows must be complete rows
-      yield* transaction.insert(ProjectsCollection, { id: input.id });
+      yield* transaction.insert(ProjectsRowsRef, { id: input.id });
     }),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
 });
@@ -2147,67 +1873,36 @@ const renameProjectRowChange = (change: Action.OptimisticChange): unknown => {
 void renameProjectRowPlan;
 void renameProjectRowChange;
 
-Collection.define<Project>({
-  name: "Projects.badCollection",
-  getKey: (project) => project.id,
-  // @ts-expect-error collection loader output must satisfy the row type
-  load: () => Effect.succeed([{ id: "atlas" }]),
-});
-
-Collection.define<Project>({
-  name: "Projects.asyncCollection",
-  getKey: (project) => project.id,
-  // @ts-expect-error collection loaders must return Effect or a pure value, not Promise
-  load: () => promisedProjects,
-});
-
 const ProjectNames = Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     .where(({ project }) => project.id === "atlas")
     .select(({ project }) => project.name),
 );
 const projectNamesPreloadEffect: Effect.Effect<
   void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError,
+  ProjectError | Server.ClientError | QueryEvaluationError,
   ProjectApi
 > = ProjectNames.preload();
 const projectNamesRefetchEffect: Effect.Effect<
   void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError,
+  ProjectError | Server.ClientError | QueryEvaluationError,
   ProjectApi
 > = ProjectNames.refresh();
 const projectNamesOnceEffect: Effect.Effect<
   ReadonlyArray<string>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError,
+  ProjectError | Server.ClientError | QueryEvaluationError,
   ProjectApi
 > = Query.once((query) =>
-  query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+  query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
 );
 void projectNamesPreloadEffect;
 void projectNamesRefetchEffect;
 void projectNamesOnceEffect;
 const projectNamesState = ProjectNames.state.get();
 if (projectNamesState._tag === "Failure") {
-  const projectNamesError: Option.Option<
-    | ProjectError
-    | Server.ClientError
-    | CollectionSnapshotCodecError
-    | Schema.SchemaError
-    | QueryEvaluationError
-  > = AsyncResult.error(projectNamesState);
+  const projectNamesError: Option.Option<ProjectError | Server.ClientError | QueryEvaluationError> =
+    AsyncResult.error(projectNamesState);
   const projectNamesLastGood: Option.Option<ReadonlyArray<string>> =
     AsyncResult.value(projectNamesState);
   void projectNamesError;
@@ -2220,9 +1915,9 @@ ProjectNames.rows.get().map((name) => name.toUpperCase());
 ProjectNames.rows.get().map((name) => name.toFixed());
 const defaultTypedProjectNameFactory: Query.Factory<string> = (query) =>
   // @ts-expect-error serviceful query factories must spell their error/requirement channels
-  query.from({ project: ProjectsCollection }).select(({ project }) => project.name);
+  query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name);
 const servicefulProjectNameFactory: Query.Factory<string, unknown, ProjectApi> = (query) =>
-  query.from({ project: ProjectsCollection }).select(({ project }) => project.name);
+  query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name);
 const servicefulProjectNameDiagnostics: Query.PlanDiagnostics = Query.diagnostics(
   servicefulProjectNameFactory,
 );
@@ -2230,34 +1925,13 @@ void defaultTypedProjectNameFactory;
 void servicefulProjectNameFactory;
 void servicefulProjectNameDiagnostics;
 
-const ProjectNameCards = Collection.liveQuery<
-  { readonly id: string; readonly name: string },
-  string,
-  unknown,
-  ProjectApi
->({
-  name: "ProjectNameCards.collection",
-  getKey: (project) => project.id,
-  query: (query) =>
-    query.from({ project: ProjectsCollection }).select(({ project }) => ({
-      id: project.id,
-      name: project.name,
-    })),
-});
-// A collection's load error joins the binding's (and so the Component's) E,
-// and its services join R, exactly like a Resource reader.
-const solidProjectsBinding: Effect.Effect<
-  SolidDb.CollectionHandle<Project, string, ProjectError | Server.ClientError>,
-  ProjectError | Server.ClientError,
-  ProjectApi
-> = SolidDb.collection(ProjectsCollection);
-void solidProjectsBinding;
-const solidProjects = bound(SolidDb.collection(ProjectsCollection, { preload: false }));
-const solidProjectsHandle: SolidDb.CollectionHandle<
-  Project,
-  string,
-  ProjectError | Server.ClientError
-> = solidProjects;
+// A rows Resource reader adds row lookups typed by `rows`.
+const solidProjectRows = bound(Component.resource(ProjectRows));
+solidProjectRows("all").map((project) => project.name);
+solidProjectRows.get("all", "atlas")?.name.toUpperCase();
+solidProjectRows.index("all", "byName", "Atlas").map((project) => project.name.toUpperCase());
+// @ts-expect-error only declared indexes
+solidProjectRows.index("all", "byId", "atlas");
 // A Resource family's render failure joins E and its services join R. This
 // family declares no `error` schema, so a render reports only the failure's
 // `_tag`, as `ResourceUntypedFailure`.
@@ -2272,35 +1946,23 @@ const solidProjectResourceFailure: Cause.Cause<ResourceUntypedFailure> | undefin
   solidProjectReader.failure("atlas");
 void solidProjectResourceValue;
 void solidProjectResourceFailure;
-// Collection and Resource handles share one status vocabulary.
-const solidProjectsWaiting: boolean = solidProjects.waiting();
-const solidProjectsFailure: Cause.Cause<ProjectError | Server.ClientError> | undefined =
-  solidProjects.failure();
-// @ts-expect-error Actions change rows: a collection handle has no writes.
-solidProjects.insertEffect;
-void solidProjectsWaiting;
-void solidProjectsFailure;
-const solidProjectNamesBinding = SolidDb.liveQuery(
-  (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+// A live query's sources' load errors join E; services join R.
+const solidProjectNamesBinding = Component.liveQuery(
+  (query) => query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
   { preload: false },
 );
-// The live query's sources' load errors join E (codec failures are defects); services join R.
 const solidProjectNamesServices: Effect.Effect<
-  SolidDb.LiveQueryHandle<
-    string,
-    ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
-  >,
-  ProjectError | Server.ClientError | Schema.SchemaError,
+  Component.LiveQueryHandle<string, ProjectError | Server.ClientError>,
+  ProjectError | Server.ClientError,
   ProjectApi
 > = solidProjectNamesBinding;
 void solidProjectNamesServices;
 const solidProjectNames = bound(solidProjectNamesBinding);
-const solidProjectNamesHandle: SolidDb.LiveQueryHandle<
-  string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
-> = solidProjectNames;
-SolidDb.liveQuery(
-  (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+// Live queries and Resource readers share one status vocabulary.
+const solidProjectNamesWaiting: boolean = solidProjectNames.waiting();
+void solidProjectNamesWaiting;
+Component.liveQuery(
+  (query) => query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
   {
     preload: false,
     // @ts-expect-error the query factory is tracked; signal/prop reads in it rebuild the query.
@@ -2318,84 +1980,33 @@ const solidProjectStreamValue: Project = bound(solidProjectStreamBinding)();
 void solidProjectStreamValue;
 const solidProjectNamesPreloadEffect: Effect.Effect<
   void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
+  ProjectError | Server.ClientError | QueryEvaluationError
 > = solidProjectNames.preload();
-const solidProjectNamesFailure:
-  | Cause.Cause<ProjectError | Server.ClientError | Schema.SchemaError>
-  | undefined = solidProjectNames.failure();
+const solidProjectNamesFailure: Cause.Cause<ProjectError | Server.ClientError> | undefined =
+  solidProjectNames.failure();
 void solidProjectNamesPreloadEffect;
 void solidProjectNamesFailure;
 
-ProjectNameCards.rows().map((project) => {
-  project.name.toUpperCase();
-  project.$synced.valueOf();
+const TaskSchema = Schema.Struct({
+  id: Schema.String,
+  projectId: Schema.String,
+  title: Schema.String,
 });
-// @ts-expect-error live-query collections are derived: they have no writes
-ProjectNameCards.update("atlas", { name: "Atlas Prime" });
-
-const TopLevelProjectNameCards = Collection.liveQuery({
-  name: "ProjectNameCards.topLevel",
-  getKey: (project: { readonly id: string; readonly name: string }) => project.id,
-  query: (query) =>
-    query.from({ project: ProjectsCollection }).select(({ project }) => ({
-      id: project.id,
-      name: project.name,
-    })),
+const TaskRows = Resource.define({
+  name: "Tasks.rows",
+  input: Schema.Literal("all"),
+  output: Schema.Array(TaskSchema),
+  rows: { key: (task) => task.id, indexes: { byProject: (task) => task.projectId } },
+  load: () => Effect.succeed([] as ReadonlyArray<typeof TaskSchema.Type>),
 });
-
-TopLevelProjectNameCards.rows().map((project) => project.name.toUpperCase());
-const topLevelProjectNameCardsPreload: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | ReadonlyCollectionMutation,
-  ProjectApi
-> = TopLevelProjectNameCards.preload();
-const solidTopLevelProjectNameCards = bound(
-  SolidDb.collection(TopLevelProjectNameCards, { preload: false }),
-);
-const solidTopLevelProjectNameCardsHandle: SolidDb.CollectionHandle<
-  { readonly id: string; readonly name: string },
-  string,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | ReadonlyCollectionMutation
-> = solidTopLevelProjectNameCards;
-void solidProjectsHandle;
-void solidProjectNamesHandle;
-void topLevelProjectNameCardsPreload;
-void solidTopLevelProjectNameCardsHandle;
-
-interface Task {
-  readonly id: string;
-  readonly projectId: string;
-  readonly title: string;
-}
-
-const TasksCollection = Collection.define<Task>({
-  name: "Tasks.collection",
-  getKey: (task) => task.id,
-  indexes: {
-    byProject: (task) => task.projectId,
-  },
-});
+const TasksRowsRef = TaskRows("all");
 
 const ProjectTaskTitles = Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     .join(
       "task",
-      TasksCollection,
+      TasksRowsRef,
       ({ project }) => project.id,
       (task) => task.projectId,
     )
@@ -2406,17 +2017,23 @@ ProjectTaskTitles.rows.get().map((title) => title.toUpperCase());
 
 const IndexedProjectTaskTitles = Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
-    .joinIndexed("task", TasksCollection, ({ project }) => project.id, "byProject")
+    .from({ project: ProjectsRowsRef })
+    .joinIndexed("task", TasksRowsRef, ({ project }) => project.id, "byProject")
     .select(({ project, task }) => `${project.name}:${task.title}`),
+);
+Query.live((query) =>
+  query
+    .from({ project: ProjectsRowsRef })
+    // @ts-expect-error indexed joins name an index the source declares
+    .joinIndexed("task", TasksRowsRef, ({ project }) => project.id, "byOwner"),
 );
 
 IndexedProjectTaskTitles.rows.get().map((title) => title.toUpperCase());
 
 const ProjectTaskRows = Query.live((query) =>
-  query.from({ project: ProjectsCollection }).join(
+  query.from({ project: ProjectsRowsRef }).join(
     "task",
-    TasksCollection,
+    TasksRowsRef,
     ({ project }) => project.id,
     (task) => task.projectId,
   ),
@@ -2425,9 +2042,9 @@ const ProjectTaskRows = Query.live((query) =>
 ProjectTaskRows.rows.get().map(({ project, task }) => `${project.name}:${task.title}`);
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).join(
+  query.from({ project: ProjectsRowsRef }).join(
     "task",
-    TasksCollection,
+    TasksRowsRef,
     ({ project }) => project.id,
     // @ts-expect-error joined row fields are type checked
     (task) => task.missing,
@@ -2436,7 +2053,7 @@ Query.live((query) =>
 
 const ProjectCounts = Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     .groupBy(({ project }) => ({ name: project.name }), {
       count: Query.count(),
       nameLength: Query.sum(({ project }) => project.name.length),
@@ -2452,7 +2069,7 @@ const ProjectCounts = Query.live((query) =>
 ProjectCounts.rows.get().map((group) => group.count.toFixed());
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(({ project }) => ({ name: project.name }), {
+  query.from({ project: ProjectsRowsRef }).groupBy(({ project }) => ({ name: project.name }), {
     // @ts-expect-error aggregate selectors are type checked
     total: Query.sum(({ project }) => project.missing),
   }),
@@ -2460,41 +2077,41 @@ Query.live((query) =>
 
 Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     // @ts-expect-error Query projections must stay synchronous
     .select(() => promisedProject),
 );
 
 Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     // @ts-expect-error Query projections must not contain nested Promise-shaped values
     .select(() => ({ nested: { value: promisedProject } })),
 );
 
 Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     // @ts-expect-error Query projections must not contain direct Effect-shaped values
     .select(() => effectNumberValue),
 );
 
 Query.live((query) =>
   query
-    .from({ project: ProjectsCollection })
+    .from({ project: ProjectsRowsRef })
     // @ts-expect-error Query projections must not contain nested Effect-shaped values
     .select(() => ({ nested: { value: effectNumberValue } })),
 );
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(({ project }) => ({ name: project.name }), {
+  query.from({ project: ProjectsRowsRef }).groupBy(({ project }) => ({ name: project.name }), {
     // @ts-expect-error aggregate value callbacks must stay synchronous
     count: Query.count(() => promisedNumber),
   }),
 );
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(
+  query.from({ project: ProjectsRowsRef }).groupBy(
     // @ts-expect-error Query group keys must not contain nested Promise-shaped values
     ({ project }) => ({ name: project.name, asyncKey: promisedString }),
     {
@@ -2504,7 +2121,7 @@ Query.live((query) =>
 );
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(
+  query.from({ project: ProjectsRowsRef }).groupBy(
     // @ts-expect-error Query group keys must not contain Effect-shaped values
     ({ project }) => ({ name: project.name, effectKey: effectNumberValue }),
     {
@@ -2514,7 +2131,7 @@ Query.live((query) =>
 );
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(
+  query.from({ project: ProjectsRowsRef }).groupBy(
     // @ts-expect-error Query group key Maps must not contain Promise-shaped values
     ({ project }) => ({ name: project.name, values: new Map([["async", promisedString]]) }),
     {
@@ -2524,7 +2141,7 @@ Query.live((query) =>
 );
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(
+  query.from({ project: ProjectsRowsRef }).groupBy(
     // @ts-expect-error Query group key Sets must not contain Promise-shaped values
     ({ project }) => ({ name: project.name, values: new Set([promisedString]) }),
     {
@@ -2534,7 +2151,7 @@ Query.live((query) =>
 );
 
 Query.live((query) =>
-  query.from({ project: ProjectsCollection }).groupBy(({ project }) => ({ name: project.name }), {
+  query.from({ project: ProjectsRowsRef }).groupBy(({ project }) => ({ name: project.name }), {
     // @ts-expect-error aggregate value callbacks must not return Effect-shaped values
     count: Query.count(() => effectNumberValue),
   }),
@@ -2551,14 +2168,9 @@ const frameworkGroupKeyAlias: Query.GroupKey<{
 };
 void frameworkGroupKeyAlias;
 
-const projectsHandle = bound(SolidDb.collection(ProjectsCollection));
-projectsHandle.rows().map((project) => project.name);
-projectsHandle.get("atlas")?.name.toUpperCase();
-projectsHandle.index("byName", "Atlas").map((project) => project.name.toUpperCase());
-
 const projectNamesHandle = bound(
-  SolidDb.liveQuery((query) =>
-    query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+  Component.liveQuery((query) =>
+    query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
   ),
 );
 projectNamesHandle.rows().map((name) => name.toUpperCase());
@@ -2913,13 +2525,12 @@ const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
 const FileRoutePreloadHelperRoute = Route.define("/file-preload-helper/:id", {
-  preloadResources: [ProjectById],
-  preloadCollections: [ProjectsCollection],
+  preloadResources: [ProjectById, ProjectRows],
   preload: ({ params }) =>
     Effect.all(
       [
         Resource.preload(ProjectById(params.id)),
-        ProjectsCollection.preload(),
+        Resource.preload(ProjectsRowsRef),
         RoutePreloadApi.use((api) => api.warm(params.id)),
       ],
       { discard: true },
@@ -2937,8 +2548,7 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
 const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-  preloadResources: [BrandedProjectById],
-  preloadCollections: [ProjectsCollection],
+  preloadResources: [BrandedProjectById, ProjectRows],
   preload: ({ params, search }) => {
     const id: ProjectId = params.id;
     const tab: "overview" | "activity" | undefined = search.tab;
@@ -2946,7 +2556,7 @@ const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:
     return Effect.all(
       [
         Resource.preload(BrandedProjectById(id)),
-        ProjectsCollection.preload(),
+        Resource.preload(ProjectsRowsRef),
         RoutePreloadApi.use((api) => api.warm(params.id)),
       ],
       { discard: true },
@@ -3149,7 +2759,7 @@ const RenameProjectEverywhere = Action.define<{ readonly id: string; readonly na
           const current: Project = project;
           return { ...current, name };
         });
-        yield* transaction.set(ProjectRowsResource(undefined), (projects) =>
+        yield* transaction.set(ProjectsRowsRef, (projects) =>
           projects.map((project) => (project.id === id ? { ...project, name } : project)),
         );
         // A plain value replaces the entry's value.
@@ -3499,7 +3109,6 @@ const devtoolsTimelineCommit: DevtoolsTimelineCommit = {
 Effect.runSync(devtoolsStore.recordTimelineEntry(projectProgramHistory[0]!));
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackTimeline(projectTimeline);
-declare const dbCollectionStoreEvent: CollectionStoreEvent;
 declare const startRuntimeRequestTrace: StartRequestTrace;
 const devtoolsRuntimeRequestTrace: DevtoolsRequestTrace = startRuntimeRequestTrace;
 const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
@@ -3513,10 +3122,6 @@ const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
     previous: false,
   },
 };
-const devtoolsCollectionRuntimeEvent: DevtoolsRuntimeEvent = {
-  _tag: "CollectionStoreEvent",
-  event: dbCollectionStoreEvent,
-};
 const devtoolsTimelineRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "TimelineCommit",
   commit: devtoolsTimelineCommit,
@@ -3527,7 +3132,6 @@ const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
 };
 const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
   devtoolsResourceRuntimeEvent,
-  devtoolsCollectionRuntimeEvent,
   devtoolsTimelineRuntimeEvent,
   devtoolsRequestRuntimeEvent,
 ];
@@ -3546,12 +3150,6 @@ const devtoolsLoadedStartAppGraphDiagnostics: DevtoolsStartAppGraphDiagnostics =
   loadedStartDiagnostics.diagnostics;
 const normalizedDevtoolsStartAppGraphDiagnostics: DevtoolsStartAppGraphDiagnostics =
   normalizeDevtoolsAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const normalizedRouteModulePreloadCollections: DevtoolsStartAppGraphRoutePreloadCollections =
-  normalizeRouteModulePreloadCollections(loadedStartDiagnostics.diagnostics.routeModules[0]!);
-const normalizedAppGraphCollectionDefinitions: readonly DevtoolsStartAppGraphCollectionDiagnostics[] =
-  normalizeAppGraphCollectionDefinitions(loadedStartDiagnostics.diagnostics);
-const normalizedUnknownRoutePreloadCollections: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] =
-  normalizeAppGraphUnknownRoutePreloadCollections(loadedStartDiagnostics.diagnostics);
 const devtoolsStartAppGraphSummary: DevtoolsSummary = describeDevtoolsSummary({
   appGraph: loadedStartDiagnostics.diagnostics,
 });
@@ -3561,8 +3159,6 @@ const devtoolsStartAppGraphPanels: DevtoolsPanels = describeDevtoolsPanels({
 Effect.runSync(devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics));
 const devtoolsSetStartAppGraphDiagnosticsEffect: Effect.Effect<void> =
   devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const devtoolsCollectionStoreEvent: DevtoolsCollectionStoreEvent = dbCollectionStoreEvent;
-Effect.runSync(devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent));
 const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   targets: [
     {
@@ -3627,9 +3223,6 @@ void devtoolsTrackTimelineEffect;
 void devtoolsStartAppGraphDiagnosticsFromStart;
 void devtoolsLoadedStartAppGraphDiagnostics;
 void normalizedDevtoolsStartAppGraphDiagnostics;
-void normalizedRouteModulePreloadCollections;
-void normalizedAppGraphCollectionDefinitions;
-void normalizedUnknownRoutePreloadCollections;
 void devtoolsStartAppGraphSummary;
 void devtoolsStartAppGraphPanels;
 void devtoolsSetStartAppGraphDiagnosticsEffect;

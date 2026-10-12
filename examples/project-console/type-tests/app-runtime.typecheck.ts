@@ -3,7 +3,7 @@ import { Layer } from "effect";
 import ProjectConsole from "../src/App.js";
 import { app } from "../src/app-definition.js";
 import { ProjectApiLive } from "../src/domain.js";
-import { projectConsoleActions } from "../src/project-collections.js";
+import { projectConsoleActions } from "../src/project-actions.js";
 import { ProjectDemoStoreLive } from "../src/domain.server.js";
 import { routes } from "../src/routeTree.gen.js";
 

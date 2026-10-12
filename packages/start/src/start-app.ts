@@ -7,7 +7,6 @@ import {
   type Resource,
   type Server,
 } from "@sunfall/arc-core";
-import type { Collection } from "@sunfall/arc-db";
 import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
 import { KeyValueStore } from "effect/persistence";
@@ -49,8 +48,6 @@ export interface AppDefinition<
   readonly root: Component<App.RootProps, never, RootServices>;
   /** Route definitions the server matches and preloads per request. */
   readonly routes: Routes;
-  /** Collections whose snapshots hydrate from the server and from Action responses. */
-  readonly collections: ReadonlyArray<Collection.Any>;
   /** Actions the server serves; the browser submits them over the action transport. */
   readonly actions: ReadonlyArray<Actions>;
   /** Browser services; `App.launch` builds the browser runtime from it. */
@@ -162,7 +159,7 @@ export namespace App {
    * `createRequestHandler(app, { server })` preloads `routes`, renders `root`
    * into the document, and serves `actions`; `App.launch(app)` builds the
    * browser runtime from `client` plus the action and RPC transports, restores
-   * the server's Resource and `collections` snapshot, and hydrates `root`.
+   * the server's Resource snapshot, and hydrates `root`.
    *
    * Keep it in a module both entries import: server-only code (`*.server.ts`
    * Layers and server-function implementations) goes to `createRequestHandler`.
@@ -172,7 +169,6 @@ export namespace App {
    * export const app = App.define({
    *   root: Root,
    *   routes,
-   *   collections: [Projects],
    *   actions: [RenameProject],
    *   client: ProjectApiLive,
    * });
@@ -188,14 +184,12 @@ export namespace App {
     config: {
       readonly root: Component<RootProps, never, RootServices>;
       readonly routes: Routes;
-      readonly collections?: ReadonlyArray<Collection.Any>;
       readonly actions?: ReadonlyArray<Actions>;
       readonly client?: Layer.Layer<ClientServices, ClientError>;
     } & ClientServicesCheck<RootServices, ClientServices>,
   ): AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError> => ({
     root: config.root,
     routes: config.routes,
-    collections: config.collections ?? [],
     actions: config.actions ?? [],
     client: (config.client ?? Layer.empty) as Layer.Layer<ClientServices, ClientError>,
   });
@@ -253,7 +247,6 @@ export namespace App {
                     makeActionTransportLayer({
                       ...transport,
                       actions: app.actions,
-                      collections: app.collections,
                     }),
                     browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
                   ),
@@ -264,10 +257,7 @@ export namespace App {
           (owned) => owned.dispose.pipe(Effect.ignore({ log: true })),
         );
         const hydration = yield* runtime.provide(
-          hydrateFromDocument(globalThis.document, {
-            ...options.hydration,
-            collections: app.collections,
-          }),
+          hydrateFromDocument(globalThis.document, options.hydration),
         );
         const href = options.href ?? `${location.pathname}${location.search}`;
         // A code-split route component must be loaded before hydrating, so the

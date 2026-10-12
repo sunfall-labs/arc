@@ -1,9 +1,5 @@
 import { makeDevtoolsCausalGraph } from "./causal-graph.js";
-import {
-  appGraphCollectionDefinitions,
-  appGraphUnknownRoutePreloadCollections,
-  graphSummary,
-} from "./summary-app-graph.js";
+import { graphSummary } from "./summary-app-graph.js";
 import { normalizeDevtoolsSummaryInput } from "./summary-facts.js";
 import type { DevtoolsSummary, DevtoolsSummaryInput } from "./devtools-contract.js";
 
@@ -44,9 +40,6 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
       actionCount: normalized.appGraph?.actionCount ?? 0,
       resourceFamilyCount: normalized.appGraph?.resourceFamilies.length ?? 0,
       resourceTagCount: normalized.appGraph?.resourceTags.length ?? 0,
-      collectionDefinitionCount: normalized.appGraph
-        ? appGraphCollectionDefinitions(normalized.appGraph).length
-        : 0,
       runtimeResourceCount: normalized.snapshot.resources.length,
       runtimeActionCount: normalized.snapshot.actions.length,
       invalidationPlanCount: normalized.invalidations.length,
@@ -56,9 +49,6 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
       missingSchemaCount: normalized.appGraph?.missingSchemas.length ?? 0,
       unknownRoutePreloadResourcesCount:
         normalized.appGraph?.unknownRoutePreloadResources.length ?? 0,
-      unknownRoutePreloadCollectionsCount: normalized.appGraph
-        ? appGraphUnknownRoutePreloadCollections(normalized.appGraph).length
-        : 0,
       notFoundRoutePlanCount: normalized.routePlans.filter((plan) => plan._tag === "NotFound")
         .length,
       causalNodeCount: causalGraph.nodes.length,

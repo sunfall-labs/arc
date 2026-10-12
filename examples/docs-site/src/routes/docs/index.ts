@@ -3,6 +3,5 @@ import { RecipeIndex } from "../../content.js";
 
 export const route = Route.define("/docs", {
   preloadResources: [RecipeIndex],
-  preloadCollections: [],
   preload: () => Resource.preload(RecipeIndex("all")),
 });

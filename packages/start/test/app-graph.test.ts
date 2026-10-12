@@ -13,13 +13,10 @@ import {
   StartAppGraphDiagnosticsPolicyException,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
-  StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
-  unknownRoutePreloadCollectionsForDiagnostics,
   unknownRoutePreloadResourcesForDiagnostics,
   validateStartAppGraphDiagnosticsPolicyException,
   validateStartAppGraphDiagnosticsPolicy,
-  validateStartAppGraphRoutePreloadCollectionsDiagnostics,
   validateStartAppGraphRoutePreloadResourcesDiagnostics,
   validateStartAppGraphWireSchemas,
 } from "../src/app-graph.js";
@@ -135,10 +132,6 @@ describe("Start app graph", () => {
                   status: "unknown",
                   families: [],
                 },
-                preloadCollections: {
-                  status: "unknown",
-                  collections: [],
-                },
               },
               {
                 routeId: "route_projects_$id",
@@ -159,10 +152,6 @@ describe("Start app graph", () => {
                 preloadResources: {
                   status: "unknown",
                   families: [],
-                },
-                preloadCollections: {
-                  status: "unknown",
-                  collections: [],
                 },
               },
             ],
@@ -225,7 +214,6 @@ describe("Start app graph", () => {
             ],
             resourceFamilies: [],
             resourceTags: [],
-            collectionDefinitions: [],
             serverOnlyModules: ["/src/project/project.server.ts"],
             browserClientModules: [
               "/src/project/project.actions.ts",
@@ -264,7 +252,6 @@ describe("Start app graph", () => {
               },
             ],
             unknownRoutePreloadResources: [],
-            unknownRoutePreloadCollections: [],
           });
         });
       }),
@@ -312,26 +299,6 @@ describe("Start app graph", () => {
                   {
                     name: "Project.Tag",
                     keyed: "yes",
-                  },
-                ],
-              },
-              diagnosticsPolicyViolations: [],
-            }),
-          ),
-          Effect.exit(
-            decodeStartAppGraphDiagnosticsDto({
-              diagnostics: {
-                ...diagnostics,
-                collectionDefinitions: [
-                  {
-                    name: "Projects",
-                    outputSchema: true,
-                    initialData: false,
-                    indexes: [],
-                    load: true,
-                    policy: {
-                      retry: false,
-                    },
                   },
                 ],
               },
@@ -427,10 +394,6 @@ describe("Start app graph", () => {
                 routeModules: [
                   {
                     ...diagnostics.routeModules[0]!,
-                    preloadCollections: {
-                      status: "maybe",
-                      collections: [],
-                    },
                   },
                 ],
               },
@@ -608,80 +571,6 @@ describe("Start app graph", () => {
     );
   });
 
-  it("can require declared preload collections for route-module diagnostics", () => {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const graph = yield* makeGraphEffect();
-        const diagnostics = describeStartAppGraph(graph);
-        const routeModules = diagnostics.routeModules.map((routeModule) =>
-          routeModule.routeId === "route_projects_$id"
-            ? {
-                ...routeModule,
-                preload: "present" as const,
-                preloadCollections: {
-                  status: "unknown" as const,
-                  collections: [],
-                },
-              }
-            : routeModule,
-        );
-        const withUnknownPreloadCollections = {
-          ...diagnostics,
-          routeModules,
-          unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-            routeModules,
-          }),
-        };
-        const withDeclaredPreloadCollections = {
-          ...withUnknownPreloadCollections,
-          routeModules: routeModules.map((routeModule) =>
-            routeModule.routeId === "route_projects_$id"
-              ? {
-                  ...routeModule,
-                  preloadCollections: {
-                    status: "declared" as const,
-                    collections: ["Projects.collection"],
-                  },
-                }
-              : routeModule,
-          ),
-        };
-        const declaredDiagnostics = {
-          ...withDeclaredPreloadCollections,
-          unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-            routeModules: withDeclaredPreloadCollections.routeModules,
-          }),
-        };
-
-        const exit = yield* Effect.exit(
-          validateStartAppGraphRoutePreloadCollectionsDiagnostics(withUnknownPreloadCollections),
-        );
-
-        yield* Effect.sync(() => {
-          expect(firstFailure(exit)).toBeInstanceOf(StartAppGraphUnknownRoutePreloadCollections);
-          expect(firstFailure(exit)).toMatchObject({
-            unknown: [
-              {
-                kind: "route",
-                routePath: "/projects/:id",
-                preload: "present",
-                preloadCollections: {
-                  status: "unknown",
-                },
-              },
-            ],
-          });
-        });
-
-        yield* validateStartAppGraphDiagnosticsPolicy(declaredDiagnostics, {
-          routePreloadCollections: {
-            requireDeclaredForPreload: true,
-          },
-        });
-      }),
-    );
-  });
-
   it("allows diagnostics preload policy to be disabled at each policy seam", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -696,10 +585,6 @@ describe("Start app graph", () => {
                   status: "unknown" as const,
                   families: [],
                 },
-                preloadCollections: {
-                  status: "unknown" as const,
-                  collections: [],
-                },
               }
             : routeModule,
         );
@@ -709,13 +594,9 @@ describe("Start app graph", () => {
           unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
             routeModules,
           }),
-          unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-            routeModules,
-          }),
         };
 
         expect(withUnknownPreloads.unknownRoutePreloadResources).toHaveLength(1);
-        expect(withUnknownPreloads.unknownRoutePreloadCollections).toHaveLength(1);
         expect(collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, false)).toEqual(
           [],
         );
@@ -725,15 +606,11 @@ describe("Start app graph", () => {
         expect(
           collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, {
             routePreloadResources: false,
-            routePreloadCollections: false,
           }),
         ).toEqual([]);
         expect(
           collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, {
             routePreloadResources: {
-              requireDeclaredForPreload: false,
-            },
-            routePreloadCollections: {
               requireDeclaredForPreload: false,
             },
           }),
@@ -764,22 +641,12 @@ describe("Start app graph", () => {
             preloadResources:
               entry.routePath === "/"
                 ? {
-                    status: "declared" as const,
-                    families: ["Project.byId"],
+                    status: "unknown" as const,
+                    families: [],
                   }
                 : {
                     status: "none" as const,
                     families: [],
-                  },
-            preloadCollections:
-              entry.routePath === "/"
-                ? {
-                    status: "unknown" as const,
-                    collections: [],
-                  }
-                : {
-                    status: "none" as const,
-                    collections: [],
                   },
           })),
         });
@@ -791,15 +658,11 @@ describe("Start app graph", () => {
             searchSchema: "absent",
             preload: "present",
             preloadResources: {
-              status: "declared",
-              families: ["Project.byId"],
-            },
-            preloadCollections: {
               status: "unknown",
+              families: [],
             },
           });
-          expect(diagnostics.unknownRoutePreloadResources).toEqual([]);
-          expect(diagnostics.unknownRoutePreloadCollections).toEqual([
+          expect(diagnostics.unknownRoutePreloadResources).toEqual([
             expect.objectContaining({
               routePath: "/",
               preload: "present",
@@ -807,17 +670,17 @@ describe("Start app graph", () => {
           ]);
           expect(() =>
             enforceStartAppGraphDiagnosticsPolicy(diagnostics, {
-              routePreloadCollections: {
+              routePreloadResources: {
                 requireDeclaredForPreload: true,
               },
             }),
           ).toThrowError(
-            "Sunfall Arc app graph diagnostics policy failed: Routes with preload must declare preloadCollections. / (src/routes/index.tsx)",
+            "Sunfall Arc app graph diagnostics policy failed: Routes with preload must declare preloadResources. / (src/routes/index.tsx)",
           );
 
           try {
             enforceStartAppGraphDiagnosticsPolicy(diagnostics, {
-              routePreloadCollections: {
+              routePreloadResources: {
                 requireDeclaredForPreload: true,
               },
             });
@@ -828,7 +691,7 @@ describe("Start app graph", () => {
               diagnostics,
               violations: [
                 expect.objectContaining({
-                  _tag: "UnknownRoutePreloadCollections",
+                  _tag: "UnknownRoutePreloadResources",
                 }),
               ],
             });
@@ -863,10 +726,6 @@ describe("Start app graph", () => {
               preloadResources: {
                 status: "declared" as const,
                 families: ["Project.byId"],
-              },
-              preloadCollections: {
-                status: "none" as const,
-                collections: [],
               },
             },
           ],
@@ -932,10 +791,6 @@ describe("Start app graph", () => {
                 status: "declared" as const,
                 families: ["Project.byId"],
               },
-              preloadCollections: {
-                status: "declared" as const,
-                collections: ["ProjectRows"],
-              },
             },
           ],
         });
@@ -967,10 +822,6 @@ describe("Start app graph", () => {
               expect.objectContaining({
                 kind: "PreloadsResourceFamily",
                 to: "resource-family:Project.byId",
-              }),
-              expect.objectContaining({
-                kind: "PreloadsCollection",
-                to: "collection:ProjectRows",
               }),
             ]),
           );
@@ -1012,10 +863,6 @@ describe("Start app graph", () => {
                 status: "declared" as const,
                 families: ["Project.byId"],
               },
-              preloadCollections: {
-                status: "declared" as const,
-                collections: ["ProjectRows"],
-              },
             },
           ],
           resourceFamilies: [
@@ -1027,32 +874,6 @@ describe("Start app graph", () => {
               providesTags: true,
               policy: {
                 retry: false,
-              },
-            },
-          ],
-          collectionDefinitions: [
-            {
-              name: "ProjectRows",
-              readOnly: false,
-              outputSchema: false,
-              initialData: false,
-              indexes: [
-                {
-                  name: "byProjectId",
-                  unique: false,
-                },
-              ],
-              load: false,
-              policy: {
-                retry: false,
-              },
-              persistence: {
-                enabled: false,
-                hydrate: false,
-                restoreOnPreload: false,
-                loadAfterRestore: false,
-                persistOnLoad: false,
-                persistOnWrite: false,
               },
             },
           ],
@@ -1074,7 +895,6 @@ describe("Start app graph", () => {
         const actionFacts = factRecord("Action", "Project.rename");
         const serverFunctionFacts = factRecord("ServerFunction", "Project.load");
         const resourceFacts = factRecord("ResourceFamily", "Project.byId");
-        const collectionFacts = factRecord("Collection", "ProjectRows");
         const findingFacts = factRecord("Finding", "wire-schema: serverFunction: Project.load");
 
         (routeFacts.params as Record<string, unknown>[])[0]!.name = "mutated";
@@ -1085,8 +905,6 @@ describe("Start app graph", () => {
         (actionFacts.behavior as Record<string, unknown>).retry = "unknown";
         (serverFunctionFacts.wire as Record<string, unknown>).missing = ["mutated"];
         (resourceFacts.policy as Record<string, unknown>).retry = true;
-        (collectionFacts.indexes as Record<string, unknown>[])[0]!.name = "mutated";
-        (collectionFacts.policy as Record<string, unknown>).retry = true;
         (findingFacts.details as string[])[0] = "mutated detail";
         findingFacts.issue = "mutated issue";
 
@@ -1133,16 +951,6 @@ describe("Start app graph", () => {
             },
           });
           expect(diagnostics.resourceFamilies[0]?.policy.retry).toBe(false);
-          expect(diagnostics.collectionDefinitions[0]).toMatchObject({
-            indexes: [
-              {
-                name: "byProjectId",
-              },
-            ],
-            policy: {
-              retry: false,
-            },
-          });
 
           expect(nextRoute?.facts).toMatchObject({
             params: [
@@ -1186,7 +994,6 @@ describe("Start app graph", () => {
         actions: 1,
         resourceFamilies: 0,
         resourceTags: 0,
-        collections: 0,
         findings: 0,
       },
       selfReview: {
@@ -1263,7 +1070,6 @@ describe("Start app graph", () => {
         actions: 0,
         resourceFamilies: 0,
         resourceTags: 0,
-        collections: 0,
         findings: 0,
       },
       selfReview: {
@@ -1323,10 +1129,6 @@ describe("Start app graph", () => {
                 status: "declared" as const,
                 families: ["Project.byId"],
               },
-              preloadCollections: {
-                status: "declared" as const,
-                collections: ["ProjectRows"],
-              },
             },
           ],
         });
@@ -1342,20 +1144,12 @@ describe("Start app graph", () => {
           expect(impact.matches).toBe(1);
           expect(impact.items[0]).toMatchObject({
             editTarget: "src/routes/projects/$id.tsx",
-            contracts: expect.arrayContaining([
-              "params: id",
-              "preloads: resources Project.byId; collections ProjectRows",
-            ]),
+            contracts: expect.arrayContaining(["params: id", "preloads: resources Project.byId"]),
             dependencies: expect.arrayContaining([
               expect.objectContaining({
                 kind: "resource",
                 label: "Project.byId",
                 reason: "preloaded resource",
-              }),
-              expect.objectContaining({
-                kind: "collection",
-                label: "ProjectRows",
-                reason: "preloaded collection",
               }),
             ]),
             verify: [
@@ -1365,7 +1159,7 @@ describe("Start app graph", () => {
           });
           expect(text).toContain("Impact: route /projects/:id");
           expect(text).toContain("Contracts");
-          expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
+          expect(text).toContain("- preloads: resources Project.byId");
           expect(text).toContain("Depends on");
           expect(text).toContain("- sunfall-arc-start diagnostics --root=examples/project-console");
           expect(text).not.toContain("route:route_projects_$id");
@@ -1400,10 +1194,6 @@ describe("Start app graph", () => {
                 status: "declared" as const,
                 families: ["Project.byId"],
               },
-              preloadCollections: {
-                status: "declared" as const,
-                collections: ["ProjectRows"],
-              },
             },
           ],
           resourceFamilies: [
@@ -1424,32 +1214,10 @@ describe("Start app graph", () => {
               keyed: true,
             },
           ],
-          collectionDefinitions: [
-            {
-              name: "ProjectRows",
-              readOnly: false,
-              outputSchema: false,
-              initialData: false,
-              indexes: [],
-              load: false,
-              policy: {
-                retry: false,
-              },
-              persistence: {
-                enabled: false,
-                hydrate: false,
-                restoreOnPreload: false,
-                loadAfterRestore: false,
-                persistOnLoad: false,
-                persistOnWrite: false,
-              },
-            },
-          ],
         });
         const agentGraph = createStartAgentGraph({ graph, diagnostics });
         const expectedNodeKind = {
           action: "Action",
-          collection: "Collection",
           endpoint: "Endpoint",
           finding: "Finding",
           module: "Module",
@@ -1461,7 +1229,6 @@ describe("Start app graph", () => {
         } satisfies Record<StartAgentGraphQueryKind, StartAgentGraphNodeKind | undefined>;
         const queryText = {
           action: "Project.rename",
-          collection: "ProjectRows",
           endpoint: "rpc",
           finding: "wire-schema",
           module: "project.server",

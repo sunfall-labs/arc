@@ -1,7 +1,6 @@
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsCausalEdgeId as causalEdgeId,
-  devtoolsCollectionNodeId as collectionNodeId,
   devtoolsEndpointNodeId as endpointNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
   devtoolsInvalidationTargetNodeId as targetNodeId,
@@ -20,10 +19,6 @@ import {
 import { stableFactFingerprint } from "./fact-identity.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
-import {
-  appGraphCollectionDefinitions,
-  routeModulePreloadCollections,
-} from "./summary-app-graph.js";
 import { projectDevtoolsRoutePlanFacts } from "./route-plan-facts.js";
 import {
   normalizeDevtoolsSummaryInput,
@@ -223,11 +218,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
   };
 
   if (appGraph) {
-    const collectionDefinitionsByName = new Map(
-      appGraphCollectionDefinitions(appGraph).map(
-        (collection) => [collection.name, collection] as const,
-      ),
-    );
     const resourceFamiliesByName = new Map(
       appGraph.resourceFamilies.map((family) => [family.name, family] as const),
     );
@@ -297,38 +287,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
           data: {
             routeId: routeModule.routeId,
             status: routeModule.preloadResources.status,
-          },
-        });
-      }
-      const preloadCollections = routeModulePreloadCollections(routeModule);
-      for (const collection of preloadCollections.collections) {
-        const collectionId = collectionNodeId(collection);
-        const definition = collectionDefinitionsByName.get(collection);
-        addNode(nodes, {
-          id: collectionId,
-          kind: "Collection",
-          label: collection,
-          data: toDevtoolsSerializableValue(
-            definition === undefined
-              ? {
-                  name: collection,
-                  source: "RoutePreloadCollections",
-                  status: preloadCollections.status,
-                }
-              : {
-                  ...definition,
-                  source: "AppGraph",
-                },
-          ),
-        });
-        connect({
-          kind: "Preloads",
-          source: routeId,
-          target: collectionId,
-          label: "declares collection preload",
-          data: {
-            routeId: routeModule.routeId,
-            status: preloadCollections.status,
           },
         });
       }
@@ -502,18 +460,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
         kind: "ResourceTag",
         label: tag.name,
         data: toDevtoolsSerializableValue(tag),
-      });
-    }
-
-    for (const collection of appGraphCollectionDefinitions(appGraph)) {
-      addNode(nodes, {
-        id: collectionNodeId(collection.name),
-        kind: "Collection",
-        label: collection.name,
-        data: toDevtoolsSerializableValue({
-          ...collection,
-          source: "AppGraph",
-        }),
       });
     }
 
@@ -695,28 +641,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
         label: "records",
         data: {
           targetKind: "Resource",
-        },
-      });
-    }
-
-    for (const collection of trace.collections) {
-      const collectionId = collectionNodeId(collection.name);
-      addNode(nodes, {
-        id: collectionId,
-        kind: "Collection",
-        label: collection.name,
-        data: toDevtoolsSerializableValue({
-          ...collection,
-          source: "RequestTrace",
-        }),
-      });
-      connect({
-        kind: "Records",
-        source: traceId,
-        target: collectionId,
-        label: "records",
-        data: {
-          targetKind: "Collection",
         },
       });
     }

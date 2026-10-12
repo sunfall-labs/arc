@@ -190,11 +190,6 @@ h3 {
   background: #edf6fb;
 }
 
-.projectRow.syncing {
-  border-color: #d7c58e;
-  background: #fffaf0;
-}
-
 .healthDot,
 .buildDot {
   display: inline-block;
@@ -264,15 +259,6 @@ h3 {
   display: grid;
   justify-items: end;
   gap: 5px;
-}
-
-.syncBadge {
-  border-radius: 999px;
-  background: #fff0c7;
-  color: #795100;
-  padding: 3px 7px;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .workbench {
@@ -583,11 +569,6 @@ h3 {
   border-radius: 8px;
   background: #fbfcfd;
   padding: 14px;
-}
-
-.taskRow.syncing {
-  border-color: #d7c58e;
-  background: #fffaf0;
 }
 
 .taskRow h4 {

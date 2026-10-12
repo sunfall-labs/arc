@@ -83,11 +83,10 @@ export const titleForNode = (node: StartAgentGraphNode): string => {
 
 export const formatRouteSummary = (node: StartAgentGraphNode): readonly string[] => {
   const preloadResources = factRecord(node, "preloadResources");
-  const preloadCollections = factRecord(node, "preloadCollections");
   return [
     `Params: ${inlineList(routeParamNames(node))}`,
     `Schemas: params ${factString(node, "paramsSchema") ?? "unknown"}, search ${factString(node, "searchSchema") ?? "unknown"}`,
-    `Preloads: resources ${inlineList(recordStringArray(preloadResources, "families"))}; collections ${inlineList(recordStringArray(preloadCollections, "collections"))}`,
+    `Preloads: resources ${inlineList(recordStringArray(preloadResources, "families"))}`,
   ];
 };
 

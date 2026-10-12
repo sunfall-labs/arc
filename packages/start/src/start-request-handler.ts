@@ -14,7 +14,6 @@ import {
   type ActionDefinitionRequirements,
 } from "@sunfall/arc-core/internal";
 import { Effect, Option, Scope } from "effect";
-import { type StartCollectionHydrationOptions } from "./hydration.js";
 import type { StartServerApp } from "./start-server-app.js";
 import {
   makeRequestRuntime,
@@ -67,7 +66,7 @@ import {
 
 export { createServerActionResponse, createServerRpcResponse } from "./start-request-endpoints.js";
 export { StartPreloadError, preloadRequest } from "./start-request-preload.js";
-export type { StartCollectionPreload, StartPreloadResult } from "./start-request-preload.js";
+export type { StartPreloadResult } from "./start-request-preload.js";
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
 
 /**
@@ -106,7 +105,7 @@ export interface StartRequestHandlerOptions<
   ServerError = never,
   Actions extends StartActionDefinition = StartActionDefinition,
   Registry extends AppDefinitionRegistry = AppDefinitionRegistry,
-> extends StartCollectionHydrationOptions {
+> {
   /** Transport endpoint paths used to route RPC/action requests. */
   readonly endpoints?: StartTransportEndpointOverrides;
   /** RPC endpoint path used by this request handler. */
@@ -218,16 +217,10 @@ export const createStartRequestHandler = <
           app,
           request,
           requestRuntime,
-          requestOptions,
           responseContext,
           "render",
         );
-        recordStartRequestTracePreload(
-          traceFacts,
-          requestRuntime,
-          preloaded.routePlan,
-          preloaded.collectionPreload,
-        );
+        recordStartRequestTracePreload(traceFacts, preloaded.routePlan);
         // Probed after preload, so a submission reported settled is one the
         // preloaded state already reflects.
         const actionMap = yield* Effect.try(() =>
@@ -251,7 +244,6 @@ export const createStartRequestHandler = <
         );
         const hydrationPlan = yield* createStartRenderHydrationPlan({
           resources: preloaded.resources,
-          collections: preloaded.collections,
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
           settledSubmissions,
         });
@@ -266,8 +258,6 @@ export const createStartRequestHandler = <
           request,
           match: preloaded.match,
           resources: preloaded.resources,
-          collections: preloaded.collections,
-          collectionPreload: preloaded.collectionPreload,
           hydration: preloaded.hydration,
           routePlan: preloaded.routePlan,
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
@@ -303,7 +293,6 @@ export const createStartRequestHandler = <
             routes: app.routes.map((routeDefinition) => routeDefinition.path),
             match: preloaded.match?.href,
             resources: preloaded.resources,
-            collections: preloaded.collections,
             hydration: preloaded.hydration,
           }),
           {

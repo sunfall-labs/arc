@@ -10,8 +10,8 @@ import {
   type BrowserRouterHostController,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
-import { eraseRuntime } from "@sunfall/arc-core/internal";
-import { Collection } from "@sunfall/arc-db";
+import { eraseRuntime, resourceRowsGet, resourceRowsIndex } from "@sunfall/arc-core/internal";
+import { Query } from "@sunfall/arc-db";
 import type { StartHydrationPayload } from "@sunfall/arc-start";
 import { createServerRpcResponse } from "../packages/start/src/start-request-endpoints.js";
 import {
@@ -115,33 +115,64 @@ interface ProjectCard {
   readonly progress: number;
 }
 
-const BenchProjects = Collection.define<Project>({
-  name: "Benchmark.Projects.collection",
-  getKey: (project) => project.id,
-  initialData: Array.from({ length: 1_000 }, (_, index): Project => {
-    const id = `project-${String(index).padStart(4, "0")}`;
-    return {
-      id,
-      name: `Project ${String(index).padStart(4, "0")}`,
-      status: index % 4 === 0 ? "blocked" : "active",
-      progress: index % 100,
-    };
-  }),
+const BenchProjectSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  status: Schema.Literals(["active", "blocked"]),
+  progress: Schema.Number,
 });
 
-const BenchProjectCards = Collection.liveQuery({
-  name: "Benchmark.ProjectCards.live-query",
-  getKey: (project: ProjectCard) => project.id,
-  query: (query) =>
-    query
-      .from({ project: BenchProjects })
-      .where(({ project }) => project.status === "active")
-      .select(({ project }) => ({
+const benchProjects: ReadonlyArray<Project> = Array.from({ length: 1_000 }, (_, index): Project => {
+  const id = `project-${String(index).padStart(4, "0")}`;
+  return {
+    id,
+    name: `Project ${String(index).padStart(4, "0")}`,
+    status: index % 4 === 0 ? "blocked" : "active",
+    progress: index % 100,
+  };
+});
+
+const BenchProjectRows = Resource.define({
+  name: "Benchmark.Projects.rows",
+  input: Schema.Literal("all"),
+  output: Schema.Array(BenchProjectSchema),
+  rows: { key: (project) => project.id, indexes: { status: (project) => project.status } },
+  load: () => Effect.succeed(benchProjects),
+});
+const BenchProjectRowsRef = BenchProjectRows("all");
+const benchRowsName = BenchProjectRows.family.options.name;
+const benchRowsOptions = BenchProjectRows.family.options.rows!;
+
+const BenchProjectCards = Query.live((query) =>
+  query
+    .from({ project: BenchProjectRowsRef })
+    .where(({ project }) => project.status === "active")
+    .select(
+      ({ project }): ProjectCard => ({
         id: project.id,
         name: project.name,
         progress: project.progress,
-      }))
-      .orderBy(({ project }) => project.name),
+      }),
+    )
+    .orderBy(({ project }) => project.name),
+);
+
+/** Patches one row, reads its index bucket and key while patched, then rolls back. */
+const ArchiveBenchProject = Action.define({
+  name: "Benchmark.Projects.archive",
+  optimistic: (id: string, transaction) =>
+    transaction.update(BenchProjectRowsRef, id, { status: "blocked" }),
+  run: (id: string) =>
+    Effect.gen(function* () {
+      const rows = yield* Effect.orDie(Resource.read(BenchProjectRowsRef));
+      const blocked = resourceRowsIndex(benchRowsName, benchRowsOptions, rows, "status", "blocked");
+      const row = resourceRowsGet(benchRowsName, benchRowsOptions, rows, id) as Project | undefined;
+      assertBench(
+        blocked.length === 251 && row?.status === "blocked",
+        "The optimistic row patch should be visible by key and index.",
+      );
+      return yield* Effect.fail("rolled back" as const);
+    }),
 });
 
 const RenameProject = Action.define<{ readonly id: string; readonly name: string }, ProjectCard>({
@@ -167,6 +198,8 @@ let routerRuntime: SunfallArcRuntime;
 let router: BrowserRouterHostController<typeof routerRoutes>;
 let routerHrefIndex = 0;
 let actionRuntime: SunfallArcRuntime;
+let rowsRuntime: SunfallArcRuntime;
+let rowsAction: ReturnType<typeof Action.use<string, never, "rolled back">>;
 let action: ReturnType<
   typeof Action.use<{ readonly id: string; readonly name: string }, ProjectCard>
 >;
@@ -251,6 +284,12 @@ beforeAll(async () => {
 
   actionRuntime = makeRuntime();
   action = Action.use(RenameProject, { runtime: actionRuntime });
+
+  rowsRuntime = makeRuntime();
+  const rows = await Effect.runPromise(rowsRuntime.provide(Resource.preload(BenchProjectRowsRef)));
+  // Build the status index once, as a mounted reader would.
+  resourceRowsIndex(benchRowsName, benchRowsOptions, rows, "status", "active");
+  rowsAction = Action.use(ArchiveBenchProject, { runtime: rowsRuntime });
 });
 
 afterAll(async () => {
@@ -261,6 +300,7 @@ afterAll(async () => {
     disposeRuntime(hydrationRuntime),
     disposeRuntime(routerRuntime),
     disposeRuntime(actionRuntime),
+    disposeRuntime(rowsRuntime),
   ]);
 });
 
@@ -364,16 +404,27 @@ describe("Sunfall Arc release baseline", () => {
   );
 
   bench(
-    "Collection live query materialization over 1k rows",
+    "Live query over 1k Resource rows",
     async () => {
       const runtime = makeRuntime();
       try {
         await Effect.runPromise(runtime.provide(BenchProjectCards.preload()));
-        const rows = runWithRuntime(runtime, () => BenchProjectCards.rows());
-        assertBench(rows.length === 750, "Collection live query should select active projects.");
+        const rows = runWithRuntime(runtime, () => BenchProjectCards.rows.get());
+        assertBench(rows.length === 750, "The live query should select the active projects.");
       } finally {
         await Effect.runPromise(runtime.dispose);
       }
+    },
+    asyncBenchOptions,
+  );
+
+  bench(
+    "Resource rows optimistic update over 1k rows",
+    async () => {
+      const failure = await Effect.runPromise(
+        rowsRuntime.provide(Effect.flip(rowsAction.submit("project-0001"))),
+      );
+      assertBench(failure === "rolled back", "The row patch submission should roll back.");
     },
     asyncBenchOptions,
   );
