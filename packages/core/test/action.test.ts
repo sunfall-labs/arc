@@ -1,8 +1,20 @@
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Schedule } from "effect";
+import {
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  Schedule,
+  Schema,
+} from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   Action,
+  ActionNotFound,
   ActionResult,
   ActionTransport,
   EffectInputCallbackError,
@@ -1454,7 +1466,8 @@ describe("Action", () => {
           let localRuns = 0;
           const Remote = Action.define({
             name: "ActionTransport.remote",
-            run: (name: string) => Effect.sync(() => (localRuns++, `local:${name}`)),
+            input: Schema.String,
+            output: Schema.String,
           });
           const Local = Action.define({
             name: "ActionTransport.local",
@@ -1462,7 +1475,7 @@ describe("Action", () => {
           });
           const transport = Layer.succeed(ActionTransport)({
             submit: (definition, input) =>
-              definition.name === Remote.name
+              definition.run === undefined
                 ? Option.some(
                     Effect.succeed({
                       exit: Exit.succeed(`remote:${String(input)}` as never),
@@ -1530,6 +1543,61 @@ describe("Action", () => {
           yield* runtime.dispose;
         }),
       ));
+
+    it("fails a served Action submitted without a transport with ActionNotFound", () =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const Served = Action.define({
+            name: "ActionTransport.served.no-transport",
+            input: Schema.String,
+            output: Schema.String,
+          });
+          const runtime = makeRuntime();
+          const served = Action.use(Served, { runtime });
+
+          const failure = yield* Effect.flip(served.submit("atlas"));
+          expect(failure).toBeInstanceOf(ActionNotFound);
+          expect(failure).toMatchObject({ actionName: Served.name });
+          yield* runtime.dispose;
+        }),
+      ));
+  });
+});
+
+describe("Action.implement", () => {
+  it("gives a served definition its server run, keeping its name, schemas, and invalidates", async () => {
+    const Rename = Action.define({
+      name: "Action.implement.rename",
+      input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+      output: Schema.String,
+      invalidates: () => [],
+    });
+    const rename = Action.implement(Rename, ({ name }) => Effect.succeed(name.toUpperCase()));
+
+    expect(Rename.run).toBeUndefined();
+    expect(rename).not.toBe(Rename);
+    expect(rename).toMatchObject({
+      name: Rename.name,
+      input: Rename.input,
+      output: Rename.output,
+      invalidates: Rename.invalidates,
+    });
+    await expect(
+      Effect.runPromise(
+        Action.use(rename, { runtime: defaultRuntime }).submit({ id: "a", name: "atlas" }),
+      ),
+    ).resolves.toBe("ATLAS");
+  });
+
+  it("throws for a definition that already has a run", () => {
+    const Local = Action.define({
+      name: "Action.implement.local",
+      run: (name: string) => Effect.succeed(name),
+    });
+
+    expect(() => Action.implement(Local as never, (name: string) => Effect.succeed(name))).toThrow(
+      /Action\.implement\(Action\.implement\.local\): the definition already has a run/,
+    );
   });
 });
 

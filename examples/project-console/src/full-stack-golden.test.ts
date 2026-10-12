@@ -1,4 +1,4 @@
-import { RequestContext, Resource, ResponseContext, Server, Route } from "@sunfall/arc-core";
+import { RequestContext, Resource, ResponseContext, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { App, createRequestHandler, StartAction } from "@sunfall/arc-start";
 import {
@@ -124,38 +124,7 @@ describe("project console full-stack golden path", () => {
     });
   });
 
-  it("runs request-runtime server functions during preload and applies ResponseContext with route-touched rows", async () => {
-    const BoundaryProject = Server.contract("ProjectConsoleGolden.boundary.project", {
-      input: Schema.Struct({ id: Schema.String }),
-      output: Schema.Struct({
-        id: Schema.String,
-        name: Schema.String,
-        requestPath: Schema.String,
-      }),
-    });
-    const boundaryProject = Server.client(BoundaryProject);
-    const boundaryProjectServer = Server.implement(BoundaryProject, ({ id }) =>
-      Effect.gen(function* () {
-        const request = yield* RequestContext;
-        const response = yield* ResponseContext;
-        const path = new URL(request.url).pathname;
-        yield* response.setStatus(207, "Multi-Status");
-        yield* response.setHeader("x-sunfall-arc-golden-runtime", path);
-        yield* response
-          .setCookie("golden-project", id, {
-            httpOnly: true,
-            path: "/",
-            sameSite: "lax",
-          })
-          .pipe(Effect.orDie);
-        return {
-          id,
-          name: `Boundary ${id}`,
-          requestPath: path,
-        };
-      }),
-    );
-
+  it("runs a served Resource's load on the request runtime during preload and applies ResponseContext with route-touched rows", async () => {
     const BoundaryResource = Resource.define({
       name: "ProjectConsoleGolden.boundary.resource",
       input: Schema.String,
@@ -164,8 +133,26 @@ describe("project console full-stack golden path", () => {
         name: Schema.String,
         requestPath: Schema.String,
       }),
-      load: (id) => boundaryProject.effect({ id }),
     });
+    const boundaryResource = Resource.implement(BoundaryResource, (id) =>
+      Effect.gen(function* () {
+        const request = yield* RequestContext;
+        const response = yield* ResponseContext;
+        const path = new URL(request.url).pathname;
+        yield* response.setStatus(207, "Multi-Status");
+        yield* response.setHeader("x-sunfall-arc-golden-runtime", path);
+        yield* response.setCookie("golden-project", id, {
+          httpOnly: true,
+          path: "/",
+          sameSite: "lax",
+        });
+        return {
+          id,
+          name: `Boundary ${id}`,
+          requestPath: path,
+        };
+      }).pipe(Effect.orDie),
+    );
     const BoundaryRows = Resource.define({
       name: "ProjectConsoleGolden.boundary.rows",
       input: Schema.Literal("all"),
@@ -184,7 +171,7 @@ describe("project console full-stack golden path", () => {
         Effect.asVoid(Resource.preload([BoundaryResource(params.id), BoundaryRows("all")])),
     });
     // The root renders no data: the route preload alone loads the Resource
-    // (through the server function) and the rows Resource.
+    // (through its server implementation) and the rows Resource.
     const BoundaryRoot = Component.define("BoundaryRoot", function* () {
       yield* Effect.void;
       return () => "boundary";
@@ -194,7 +181,7 @@ describe("project console full-stack golden path", () => {
       routes: [BoundaryRoute] as const,
     });
     const handler = createRequestHandler(boundaryApp, {
-      serverFunctions: [boundaryProjectServer],
+      implementations: [boundaryResource],
     });
 
     const response = await runRequest(handler(new Request("https://example.com/golden/atlas")));

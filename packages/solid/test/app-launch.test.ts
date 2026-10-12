@@ -82,7 +82,6 @@ describe("App.launch", () => {
             durable: { maxAge: "1 hour" },
             optimistic: ({ id }, transaction) =>
               transaction.set(ProjectById(id), (name) => `${name} (renamed)`),
-            run: ({ id }) => Effect.succeed(id),
           });
           const Root = Component.define("Root", function* (props: App.RootProps) {
             const Page = yield* Card;
@@ -138,7 +137,6 @@ describe("App.launch", () => {
           const app = App.define({
             root: Root,
             routes: [] as const,
-            actions: [Rename],
             client: Layer.mergeAll(
               storageLayer,
               // Still offline: the replay fails retryably, so the patch stays.

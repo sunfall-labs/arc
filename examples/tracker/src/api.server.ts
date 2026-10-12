@@ -1,30 +1,43 @@
-import { RequestContext, ResponseContext, Server } from "@sunfall/arc-core";
+import {
+  Action,
+  ActionResult,
+  RequestContext,
+  Resource,
+  ResponseContext,
+  Server,
+} from "@sunfall/arc-core";
 import { DateTime, Effect, Option } from "effect";
 import { SqlClient } from "effect/sql";
 import { SqlError } from "effect/sql/SqlError";
 import {
-  ActivityContract,
-  AddCommentContract,
-  BoardContract,
-  CommentsContract,
-  CreateIssueContract,
-  CurrentUserContract,
-  DeleteIssueContract,
-  IssueChangesContract,
-  IssueContract,
-  LabelsContract,
-  MoveIssueContract,
-  MyIssuesContract,
-  ProjectsContract,
-  RestoreIssueContract,
-  SearchIssuesContract,
-  SignInContract,
-  SignOutContract,
-  TeamContract,
-  UpdateIssueContract,
+  AddComment,
+  CreateIssue,
+  DeleteIssue,
+  MoveIssue,
+  RestoreIssue,
+  SignIn,
+  SignOut,
+  UpdateIssue,
+  createIssueInputOf,
+  type AddCommentInput,
   type CreateIssueInput,
+  type SignInInput,
   type UpdateIssueInput,
-} from "./contracts.js";
+} from "./actions.js";
+import {
+  ActivityLog,
+  Board,
+  Comments,
+  CurrentUser,
+  IssueById,
+  IssueChangesContract,
+  IssueSearch,
+  Labels,
+  MyIssues,
+  Projects,
+  Team,
+} from "./resources.js";
+import { issueHref, safeRedirect } from "./hrefs.js";
 import {
   InvalidIssue,
   IssueNotFound,
@@ -51,10 +64,10 @@ import {
 } from "./model.js";
 
 /*
- * Server-only: the session, the queries, and the server-function
- * implementations. Every read and write runs on the request runtime, so the
- * session cookie comes from `RequestContext` and sign-in sets it through
- * `ResponseContext`.
+ * Server-only: the session, the queries, and the implementations of the
+ * served Resources (reads) and Actions (writes). Every read and write
+ * runs on the request runtime, so the session cookie comes from
+ * `RequestContext` and sign-in sets it through `ResponseContext`.
  */
 
 export const sessionCookieName = "tracker_session";
@@ -439,13 +452,55 @@ const moveIssueRecord = (
     );
   });
 
-// --- Server functions ---------------------------------------------------------
+const addCommentRecord = (input: AddCommentInput, user: User) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const body = input.body.trim();
+    if (body.length === 0) {
+      return yield* new InvalidIssue({ field: "body", message: "Write something first." });
+    }
+    const issue = toIssueRow(yield* issueRecord(input.issueId));
+    // The id is the client's, so a replayed submission does not comment twice.
+    const existing = yield* sql<{
+      readonly id: string;
+    }>`SELECT id FROM comments WHERE id = ${input.id}`;
+    const createdAt = yield* now;
+    if (existing.length === 0) {
+      yield* sql`INSERT INTO comments ${sql.insert({
+        id: input.id,
+        issue_id: input.issueId,
+        author_id: user.id,
+        body,
+        created_at: createdAt,
+      })}`;
+      yield* recordActivity(input.issueId, user, "commented", "commented");
+      yield* sql`UPDATE issues SET updated_at = ${createdAt} WHERE id = ${input.issueId}`;
+      yield* recordChange(issue.projectKey, input.issueId, "upsert");
+    }
+    const [row] = yield* sql<{
+      readonly id: string;
+      readonly issue_id: string;
+      readonly author_id: string;
+      readonly body: string;
+      readonly created_at: string;
+    }>`SELECT * FROM comments WHERE id = ${input.id}`;
+    return {
+      id: row!.id as Comment["id"],
+      issueId: row!.issue_id as IssueId,
+      authorId: row!.author_id as UserId,
+      body: row!.body,
+      createdAt: row!.created_at,
+    } satisfies Comment;
+  });
 
-export const currentUserFn = Server.implement(CurrentUserContract, () =>
+// --- Reads: the served Resources' implementations -----------------------------
+
+export const currentUser = Resource.implement(CurrentUser, () =>
   sessionUser.pipe(Effect.map(Option.getOrNull), Effect.catchTag("SqlError", Effect.die)),
 );
 
-export const signInFn = Server.implement(SignInContract, (input) =>
+/** Signs in (creating the account for a new email) and sets the session cookie. */
+const signInUser = (input: SignInInput) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const name = input.name.trim();
@@ -488,25 +543,21 @@ export const signInFn = Server.implement(SignInContract, (input) =>
       }),
     ).pipe(Effect.orDie);
     return user;
-  }).pipe(Effect.catchTag("SqlError", Effect.die)),
-);
+  }).pipe(Effect.catchTag("SqlError", Effect.die));
 
-export const signOutFn = Server.implement(SignOutContract, () =>
-  Effect.gen(function* () {
-    const request = yield* RequestContext;
-    const token = request.cookies.get(sessionCookieName);
-    if (token !== undefined) {
-      const sql = yield* SqlClient.SqlClient;
-      yield* sql`DELETE FROM sessions WHERE token = ${token}`;
-    }
-    yield* ResponseContext.use((response) =>
-      response.deleteCookie(sessionCookieName, { path: "/" }),
-    ).pipe(Effect.orDie);
-    return null;
-  }).pipe(Effect.catchTag("SqlError", Effect.die)),
-);
+const signOutSession = Effect.gen(function* () {
+  const request = yield* RequestContext;
+  const token = request.cookies.get(sessionCookieName);
+  if (token !== undefined) {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`DELETE FROM sessions WHERE token = ${token}`;
+  }
+  yield* ResponseContext.use((response) =>
+    response.deleteCookie(sessionCookieName, { path: "/" }),
+  ).pipe(Effect.orDie);
+}).pipe(Effect.catchTag("SqlError", Effect.die));
 
-export const teamFn = Server.implement(TeamContract, () =>
+export const team = Resource.implement(Team, () =>
   authed(() =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -521,7 +572,7 @@ export const teamFn = Server.implement(TeamContract, () =>
   ),
 );
 
-export const projectsFn = Server.implement(ProjectsContract, () =>
+export const projects = Resource.implement(Projects, () =>
   authed(() =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -547,7 +598,7 @@ export const projectsFn = Server.implement(ProjectsContract, () =>
   ),
 );
 
-export const labelsFn = Server.implement(LabelsContract, (projectKey) =>
+export const labels = Resource.implement(Labels, (projectKey) =>
   authed(() =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -570,7 +621,7 @@ export const labelsFn = Server.implement(LabelsContract, (projectKey) =>
   ),
 );
 
-export const boardFn = Server.implement(BoardContract, (projectKey) =>
+export const board = Resource.implement(Board, (projectKey) =>
   authed(() =>
     Effect.gen(function* () {
       yield* requireProject(projectKey);
@@ -579,15 +630,15 @@ export const boardFn = Server.implement(BoardContract, (projectKey) =>
   ),
 );
 
-export const changesFn = Server.implement(IssueChangesContract, ({ projectKey, cursor }) =>
+export const issueChanges = Server.implement(IssueChangesContract, ({ projectKey, cursor }) =>
   authed(() => changesSince(projectKey, cursor)),
 );
 
-export const searchFn = Server.implement(SearchIssuesContract, (query) =>
+export const issueSearch = Resource.implement(IssueSearch, (query) =>
   authed((user) => searchIssueRows(query, user)),
 );
 
-export const myIssuesFn = Server.implement(MyIssuesContract, () =>
+export const myIssues = Resource.implement(MyIssues, () =>
   authed((user) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -601,11 +652,11 @@ export const myIssuesFn = Server.implement(MyIssuesContract, () =>
   ),
 );
 
-export const issueFn = Server.implement(IssueContract, (id) =>
+export const issueById = Resource.implement(IssueById, (id) =>
   authed(() => Effect.map(issueRecord(id), toIssue)),
 );
 
-export const commentsFn = Server.implement(CommentsContract, (issueId) =>
+export const comments = Resource.implement(Comments, (issueId) =>
   authed(() =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -630,7 +681,7 @@ export const commentsFn = Server.implement(CommentsContract, (issueId) =>
   ),
 );
 
-export const activityFn = Server.implement(ActivityContract, (issueId) =>
+export const activityLog = Resource.implement(ActivityLog, (issueId) =>
   authed(() =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -657,63 +708,45 @@ export const activityFn = Server.implement(ActivityContract, (issueId) =>
   ),
 );
 
-export const createIssueFn = Server.implement(CreateIssueContract, (input) =>
-  authed((user) => createIssueRecord(input, user)),
-);
+// --- Writes: the served Actions' implementations -------------------------------
 
-export const updateIssueFn = Server.implement(UpdateIssueContract, (input) =>
-  authed((user) => updateIssueRecord(input, user)),
-);
+/** A field-level validation failure becomes a form result instead of an error. */
+const asValidation = (error: InvalidIssue) =>
+  ActionResult.validation<Record<string, unknown>, string>({
+    fieldErrors: { [error.field]: [error.message] },
+  });
 
-export const moveIssueFn = Server.implement(MoveIssueContract, (input) =>
-  authed((user) => moveIssueRecord(input, user)),
-);
-
-export const addCommentFn = Server.implement(AddCommentContract, (input) =>
-  authed((user) =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const body = input.body.trim();
-      if (body.length === 0) {
-        return yield* new InvalidIssue({ field: "body", message: "Write something first." });
-      }
-      const issue = toIssueRow(yield* issueRecord(input.issueId));
-      // The id is the client's, so a replayed submission does not comment twice.
-      const existing = yield* sql<{
-        readonly id: string;
-      }>`SELECT id FROM comments WHERE id = ${input.id}`;
-      const createdAt = yield* now;
-      if (existing.length === 0) {
-        yield* sql`INSERT INTO comments ${sql.insert({
-          id: input.id,
-          issue_id: input.issueId,
-          author_id: user.id,
-          body,
-          created_at: createdAt,
-        })}`;
-        yield* recordActivity(input.issueId, user, "commented", "commented");
-        yield* sql`UPDATE issues SET updated_at = ${createdAt} WHERE id = ${input.issueId}`;
-        yield* recordChange(issue.projectKey, input.issueId, "upsert");
-      }
-      const [row] = yield* sql<{
-        readonly id: string;
-        readonly issue_id: string;
-        readonly author_id: string;
-        readonly body: string;
-        readonly created_at: string;
-      }>`SELECT * FROM comments WHERE id = ${input.id}`;
-      return {
-        id: row!.id as Comment["id"],
-        issueId: row!.issue_id as IssueId,
-        authorId: row!.author_id as UserId,
-        body: row!.body,
-        createdAt: row!.created_at,
-      } satisfies Comment;
-    }),
+export const signIn = Action.implement(SignIn, (input) =>
+  signInUser(input).pipe(
+    Effect.as(ActionResult.redirect(safeRedirect(input.redirectTo), { replace: true })),
+    Effect.catchTag("InvalidIssue", (error) => Effect.succeed(asValidation(error))),
   ),
 );
 
-export const deleteIssueFn = Server.implement(DeleteIssueContract, ({ id }) =>
+export const signOut = Action.implement(SignOut, () =>
+  signOutSession.pipe(Effect.as(ActionResult.redirect("/signin", { replace: true }))),
+);
+
+export const createIssue = Action.implement(CreateIssue, (form) =>
+  authed((user) => createIssueRecord(createIssueInputOf(form), user)).pipe(
+    Effect.map((issue) => ActionResult.redirect(issueHref(issue.id))),
+    Effect.catchTag("InvalidIssue", (error) => Effect.succeed(asValidation(error))),
+  ),
+);
+
+export const updateIssue = Action.implement(UpdateIssue, (input) =>
+  authed((user) => updateIssueRecord(input, user)),
+);
+
+export const moveIssue = Action.implement(MoveIssue, (input) =>
+  authed((user) => moveIssueRecord(input, user)),
+);
+
+export const addComment = Action.implement(AddComment, (input) =>
+  authed((user) => addCommentRecord(input, user)),
+);
+
+export const deleteIssue = Action.implement(DeleteIssue, ({ id }) =>
   authed((user) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -726,7 +759,7 @@ export const deleteIssueFn = Server.implement(DeleteIssueContract, ({ id }) =>
   ),
 );
 
-export const restoreIssueFn = Server.implement(RestoreIssueContract, ({ id }) =>
+export const restoreIssue = Action.implement(RestoreIssue, ({ id }) =>
   authed((user) =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -743,25 +776,25 @@ export const restoreIssueFn = Server.implement(RestoreIssueContract, ({ id }) =>
   ),
 );
 
-/** Every server function the Start handler serves. */
-export const serverFunctions = [
-  currentUserFn,
-  signInFn,
-  signOutFn,
-  teamFn,
-  projectsFn,
-  labelsFn,
-  boardFn,
-  changesFn,
-  searchFn,
-  myIssuesFn,
-  issueFn,
-  commentsFn,
-  activityFn,
-  createIssueFn,
-  updateIssueFn,
-  moveIssueFn,
-  addCommentFn,
-  deleteIssueFn,
-  restoreIssueFn,
+/** Everything the Start handler serves: the reads, the change feed's poll, and the writes. */
+export const implementations = [
+  currentUser,
+  team,
+  projects,
+  labels,
+  board,
+  issueChanges,
+  issueSearch,
+  myIssues,
+  issueById,
+  comments,
+  activityLog,
+  signIn,
+  signOut,
+  createIssue,
+  updateIssue,
+  moveIssue,
+  addComment,
+  deleteIssue,
+  restoreIssue,
 ] as const;

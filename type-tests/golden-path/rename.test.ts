@@ -2,7 +2,7 @@ import { Action, Resource } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
 import { ProjectById, ProjectId, ProjectsRef } from "./projects.js";
-import { ProjectApiMemory } from "./projects.memory.js";
+import { ProjectsServerMemory } from "./projects.memory.js";
 import { RenameProject } from "./rename.js";
 
 test("renaming patches the sidebar row and the project page at once", () => {
@@ -14,7 +14,7 @@ test("renaming patches the sidebar row and the project page at once", () => {
       // Plans the patch without applying it: nothing is written.
       const changes = yield* Action.planOptimistic(RenameProject, { id, name: "Atlas 2" });
       return { atlas, changes };
-    }).pipe(Effect.provide(ProjectApiMemory)),
+    }).pipe(Effect.provide(ProjectsServerMemory)),
   );
   expect(changes).toEqual([
     { _tag: "Update", target: ProjectsRef, key: id, update: { name: "Atlas 2" } },

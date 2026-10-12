@@ -1,7 +1,9 @@
+import { Server } from "@sunfall/arc-core";
 import { Effect, Layer } from "effect";
-import { ProjectApi, ProjectId, ProjectNotFound, type Project } from "./projects.js";
+import { ProjectId, ProjectNotFound, type Project } from "./projects.js";
+import { ProjectStore, projectById, projectList } from "./projects.server.js";
 
-// An in-memory implementation, enough to run everything in this guide.
+// An in-memory store, enough to run everything in this guide.
 const seed: ReadonlyArray<Project> = [
   { id: ProjectId.make("atlas"), name: "Atlas", status: "active" },
   { id: ProjectId.make("orion"), name: "Orion", status: "archived" },
@@ -12,7 +14,7 @@ const find = (id: ProjectId): Effect.Effect<Project, ProjectNotFound> => {
   return project === undefined ? Effect.fail(new ProjectNotFound({ id })) : Effect.succeed(project);
 };
 
-export const ProjectApiMemory = Layer.succeed(ProjectApi, {
+export const ProjectStoreMemory = Layer.succeed(ProjectStore, {
   list: () => Effect.sync(() => [...rows.values()]),
   get: find,
   rename: ({ id, name }) =>
@@ -21,3 +23,9 @@ export const ProjectApiMemory = Layer.succeed(ProjectApi, {
       Effect.tap((project) => Effect.sync(() => rows.set(id, project))),
     ),
 });
+
+// For tests: answers the served Resources' loads in-process, over the memory store.
+export const ProjectsServerMemory = Layer.merge(
+  Server.mockLayer(projectList, projectById),
+  ProjectStoreMemory,
+);

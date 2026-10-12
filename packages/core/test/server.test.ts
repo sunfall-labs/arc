@@ -1,6 +1,12 @@
-import { Effect, Exit, Schema } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { EffectInputCallbackError, Server, ServerFunctionNotFound } from "../src/index.js";
+import {
+  EffectInputCallbackError,
+  makeRuntime,
+  Resource,
+  Server,
+  ServerFunctionNotFound,
+} from "../src/index.js";
 import { makeCoreDefinitionRegistry } from "../src/internal.js";
 
 describe("Server contracts", () => {
@@ -219,6 +225,63 @@ describe("Server contracts", () => {
         Effect.tap((value) => Effect.sync(() => expect(value).toBe("snapshot:atlas"))),
         Effect.asVoid,
       ),
+    );
+  });
+});
+
+describe("Resource.implement", () => {
+  class ProjectMissing extends Schema.TaggedError<ProjectMissing>()("ProjectMissing", {
+    id: Schema.String,
+  }) {}
+
+  const ProjectName = Resource.define({
+    name: "Test.served.ProjectName",
+    input: Schema.String,
+    output: Schema.String,
+    error: ProjectMissing,
+  });
+
+  it("serves a served Resource's load: Server.mockLayer accepts the implementation", () => {
+    const projectName = Resource.implement(ProjectName, (id) =>
+      id === "atlas" ? Effect.succeed("Atlas") : Effect.fail(new ProjectMissing({ id })),
+    );
+    const runtime = makeRuntime(Server.mockLayer(projectName));
+
+    expect(projectName.name).toBe(ProjectName.family.options.name);
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        expect(yield* runtime.provide(Resource.preload(ProjectName("atlas")))).toBe("Atlas");
+        const failure = yield* Effect.flip(runtime.provide(Resource.preload(ProjectName("gone"))));
+        expect(failure).toBeInstanceOf(ProjectMissing);
+      }).pipe(Effect.ensuring(runtime.dispose.pipe(Effect.orDie))),
+    );
+  });
+
+  it("turns a missing implementation into a defect, not a typed failure", () => {
+    const runtime = makeRuntime(Server.mockLayer());
+    return Effect.runPromise(
+      Effect.exit(runtime.provide(Resource.preload(ProjectName("atlas")))).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+            expect(Exit.isFailure(exit) && exit.cause.reasons.some(Cause.isFailReason)).toBe(false);
+          }),
+        ),
+        Effect.ensuring(runtime.dispose.pipe(Effect.orDie)),
+      ),
+    );
+  });
+
+  it("throws for a family that has its own load", () => {
+    const Local = Resource.define({
+      name: "Test.served.local",
+      input: Schema.String,
+      output: Schema.String,
+      load: (id: string) => Effect.succeed(id),
+    });
+
+    expect(() => Resource.implement(Local, (id) => Effect.succeed(id))).toThrow(
+      /Resource\.implement\(Test\.served\.local\): the family has its own load/,
     );
   });
 });

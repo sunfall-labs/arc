@@ -1,8 +1,9 @@
 # Sunfall Arc Docs Site
 
 This example uses Sunfall Arc as a cookbook/docs app. Recipes are content data
-loaded through Start server functions, exposed through a `DocsContentApi`
-Effect service, read by typed Resources, and declared by file-route preload.
+read by served Resources (`Resource.define` without `load` in `src/content.ts`)
+whose loads run on the server (`Resource.implement` in
+`src/content.server.ts`), and declared by file-route preload.
 
 Run it locally:
 
@@ -46,9 +47,9 @@ choice in `localStorage`, applied by an inline script before first paint.
 
 The example proves:
 
-- browser-safe docs contracts and branded recipe slugs;
+- browser-safe recipe schemas and branded recipe slugs;
 - server-only Markdown loading and frontmatter validation;
-- `Resource.define(...)` based recipe index and recipe detail reads;
+- served Resources for the recipe index and recipe detail reads;
 - route-owned Resource preload for the cookbook index and recipe pages;
 - Start SSR, streamed hydration chunks, production prerender/static output, and
   a server-only leak scan.

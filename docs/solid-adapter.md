@@ -26,7 +26,7 @@ import { Effect } from "effect";
 import { Loading, Show } from "solid-js";
 
 const ProjectPage = Component.define("ProjectPage", function* (props: { readonly id: ProjectId }) {
-  const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
+  const project = yield* Component.resource(ProjectById); // E += load error, R += load services (none if served)
   const rename = yield* Component.action(RenameProject); // R += the action's services
   const refresh = yield* Component.callback("refresh", () =>
     Resource.invalidate(ProjectById(props.id)).pipe(Effect.ignore),
@@ -222,7 +222,7 @@ Unmounting interrupts in-flight submissions.
 
 Actions are the one way to change server data, including rows the screen must
 show before the server answers. `optimistic` patches States (`transaction.set(state, update)` on a
-`State.Ref`), Resource entries, and Resource rows through its transaction before `run`; success folds the
+`State.Ref`), Resource entries, and Resource rows through its transaction before the write runs; success folds the
 patches in (a patched value stays until the `invalidates` reload replaces it),
 and a failure or interruption rolls them back. A patched Resource entry reads
 through `Component.resource` like any other value: the reader returns the
@@ -240,17 +240,17 @@ const RenameProject = Action.define({
       transaction.update(ProjectsRef, input.id, { name: input.name }),
       transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
     ]),
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
 ```
 
-Whether a submission runs locally or on the server is the runtime's decision,
-not the UI's: Core's `ActionTransport` service is looked up on every submission.
-In a Start app, `App.launch(app)` provides it for the app's `actions` (the
-Actions the server serves); those submit over the network and their responses (hydrated Resources,
-Resource invalidations) apply to the submitting runtime. Every
-other Action runs its `run` locally. The handle, its result type, and its error
+`RenameProject` has no `run`: it is a served Action, and the server runs its
+`Action.implement`. Whether a submission runs locally or on the server is the
+runtime's decision, not the UI's: Core's `ActionTransport` service is looked
+up on every submission. In a Start app, `App.launch(app)` provides one that
+submits every served Action over the network, and their responses (hydrated
+Resources, Resource invalidations) apply to the submitting runtime. An Action
+with `run` runs it locally. The handle, its result type, and its error
 type (the Action's own errors plus `Action.ClientError`) are the same either
 way. The no-JS form path is unchanged: `StartAction.form(definition, ...)`
 renders the same Action as a progressive `<form method="post">`.
@@ -453,8 +453,9 @@ A Start app wires both sides from one definition; Start calls `embed` and
 ```tsx
 export const app = App.define({ root: Root, routes, client: AppLive });
 
-// server: renders `Root` with `Component.embed` under each request runtime
-export const handleRequest = createRequestHandler(app, { server: AppServerLive });
+// server: renders `Root` with `Component.embed` under each request runtime,
+// and serves the served Resources' loads and Actions
+export const handleRequest = createRequestHandler(app, { server: AppServerLive, implementations });
 
 // browser: restores the Resource snapshot, then hydrates the same tree
 Effect.runFork(App.launch(app));

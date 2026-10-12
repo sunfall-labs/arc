@@ -1,8 +1,8 @@
 # Project Console Example
 
 This example is the copyable golden path for Sunfall Arc. It exercises branded
-routes, file-route generation, Resources with keyed rows, Start server functions,
-Start actions, no-JS form fallback, SSR, hydration, service-Layer mocking,
+routes, file-route generation, served Resources with keyed rows, served
+Actions, no-JS form fallback, SSR, hydration, mocked Resource loads,
 indexed live queries over Resource rows, Actions that patch rows optimistically,
 and the production server-only leak scan.
 
@@ -38,11 +38,14 @@ pnpm verify
   write standalone `tsconfig.json` files, verify app manifests against their
   copyable source manifests, install outside the workspace, run each generated
   starter's own `verify` script, and clean generated install/build artifacts.
-- Keep `src/domain.contract.ts` browser-safe. Put server implementations and
-  seed data in `src/domain.server.ts`.
-- `src/app-definition.ts` is the one app definition. The Start Vite plugin
-  derives the app graph's server functions and Actions from
-  `createRequestHandler(app, { serverFunctions })` in `src/server.tsx`;
+- Keep `src/model.ts`, `src/domain.ts`, and `src/project-actions.ts`
+  browser-safe: they hold the schemas and the served Resources and Actions
+  (`Resource.define` / `Action.define` without `load` / `run`). Put their
+  server implementations (`Resource.implement` / `Action.implement`) and seed
+  data in `src/domain.server.ts`; the Start Vite plugin keeps `*.server.ts`
+  modules out of the browser build.
+- `src/app-definition.ts` is the one app definition. `src/server.tsx` serves
+  it with `createRequestHandler(app, { server, implementations })`;
   `src/start-options.ts` holds only file-route, diagnostics, and build-policy
   options.
 - Keep `src/routeTree.gen.ts` generated. Do not hand-edit it.

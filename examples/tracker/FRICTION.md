@@ -145,6 +145,35 @@ wrapping tagged errors had no message.
 - Fix: `StartDevServerError` and `StartRequestHandlerError` describe the
   operation and the wrapped failure.
 
+### 13. Every server write needed four definitions
+
+A write was a `Server.contract`, its `Server.client`, its `Server.implement`,
+and an `Action` whose `run` called the client; a read was a contract, a
+client, an implementation, and a Resource whose `load` called the client.
+
+- Fix: served definitions. `Action.define` without `run` and `Resource.define`
+  without `load` are declared once in shared code (their schemas are the wire
+  contract); `Action.implement` and `Resource.implement` in `src/api.server.ts`
+  are their bodies, given to `createRequestHandler(app, { implementations })`.
+  The browser's action transport submits exactly the served Actions, served
+  loads go over RPC (in-process during SSR), and `App.define` lost its
+  `actions` list (`packages/core/src/action.ts`, `packages/core/src/resource.ts`,
+  `packages/start/src/start-app-request-handler.ts`,
+  `packages/start/src/start-action-transport.ts`). `src/contracts.ts` is gone;
+  only the board's change-feed poll keeps a `Server.contract`.
+- Tests: `packages/start/test/start-app.test.ts`, `packages/start/test/rpc.test.ts`,
+  `packages/core/test/action.test.ts`, `type-tests/framework.test-d.ts`; app:
+  `src/domain.test.ts`.
+
+### 14. Declaring a Resource `error` schema meant wrapping every load
+
+A server-function call also fails with `Server.ClientError`, so every load
+went through `domainOnly` to turn transport failures into defects.
+
+- Fix: a served Resource's load treats every failure its `error` schema does
+  not declare (transport, wire schema, a missing implementation) as a defect
+  (`servedLoad` in `packages/core/src/resource.ts`). `domainOnly` is gone.
+
 ### 20. No production SSR server
 
 Start's Vite plugin served the handler in dev and prerendered static sites,
@@ -164,29 +193,6 @@ ran in dev only.
   and runs `scripts/production-smoke.mjs` against the production server.
 
 ## Open
-
-### 13. Every server write needs four definitions
-
-A write is a `Server.contract`, its `Server.client`, its `Server.implement`,
-and an `Action` whose `run` calls the client (`src/contracts.ts`,
-`src/api.server.ts`, `src/actions.ts`). Served Actions only ever run `run` on
-the server, but `run` must stay browser-safe, so it hops through a server
-function even in-process.
-
-- Proposal: `Action.implement(definition, run)` in a `*.server.ts` module, like
-  `Server.implement`, so a served Action's server body is registered directly
-  and the shared definition carries only schemas, `optimistic`, and
-  `invalidates`.
-
-### 14. Declaring a Resource `error` schema means wrapping every load
-
-A Resource's `error` must cover what `load` fails with, but a server-function
-call also fails with `Server.ClientError` (transport). Every load goes through
-`domainOnly` (`src/resources.ts`) to turn transport failures into defects.
-
-- Proposal: Resource loads treat `Server.ClientError` as outside the declared
-  check (transport failures render as untyped failures, never as typed ones),
-  or `Server.client(...).effect` offers a variant without transport errors.
 
 ### 15. No-JS validation errors are a JSON page
 

@@ -12,9 +12,8 @@ import { Window } from "happy-dom";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
-import { app } from "./app-definition.js";
 import { handleRequest } from "./server.js";
-import { serverFunctions } from "./domain.server.js";
+import { implementations } from "./domain.server.js";
 import { projectConsoleStartGraphSummary } from "./start-graph.js";
 import { projectConsoleStartOptions } from "./start-options.js";
 
@@ -95,7 +94,7 @@ describe("project console SSR", () => {
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
     expect(response.headers.get("x-sunfall-arc-start-graph")).toBe(
-      "routes=3; server-functions=6; actions=2",
+      "routes=3; resources=3; actions=3",
     );
     expect(response.headers.get("x-sunfall-arc-start-routes")).toBe("/,/projects,/projects/:id");
     expect(chunks[0]).toContain("<!doctype html>");
@@ -124,22 +123,18 @@ describe("project console SSR", () => {
   });
 
   it("exposes the generated Start route graph used by the Vite preset", () => {
-    expect(app.actions.map((action) => action.name)).toEqual([
-      "Project.name.submit",
+    expect(implementations.map((implementation) => implementation.name).sort()).toEqual([
       "Project.advance",
-    ]);
-    expect(serverFunctions.map((fn) => fn.name).sort()).toEqual([
-      "Project.advance",
-      "Project.get",
-      "Project.list",
+      "Project.byId",
       "Project.name.submit",
-      "Project.workItem.status",
+      "Project.workItem.move",
       "Project.workItems.list",
+      "Projects.list",
     ]);
     expect(projectConsoleStartGraphSummary).toEqual({
       routes: ["/", "/projects", "/projects/:id"],
-      serverFunctions: serverFunctions.map((fn) => fn.name),
-      actions: ["Project.name.submit", "Project.advance"],
+      resources: ["Projects.list", "Project.workItems.list", "Project.byId"],
+      actions: ["Project.name.submit", "Project.advance", "Project.workItem.move"],
     });
     expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
   });

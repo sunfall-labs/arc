@@ -9,21 +9,8 @@ import {
   decodeStartActionOutcome,
   parseStartActionResponse,
 } from "./start-action-response-codec.js";
-import {
-  encodeStartActionRequest,
-  type StartActionDefinition,
-} from "./start-action-request-codec.js";
+import { encodeStartActionRequest } from "./start-action-request-codec.js";
 import { serverActionPath } from "./rpc.js";
-
-/** Options for `makeActionTransportLayer`: the Actions the Start server serves. */
-export interface ActionTransportLayerOptions {
-  /**
-   * Actions the Start server serves (the same list given to the server app's
-   * registry). Submissions of these Actions go over the network; every other
-   * Action keeps running locally. Matched by name.
-   */
-  readonly actions: ReadonlyArray<StartActionDefinition>;
-}
 
 const submitRemoteEffect = <I, A, E, R>(
   client: HttpClient.HttpClient,
@@ -61,25 +48,22 @@ const submitRemoteEffect = <I, A, E, R>(
 /**
  * Layer that provides Start's `ActionTransport` over the runtime's
  * `HttpClient` (the same client the server-function `RpcClient` uses):
- * submissions of the Actions the server serves run on the server, and their
- * responses (hydrated Resources, Resource invalidations) apply to the
- * submitting runtime. UI code is unchanged: the same `Component.action(...)`
- * handle submits locally or remotely, with the same result and error types
- * (plus `Action.ClientError` for transport failures).
+ * submissions of served Actions (defined without `run`) run on the server,
+ * and their responses (hydrated Resources, Resource invalidations) apply to
+ * the submitting runtime. Actions with a `run` keep running where they are
+ * submitted. UI code is unchanged: the same `Component.action(...)` handle
+ * submits either, with the same result and error types (plus
+ * `Action.ClientError` for transport failures).
  */
-export const makeActionTransportLayer = (
-  options: ActionTransportLayerOptions,
-): Layer.Layer<ActionTransport, never, HttpClient.HttpClient> => {
-  const served = new Set(options.actions.map((action) => action.name));
-  return Layer.effect(ActionTransport)(
+export const actionTransportLayer: Layer.Layer<ActionTransport, never, HttpClient.HttpClient> =
+  Layer.effect(ActionTransport)(
     Effect.gen(function* () {
       const client = yield* HttpClient.HttpClient;
       return ActionTransport.of({
         submit: (definition, input, submission) =>
-          served.has(definition.name)
+          definition.run === undefined
             ? Option.some(submitRemoteEffect(client, definition, input, submission))
             : Option.none(),
       });
     }),
   );
-};

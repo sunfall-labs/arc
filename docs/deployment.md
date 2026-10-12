@@ -1,11 +1,13 @@
 # Deployment
 
 Sunfall Arc deployment centers on the Start request boundary:
-`createRequestHandler(app, { server })`, which returns an Effect-returning
-handler. `app` is the `App.define(...)` definition the browser entry also
-launches; `server` is the server Layer, which must provide every service the
-app's root needs, so a correctly typed handler has no requirements left for
-the host. Each host shape has exactly one import path:
+`createRequestHandler(app, { server, implementations })`, which returns an
+Effect-returning handler. `app` is the `App.define(...)` definition the
+browser entry also launches; `implementations` are the server bodies of its
+served Resources and Actions (and any server functions); `server` is the
+server Layer, which must provide every service the app's root and those
+implementations need, so a correctly typed handler has no requirements left
+for the host. Each host shape has exactly one import path:
 
 - `@sunfall/arc-start/fetch` for Fetch-style hosts (Workers, edge runtimes,
   Bun, Deno, tests);
@@ -55,9 +57,11 @@ Use `toFetchHandler` when the host integration can run Effects itself:
 import { createRequestHandler } from "@sunfall/arc-start";
 import { toFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
-import { AppServerLive } from "./app.server.js";
+import { AppServerLive, implementations } from "./app.server.js";
 
-const fetchHandler = toFetchHandler(createRequestHandler(app, { server: AppServerLive }));
+const fetchHandler = toFetchHandler(
+  createRequestHandler(app, { server: AppServerLive, implementations }),
+);
 ```
 
 Use `createFetchHandler` when the host itself expects
@@ -133,10 +137,10 @@ Vercel and Netlify Node functions use `@sunfall/arc-start/node` when the host
 provides Node `IncomingMessage`/`ServerResponse` values, and
 `@sunfall/arc-start/fetch` for their edge runtimes.
 
-Every host serves server functions and Actions through the same handler, at
-two fixed paths: `POST /__sunfall-arc/rpc` (an `effect/rpc` `RpcServer` with
-JSON serialization, answering one request per POST) and
-`POST /__sunfall-arc/action`. Route both to the Start handler; there is
+Every host serves the implementations through the same handler, at two fixed
+paths: `POST /__sunfall-arc/rpc` for Resource loads and server functions (an
+`effect/rpc` `RpcServer` with JSON serialization, answering one request per
+POST) and `POST /__sunfall-arc/action` for Actions. Route both to the Start handler; there is
 nothing else to mount. Responses from the RPC path are always `200` JSON
 arrays of `effect/rpc` messages (typed failures and defects travel inside
 them), so proxies should not rewrite or cache that path. The browser reaches

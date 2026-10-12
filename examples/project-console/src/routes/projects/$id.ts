@@ -7,7 +7,7 @@ import {
   WorkItemsRef,
   preloadProjectRouteEffect,
 } from "../../domain.js";
-import { ProjectNotFound, ProjectRouteParams, ProjectRouteSearch } from "../../domain.contract.js";
+import { ProjectNotFound, ProjectRouteParams, ProjectRouteSearch } from "../../model.js";
 
 export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
@@ -20,8 +20,8 @@ export const route = Route.define("/projects/:id", {
     Effect.all([preloadProjectRouteEffect(params), Resource.preload(WorkItemsRef)], {
       discard: true,
     }).pipe(
-      // Only a missing project is this route's typed failure; transport
-      // failures are defects for the nearest error boundary.
+      // Only a missing project is this route's typed failure; any other
+      // failure is a defect for the nearest error boundary.
       Effect.catchFilter(Filter.tagged("ProjectNotFound"), Effect.fail, Effect.die),
     ),
 });

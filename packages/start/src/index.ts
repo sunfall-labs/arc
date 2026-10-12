@@ -10,6 +10,8 @@ export {
   createRequestHandler,
   /** Options for `createRequestHandler`: the server half of a Start app. */
   type CreateRequestHandlerOptions,
+  /** One server implementation Start serves (a served Action, Resource, or server function). */
+  type StartImplementation,
 } from "./start-app-request-handler.js";
 
 export type {

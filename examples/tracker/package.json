@@ -53,6 +53,8 @@
       "DatabaseSync",
       "CREATE TABLE",
       "seedIssues",
+      "deleted_at",
+      "asValidation",
       "sessionCookieName",
       "Draft the onboarding checklist"
     ]

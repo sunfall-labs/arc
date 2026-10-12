@@ -4,7 +4,7 @@
   "category": "resources",
   "summary": "Model invalidation with domain tags so actions refresh Resources by meaning instead of by string cache keys.",
   "order": 4,
-  "related": ["start-action-form", "resource-from-server-function"],
+  "related": ["start-action-form", "served-resource"],
 }
 ---
 
@@ -30,7 +30,6 @@ export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,
-  load: (id) => ProjectApi.use((api) => api.get(id)),
   provides: (project) => [ProjectTag({ id: project.id })],
 });
 ```
@@ -44,7 +43,6 @@ export const RenameProject = Action.define({
   name: "Project.rename",
   input: RenameProjectInput,
   output: ProjectSchema,
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
 ```

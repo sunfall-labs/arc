@@ -1,4 +1,4 @@
-import { Resource, Route } from "@sunfall/arc-core";
+import { Action, makeRuntime, Resource, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Effect, Layer, Logger, Schema, Context } from "effect";
 import { describe, expect, it } from "vitest";
@@ -6,6 +6,9 @@ import { App, createRequestHandler } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
 import { StartDevServerError, handleSsrDevRequest } from "../src/start-vite-dev-ssr.js";
 import { StartRequestHandlerError } from "../src/start-request-handler-error.js";
+import { actionTransportLayer } from "../src/start-action-transport.js";
+import { rpcClientLayer } from "../src/start-rpc-client.js";
+import { handlerFetch, testHttpClientLayer } from "./test-http-client.js";
 
 interface Greeting {
   readonly text: string;
@@ -96,6 +99,47 @@ describe("createRequestHandler(app)", () => {
     expect(html).toContain('<div id="root">server /unknown</div>');
     expect(html).toContain('<script type="module" src="/src/main.tsx"></script>');
   });
+
+  it("serves the implementations: Actions on the action endpoint, Resource loads over RPC", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        // Shared, browser-safe definitions.
+        const Greet = Action.define({
+          name: "StartApp.greet",
+          input: Schema.String,
+          output: Schema.String,
+        });
+        const GreetingFor = Resource.define({
+          name: "StartApp.greetingFor",
+          input: Schema.String,
+          output: Schema.String,
+        });
+        // Server-only implementations, reading a service of the server Layer.
+        const greet = Action.implement(Greet, (name) =>
+          Greeting.useSync((greeting) => `${greeting.text} action ${name}`),
+        );
+        const greetingFor = Resource.implement(GreetingFor, (name) =>
+          Greeting.useSync((greeting) => `${greeting.text} resource ${name}`),
+        );
+        const handler = createRequestHandler(app, {
+          server: Layer.succeed(Greeting)({ text: "server" }),
+          implementations: [greet, greetingFor],
+        });
+        const browser = makeRuntime(
+          Layer.mergeAll(actionTransportLayer, rpcClientLayer).pipe(
+            Layer.provide(testHttpClientLayer(handlerFetch(handler))),
+          ),
+        );
+
+        expect(yield* Action.use(Greet, { runtime: browser }).submit("ada")).toBe(
+          "server action ada",
+        );
+        expect(yield* browser.provide(Resource.preload(GreetingFor("ada")))).toBe(
+          "server resource ada",
+        );
+        yield* browser.dispose;
+      }),
+    ));
 });
 
 describe("Vite dev SSR route preload warnings", () => {

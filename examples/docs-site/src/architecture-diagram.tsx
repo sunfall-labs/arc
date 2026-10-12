@@ -51,7 +51,7 @@ const wide: DiagramLayout = {
   nodeHeight: 54,
   nodes: [
     { x: 40, y: 20, w: 150, title: "Layer", detail: "one per host", kind: "effect" },
-    { x: 270, y: 20, w: 180, title: "Effect service", detail: "ProjectApi", kind: "effect" },
+    { x: 270, y: 20, w: 180, title: "Effect service", detail: "ProjectStore", kind: "effect" },
     { x: 60, y: 152, w: 230, title: "Resource", detail: "named, cached, typed reads", kind: "core" },
     { x: 430, y: 152, w: 230, title: "Action", detail: "named mutations", kind: "core" },
     { x: 40, y: 292, w: 130, title: "Route", detail: "URL + preload", kind: "core" },
@@ -94,7 +94,7 @@ const narrow: DiagramLayout = {
   stackedBands: true,
   nodes: [
     { x: 10, y: 10, w: 124, title: "Layer", detail: "one per host", kind: "effect" },
-    { x: 196, y: 10, w: 134, title: "Effect service", detail: "ProjectApi", kind: "effect" },
+    { x: 196, y: 10, w: 134, title: "Effect service", detail: "ProjectStore", kind: "effect" },
     { x: 10, y: 130, w: 120, title: "Resource", detail: "typed reads", kind: "core" },
     { x: 210, y: 130, w: 120, title: "Action", detail: "mutations", kind: "core" },
     { x: 10, y: 262, w: 120, title: "Route", detail: "URL + preload", kind: "core" },
@@ -149,10 +149,11 @@ function DiagramSvg(props: {
       aria-labelledby={`${props.id}-title`}
     >
       <title id={`${props.id}-title`}>
-        How the pieces fit: a Layer provides an Effect service; Resources load through it and
-        Actions run through it; Actions invalidate and optimistically patch Resources; Routes
-        preload Resources; Components read Resources, submit Actions, and drive the router;
-        App.define wires the root for server and browser; Timeline.record observes every commit.
+        How the pieces fit: a server Layer provides an Effect service; Resources load through it and
+        Actions run through it on the server (Resource.implement and Action.implement in server-only
+        modules); Actions invalidate and optimistically patch Resources; Routes preload Resources;
+        Components read Resources, submit Actions, and drive the router; App.define wires the root
+        for server and browser; Timeline.record observes every commit.
       </title>
       <defs>
         <marker

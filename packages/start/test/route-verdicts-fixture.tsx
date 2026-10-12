@@ -1,4 +1,4 @@
-import { Resource, Route, Server } from "@sunfall/arc-core";
+import { Resource, Route } from "@sunfall/arc-core";
 import { Component, RouterOutlet, RouterProvider } from "@sunfall/arc-solid";
 import { Effect, Schema } from "effect";
 import { App } from "../src/index.js";
@@ -15,19 +15,14 @@ export class ItemMissing extends Schema.TaggedError<ItemMissing>()("ItemMissing"
 
 const items = new Map([["atlas", "Atlas"]]);
 
-export const Viewer = Server.contract("RouteVerdicts.viewer", {
-  input: Schema.Literal("me"),
-  output: Schema.String,
-});
-export const viewerServer = Server.implement(Viewer, () => Effect.succeed("Ada"));
-
-/** Read by the shell on every page, preloaded by no route. */
+/** A served Resource read by the shell on every page, preloaded by no route. */
 export const ViewerName = Resource.define({
   name: "RouteVerdicts.viewer",
   input: Schema.Literal("me"),
   output: Schema.String,
-  load: () => Server.client(Viewer).effect("me").pipe(Effect.orDie),
 });
+/** The server's load for `ViewerName` (a `*.server.ts` module in an app). */
+export const viewerServer = Resource.implement(ViewerName, () => Effect.succeed("Ada"));
 
 export const ItemName = Resource.define({
   name: "RouteVerdicts.item",

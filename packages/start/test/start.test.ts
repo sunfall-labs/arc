@@ -2,6 +2,7 @@ import {
   Cause,
   Context,
   Data,
+  DateTime,
   Deferred,
   Effect,
   Exit,
@@ -75,7 +76,7 @@ import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
 import { createHtmlResponse } from "../src/streaming.js";
 import { rpcClientLayer } from "../src/start-rpc-client.js";
-import { makeActionTransportLayer } from "../src/start-action-transport.js";
+import { actionTransportLayer } from "../src/start-action-transport.js";
 import {
   createServerActionResponse,
   createServerRpcResponse,
@@ -272,11 +273,7 @@ const submitViaActionTransport = <I, A, E, R>(
   return instance
     .submit(input)
     .pipe(
-      Effect.provide(
-        makeActionTransportLayer({ actions: [definition] }).pipe(
-          Layer.provide(testHttpClientLayer(options.fetch)),
-        ),
-      ),
+      Effect.provide(actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(options.fetch)))),
     );
 };
 
@@ -2808,25 +2805,23 @@ describe("Sunfall Arc Start", () => {
       output: ProjectSchema,
       load: () => Effect.succeed(project),
     });
-    const RenameProject = Action.define<
-      { readonly id: string; readonly name: string },
-      typeof ProjectSchema.Type
-    >({
+    const RenameProject = Action.define({
       name: "Start.action.project.rename.hydration",
       input: Schema.Struct({ id: Schema.String, name: Schema.String }),
       output: ProjectSchema,
-      run: ({ id, name }) =>
-        Effect.sync(() => {
-          project = { id, name };
-          return project;
-        }),
       invalidates: (_project, input) => [Project(input.id)],
     });
+    const renameProject = Action.implement(RenameProject, ({ id, name }) =>
+      Effect.sync(() => {
+        project = { id, name };
+        return project;
+      }),
+    );
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      actions: [RenameProject],
+      actions: [renameProject],
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
@@ -2871,9 +2866,7 @@ describe("Sunfall Arc Start", () => {
             .submit({ id: "atlas", name: "Renamed Through Transport" })
             .pipe(
               Effect.provide(
-                makeActionTransportLayer({ actions: [RenameProject] }).pipe(
-                  Layer.provide(testHttpClientLayer(fetcher)),
-                ),
+                actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
               ),
             ),
         ),
@@ -2927,11 +2920,10 @@ describe("Sunfall Arc Start", () => {
       output: ProjectSchema,
       load: () => Effect.succeed(invalidatedProject),
     });
-    const TouchProject = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
+    const TouchProject = Action.define({
       name: "Start.action.project.identity-refresh",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ ok: Schema.Boolean }),
-      run: () => Effect.succeed({ ok: true }),
     });
     const clientRuntime = makeRuntime();
     const hydratedRef = HydratedProject.ref("atlas");
@@ -3038,25 +3030,23 @@ describe("Sunfall Arc Start", () => {
       output: ProjectSchema,
       load: () => Effect.succeed(project),
     });
-    const RenameProject = Action.define<
-      { readonly id: string; readonly name: string },
-      typeof ProjectSchema.Type
-    >({
+    const RenameProject = Action.define({
       name: "Start.action.client.caller-runtime.rename",
       input: Schema.Struct({ id: Schema.String, name: Schema.String }),
       output: ProjectSchema,
-      run: ({ id, name }) =>
-        Effect.sync(() => {
-          project = { id, name };
-          return project;
-        }),
       invalidates: (_project, input) => [Project(input.id)],
     });
+    const renameProject = Action.implement(RenameProject, ({ id, name }) =>
+      Effect.sync(() => {
+        project = { id, name };
+        return project;
+      }),
+    );
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      actions: [RenameProject],
+      actions: [renameProject],
     });
     const runtime = makeRuntime();
     const ref = Project("atlas");
@@ -3101,7 +3091,7 @@ describe("Sunfall Arc Start", () => {
     const optimisticSites: Array<string> = [];
     let site = "client";
     let runs = 0;
-    const Rename = Action.define<string, string>({
+    const Rename = Action.define({
       name: "Start.action.optimistic-site",
       input: Schema.String,
       output: Schema.String,
@@ -3109,15 +3099,16 @@ describe("Sunfall Arc Start", () => {
         Effect.sync(() => {
           optimisticSites.push(site);
         }),
-      run: (name) =>
-        Effect.sync(() => {
-          runs++;
-          return name;
-        }),
     });
+    const rename = Action.implement(Rename, (name) =>
+      Effect.sync(() => {
+        runs++;
+        return name;
+      }),
+    );
     const handler = createStartRequestHandler(
       makeStartServerApp({ routes: [Route.define("/", {})] as const }),
-      { actions: [Rename] },
+      { actions: [rename] },
     );
     const fetcher: TestFetch = (input, init) => {
       const url =
@@ -3158,14 +3149,10 @@ describe("Sunfall Arc Start", () => {
       id: Schema.String,
       name: Schema.String,
     });
-    const RenameProject = Action.define<
-      { readonly id: string; readonly name: string },
-      typeof ProjectSchema.Type
-    >({
+    const RenameProject = Action.define({
       name: "Start.action.client.decode",
       input: Schema.Struct({ id: Schema.String, name: Schema.String }),
       output: ProjectSchema,
-      run: ({ id, name }) => Effect.succeed({ id, name }),
     });
     const badFetch: TestFetch = () =>
       Effect.succeed(
@@ -3193,11 +3180,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("rejects successful Start action bodies carried by failing HTTP statuses", async () => {
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.success-bad-status",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const fetcher: TestFetch = () =>
       Effect.succeed(
@@ -3255,11 +3241,10 @@ describe("Sunfall Arc Start", () => {
         error: Schema.String,
       },
     });
-    const Ping = Action.define<{ readonly value: string }, PingResult>({
+    const Ping = Action.define({
       name: "Start.action.client.validation-status",
       input: Schema.Struct({ value: Schema.String }),
       output: PingResult,
-      run: ({ value }) => Effect.succeed(ActionResult.success({ value })),
     });
     const validationBody = {
       _tag: "ValidationFailure" as const,
@@ -3304,11 +3289,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("rejects malformed Start action response metadata as transport errors", async () => {
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.malformed-meta",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const malformedInvalidation: TestFetch = () =>
       Effect.succeed(
@@ -3409,11 +3393,10 @@ describe("Sunfall Arc Start", () => {
       load: (id: string) => Effect.succeed({ id }),
     });
     const validRef = Project("valid");
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.semantic-meta",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const responseWithInvalidation =
       (invalidation: unknown): TestFetch =>
@@ -3583,11 +3566,10 @@ describe("Sunfall Arc Start", () => {
       load: (_input: null) => load(),
     });
     const ref = Count(null);
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.runtime-local-ref",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const definitions = resourceDefinitionRegistry() as Map<string, unknown>;
     const globalDefinition = definitions.get("Start.action.client.runtime-local-ref");
@@ -3638,11 +3620,10 @@ describe("Sunfall Arc Start", () => {
       name: "Start.action.client.response-runtime",
       load: (_id: string) => Effect.succeed({ id: "atlas", name: "Initial" }),
     });
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.response-runtime",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const appRuntime = makeRuntime();
     const otherRuntime = makeRuntime();
@@ -3716,11 +3697,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("reports malformed Start action hydration payloads as transport errors", async () => {
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.bad-hydration-meta",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const fetcher: TestFetch = () =>
       Effect.succeed(
@@ -3749,11 +3729,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("normalizes Start action HTTP client failures as network transport errors", async () => {
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.transport-setup-throw",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
     });
 
     const exit = await Effect.runPromiseExit(
@@ -3795,25 +3774,23 @@ describe("Sunfall Arc Start", () => {
       load: () => Effect.succeed(project),
       provides: (value) => [ProjectTag({ id: value.id })],
     });
-    const RenameProject = Action.define<
-      { readonly id: string; readonly name: string },
-      typeof ProjectSchema.Type
-    >({
+    const RenameProject = Action.define({
       name: "Start.action.project.rename.tagged",
       input: Schema.Struct({ id: Schema.String, name: Schema.String }),
       output: ProjectSchema,
-      run: ({ id, name }) =>
-        Effect.sync(() => {
-          project = { id, name };
-          return project;
-        }),
       invalidates: (_project, input) => [ProjectTag({ id: input.id })],
     });
+    const renameProject = Action.implement(RenameProject, ({ id, name }) =>
+      Effect.sync(() => {
+        project = { id, name };
+        return project;
+      }),
+    );
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      actions: [RenameProject],
+      actions: [renameProject],
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
@@ -3866,25 +3843,23 @@ describe("Sunfall Arc Start", () => {
       output: ProjectSchema,
       load: () => Effect.succeed(project),
     });
-    const RenameProject = Action.define<
-      { readonly id: string; readonly name: string },
-      typeof ProjectSchema.Type
-    >({
+    const RenameProject = Action.define({
       name: "Start.action.project.rename.ref",
       input: Schema.Struct({ id: Schema.String, name: Schema.String }),
       output: ProjectSchema,
-      run: ({ id, name }) =>
-        Effect.sync(() => {
-          project = { id, name };
-          return project;
-        }),
       invalidates: (_project, input) => [Project(input.id)],
     });
+    const renameProject = Action.implement(RenameProject, ({ id, name }) =>
+      Effect.sync(() => {
+        project = { id, name };
+        return project;
+      }),
+    );
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      actions: [RenameProject],
+      actions: [renameProject],
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
@@ -3940,17 +3915,19 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("submits served Actions through a runtime-provided ActionTransport", async () => {
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.ping",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
+    const ping = Action.implement(Ping, ({ value }) =>
+      Effect.succeed({ value: value.toUpperCase() }),
+    );
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app, {
-      actions: [Ping],
+      actions: [ping],
     });
     const fetcher: TestFetch = (input, init) => {
       const url =
@@ -3958,9 +3935,7 @@ describe("Sunfall Arc Start", () => {
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
     const runtime = makeRuntime(
-      makeActionTransportLayer({ actions: [Ping] }).pipe(
-        Layer.provide(testHttpClientLayer(fetcher)),
-      ),
+      actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
     );
     const action = Action.use(Ping, { runtime });
 
@@ -3985,17 +3960,73 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
+  it("round-trips a served Action's typed output and typed error, running Action.implement on the server", async () => {
+    class NameTaken extends Schema.TaggedError<NameTaken>()("NameTaken", {
+      name: Schema.String,
+    }) {}
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      createdAt: Schema.DateTimeUtcFromString,
+    });
+    // Shared, browser-safe: schemas only.
+    const CreateProject = Action.define({
+      name: "Start.action.served.create",
+      input: Schema.Struct({ name: Schema.String }),
+      output: ProjectSchema,
+      error: NameTaken,
+    });
+    // Server-only.
+    const serverRuns: Array<string> = [];
+    const createProject = Action.implement(CreateProject, ({ name }) =>
+      Effect.suspend(() => {
+        serverRuns.push(name);
+        return name === "taken"
+          ? Effect.fail(new NameTaken({ name }))
+          : Effect.succeed({
+              id: name.toLowerCase(),
+              createdAt: DateTime.makeUnsafe("2026-10-12T09:30:00.000Z"),
+            });
+      }),
+    );
+    expect(CreateProject.run).toBeUndefined();
+    expect(createProject.name).toBe(CreateProject.name);
+    const handler = createStartRequestHandler(
+      makeStartServerApp({ routes: [Route.define("/", {})] as const }),
+      { actions: [createProject] },
+    );
+    const fetcher: TestFetch = (input, init) => {
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
+    };
+
+    const created = await Effect.runPromise(
+      submitViaActionTransport(CreateProject, { name: "Atlas" }, { fetch: fetcher }),
+    );
+    expect(created.id).toBe("atlas");
+    // The output schema decoded the wire value back into a DateTime.
+    expect(DateTime.isDateTime(created.createdAt)).toBe(true);
+    expect(DateTime.toEpochMillis(created.createdAt)).toBe(Date.parse("2026-10-12T09:30:00.000Z"));
+
+    const exit = await Effect.runPromiseExit(
+      submitViaActionTransport(CreateProject, { name: "taken" }, { fetch: fetcher }),
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+    expect(failure).toBeInstanceOf(NameTaken);
+    expect(failure).toMatchObject({ name: "taken" });
+    expect(serverRuns).toEqual(["Atlas", "taken"]);
+  });
+
   it("applies action concurrency to transported submissions", async () => {
     const release = Effect.runSync(Deferred.make<void>());
     let requests = 0;
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+    const Ping = Action.define({
       name: "Start.action.client.native-exhaust",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
       policy: {
         concurrency: "exhaust",
       },
-      run: ({ value }) => Effect.succeed({ value }),
     });
     const fetcher: TestFetch = () =>
       Effect.gen(function* () {
@@ -4014,9 +4045,7 @@ describe("Sunfall Arc Start", () => {
         );
       });
     const runtime = makeRuntime(
-      makeActionTransportLayer({ actions: [Ping] }).pipe(
-        Layer.provide(testHttpClientLayer(fetcher)),
-      ),
+      actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
     );
     const action = Action.use(Ping, { runtime });
 
@@ -4066,14 +4095,13 @@ describe("Sunfall Arc Start", () => {
       output: ProjectSchema,
       load: () => Effect.succeed(invalidatedProject),
     });
-    const RenameProject = Action.define<{ readonly name: string }, typeof ResultSchema.Type>({
+    const RenameProject = Action.define({
       name: "Start.action.client.stale-hydration",
       input: Schema.Struct({ name: Schema.String }),
       output: ResultSchema,
       policy: {
         concurrency: "parallel",
       },
-      run: ({ name }) => Effect.succeed({ name }),
     });
     const ref = Project("atlas");
     const invalidatedRef = InvalidatedProject("atlas");
@@ -4152,9 +4180,7 @@ describe("Sunfall Arc Start", () => {
         return responseFor("Second", 2);
       });
     const runtime = makeRuntime(
-      makeActionTransportLayer({ actions: [RenameProject] }).pipe(
-        Layer.provide(testHttpClientLayer(fetcher)),
-      ),
+      actionTransportLayer.pipe(Layer.provide(testHttpClientLayer(fetcher))),
     );
     const action = Action.use(RenameProject, { runtime });
 

@@ -1,31 +1,18 @@
 import { Action, ActionResult, Resource } from "@sunfall/arc-core";
 import { DateTime, Effect, Option, Schema } from "effect";
 import {
-  AddCommentInput,
-  type CreateIssueInput,
-  IssueRef,
-  MoveIssueInput,
-  SignInInput,
-  UpdateIssueInput,
-  addComment,
-  createIssue,
-  deleteIssue,
-  moveIssue,
-  restoreIssue,
-  signIn,
-  signOut,
-  updateIssue,
-} from "./contracts.js";
-import {
-  InvalidIssue,
+  Comment,
+  CommentId,
+  Issue,
+  IssueId,
   IssuePriority,
+  IssueRow,
   IssueStatus,
   LabelId,
   ProjectKey,
+  TrackerError,
   UserId,
   projectOf,
-  type Issue,
-  type IssueRow,
 } from "./model.js";
 import {
   Board,
@@ -37,41 +24,36 @@ import {
   MyIssuesRef,
   ProjectsTag,
   SessionTag,
-  domainOnly,
 } from "./resources.js";
-import { issueHref, safeRedirect } from "./hrefs.js";
 
 /*
- * Every write is an Action, served by the Start server: the browser submits
- * it over the action transport, and a form without JavaScript posts the same
- * Action. `run` reaches the database through the server functions, which on
- * the server call their implementation in-process.
+ * Every write is a served Action: declared here (browser-safe: schemas,
+ * optimistic patches, invalidations) and run on the server by its
+ * implementation in `api.server.ts`. The browser submits it over the action
+ * transport; a form without JavaScript posts the same Action.
  */
 
-/** A field-level validation failure becomes a form result instead of an error. */
-const asValidation = (error: InvalidIssue) =>
-  ActionResult.validation<Record<string, unknown>, string>({
-    fieldErrors: { [error.field]: [error.message] },
-  });
+/** What a form-backed Action answers: where to go next, or the form's errors. */
+const FormOutcome = Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure]);
+
+export const SignInInput = Schema.Struct({
+  name: Schema.String,
+  email: Schema.String,
+  redirectTo: Schema.optional(Schema.String),
+});
+export type SignInInput = typeof SignInInput.Type;
 
 export const SignIn = Action.define({
   name: "Tracker.signIn",
   input: SignInInput,
-  run: (input) =>
-    domainOnly(signIn.effect(input)).pipe(
-      Effect.map(() => ActionResult.redirect(safeRedirect(input.redirectTo), { replace: true })),
-      Effect.catchTag("InvalidIssue", (error) => Effect.succeed(asValidation(error))),
-    ),
+  output: FormOutcome,
   invalidates: () => [SessionTag],
 });
 
 export const SignOut = Action.define({
   name: "Tracker.signOut",
   input: Schema.Struct({}),
-  run: () =>
-    domainOnly(signOut.effect("current")).pipe(
-      Effect.as(ActionResult.redirect("/signin", { replace: true })),
-    ),
+  output: ActionResult.Redirect,
   invalidates: () => [SessionTag],
 });
 
@@ -90,6 +72,17 @@ export const CreateIssueForm = Schema.Struct({
   labels: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
 });
 export type CreateIssueForm = typeof CreateIssueForm.Type;
+
+export const CreateIssueInput = Schema.Struct({
+  projectKey: ProjectKey,
+  title: Schema.String,
+  description: Schema.String,
+  status: IssueStatus,
+  priority: IssuePriority,
+  assigneeId: Schema.NullOr(UserId),
+  labelIds: Schema.Array(LabelId),
+});
+export type CreateIssueInput = typeof CreateIssueInput.Type;
 
 const isUserId = Schema.is(UserId);
 const isLabelId = Schema.is(LabelId);
@@ -110,21 +103,31 @@ export const createIssueInputOf = (form: CreateIssueForm): CreateIssueInput => (
   ).filter(isLabelId),
 });
 
+/** Creates an issue and goes to it; an invalid title comes back as a field error. */
 export const CreateIssue = Action.define({
   name: "Tracker.createIssue",
   input: CreateIssueForm,
-  run: (form) =>
-    domainOnly(createIssue.effect(createIssueInputOf(form))).pipe(
-      Effect.map((issue: Issue) => ActionResult.redirect(issueHref(issue.id))),
-      Effect.catchTag("InvalidIssue", (error) => Effect.succeed(asValidation(error))),
-    ),
+  output: FormOutcome,
+  error: TrackerError,
   invalidates: (_result, input) => [IssuesTag({ projectKey: input.projectKey }), ProjectsTag],
 });
+
+export const UpdateIssueInput = Schema.Struct({
+  id: IssueId,
+  title: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  priority: Schema.optional(IssuePriority),
+  assigneeId: Schema.optional(Schema.NullOr(UserId)),
+  labelIds: Schema.optional(Schema.Array(LabelId)),
+});
+export type UpdateIssueInput = typeof UpdateIssueInput.Type;
 
 /** Patches an issue's fields; the board card and the detail page change at once. */
 export const UpdateIssue = Action.define({
   name: "Tracker.updateIssue",
   input: UpdateIssueInput,
+  output: Issue,
+  error: TrackerError,
   optimistic: ({ id, ...patch }, transaction) => {
     const fields = Object.fromEntries(
       Object.entries(patch).filter(([, value]) => value !== undefined),
@@ -135,9 +138,16 @@ export const UpdateIssue = Action.define({
       transaction.set(IssueById(id), (issue) => ({ ...issue, ...fields })),
     ]);
   },
-  run: (input) => domainOnly(updateIssue.effect(input)),
   invalidates: (issue) => [IssueTag({ id: issue.id }), IssuesTag({ projectKey: issue.projectKey })],
 });
+
+export const MoveIssueInput = Schema.Struct({
+  id: IssueId,
+  status: IssueStatus,
+  /** Sort position within the column; the board puts a moved card last. */
+  position: Schema.Number,
+});
+export type MoveIssueInput = typeof MoveIssueInput.Type;
 
 /**
  * Moves an issue to another column. The card moves at once; the move is
@@ -147,6 +157,8 @@ export const UpdateIssue = Action.define({
 export const MoveIssue = Action.define({
   name: "Tracker.moveIssue",
   input: MoveIssueInput,
+  output: IssueRow,
+  error: TrackerError,
   durable: { maxAge: "1 day" },
   optimistic: ({ id, status, position }, transaction) =>
     Effect.all([
@@ -154,14 +166,22 @@ export const MoveIssue = Action.define({
       transaction.update(MyIssuesRef, id, { status, position }),
       transaction.set(IssueById(id), (issue) => ({ ...issue, status, position })),
     ]),
-  run: (input) => domainOnly(moveIssue.effect(input)),
   invalidates: (issue) => [IssueTag({ id: issue.id }), IssuesTag({ projectKey: issue.projectKey })],
 });
+
+export const AddCommentInput = Schema.Struct({
+  id: CommentId,
+  issueId: IssueId,
+  body: Schema.String,
+});
+export type AddCommentInput = typeof AddCommentInput.Type;
 
 /** Adds a comment. The client mints its id, so the optimistic comment is the stored one. */
 export const AddComment = Action.define({
   name: "Tracker.addComment",
   input: AddCommentInput,
+  output: Comment,
+  error: TrackerError,
   optimistic: (input, transaction) =>
     Effect.gen(function* () {
       const user = yield* Resource.read(CurrentUserRef).pipe(Effect.option);
@@ -182,42 +202,34 @@ export const AddComment = Action.define({
         commentCount: row.commentCount + 1,
       }));
     }),
-  run: (input) => domainOnly(addComment.effect(input)),
   invalidates: (comment) => [
     IssueTag({ id: comment.issueId }),
     IssuesTag({ projectKey: projectOf(comment.issueId) }),
   ],
 });
 
+export const IssueRef = Schema.Struct({ id: IssueId });
+export type IssueRef = typeof IssueRef.Type;
+
 /** Deletes an issue (softly: `RestoreIssue` brings it back, which is what Undo sends). */
 export const DeleteIssue = Action.define({
   name: "Tracker.deleteIssue",
   input: IssueRef,
+  output: IssueRow,
+  error: TrackerError,
   optimistic: ({ id }, transaction) =>
     Effect.all([transaction.delete(Board(projectOf(id)), id), transaction.delete(MyIssuesRef, id)]),
-  run: (input) => domainOnly(deleteIssue.effect(input)),
   invalidates: (row) => [IssuesTag({ projectKey: row.projectKey }), ProjectsTag],
 });
 
 export const RestoreIssue = Action.define({
   name: "Tracker.restoreIssue",
   input: IssueRef,
-  run: (input) => domainOnly(restoreIssue.effect(input)),
+  output: IssueRow,
+  error: TrackerError,
   invalidates: (row) => [
     IssuesTag({ projectKey: row.projectKey }),
     IssueTag({ id: row.id }),
     ProjectsTag,
   ],
 });
-
-/** The Actions the Start server serves (all of them: every write reaches the database). */
-export const trackerActions = [
-  SignIn,
-  SignOut,
-  CreateIssue,
-  UpdateIssue,
-  MoveIssue,
-  AddComment,
-  DeleteIssue,
-  RestoreIssue,
-] as const;

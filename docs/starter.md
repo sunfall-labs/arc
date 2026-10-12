@@ -61,8 +61,10 @@ Effect.runFork(App.launch(app));
 ```
 
 Use the project console when you need the larger example with forms,
-actions (one `Component.action` binding; the app's `actions` list makes
-`App.launch` route the server-served rename over the network), Resource rows
+served Resources and Actions (declared once, implemented in
+`src/domain.server.ts`, and handed to `createRequestHandler` as
+`implementations`; one `Component.action` binding submits the rename over the
+network), Resource rows
 patched optimistically, a live query, mocks, and diagnostics. Its project
 route's component lives in `src/routes/projects/$id.component.tsx`, which the
 generated route tree attaches as a lazy component, so the project page loads

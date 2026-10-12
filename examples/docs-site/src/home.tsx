@@ -213,8 +213,8 @@ export const HomeView = Component.define("HomeView", function* () {
           <p class="eyebrow">Built with Arc</p>
           <h2 id="dogfood-heading">This site is an Arc app.</h2>
           <p>
-            The recipes below load through server functions into a Resource, preload from file
-            routes, prerender to static pages, and hydrate without a loading flash.
+            The recipes below are served Resources loaded on the server, preload from file routes,
+            prerender to static pages, and hydrate without a loading flash.
           </p>
         </div>
         <Recipes limit={3} />

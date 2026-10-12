@@ -101,13 +101,15 @@ export interface ActionDefinition<I, A, E = never, R = never> {
    */
   readonly durable?: ActionDurablePolicy;
   /**
-   * Effect-first action implementation.
+   * Effect-first action implementation. Absent on a served Action (defined
+   * without `run`): its `run` is the server's `Action.implement(...)`, and
+   * clients submit it through the runtime's `ActionTransport`.
    *
    * Direct Effect values are interpreted as work. If the domain value itself is
    * an Effect, wrap it with `Effect.succeed(effectValue)` so it crosses this
    * Interface as data.
    */
-  readonly run: (input: I) => EffectInput<A, E, R>;
+  readonly run?: (input: I) => EffectInput<A, E, R>;
   /**
    * Patches Signals, Resource entries, and Resource rows before `run`. The transaction owns
    * every patch: success folds them in, failure or interruption rolls them back.
@@ -234,6 +236,71 @@ type ActionDefinitionCommonOptions<I, A, E, R, InvalidationRequirements = never>
     input: I,
   ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
 };
+
+/**
+ * Options of a served Action: `Action.define` without `run`. The schemas are
+ * the wire contract (`input` is required; `output` defaults to `Schema.Void`
+ * and `error` to no typed failure); `run` is the server's
+ * `Action.implement(definition, run)`.
+ */
+export interface ServedActionOptions<
+  Input extends Schema.Top,
+  Output extends Schema.Top,
+  ErrorSchema extends Schema.Top,
+  Durable extends ActionDurablePolicy | undefined,
+  OptimisticRequirements,
+  InvalidationRequirements,
+> {
+  /** Stable registry and transport name for this action. */
+  readonly name: string;
+  /** Schema of the submitted input, decoded by the server. */
+  readonly input: Input;
+  /** Schema of the value `run` succeeds with. */
+  readonly output?: Output;
+  /** Schema of the typed failures `run` reports. */
+  readonly error?: ErrorSchema;
+  /** Concurrency and retry policy for stateful submissions. */
+  readonly policy?: ActionPolicy<Schema.Schema.Type<ErrorSchema>>;
+  /** Makes submissions durable; see `ActionDefinition.durable`. */
+  readonly durable?: Durable;
+  /** Patches state on the submitting client before the server runs the Action. */
+  readonly optimistic?: (
+    input: Schema.Schema.Type<Input>,
+    transaction: ActionOptimisticTransaction,
+  ) => Effect.Effect<void, never, OptimisticRequirements>;
+  /** Computes resource invalidations after a successful action value. */
+  readonly invalidates?: (
+    value: Schema.Schema.Type<Output>,
+    input: Schema.Schema.Type<Input>,
+  ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
+  readonly run?: never;
+}
+
+/** The Action a served definition declares: its types come from its schemas. */
+export type ServedActionDefinition<
+  Input extends Schema.Top,
+  Output extends Schema.Top,
+  ErrorSchema extends Schema.Top,
+  Durable extends ActionDurablePolicy | undefined,
+  OptimisticRequirements,
+  InvalidationRequirements,
+> = ActionDefinition<
+  Schema.Schema.Type<Input>,
+  Schema.Schema.Type<Output>,
+  Schema.Schema.Type<ErrorSchema> | ([Durable] extends [undefined] ? never : ActionQueued),
+  | NormalizeRequirements<OptimisticRequirements>
+  | NormalizeRequirements<InvalidationRequirements>
+  | ActionResultInvalidationRequirements<Schema.Schema.Type<Output>>
+>;
+
+type ImplementedActionRun<A, E, Out> =
+  EnsureEffectInput<Out> extends never
+    ? never
+    : [EffectInputValue<Out>] extends [A]
+      ? [EffectInputError<Out>] extends [E]
+        ? Out
+        : never
+      : never;
 
 /** Returns true when a value is an Sunfall Arc Action Definition. */
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
@@ -380,19 +447,52 @@ export namespace Action {
   /**
    * Defines and registers a reusable action without binding it to UI state.
    *
-   * Registered actions are available through the default `App.define(...)`
-   * registry snapshot. Use
-   * `Action.use(...)` to create an instance for a component or interaction
-   * boundary.
+   * With `run`, the Action runs where it is submitted. Without `run`, it is a
+   * served Action: its schemas are the wire contract, its `run` is the
+   * server's `Action.implement(definition, run)` (in a `*.server.ts` module),
+   * and clients submit it through the runtime's `ActionTransport` (Start's
+   * `App.launch` provides one). Use `Action.use(...)` or the renderer
+   * adapter's binding to create an instance.
    *
    * @example
    * ```ts
-   * const saveUser = Action.define({
-   *   name: "saveUser",
-   *   run: (input: UserInput) => ServerSaveUser.effect(input)
+   * // shared: browser-safe
+   * const RenameProject = Action.define({
+   *   name: "RenameProject",
+   *   input: Schema.Struct({ id: ProjectId, name: Schema.String }),
+   *   output: Project,
+   *   error: ProjectNotFound,
+   *   invalidates: (project) => [ProjectTag({ id: project.id })],
    * });
+   *
+   * // projects.server.ts
+   * export const renameProject = Action.implement(RenameProject, (input) => renameInDb(input));
    * ```
    */
+  export function define<
+    const Input extends Schema.Top,
+    const Output extends Schema.Top = typeof Schema.Void,
+    const ErrorSchema extends Schema.Top = typeof Schema.Never,
+    const Durable extends ActionDurablePolicy | undefined = undefined,
+    OptimisticRequirements = never,
+    InvalidationRequirements = never,
+  >(
+    definition: ServedActionOptions<
+      Input,
+      Output,
+      ErrorSchema,
+      Durable,
+      OptimisticRequirements,
+      InvalidationRequirements
+    >,
+  ): ServedActionDefinition<
+    Input,
+    Output,
+    ErrorSchema,
+    Durable,
+    OptimisticRequirements,
+    InvalidationRequirements
+  >;
   export function define<
     const Input extends Schema.Top,
     const Output extends Schema.Top,
@@ -605,6 +705,40 @@ export namespace Action {
     registerActionDefinition(action);
     return action;
   }
+
+  /**
+   * The server's `run` for a served Action (one defined without `run`): the
+   * definition's name, schemas, `optimistic`, and `invalidates` with this
+   * `run`. Keep it in a `*.server.ts` module and give it to Start's
+   * `createRequestHandler(app, { implementations })`; the browser bundle
+   * never sees it. `run` may succeed only with the definition's `output` and
+   * fail only with its `error`; its services become the server Layer's to
+   * provide.
+   *
+   * @example
+   * ```ts
+   * export const renameProject = Action.implement(RenameProject, ({ id, name }) =>
+   *   Effect.gen(function* () {
+   *     const db = yield* Database;
+   *     return yield* db.renameProject(id, name);
+   *   }),
+   * );
+   * ```
+   */
+  export const implement = <I, A, E, R, Out>(
+    definition: ActionDefinition<I, A, E, R>,
+    run: (input: I) => ImplementedActionRun<A, E, Out>,
+  ): ActionDefinition<I, A, E, R | EffectInputRequirements<Out>> => {
+    if (definition.run !== undefined) {
+      throw new Error(
+        `Action.implement(${definition.name}): the definition already has a run. Define a served Action without run to implement it on the server.`,
+      );
+    }
+    return {
+      ...definition,
+      run: run as (input: I) => EffectInput<A, E, R | EffectInputRequirements<Out>>,
+    } as ActionDefinition<I, A, E, R | EffectInputRequirements<Out>>;
+  };
 
   /**
    * Creates a live action instance with state, optimistic updates, and invalidation.

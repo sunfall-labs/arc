@@ -10,22 +10,24 @@ target. The public API is owned by Sunfall Arc:
   messages, with Effect-owned work in commands.
 - `Signal` for the read side: derived values, peeks, and Streams of changes.
 - `Resource` for typed async/cache state; a list Resource declares `rows`
-  (key, indexes, change feed) for keyed lookups and row patches.
+  (key, indexes, change feed) for keyed lookups and row patches. A served
+  Resource (no `load`) is loaded on the server by its `Resource.implement`.
 - `Query` (`@sunfall/arc-db`) for live materialized queries over the rows of
   Resources.
 - `Action` for every change to server data: optimistic State, Resource entry,
-  and Resource row patches, the Effect that writes, and invalidation.
+  and Resource row patches, the Effect that writes, and invalidation. A served
+  Action (no `run`) runs on the server as its `Action.implement`.
 - Effect services (`Context.Service`) for named app services, provided by a
   Layer per host or test.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
-- `Server.contract` / `Server.client` / `Server.implement` for schema-described server calls (each contract is an `effect/rpc` `Rpc`).
+- `Server.contract` / `Server.client` / `Server.implement` for other schema-described server calls, such as a change-feed poll (each contract is an `effect/rpc` `Rpc`).
 
 Future versions can add a custom TSRX host profile once the runtime semantics are stable.
 
 This architecture document explains the concrete shape of the framework: the
 runtime spine, dependency injection, routing, resources, queries, actions,
-server contracts, SSR, hydration, diagnostics, and devtools all share one typed
+served definitions, SSR, hydration, diagnostics, and devtools all share one typed
 definition vocabulary.
 
 ## Target Architecture
@@ -35,8 +37,9 @@ domain vocabulary.
 
 1. Definition layer: schemas, branded ids, Effect services, server contracts,
    states, resources, actions, forms, and routes are stable typed
-   definitions. Definitions are safe to import broadly when they do not include
-   server handlers.
+   definitions. Definitions are safe to import broadly; server bodies
+   (`Resource.implement`, `Action.implement`, `Server.implement`) live in
+   `*.server.ts` modules.
 2. Generated route layer: file-route manifests and generated route
    definitions turn route files into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
@@ -56,7 +59,8 @@ Effect event when it changes, and a test that proves the contract.
 
 Sunfall Arc should stay unusually strict in these places:
 
-- server contracts are shared, handlers are server-only;
+- served definitions and server contracts are shared, their implementations
+  are server-only;
 - request work gets a fresh runtime and store;
 - route preload is typed, interruptible, and declares the resources it loads;
 - resources live in the active runtime/store, never global process state;
@@ -172,9 +176,9 @@ automatic preload fibers, keyed preload failures, stale preload interruption,
 and Suspense preload-token dedupe adapter-neutral. The Solid adapter still owns
 host reactivity and host Suspense thenable throwing.
 
-Framework callbacks are intentionally Effect-typed. `Resource.load`,
-`Action.run`, `Server.implement` handlers, and route preload should return
-`Effect` or a pure value. Promise-shaped host work is converted with
+Framework callbacks are intentionally Effect-typed. Resource loads, Action
+runs, `Resource.implement` / `Action.implement` / `Server.implement` bodies,
+and route preload should return `Effect` or a pure value. Promise-shaped host work is converted with
 `Effect.tryPromise` at the adapter edge, not hidden inside application
 definitions.
 
@@ -420,43 +424,57 @@ details. Arc adds no wrapper: a service is a plain `Context.Service`, and each
 host or test provides it with a `Layer`:
 
 ```ts
-export interface ProjectApi {
-  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>;
-  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
+export interface ProjectStore {
+  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectNotFound>;
+  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectNotFound>;
 }
 
-export const ProjectApi = Context.Service<ProjectApi>("ProjectApi");
+export const ProjectStore = Context.Service<ProjectStore>("ProjectStore");
 
-export const ProjectApiLive = Layer.succeed(ProjectApi, {
-  get: (id) => getProject.effect({ id }),
-  rename: renameProject.effect,
-});
+export const ProjectStoreLive = Layer.effect(ProjectStore, openProjectDatabase);
 ```
 
-Resources, actions, and route preload depend on `ProjectApi.use(...)`. Server
-functions are one live implementation; tests can provide
-`Layer.succeed(ProjectApi, ...)` without importing server modules or replacing app code.
+Server data is read and written on the server: served Resources and Actions
+(see [Served Resources And Actions](#served-resources-and-actions)) declare
+their schemas in shared modules, and their `*.server.ts` implementations
+depend on `ProjectStore.use(...)`, so the server Layer given to
+`createRequestHandler(app, { server })` must provide it. Services the browser
+itself needs (a clock, a local store) go in the app's client Layer. Tests
+provide `Layer.succeed(ProjectStore, ...)`, or answer served loads with
+`Server.mockLayer(...)`, without replacing app code.
 
 ## Progressive Actions
 
-Actions can be exposed to Start as request-runtime work:
+A served Action (one defined without `run`) is request-runtime work: its
+schemas are the wire contract, and its `Action.implement` in a `*.server.ts`
+module is the body the server runs. A form-backed Action declares the
+`ActionResult` shapes it answers in its `output`:
 
 ```ts
+// shared
 export const SubmitProjectName = Action.define({
   name: "Project.name.submit",
   input: SubmitProjectNameInput,
-  output: ProjectNameSubmissionResultSchema,
-  run: (input) => ProjectApi.use((api) => api.submitName(input)),
+  output: Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure]),
 });
 
-export const app = App.define({ root, routes, actions: [SubmitProjectName], client: AppLive });
+// project.server.ts
+export const submitProjectName = Action.implement(SubmitProjectName, (input) =>
+  ProjectStore.use((store) => store.submitName(input)),
+);
 
-export const handleRequest = createRequestHandler(app, { server: AppServerLive });
+export const handleRequest = createRequestHandler(app, {
+  server: AppServerLive,
+  implementations: [submitProjectName],
+});
 ```
 
-`POST /__sunfall-arc/action` accepts either JSON (`{ name, input }`) or ordinary
-form bodies. Start decodes the input with the Action Definition schema, runs the
-action through the Request Runtime, and maps `ActionResult` values to HTTP:
+`Action.implement` checks `run` against the definition: it may succeed only
+with `output` and fail only with `error`, and its services join the server
+Layer's requirements. `POST /__sunfall-arc/action` accepts either JSON
+(`{ name, input }`) or ordinary form bodies. Start decodes the input with the
+Action Definition schema, runs the action through the Request Runtime, and
+maps `ActionResult` values to HTTP:
 
 - `ActionResult.redirect(...)` becomes an HTTP redirect for form posts and a
   typed redirect envelope for JSON action clients.
@@ -474,8 +492,10 @@ Action counterpart of `Server.Client`. Every Action instance looks it up when it
 submits: Actions the transport serves run remotely, and the response (decoded
 outcome, hydrated Resources, invalidations) applies to the
 submitting runtime; every other Action runs its `run` locally. Start's
-`App.launch(app)` provides it for the app's `actions`, next to the server-function
-`Server.Client`; both post through the runtime's one `HttpClient`. UI code never chooses: Solid's
+`App.launch(app)` provides one that serves exactly the served Actions (those
+defined without `run`), next to the server-function `Server.Client`; both
+post through the runtime's one `HttpClient`. A served Action submitted on a
+runtime with no transport fails with `ActionNotFound`. UI code never chooses: Solid's
 `Component.action(definition)` submits the same way either way, with the same
 result type and error type (the Action's own errors plus `Action.ClientError`:
 `ActionTransportError`, `ActionProtocolError`, `ActionNotFound`).
@@ -610,7 +630,6 @@ export const AdvanceProject = Action.define({
       ...project,
       progress: project.progress + 8,
     })),
-  run: (input) => ProjectApi.use((api) => api.advance(input)),
 });
 ```
 
@@ -752,7 +771,7 @@ const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
 const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
-  load: (id: ProjectId) => ProjectApi.use((api) => api.get(id)),
+  output: Project,
   provides: (project) => [ProjectTag({ id: project.id })],
 });
 ```
@@ -762,7 +781,8 @@ Actions can invalidate refs directly or invalidate the tags they changed:
 ```ts
 const RenameProject = Action.define({
   name: "Project.rename",
-  run: (input: RenameProjectInput) => ProjectApi.use((api) => api.rename(input)),
+  input: RenameProjectInput,
+  output: Project,
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
 ```
@@ -1383,75 +1403,128 @@ and keeps `HEAD` responses bodyless at the host boundary. Vite dev SSR consumes
 the same exchange Module, so production Node and dev middleware share the same
 request/response policy while keeping their own handler-selection concerns.
 
-## Isomorphic Server Functions
+## Served Resources And Actions
 
-Server functions are contract-first, and every contract is an `effect/rpc`
-`Rpc`. Shared modules define wire schemas, tagged errors, and named
-`Server.contract` values, then export browser-safe clients from those
-contracts:
+Server data is declared once, in shared modules, and implemented on the
+server. A Resource defined with `input` and `output` schemas and no `load` is
+a served Resource; an Action defined with an `input` schema and no `run` is a
+served Action. Their schemas are the wire contract, and their server bodies
+live in `*.server.ts` modules:
 
 ```ts
+// projects.ts (shared, browser-safe)
 export class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
   id: ProjectId,
 }) {}
 
-export const GetProject = Server.contract("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
+export const ProjectById = Resource.define({
+  name: "Project.byId",
+  input: ProjectId,
   output: Project,
   error: ProjectNotFound,
+  provides: (project) => [ProjectTag({ id: project.id })],
 });
 
-export const getProject = Server.client(GetProject);
+export const RenameProject = Action.define({
+  name: "Project.rename",
+  input: RenameProjectInput,
+  output: Project,
+  error: ProjectNotFound,
+  invalidates: (project) => [ProjectTag({ id: project.id })],
+});
+```
+
+```ts
+// projects.server.ts
+export const projectById = Resource.implement(ProjectById, (id) =>
+  ProjectStore.use((store) => store.get(id)),
+);
+
+export const renameProject = Action.implement(RenameProject, (input) =>
+  ProjectStore.use((store) => store.rename(input)),
+);
+```
+
+```ts
+// server.tsx
+export const handleRequest = createRequestHandler(app, {
+  server: ProjectStoreLive,
+  implementations: [projectById, renameProject],
+});
+```
+
+An Action's `output` defaults to `Schema.Void` and its `error` to no typed
+failure; a Resource's `error` is optional. Each implementation is checked
+against its definition: it may succeed only with `output` and fail only with
+`error`, and the services it needs become the server Layer's to provide, so
+`createRequestHandler` does not compile until `server` provides them.
+`Resource.implement` throws for a family that has its own `load`, and
+`Action.implement` for an Action that has its own `run`.
+
+A served Resource's load is a server function whose Rpc tag is the family
+name: SSR calls the implementation in-process, and the browser calls it over
+RPC. A failure the `error` schema does not declare (a lost connection, a wire
+schema mismatch, a missing implementation) is a defect, so a served
+Resource's error type is exactly its `error` schema. A served Action is
+submitted through the `ActionTransport` (see
+[Progressive Actions](#progressive-actions)); its typed failures arrive typed
+in the browser because the `error` schema encodes them on the wire.
+
+## Isomorphic Server Functions
+
+A server call that is neither a Resource load nor an Action (a change-feed
+poll, for example) is a server function. Server functions are
+contract-first, and every contract is an `effect/rpc` `Rpc`. Shared modules
+define wire schemas, tagged errors, and named `Server.contract` values, then
+export browser-safe clients from those contracts:
+
+```ts
+export const ProjectChangesContract = Server.contract("Project.changes", {
+  input: Schema.Struct({ projectKey: ProjectKey, cursor: Schema.Number }),
+  output: ProjectChanges,
+  error: ProjectFeedError,
+});
+
+export const projectChanges = Server.client(ProjectChangesContract);
 ```
 
 `input` and `output` are required; `error` defaults to `Schema.Never` (no
 typed failures). The contract's types come from the schemas, and
-`GetProject.rpc` is the `Rpc` (tag `"Project.get"`) Start serves.
+`ProjectChangesContract.rpc` is the `Rpc` (tag `"Project.changes"`) Start
+serves. Shared code calls the client the same way on the server and in the
+browser, for example from a Resource's `rows.changes` feed:
 
-Application resources and actions import these shared clients. The same call site
-works on the server and in the browser:
-
+<!-- prettier-ignore -->
 ```ts
-Resource.define({
-  name: "Project.byId",
-  input: ProjectId,
-  load: (id: ProjectId) => getProject.effect({ id }),
-});
+const batch = yield* projectChanges.effect({ projectKey, cursor });
 ```
 
-Real handlers live in `.server.ts` modules and register the same function names
-by implementing the shared contracts:
+The real handler lives in a `.server.ts` module and implements the shared
+contract without repeating the schemas:
 
 ```ts
-export const getProject = Server.implement(GetProject, ({ id }) =>
-  Projects.use((projects) => projects.get(id)),
+export const projectChangesServer = Server.implement(ProjectChangesContract, (input) =>
+  ProjectStore.use((store) => store.changesSince(input)),
 );
 ```
 
-The contract is the source of truth for the function name and wire schemas.
-`Server.client(contract)` has no local handler and is safe to import from shared
-or browser modules. `Server.implement(contract, handler)` registers the real
-handler in the server graph without repeating the schemas:
+`Server.client(contract)` has no local handler and is safe to import from
+shared or browser modules. `Server.implement(contract, handler)` is the server
+function; it goes in `implementations` beside the served definitions. The
+contract/client/implement pattern is the one way to define a server function,
+so the browser graph never imports server handlers and handlers cannot drift
+from their public schema.
 
-```ts
-export const renameProject = Server.implement(RenameProject, (input) =>
-  Projects.use((projects) => projects.rename(input)),
-);
-```
+The transport is `effect/rpc`, end to end, for served Resource loads and
+server functions alike:
 
-The contract/client/implement pattern is the one way to define a server
-function, so the browser graph never imports server handlers and handlers
-cannot drift from their public schema. Server-only code that needs no browser
-client still declares a contract and implements it in the same module.
-
-The transport is `effect/rpc`, end to end:
-
-- **Server.** `createRequestHandler(app, { serverFunctions })` serves
-  `POST /__sunfall-arc/rpc`: it builds an `RpcGroup` from the served
-  functions' Rpcs and answers with `RpcServer.toHttpEffect` and
-  `RpcSerialization.json`. Handlers run in the request runtime's fiber
-  context, so `RequestContext`, `ResponseContext` (status, headers, cookies),
-  and the server Layer's services are available, as in SSR.
+- **Server.** `createRequestHandler(app, { implementations })` serves
+  `POST /__sunfall-arc/rpc`: it builds an `RpcGroup` from the Rpcs of the
+  `Resource.implement` and `Server.implement` values and answers with
+  `RpcServer.toHttpEffect` and `RpcSerialization.json`. Handlers run in the
+  request runtime's fiber context, so `RequestContext`, `ResponseContext`
+  (status, headers, cookies), and the server Layer's services are available,
+  as in SSR.
 - **Browser.** `App.launch` provides `Server.Client` as an `RpcClient` over
   the runtime's `HttpClient` (the client Layer's when it provides one, else
   `FetchHttpClient`), compiled out of static-client builds. `HttpClient`
@@ -1467,7 +1540,8 @@ Typed failures cross the wire Schema-encoded and decode as the error schema's
 values (a `Schema.TaggedError` arrives as an instance). Failures the schema
 cannot encode, handler defects, payloads that fail the input schema, and
 functions the server does not serve arrive as defects, as `effect/rpc`
-reports them; transport failures are `RpcClientError` in `Server.ClientError`.
+reports them; a server-function call's transport failures are
+`RpcClientError` in `Server.ClientError`.
 Start action clients and progressive forms post to `POST /__sunfall-arc/action`.
 Both paths are fixed: the request handler, the Vite dev middleware, and the
 clients share them. The resource/action/router code above does not change.
@@ -1476,27 +1550,30 @@ Arc has no separate server-route API: arbitrary HTTP routes belong to
 `effect/http` (`HttpRouter`) in the host, next to the Start handler.
 
 The Vite plugin treats `*.server.ts` / `*.server.tsx` as server-only modules.
-Client transforms fail if one enters the browser graph. Use a shared contract
-module for schemas, contracts, and clients, and import the `.server.ts` module
-only from the server entry so the handlers are registered for SSR and RPC.
+Client transforms fail if one enters the browser graph. Keep definitions,
+schemas, contracts, and clients in shared modules, and import the
+`.server.ts` modules only from the server entry, which hands their
+implementations to `createRequestHandler`.
 
-Tests should mock contracts, not modules:
+Tests mock at the contract, not the module. `Server.mockLayer(...)` takes
+`Server.mock(...)` handlers or implementations, such as a served Resource's
+test load:
 
 <!-- prettier-ignore -->
 ```ts
 const value =
   yield* Effect.provide(
-  getProject.effect({ id: makeProjectId("atlas") }),
+  Resource.preload(ProjectById(makeProjectId("atlas"))),
   Server.mockLayer(
-    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+    Resource.implement(ProjectById, (id) => Effect.succeed({ id, name: "Mock Project" })),
   ),
   );
 ```
 
 `Server.mock(...)` does not register a global handler and does not import
-`.server.ts`. It still validates through the contract schemas (the same JSON
-codecs the wire uses), so test doubles catch bad inputs and outputs early.
-`Server.mockLayer(...)` is the one way to install mocks: provide it to a
+`.server.ts`. Every double still validates through the wire schemas (the same
+JSON codecs the wire uses), so test doubles catch bad inputs and outputs
+early. `Server.mockLayer(...)` is the one way to install them: provide it to a
 single Effect, or merge it into the runtime Layer for apps and integration
 tests that build a runtime with dependency injection.
 
@@ -1576,7 +1653,8 @@ DSL:
 Resource.define({
   name: "Project.byId",
   input: ProjectId,
-  load: (id: ProjectId) => getProject.effect({ id }),
+  output: Project,
+  error: ProjectUnavailable,
   policy: {
     retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
   },
@@ -1592,11 +1670,12 @@ Action policy is part of the definition:
 ```ts
 const RenameProject = Action.define({
   name: "Project.rename",
+  input: RenameProjectInput,
+  output: Project,
   policy: {
     concurrency: "latest",
     retry: Schedule.recurs(1),
   },
-  run: renameProject.effect,
 });
 ```
 

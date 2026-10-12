@@ -29,7 +29,7 @@ export const docsOverviewMeta: PageMeta = {
 export const cookbookMeta: PageMeta = {
   title: "Cookbook",
   description:
-    "Small, checked Arc recipes: Resources over server functions, route preload, progressive forms, semantic invalidation, and service mocks.",
+    "Small, checked Arc recipes: served Resources, route preload, progressive forms, semantic invalidation, and server mocks.",
 };
 
 export const blogPostMeta: PageMeta = {

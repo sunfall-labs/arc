@@ -46,10 +46,11 @@ pnpm add @sunfall/arc-core @sunfall/arc-solid @sunfall/arc-start \
          effect@4.0.3 solid-js@2.0.0-rc.14 @solidjs/web@2.0.0-rc.14
 ```
 
-One feature, whole: an Effect service, a Resource that reads through it, an
-Action that writes optimistically, a Component that must handle the read's
-failure, a Route, and the app definition both hosts share. It is compiled with
-the framework on every change, so it cannot drift.
+One feature, whole: a Resource and an Action declared once (their schemas are
+the contract between browser and server), a Component that must handle the
+read's failure, a Route, the app definition both hosts share, and the server
+that implements the read and the write over an Effect service. It is compiled
+with the framework on every change, so it cannot drift.
 
 `src/app.tsx`:
 
@@ -59,54 +60,38 @@ the framework on every change, so it cannot drift.
 import { Action, Resource, Route } from "@sunfall/arc-core";
 import { Component, RouterOutlet, RouterProvider } from "@sunfall/arc-solid";
 import { App } from "@sunfall/arc-start";
-import { Context, Effect, Layer, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { Loading } from "solid-js";
 
-const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean });
-type Todo = typeof Todo.Type;
+export const Todo = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  done: Schema.Boolean,
+});
+export type Todo = typeof Todo.Type;
 
-class TodoNotFound extends Schema.TaggedError<TodoNotFound>()("TodoNotFound", {
+export class TodoNotFound extends Schema.TaggedError<TodoNotFound>()("TodoNotFound", {
   id: Schema.String,
 }) {}
 
-// The backend boundary: an Effect service. Each host provides it with a Layer.
-interface Todos {
-  readonly get: (id: string) => Effect.Effect<Todo, TodoNotFound>;
-  readonly toggle: (id: string) => Effect.Effect<Todo, TodoNotFound>;
-}
-const Todos = Context.Service<Todos>("Todos");
-
-const rows = new Map<string, Todo>([["1", { id: "1", title: "Try Arc", done: false }]]);
-const find = (id: string): Effect.Effect<Todo, TodoNotFound> => {
-  const todo = rows.get(id);
-  return todo === undefined ? Effect.fail(new TodoNotFound({ id })) : Effect.succeed(todo);
-};
-export const TodosMemory = Layer.succeed(Todos, {
-  get: find,
-  toggle: (id) =>
-    find(id).pipe(
-      Effect.map((todo) => ({ ...todo, done: !todo.done })),
-      Effect.tap((todo) => Effect.sync(() => rows.set(id, todo))),
-    ),
-});
-
-// A Resource: a named, cached, typed read.
-const TodoById = Resource.define({
+// A Resource: a named, cached, typed read. No `load`: the server loads it,
+// and its schemas are the wire contract.
+export const TodoById = Resource.define({
   name: "Todos.byId",
   input: Schema.String,
   output: Todo,
   error: TodoNotFound,
-  load: (id) => Todos.use((todos) => todos.get(id)),
 });
 
-// An Action: a named write. The checkbox flips at once; a failure rolls it back.
-const ToggleTodo = Action.define({
+// An Action: a named write the server runs. The checkbox flips at once; a
+// failure rolls it back.
+export const ToggleTodo = Action.define({
   name: "Todos.toggle",
   input: Schema.String,
   output: Todo,
+  error: TodoNotFound,
   optimistic: (id, transaction) =>
     transaction.set(TodoById(id), (todo) => ({ ...todo, done: !todo.done })),
-  run: (id) => Todos.use((todos) => todos.toggle(id)),
 });
 
 // A Component. Reading TodoById adds TodoNotFound to its type until it is handled.
@@ -138,20 +123,51 @@ const Root = Component.define("Root", function* (props: { readonly href: string 
   );
 });
 
-// One definition for both hosts. Without TodosMemory, this line does not compile.
-export const app = App.define({ root: Root, routes, actions: [ToggleTodo], client: TodosMemory });
+// One definition for both hosts. Without the catchTags line, this does not compile.
+export const app = App.define({ root: Root, routes });
 ```
 
-The server renders it, and the browser hydrates it:
+The server implements the read and the write, renders the page, and serves
+both; the browser hydrates it:
 
 <!-- snippet: type-tests/readme/server.ts -->
 
 ```ts
+import { Action, Resource } from "@sunfall/arc-core";
 import { createRequestHandler } from "@sunfall/arc-start";
-import { app, TodosMemory } from "./app.js";
+import { Context, Effect, Layer } from "effect";
+import { app, TodoById, TodoNotFound, ToggleTodo, type Todo } from "./app.js";
 
-// Server rendering: runs the route's preload, renders, and streams the hydration payload.
-export const handleRequest = createRequestHandler(app, { server: TodosMemory });
+// The backend: an Effect service the server Layer provides (a database in a real app).
+interface Todos {
+  readonly get: (id: string) => Effect.Effect<Todo, TodoNotFound>;
+  readonly toggle: (id: string) => Effect.Effect<Todo, TodoNotFound>;
+}
+const Todos = Context.Service<Todos>("Todos");
+
+const rows = new Map<string, Todo>([["1", { id: "1", title: "Try Arc", done: false }]]);
+const find = (id: string): Effect.Effect<Todo, TodoNotFound> => {
+  const todo = rows.get(id);
+  return todo === undefined ? Effect.fail(new TodoNotFound({ id })) : Effect.succeed(todo);
+};
+export const TodosMemory = Layer.succeed(Todos, {
+  get: find,
+  toggle: (id) =>
+    find(id).pipe(
+      Effect.map((todo) => ({ ...todo, done: !todo.done })),
+      Effect.tap((todo) => Effect.sync(() => rows.set(id, todo))),
+    ),
+});
+
+// What the server runs for the Resource and the Action, checked against their schemas.
+export const implementations = [
+  Resource.implement(TodoById, (id) => Todos.use((todos) => todos.get(id))),
+  Action.implement(ToggleTodo, (id) => Todos.use((todos) => todos.toggle(id))),
+];
+
+// Server rendering: runs the route's preload, renders, and streams the hydration
+// payload; serves the load and the Action. Without TodosMemory, this does not compile.
+export const handleRequest = createRequestHandler(app, { server: TodosMemory, implementations });
 ```
 
 <!-- snippet: type-tests/readme/main.ts -->
@@ -165,8 +181,9 @@ import { app } from "./app.js";
 Effect.runFork(App.launch(app));
 ```
 
-Delete the `catchTags` line and `App.define` stops compiling; so does a client
-Layer that does not provide `Todos`. For a runnable project with the Vite
+Delete the `catchTags` line and `App.define` stops compiling; drop
+`TodosMemory` and `createRequestHandler` does. The implementations sit in the
+server entry, which the browser bundle never includes. For a runnable project with the Vite
 plugin, file routes, and a dev server, copy
 [`examples/basic-starter`](examples/basic-starter), then read
 [The Golden Path](docs/golden-path.md), which builds a fuller feature step by
@@ -185,7 +202,7 @@ Seven definitions and your Effect services are the whole vocabulary.
 | Route           | A URL with decoded params, a preload, and a typed failure.                         | `Route.define`             |
 | App             | One definition for server rendering and browser hydration.                         | `App.define`               |
 | Timeline        | Records every commit by name and travels back to any of them.                      | `Timeline.record`          |
-| Effect services | Your backends, with a Layer per host.                                              | `Context.Service`, `Layer` |
+| Effect services | Your backends, provided by a Layer (the server's, for served reads and writes).    | `Context.Service`, `Layer` |
 
 ## Packages
 

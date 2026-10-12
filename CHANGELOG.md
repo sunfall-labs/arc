@@ -6,6 +6,45 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Served Resources And Actions: Declared Once, Implemented On The Server
+
+Found by `examples/tracker`, where every write took four definitions (a
+`Server.contract`, its `Server.client`, its `Server.implement`, and an
+`Action` whose `run` called the client) and every read three.
+
+- `Action.define` without `run` declares a served Action: `input` (required),
+  `output` (default `Schema.Void`), and `error` are its wire contract, and
+  `optimistic`, `invalidates`, `durable`, and `policy` work as before.
+  `Action.implement(definition, run)` in a `*.server.ts` module is its server
+  body, typed against the schemas: `run` may succeed only with `output` and
+  fail only with `error`. `ActionDefinition.run` is optional; a served Action
+  submitted without a transport fails with `ActionNotFound`.
+- `Resource.define` with `input` and `output` schemas and no `load` declares
+  a served Resource. `Resource.implement(definition, load)` in a `*.server.ts`
+  module is its load: a server function over the family's schemas (Rpc tag =
+  the family name) that SSR calls in-process and the browser over RPC.
+- A served load's failures that the `error` schema does not declare
+  (`RpcClientError`, a wire `SchemaError`, `ServerFunctionNotFound`) are
+  defects, so a Resource's type says exactly what can render and no load
+  needs to strip `Server.ClientError` by hand.
+- `ActionResult.Redirect` and `ActionResult.ValidationFailure` are Schemas for
+  a served Action's `output` (a form-backed Action answers
+  `Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure])`).
+- `App.define` no longer takes `actions`: `App.launch`'s action transport
+  submits exactly the served (run-less) Actions, and an Action with `run` runs
+  where it is submitted. `createRequestHandler(app, { implementations })`
+  replaces `serverFunctions` and takes `Action.implement`, `Resource.implement`,
+  and `Server.implement` values (`StartImplementation`); the server Layer must
+  provide their services, or the call does not compile.
+- `Server.mockLayer` accepts implementations as well as `Server.mock` values,
+  so a test answers a served Resource's load with
+  `Server.mockLayer(Resource.implement(Board, () => Effect.succeed(rows)))`.
+- `Server.contract`, `Server.client`, and `Server.implement` remain for server
+  calls that are neither a load nor an Action (the tracker's change-feed poll).
+- The tracker, project console, docs site, and compare benchmark use served
+  definitions; `src/contracts.ts`, `domain.contract.ts`, `content.contract.ts`,
+  and every `domainOnly`-style helper are gone.
+
 ### Hydration Payloads Are Copied Once
 
 - Validating a Resource hydration payload checks its shape and no longer

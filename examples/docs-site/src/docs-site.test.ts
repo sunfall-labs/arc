@@ -16,12 +16,7 @@ import {
   streamHydrationAttribute,
   type StartHydrationChunk,
 } from "@sunfall/arc-start/testing";
-import {
-  DocsContentApiStaticClient,
-  makeRecipeSlug,
-  RecipeBySlug,
-  RecipeIndexRef,
-} from "./content.js";
+import { makeRecipeSlug, RecipeBySlug, RecipeIndexRef } from "./content.js";
 import { routeById, routes, type FileRouteHrefOptionsById } from "./routeTree.gen.js";
 import { handleRequest } from "./server.js";
 import {
@@ -30,7 +25,6 @@ import {
   withDocsSiteBasePath,
 } from "./base-path.js";
 import { docsSitePrerenderPages, docsSiteStartOptions } from "./start-options.js";
-import { DocsContentApiLive } from "./content-live.js";
 import { makeDocsSiteHistoryAdapter } from "./site-base.js";
 
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
@@ -108,7 +102,7 @@ describe("docs site", () => {
         expect(response.headers.get("x-sunfall-arc-docs")).toBe("cookbook");
         expect(html).toContain('href="/src/styles.css"');
         expect(html).toContain("Working Sunfall Arc recipes");
-        expect(html).toContain("Resource from a server function");
+        expect(html).toContain("Served Resource");
         expect(html).toContain("Progressive Start action form");
         const document = new Window().document;
         document.write(html);
@@ -179,7 +173,7 @@ describe("docs site", () => {
         expect(visibleText).toContain("queryClient.invalidateQueries");
         expect(visibleText).toContain("const useProjectStore = create");
         expect(html).not.toContain("agent-operated");
-        expect(html).toContain("Resource from a server function");
+        expect(html).toContain("Served Resource");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
         );
@@ -273,7 +267,7 @@ describe("docs site", () => {
       params: { slug: "getting-started" },
     };
     const recipeHrefOptions: FileRouteHrefOptionsById["route_cookbook_$slug"] = {
-      params: { slug: makeRecipeSlug("resource-from-server-function") },
+      params: { slug: makeRecipeSlug("served-resource") },
     };
     const source = readFileSync(new URL("./routeTree.gen.ts", import.meta.url), "utf8");
 
@@ -290,7 +284,7 @@ describe("docs site", () => {
     expect(cookbookHrefOptions).toEqual({});
     expect(docsHrefOptions).toEqual({});
     expect(docsPageHrefOptions.params.slug).toBe("getting-started");
-    expect(recipeHrefOptions.params.slug).toBe("resource-from-server-function");
+    expect(recipeHrefOptions.params.slug).toBe("served-resource");
     expect(Route.href(routeById.route_blog_introducing_sunfall_arc, blogHrefOptions)).toBe(
       "/blog/introducing-sunfall-arc",
     );
@@ -300,7 +294,7 @@ describe("docs site", () => {
       "/docs/getting-started",
     );
     expect(Route.href(routeById.route_cookbook_$slug, recipeHrefOptions)).toBe(
-      "/cookbook/resource-from-server-function",
+      "/cookbook/served-resource",
     );
   });
 
@@ -308,12 +302,12 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          handleRequest(new Request("https://docs.test/cookbook/resource-from-server-function")),
+          handleRequest(new Request("https://docs.test/cookbook/served-resource")),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const links = extractStartStaticHtmlLinks(html, {
           origin: "https://docs.test",
-          fromPath: "/cookbook/resource-from-server-function",
+          fromPath: "/cookbook/served-resource",
         });
         const prerender = docsSiteStartOptions.prerender;
 
@@ -327,12 +321,12 @@ describe("docs site", () => {
           expect.arrayContaining([
             "/docs/getting-started",
             "/docs/troubleshooting",
-            "/cookbook/resource-from-server-function",
+            "/cookbook/served-resource",
             "/cookbook/route-preload-hydration",
           ]),
         );
         expect(response.status).toBe(200);
-        expect(html).toContain("Resource from a server function");
+        expect(html).toContain("Served Resource");
         expect(links).toEqual(
           expect.arrayContaining([
             "/",
@@ -342,14 +336,14 @@ describe("docs site", () => {
             "/docs/getting-started",
             "/docs/troubleshooting",
             "/cookbook/route-preload-hydration",
-            "/cookbook/service-mocks",
+            "/cookbook/server-mocks",
           ]),
         );
         expect(
-          startStaticPageOutputPath("/cookbook/resource-from-server-function", {
+          startStaticPageOutputPath("/cookbook/served-resource", {
             autoSubfolderIndex: prerender.autoSubfolderIndex,
           }),
-        ).toBe("cookbook/resource-from-server-function/index.html");
+        ).toBe("cookbook/served-resource/index.html");
       }),
     ));
 
@@ -375,16 +369,16 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const slug = makeRecipeSlug("resource-from-server-function");
+          const slug = makeRecipeSlug("served-resource");
           const response = yield* Effect.scoped(
-            handleRequest(new Request("https://docs.test/cookbook/resource-from-server-function")),
+            handleRequest(new Request("https://docs.test/cookbook/served-resource")),
           );
           const html = yield* Effect.tryPromise(() => response.text());
           const window = new Window({ url: "https://docs.test/cookbook" });
           const fetch = vi.fn(
             async (_input: RequestInfo | URL) => new Response(html, { status: 200 }),
           );
-          const runtime = makeRuntime(DocsContentApiLive);
+          const runtime = makeRuntime();
           yield* Effect.addFinalizer(() =>
             runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
           );
@@ -400,14 +394,14 @@ describe("docs site", () => {
           );
 
           const history = makeDocsSiteHistoryAdapter({ runtime, routes });
-          yield* history.prepareHref!("/cookbook/resource-from-server-function");
+          yield* history.prepareHref!("/cookbook/served-resource");
           const recipe = yield* runtime.provide(Resource.preload(RecipeBySlug(slug)));
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe(
-            "https://docs.test/cookbook/resource-from-server-function",
+            "https://docs.test/cookbook/served-resource",
           );
-          expect(recipe.title).toBe("Resource from a server function");
+          expect(recipe.title).toBe("Served Resource");
         }),
       ),
     ));
@@ -439,7 +433,7 @@ describe("docs site", () => {
             const fetch = vi.fn(
               async (_input: RequestInfo | URL) => new Response(recipeHtml, { status: 200 }),
             );
-            const runtime = makeRuntime(DocsContentApiStaticClient);
+            const runtime = makeRuntime();
             yield* Effect.addFinalizer(() =>
               runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
             );
@@ -495,8 +489,8 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const slug = makeRecipeSlug("resource-from-server-function");
-          const targetHref = "/cookbook/resource-from-server-function";
+          const slug = makeRecipeSlug("served-resource");
+          const targetHref = "/cookbook/served-resource";
           const currentHref = "/cookbook/semantic-invalidation";
           const currentResponse = yield* Effect.scoped(
             handleRequest(new Request(`https://docs.test${currentHref}`)),
@@ -512,7 +506,7 @@ describe("docs site", () => {
           const fetch = vi.fn(
             async (_input: RequestInfo | URL) => new Response(recipeHtml, { status: 200 }),
           );
-          const runtime = makeRuntime(DocsContentApiLive);
+          const runtime = makeRuntime();
           yield* Effect.addFinalizer(() =>
             runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
           );
@@ -548,10 +542,10 @@ describe("docs site", () => {
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe(
-            "https://docs.test/cookbook/resource-from-server-function",
+            "https://docs.test/cookbook/served-resource",
           );
           expect(window.location.pathname).toBe(targetHref);
-          expect(recipe.title).toBe("Resource from a server function");
+          expect(recipe.title).toBe("Served Resource");
         }),
       ),
     ));
@@ -560,8 +554,8 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const slug = makeRecipeSlug("resource-from-server-function");
-          const targetHref = "/cookbook/resource-from-server-function";
+          const slug = makeRecipeSlug("served-resource");
+          const targetHref = "/cookbook/served-resource";
           const currentHref = "/cookbook";
           const currentResponse = yield* Effect.scoped(
             handleRequest(new Request(`https://docs.test${currentHref}`)),
@@ -577,7 +571,7 @@ describe("docs site", () => {
           const fetch = vi.fn(
             async (_input: RequestInfo | URL) => new Response(recipeHtml, { status: 200 }),
           );
-          const runtime = makeRuntime(DocsContentApiStaticClient);
+          const runtime = makeRuntime();
           yield* Effect.addFinalizer(() =>
             runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
           );
@@ -619,10 +613,10 @@ describe("docs site", () => {
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe(
-            "https://docs.test/cookbook/resource-from-server-function",
+            "https://docs.test/cookbook/served-resource",
           );
           expect(window.location.pathname).toBe(targetHref);
-          expect(recipe.title).toBe("Resource from a server function");
+          expect(recipe.title).toBe("Served Resource");
         }),
       ),
     ));
@@ -640,8 +634,10 @@ describe("docs site", () => {
     expect(historySource).not.toContain("hydrateFromDocument");
     expect(historySource).not.toContain('"Docs.recipe"');
     const appSource = readFileSync(new URL("./app-definition.ts", import.meta.url), "utf8");
-    expect(appSource).toContain("import.meta.env.DEV");
-    expect(appSource).toContain("DocsContentApiStaticClient");
+    // The recipes are served Resources: the app carries no content client of
+    // its own, and the static build has no RPC client to load them with.
+    expect(appSource).not.toContain("client:");
+    expect(appSource).not.toContain("content.server");
     expect(mainSource).toContain('timestamp: "now"');
     expect(mainSource).toContain("href: currentDocsSiteHref()");
     expect(mainSource).toContain("App.launch(app");

@@ -1,6 +1,6 @@
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { LiveQuery } from "@sunfall/arc-solid/live-query";
-import { Route, State } from "@sunfall/arc-core";
+import { ActionResult, Route, State } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Schema } from "effect";
 import { For, Loading, Show, untrack } from "solid-js";
@@ -237,7 +237,7 @@ type ProjectActionsMessage =
 const projectActionsIdle: ProjectActionsModel = { renamePending: false, advancePending: false };
 
 const renameValidationMessage = (result: ProjectNameSubmissionResult): string | undefined =>
-  result._tag === "ValidationFailure"
+  ActionResult.is(result) && ActionResult.isValidationFailure(result)
     ? (result.fieldErrors.name?.[0] ?? result.formErrors[0])
     : undefined;
 
@@ -296,27 +296,24 @@ const ProjectActions = Component.define(
           RenameFinished: (model, message) => {
             const result = message.result;
             const settled = { advancePending: model.advancePending, renamePending: false };
-            switch (result._tag) {
-              case "Success":
-                return settled;
-              case "ValidationFailure":
-                const validation = renameValidationMessage(result);
-                return validation === undefined ? settled : { ...settled, validation };
-              case "Failure":
-                return { ...settled, error: result.error };
-              case "Redirect":
-                return State.next(
-                  settled,
-                  State.emit(
-                    Effect.sync(() =>
-                      router.navigateHref(
-                        result.location,
-                        result.replace === undefined ? undefined : { replace: result.replace },
-                      ),
+            if (!ActionResult.is(result)) {
+              return settled;
+            }
+            if (ActionResult.isRedirect(result)) {
+              return State.next(
+                settled,
+                State.emit(
+                  Effect.sync(() =>
+                    router.navigateHref(
+                      result.location,
+                      result.replace === undefined ? undefined : { replace: result.replace },
                     ),
                   ),
-                );
+                ),
+              );
             }
+            const validation = renameValidationMessage(result);
+            return validation === undefined ? settled : { ...settled, validation };
           },
           RenameFailed: (model, message) => ({
             advancePending: model.advancePending,

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import type { PlainValue } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
@@ -451,4 +451,39 @@ export namespace ActionResult {
   export const fromValidation = actionResultHelpers.fromValidation;
   /** Extracts a success value or fails with the boundary result for explicit handling. */
   export const requireSuccess = actionResultHelpers.requireSuccess;
+
+  /**
+   * Schema of a redirect result, for a served Action's `output`: the Action
+   * may answer `ActionResult.redirect(...)` (a form post follows it; an
+   * enhanced submission hands it to the caller).
+   *
+   * @example
+   * ```ts
+   * output: Schema.Union([Project, ActionResult.Redirect]),
+   * ```
+   */
+  export const Redirect: Schema.declare<ActionResultRedirect> = Schema.declare(
+    (value): value is ActionResultRedirect =>
+      actionResultHelpers.is(value) && actionResultHelpers.isRedirect(value),
+    { identifier: "ActionResult.Redirect" },
+  );
+
+  /**
+   * Schema of a validation failure with string messages, for a served
+   * Action's `output`: the Action may answer `ActionResult.validation(...)`,
+   * which a form shows next to its fields on the enhanced and the
+   * no-JavaScript path alike.
+   *
+   * @example
+   * ```ts
+   * output: Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure]),
+   * ```
+   */
+  export const ValidationFailure: Schema.declare<
+    ActionResultValidationFailure<Record<string, unknown>, string>
+  > = Schema.declare(
+    (value): value is ActionResultValidationFailure<Record<string, unknown>, string> =>
+      actionResultHelpers.is(value) && actionResultHelpers.isValidationFailure(value),
+    { identifier: "ActionResult.ValidationFailure" },
+  );
 }

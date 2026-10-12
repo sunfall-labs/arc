@@ -27,7 +27,11 @@ import { validateResourceInvalidationsArraySync } from "./resource-dependency-gr
 import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
 import { planResourceInvalidation, runResourceInvalidationPlan } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
-import { ActionTransport, type ActionTransportSubmission } from "./action-transport.js";
+import {
+  ActionNotFound,
+  ActionTransport,
+  type ActionTransportSubmission,
+} from "./action-transport.js";
 import type { ActionClientError } from "./action-transport.js";
 import { withSignalTransition } from "./signal-transaction.js";
 import type { TimelineActionCause } from "./timeline.js";
@@ -106,9 +110,15 @@ export const runAction = <I, A, E, R>(
   input: I,
 ): Effect.Effect<A, E, R> => {
   const operation = `Action.run(${definition.name})`;
+  const run = definition.run;
+  if (run === undefined) {
+    // A served Action runs where its implementation is: only a transport
+    // (or the endpoint holding `Action.implement(...)`) can run it.
+    return Effect.fail(new ActionNotFound({ actionName: definition.name })) as never;
+  }
   return Effect.flatMap(
     Effect.try({
-      try: () => definition.run(input),
+      try: () => run(input),
       catch: (cause) => actionCallbackError(operation, cause),
     }),
     (result) => {
