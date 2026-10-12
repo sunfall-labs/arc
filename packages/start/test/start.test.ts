@@ -669,9 +669,9 @@ describe("Sunfall Arc Start", () => {
         ),
       ),
     );
-    const ambientClient: Server.Client = {
-      call: () => Effect.die("ambient ServerClient should not handle request-runtime calls"),
-    };
+    const ambientClient: Server.Client = Server.makeClient(() =>
+      Effect.die("ambient ServerClient should not handle request-runtime calls"),
+    );
     const ProjectRoute = Route.define("/local-server-client/:id", {
       params: Schema.Struct({ id: Schema.String }),
       preload: ({ params }) => lookupProject.effect({ id: params.id }),

@@ -50,6 +50,18 @@ Found by building `examples/tracker`, a real issue tracker on SQLite.
   URL update and per-page UI State (an open filter drawer) reset. A change of
   route or params still mounts a fresh instance.
 
+### The Server Layer Must Provide What Served Code Needs (Breaking)
+
+- `createRequestHandler(app, { server, serverFunctions })` checks the server
+  Layer against the services of the served server functions and Actions, as
+  it already did for the root: a missing database client is a compile error
+  at the call, not a requirement left on the handler (where the Vite plugin,
+  which runs the handler untyped, never saw it).
+- `Server.Client` is nominal. Requirement checks compare services
+  structurally, and every function has a `call` method, so a callable service
+  (an Effect `SqlClient`) looked like a `Server.Client` and was silently
+  treated as provided. Build clients with the new `Server.makeClient(call)`.
+
 ### Smaller Fixes
 
 - `rows.changes(input, rows)` receives the synced rows its feed starts from,
@@ -60,6 +72,10 @@ Found by building `examples/tracker`, a real issue tracker on SQLite.
 - A rejected `ActionResult` (`ValidationFailure`, `Failure`) no longer runs
   the definition's `invalidates`: the change did not happen. Invalidations the
   result itself carries still run.
+- A failed Vite dev SSR request names its failure: `StartDevServerError` and
+  `StartRequestHandlerError` messages describe the operation and the wrapped
+  failure (through tagged errors without messages). Vite used to print
+  `Internal server error:` followed by a stack and nothing else.
 - `StartAction.decodeFormData` decodes a form like the server decodes its
   no-JavaScript post: visible fields merged over the default input
   `StartAction.form(action, { input })` encoded. It used to drop the

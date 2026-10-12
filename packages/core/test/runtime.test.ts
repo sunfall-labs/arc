@@ -63,11 +63,13 @@ describe("Sunfall Arc runtime", () => {
       (id) => Effect.succeed(`local:${id}`),
     );
     const runtime = makeRuntime(
-      Layer.succeed(Server.Client)({
+      Layer.succeed(Server.Client)(
         // The fake transport answers every function with a string; the test only calls string functions.
-        call: <I, A, E, R>(_fn: unknown, input: I) =>
-          Effect.succeed(`remote:${String(input)}`) as unknown as Effect.Effect<A, E, R>,
-      }),
+        Server.makeClient(
+          <I, A, E, R>(_fn: unknown, input: I) =>
+            Effect.succeed(`remote:${String(input)}`) as unknown as Effect.Effect<A, E, R>,
+        ),
+      ),
     );
 
     return Effect.runPromise(
