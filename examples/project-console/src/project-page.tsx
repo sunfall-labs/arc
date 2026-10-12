@@ -1,4 +1,5 @@
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
+import { LiveQuery } from "@sunfall/arc-solid/live-query";
 import { Route, State } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Schema } from "effect";
@@ -128,9 +129,7 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
 const WorkQueueSummary = Component.define(
   "WorkQueueSummary",
   function* (props: { readonly projectId: ProjectId }) {
-    const queue = yield* Component.liveQuery((query) =>
-      projectWorkQueueQuery(props.projectId)(query),
-    );
+    const queue = yield* LiveQuery.bind((query) => projectWorkQueueQuery(props.projectId)(query));
     const items = () => queue.rows();
     const blocked = () => items().filter((item) => item.status === "blocked").length;
     const running = () => items().filter((item) => item.status === "running").length;
@@ -154,9 +153,7 @@ const WorkQueueSummary = Component.define(
 const ProjectWorkQueue = Component.define(
   "ProjectWorkQueue",
   function* (props: { readonly project: Project }) {
-    const queue = yield* Component.liveQuery((query) =>
-      projectWorkQueueQuery(props.project.id)(query),
-    );
+    const queue = yield* LiveQuery.bind((query) => projectWorkQueueQuery(props.project.id)(query));
     // The row moves at once: the Action patches the work item row by key, and
     // the live query follows it; a failure moves it back.
     const move = yield* Component.action(MoveWorkItem);

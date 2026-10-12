@@ -1,7 +1,7 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { defaultRuntime, toEffect } from "@sunfall/arc-core/internal";
-import { Cause, Effect, Scope } from "effect";
+import { Cause, Effect, Exit, Fiber, Scope } from "effect";
 import type { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
   invokeStartRequestHandler,
@@ -20,7 +20,16 @@ import {
   interruptStartHostFiberOnSignal,
   type StartHostForkRunnerOptions,
 } from "./start-host-runtime-runner.js";
+import {
+  listenStartNodeServer,
+  withClientAssets,
+  type StartNodeServeError,
+  type StartNodeServeOptions,
+} from "./start-node-serve.js";
 
+export { StartNodeServeError } from "./start-node-serve.js";
+export type { StartNodeServeOptions } from "./start-node-serve.js";
+export type { StartClientAssets, StartPageAssets } from "./start-client-assets.js";
 export {
   StartNodeAdapterError,
   nodeRequestOrigin,
@@ -210,3 +219,95 @@ export function createNodeServerHandler<
     }
   };
 }
+
+/**
+ * Serves a Start app in production: the client build's static files, and
+ * every other request through `handler`, whose documents then reference the
+ * built entry, its stylesheets, and `modulepreload` links for the entry and
+ * the matched route's lazy chunks.
+ *
+ * `vite build` with `sunfallArcStart` emits `dist/server/index.js`, which
+ * calls this with the build's assets, so an app runs in production with
+ * `node dist/server/index.js`. The Effect yields the listening `http.Server`
+ * and closes it when its Scope closes.
+ *
+ * @example
+ * ```ts
+ * Effect.runPromise(
+ *   Effect.scoped(Effect.andThen(serve(handleRequest, { clientDir, assets }), Effect.never)),
+ * );
+ * ```
+ */
+export const serve = <Handler extends StartRequestHandlerInput<any, any>>(
+  handler: Handler &
+    ([Exclude<StartRequestHandlerRequirements<Handler>, Scope.Scope>] extends [never]
+      ? unknown
+      : {
+          readonly "serve needs a handler whose services are provided": Exclude<
+            StartRequestHandlerRequirements<Handler>,
+            Scope.Scope
+          >;
+        }),
+  options: StartNodeServeOptions & StartNodeServerHandlerOptions,
+): Effect.Effect<Server, StartNodeServeError, Scope.Scope> => {
+  const { clientDir, assets, base, port, host, ...nodeOptions } = options;
+  return listenStartNodeServer(
+    createNodeServerHandler(
+      withClientAssets(handler as StartRequestHandlerInput<unknown, Scope.Scope>, assets),
+      nodeOptions,
+    ),
+    {
+      clientDir,
+      ...(base === undefined ? {} : { base }),
+      ...(port === undefined ? {} : { port }),
+      ...(host === undefined ? {} : { host }),
+    },
+  );
+};
+
+const listeningOn = (server: Server): string => {
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    return String(address);
+  }
+  const host = address.family === "IPv6" ? `[${address.address}]` : address.address;
+  return `http://${host}:${address.port}`;
+};
+
+/**
+ * Runs `serve` as the process's main program: logs where it listens, closes
+ * the server (finishing open requests) on SIGINT or SIGTERM, and exits with
+ * status 1 if it cannot start. This is what `vite build`'s
+ * `dist/server/index.js` calls; a host that manages its own process uses
+ * `serve`.
+ */
+export const serveMain = <Handler extends StartRequestHandlerInput<any, any>>(
+  ...args: Parameters<typeof serve<Handler>>
+): void => {
+  if (typeof args[0] !== "function") {
+    throw new TypeError(
+      "serveMain needs a Start request handler (the server entry's default or handleRequest export).",
+    );
+  }
+  const fiber = Effect.runFork(
+    Effect.scoped(
+      serve(...args).pipe(
+        Effect.tap((server) => Effect.log(`Listening on ${listeningOn(server)}`)),
+        Effect.andThen(Effect.never),
+      ),
+    ),
+  );
+  const stop = (): void => {
+    Effect.runFork(Fiber.interrupt(fiber));
+  };
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
+  fiber.addObserver((exit) => {
+    process.off("SIGINT", stop);
+    process.off("SIGTERM", stop);
+    if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+      process.stderr.write(`${Cause.pretty(exit.cause)}\n`);
+      process.exitCode = 1;
+    }
+  });
+};

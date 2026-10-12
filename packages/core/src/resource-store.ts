@@ -198,8 +198,6 @@ export interface MutableResourceStore extends ResourceStore {
   readonly refTags: Map<string, Set<string>>;
   /** Mounted UI/resource bindings retaining a resource ref from gc collection. */
   readonly retainedRefs: Map<string, number>;
-  /** @internal Use `eventBus` or `Resource.subscribeEvents`. */
-  readonly events: PubSub.PubSub<ResourceStoreEvent>;
   /** @internal Scope owning store background work; closed by `disposeResourceStore`. */
   readonly scope: Scope.Closeable;
   /**
@@ -233,15 +231,35 @@ export const makeMutableResourceStore = (
   const refTags = new Map<string, Set<string>>();
   const retainedRefs = new Map<string, number>();
   const modules = new Map<symbol, ResourceStoreModule>();
-  const events = Effect.runSync(PubSub.sliding<ResourceStoreEvent>(1024));
   const scope = Effect.runSync(Scope.make());
   const fibers = Effect.runSync(Scope.provide(FiberSet.make(), scope));
 
+  // The event PubSub is created by the first subscriber. Until then nobody
+  // can receive an event (a PubSub drops what no subscriber takes), so
+  // publishing is free and a store nobody watches, like an SSR request's,
+  // never allocates the buffer.
+  let events: PubSub.PubSub<ResourceStoreEvent> | undefined;
+  let shutdown = false;
+  const eventsPubSub = (): PubSub.PubSub<ResourceStoreEvent> => {
+    if (events === undefined) {
+      events = Effect.runSync(PubSub.sliding<ResourceStoreEvent>(1024));
+      if (shutdown) {
+        Effect.runSync(PubSub.shutdown(events));
+      }
+    }
+    return events;
+  };
   const eventBus: ResourceStoreEventBus = {
-    publish: (event) => PubSub.publish(events, event).pipe(Effect.asVoid),
-    subscribe: PubSub.subscribe(events),
-    shutdown: PubSub.shutdown(events),
-    isShutdown: Effect.sync(() => PubSub.isShutdownUnsafe(events)),
+    publish: (event) =>
+      Effect.suspend(() =>
+        events === undefined ? Effect.void : PubSub.publish(events, event).pipe(Effect.asVoid),
+      ),
+    subscribe: Effect.suspend(() => PubSub.subscribe(eventsPubSub())),
+    shutdown: Effect.suspend(() => {
+      shutdown = true;
+      return events === undefined ? Effect.void : PubSub.shutdown(events);
+    }),
+    isShutdown: Effect.sync(() => shutdown),
   };
   const moduleRegistry: ResourceStoreModuleRegistry = {
     get: (key) => modules.get(key),
@@ -287,7 +305,6 @@ export const makeMutableResourceStore = (
     tagIndex,
     refTags,
     retainedRefs,
-    events,
     scope,
     followsChanges: options.followsChanges ?? true,
   };

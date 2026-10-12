@@ -43,6 +43,12 @@ export interface SunfallArcStartOptions {
   /** Named handler export to load from the server entry. */
   readonly handlerExport?: string;
   /**
+   * Browser entry module (the file that calls `App.launch(app)`), root
+   * relative. The production build bundles it as the client entry. Defaults
+   * to `/src/main.tsx`.
+   */
+  readonly clientEntry?: string;
+  /**
    * Runtime and run options used by the Vite dev SSR middleware.
    *
    * Pass this when the server-entry handler returns Effects that require app

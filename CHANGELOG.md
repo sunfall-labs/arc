@@ -6,6 +6,89 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Hydration Payloads Are Copied Once
+
+- Validating a Resource hydration payload checks its shape and no longer
+  deep-copies every snapshot's input and value. A server render copied a
+  1,000-row Resource four times on its way to JSON (schema encode, a clone,
+  and two validations), and the browser validated the parsed payload twice
+  (once discarded) before decoding it. Now the server's only copy is the
+  schema encode (or a clone for a family without schemas, so a payload never
+  aliases Resource state), and the browser validates once and decodes once.
+- Server CPU per render of the `benchmarks/compare` list (1,000 rows, in
+  process, 60 batches): p25 6.2 ms to 5.3 ms.
+
+### Lower Fixed Cost Per Request
+
+- A Resource Store creates its event `PubSub` for its first subscriber
+  instead of on creation. A store nobody watches, like each SSR request's,
+  no longer allocates a 1,024-slot buffer per request; publishing to it is
+  free, as before nothing received it.
+- The Node adapter copies a Web `Response` body to the `ServerResponse`
+  chunk by chunk (waiting for `drain`) instead of `stream.pipeline` over
+  `Readable.fromWeb`, which built a Node stream and an abort signal (and a
+  `DOMException` on every finish) per request. A client that disconnects
+  mid-body still cancels the body.
+- Route matching orders a route list once (by specificity) instead of on
+  every match.
+- Server CPU per request for the `benchmarks/compare` detail page (in
+  process, 60 batches): p25 0.76 ms to 0.61 ms, median 0.93 ms to 0.78 ms.
+
+### Production Server Build
+
+- `vite build` with `sunfallArcStart` now builds a server-rendered app for
+  production (any app that does not `prerender`): the client into
+  `dist/client` with Vite's manifest, then the server into `dist/server`,
+  where Start generates `index.js`. `node dist/server/index.js` serves the
+  app on `PORT` (default 3000) and `HOST`, and closes gracefully on
+  `SIGINT`/`SIGTERM`. Previously Start only served in dev or prerendered, and
+  every app wrote its own server and asset wiring.
+- Documents rendered by the production server reference the built entry and
+  its stylesheets, and `modulepreload` the entry, its imports, and the matched
+  route's lazy `*.component.tsx` chunk, so the route's code downloads with the
+  entry instead of after it runs. Dev stylesheet links (`/src/...`) are
+  dropped there.
+- `@sunfall/arc-start/node` gains `serve(handler, { clientDir, assets })`, the
+  production server as a scoped Effect (static files plus the handler), and
+  `serveMain`, which runs it as the process main (what `index.js` calls).
+  `sunfallArcStart` takes `clientEntry` (default `/src/main.tsx`) for the
+  client build's input when the app sets none.
+- The client build moves from `dist` to `dist/client`; the examples' leak
+  scans read `dist/client`. `examples/tracker` runs in production with
+  `pnpm build && pnpm start`, and its `verify` smoke-tests the production
+  server (`scripts/production-smoke.mjs`). `benchmarks/compare/arc` drops its
+  hand-written `server.mjs` for the built server.
+
+### Live Queries Move To `@sunfall/arc-solid/live-query` (Breaking)
+
+- `Component.liveQuery(query, options?)` is now
+  `LiveQuery.bind(query, options?)` from the new
+  `@sunfall/arc-solid/live-query` entry, and `Component.LiveQueryHandle`,
+  `LiveQueryInput`, and `LiveQueryOptions` are `LiveQuery.Handle`,
+  `LiveQuery.Input`, and `LiveQuery.Options`. Behavior is unchanged.
+- The `Component` namespace cannot be tree-shaken, so the binding used to pull
+  `@sunfall/arc-db`, `@tanstack/db-ivm`, and `fractional-indexing` into every
+  app's browser bundle. Apps that do not import the new entry no longer ship
+  them: the `benchmarks/compare` app's JS drops from 153.3 KB to 140.5 KB gzip
+  (133.8 KB to 123.0 KB brotli).
+
+### Cheaper RouterLink
+
+- `RouterLink` renders a plain anchor on the server (no memos, effects, or
+  preloader) and, in the browser, holds no preloader, effect, or cleanup until
+  the first hover or focus. A link is one statically created anchor with its
+  attribute bindings, not a `<Dynamic>`. Route patterns are parsed once and
+  cached, so building an href no longer re-parses the pattern.
+- A rendered link holds one state object, its `href` getter, and three
+  event handlers (its behavior is on a shared prototype), down from thirteen
+  closures: the 1,000-link list's JS heap after load drops a further
+  8.43 MB to 8.25 MB.
+- `RouterLink` now also preloads on focus (keyboard navigation), and an
+  `onFocus` handler passed to it runs first, like `onMouseEnter`.
+- Measured on the 1,000-link list of `benchmarks/compare` (5 interleaved
+  rounds): server CPU per render of `/` 18.2 ms to 10.3 ms, JS heap after load
+  12.0 MB to 8.6 MB, first click handled (4x CPU throttle) 528 ms to 455 ms.
+
 ### App States: One State Shared Across Pages
 
 Found by building `examples/tracker`, whose undo toast is shown by the board
@@ -107,6 +190,7 @@ Found by building `examples/tracker`, a real issue tracker on SQLite.
   no-JavaScript post: visible fields merged over the default input
   `StartAction.form(action, { input })` encoded. It used to drop the
   defaults, so an enhanced form missed fields (an `id`) its no-JS post had.
+  ||||||| parent of 50ba169 (Make RouterLink cheap on the server and before first intent)
 
 ### Rejected Path Params Are Not Found (Breaking)
 

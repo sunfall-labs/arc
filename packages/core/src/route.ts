@@ -839,7 +839,33 @@ const routeNavigationError = (input: string | URL, cause: unknown): RouteNavigat
     cause,
   });
 
+// Route lists are module constants, so each is ordered once rather than on
+// every match. The cache keeps the list it ordered and is reused only while
+// the list still holds exactly those routes.
+const orderedRoutes = new WeakMap<
+  object,
+  { readonly source: ReadonlyArray<unknown>; readonly ordered: ReadonlyArray<unknown> }
+>();
+
 const orderedRouteDefinitions = <
+  const Routes extends readonly RouteDefinition<string, unknown, unknown, any>[],
+>(
+  routes: Routes,
+): ReadonlyArray<Routes[number]> => {
+  const cached = orderedRoutes.get(routes);
+  if (
+    cached !== undefined &&
+    cached.source.length === routes.length &&
+    cached.source.every((route, index) => route === routes[index])
+  ) {
+    return cached.ordered as ReadonlyArray<Routes[number]>;
+  }
+  const ordered = orderRouteDefinitions(routes);
+  orderedRoutes.set(routes, { source: [...routes], ordered });
+  return ordered;
+};
+
+const orderRouteDefinitions = <
   const Routes extends readonly RouteDefinition<string, unknown, unknown, any>[],
 >(
   routes: Routes,

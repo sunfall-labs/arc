@@ -1,8 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
-import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { Data, Effect } from "effect";
+import { Cause, Data, Effect, Exit } from "effect";
 
 /** Error raised while converting Node requests or writing Node responses. */
 export class StartNodeAdapterError extends Data.TaggedError("StartNodeAdapterError")<{
@@ -191,6 +189,87 @@ const cancelResponseBodyEffect = (
       })
     : Effect.void;
 
+const writeResponseError = (error: unknown): StartNodeAdapterError =>
+  new StartNodeAdapterError({ operation: "write-response", error });
+
+const responseClosedEarly = (): StartNodeAdapterError =>
+  writeResponseError(new Error("The response closed before its body finished."));
+
+/** Waits until Node drains the response buffer, failing if the response closes first. */
+const drainEffect = (target: ServerResponse): Effect.Effect<void, StartNodeAdapterError> =>
+  Effect.callback<void, StartNodeAdapterError>((resume) => {
+    const onDrain = (): void => {
+      target.off("close", onClose);
+      resume(Effect.void);
+    };
+    const onClose = (): void => {
+      target.off("drain", onDrain);
+      resume(Effect.fail(responseClosedEarly()));
+    };
+    target.once("drain", onDrain);
+    target.once("close", onClose);
+    return Effect.sync(() => {
+      target.off("drain", onDrain);
+      target.off("close", onClose);
+    });
+  });
+
+const cancelReader = (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  reason: unknown,
+): Effect.Effect<void> => Effect.tryPromise(() => reader.cancel(reason)).pipe(Effect.ignore);
+
+const pumpBodyEffect = (
+  target: ServerResponse,
+  body: ReadableStream<Uint8Array>,
+): Effect.Effect<void, StartNodeAdapterError> =>
+  Effect.suspend(() => {
+    const reader = body.getReader();
+    // A client that leaves while the body waits for its next chunk cancels
+    // the body at once; the pending read then ends and the copy fails.
+    let closedEarly = false;
+    const onClose = (): void => {
+      if (!target.writableFinished) {
+        closedEarly = true;
+        Effect.runFork(cancelReader(reader, responseClosedEarly()));
+      }
+    };
+    target.once("close", onClose);
+    const read = Effect.tryPromise({ try: () => reader.read(), catch: writeResponseError });
+    const pump: Effect.Effect<void, StartNodeAdapterError> = Effect.flatMap(read, (chunk) => {
+      if (closedEarly || target.destroyed) {
+        return Effect.fail(responseClosedEarly());
+      }
+      if (chunk.done) {
+        return Effect.sync(() => {
+          target.end();
+        });
+      }
+      return target.write(chunk.value) ? pump : Effect.andThen(drainEffect(target), pump);
+    });
+    // A failed or interrupted copy cancels the body, which runs its teardown.
+    return pump.pipe(
+      Effect.onExit((exit) =>
+        Effect.andThen(
+          Effect.sync(() => target.off("close", onClose)),
+          Exit.isFailure(exit) && !closedEarly
+            ? cancelReader(
+                reader,
+                Cause.hasInterrupts(exit.cause) ? "interrupted" : Cause.squash(exit.cause),
+              )
+            : Effect.void,
+        ),
+      ),
+    );
+  });
+
+/**
+ * Copies a Web body to the Node response chunk by chunk, waiting for `drain`
+ * when Node's buffer is full. A response that closes early (the client went
+ * away) or an interrupted fiber cancels the body, which runs the body's own
+ * teardown. Unlike `stream.pipeline` over `Readable.fromWeb`, it allocates
+ * no Node stream or abort signal per request.
+ */
 const writeStreamBodyEffect = (
   target: ServerResponse,
   response: Response,
@@ -202,11 +281,7 @@ const writeStreamBodyEffect = (
       )
     : !response.body
       ? endNodeResponseEffect(target)
-      : Effect.tryPromise({
-          try: (signal) =>
-            pipeline(Readable.fromWeb(response.body as NodeReadableStream), target, { signal }),
-          catch: (error) => new StartNodeAdapterError({ operation: "write-response", error }),
-        });
+      : pumpBodyEffect(target, response.body);
 
 const setNodeResponseHeaders = (target: ServerResponse, headers: Headers): void => {
   const setCookies = headers.getSetCookie();

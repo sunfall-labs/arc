@@ -2,7 +2,9 @@ import { sunfallArcStart } from "@sunfall/arc-start/vite";
 import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
 import { defineConfig } from "vite";
 
-export default defineConfig(({ isSsrBuild }) => ({
+// `vite build` builds the client into dist/client and the production server
+// into dist/server (`node dist/server/index.js`).
+export default defineConfig({
   plugins: [
     ...sunfallArcTsrx({ solid: { ssr: true } }),
     sunfallArcStart({
@@ -11,11 +13,4 @@ export default defineConfig(({ isSsrBuild }) => ({
       fileRouteGeneration: { outputFile: "src/routeTree.gen.ts" },
     }),
   ],
-  build: isSsrBuild
-    ? {}
-    : {
-        outDir: "dist/client",
-        manifest: true,
-        rollupOptions: { input: "src/main.tsx" },
-      },
-}));
+});

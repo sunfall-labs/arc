@@ -325,6 +325,16 @@ const allowed = [
         /readonly closeBundle:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/,
       ),
       seam(
+        "packages/start/src/vite.ts",
+        "Vite plugin buildApp hook contract",
+        /readonly handler:\s*\(builder:\s*StartViteBuilder\)\s*=>\s*Promise<void>;/,
+      ),
+      seam(
+        "packages/start/src/vite.ts",
+        "Vite app builder build method",
+        /build\(environment:\s*never\):\s*Promise<unknown>;/,
+      ),
+      seam(
         "type-tests/framework.test-d.ts",
         "Promise negative fixture promisedProject",
         /declare const promisedProject:\s*Promise<Project>;/,

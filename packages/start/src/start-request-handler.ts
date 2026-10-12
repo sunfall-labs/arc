@@ -31,6 +31,7 @@ import {
   createStartRenderHydrationPlan,
   type StartRenderHydrationPlan,
 } from "./render-hydration-plan.js";
+import { ClientAssets, type StartClientAssets } from "./start-client-assets.js";
 import { isServerActionRequest, isServerRpcRequest } from "./rpc.js";
 import { makeActionMap, type StartActionDefinition } from "./start-action-request-codec.js";
 import { makeStartActionWorkflows, settledActionSubmissions } from "./start-action-workflow.js";
@@ -79,6 +80,8 @@ export interface StartRenderContext<
   readonly runtime: SunfallArcRuntime<ServerServices, ServerError>;
   readonly resourceStore: ResourceStoreState;
   readonly hydrationPlan: StartRenderHydrationPlan;
+  /** The production client build, when the host serves one (`ClientAssets`). */
+  readonly clientAssets: StartClientAssets | undefined;
 }
 
 /**
@@ -161,6 +164,7 @@ export const createStartRequestHandler = <
       // including those the render forks (a Resource read nobody preloaded).
       const requestRuntime = makeServedRequestRuntime(app, request, responseContext, app.registry);
       const facts = yield* startRequestFacts(request);
+      const clientAssets = yield* ClientAssets;
       const responseEffect = Effect.gen(function* () {
         if (isServerRpcRequest(request)) {
           return yield* createServerRpcResponseEffectWithRuntime(
@@ -248,6 +252,7 @@ export const createStartRequestHandler = <
           runtime: requestRuntime,
           resourceStore: requestRuntime.resourceStore,
           hydrationPlan,
+          clientAssets,
         } satisfies StartRenderContext<Routes, ServerServices, ServerError, Registry>;
 
         if (options.render) {

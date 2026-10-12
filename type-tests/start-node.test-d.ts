@@ -3,8 +3,12 @@ import {
   createNodeServerHandler,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
+  serve,
+  serveMain,
   StartNodeAdapterError,
+  StartNodeServeError,
   writeNodeResponse,
+  type StartClientAssets,
   type StartForkRuntime,
   type StartNodeHandler,
   type StartNodeOriginPolicy,
@@ -13,12 +17,14 @@ import {
   type StartNodeServerHandler,
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
+  type StartNodeServeOptions,
+  type StartPageAssets,
   type WriteNodeResponseOptions,
 } from "@sunfall/arc-start/node";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import type { StartRequestHandler } from "@sunfall/arc-start";
 import { Effect, Scope } from "effect";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 
 const nodeAdapterExports: Array<unknown> = [
   createNodeHandler,
@@ -94,3 +100,23 @@ void nodeServerHandler;
 void servicefulNodeServerHandler;
 void hiddenNodeHandler;
 void webRequest;
+
+// --- serve: the production server for `vite build`'s dist/server/index.js ---
+const clientAssets: StartClientAssets = {
+  entry: "/assets/main.js",
+  modulepreload: ["/assets/main.js"],
+  stylesheets: ["/assets/main.css"],
+  routes: { "/": { modulepreload: ["/assets/index.component.js"], stylesheets: [] } },
+};
+const pageAssets: StartPageAssets = clientAssets;
+const serveOptions: StartNodeServeOptions = { clientDir: "dist/client", assets: clientAssets };
+const served: Effect.Effect<Server, StartNodeServeError, Scope.Scope> = serve(
+  scopeOnlyHandler,
+  serveOptions,
+);
+// @ts-expect-error serve needs a handler whose services are provided.
+serve(servicefulHandler, serveOptions);
+const servedMain: void = serveMain(scopeOnlyHandler, { ...serveOptions, port: 3000 });
+void pageAssets;
+void served;
+void servedMain;

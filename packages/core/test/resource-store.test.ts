@@ -1,4 +1,4 @@
-import { Cause, Deferred, Effect, Exit, Fiber } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, PubSub } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   disposeResourceStore,
@@ -32,6 +32,31 @@ describe("Resource Store disposal", () => {
         expect(shutdown).toBe(true);
         yield* disposeResourceStore(store);
       }),
+    );
+  });
+
+  it("creates its event pubsub for the first subscriber, and shuts it down after disposal", () => {
+    const store = makeResourceStore();
+    const event = { _tag: "ResourceDeleted", name: "Lazy.events", key: "1" } as const;
+
+    return Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          // Nobody subscribed yet: the event has no receiver and is dropped.
+          yield* store.eventBus.publish({ ...event, key: "0" });
+          const subscription = yield* store.eventBus.subscribe;
+          yield* store.eventBus.publish(event);
+          expect(yield* PubSub.take(subscription)).toEqual(event);
+
+          yield* disposeResourceStore(store);
+          expect(yield* store.eventBus.isShutdown).toBe(true);
+          const late = makeResourceStore();
+          yield* disposeResourceStore(late);
+          // A subscription made after disposal is already shut down.
+          const lateSubscription = yield* late.eventBus.subscribe;
+          expect(Exit.isFailure(yield* Effect.exit(PubSub.take(lateSubscription)))).toBe(true);
+        }),
+      ),
     );
   });
 

@@ -4,34 +4,15 @@ import { app } from "./app-definition.js";
 import { ItemsApiServer, serverFunctions } from "./items.server.js";
 import { routeById } from "./routeTree.gen.js";
 
-/** Built browser assets for a production document (from Vite's build manifest). */
-export interface ClientAssets {
-  readonly entry: string;
-  readonly css: ReadonlyArray<string>;
-  readonly modulepreload: ReadonlyArray<string>;
-}
-
 /**
- * The Start handler. Without `assets` (Vite dev) the document references the
- * source entry; `server.mjs` passes the built entry, its CSS, and its static
- * imports for production.
+ * The Start handler. `vite dev` serves it; `vite build` also emits
+ * `dist/server/index.js`, which serves it in production with the built
+ * client's entry, stylesheets, and route chunk preloads.
  */
-export const createHandler = (assets?: ClientAssets) =>
-  createRequestHandler(app, {
-    server: ItemsApiServer,
-    serverFunctions,
-    document: ({ match }) => ({
-      title: Route.isMatch(routeById.route_items_$id, match) ? `Item ${match.params.id}` : "Items",
-      ...(assets === undefined
-        ? {}
-        : {
-            clientEntry: assets.entry,
-            links: [
-              ...assets.css.map((href) => ({ rel: "stylesheet", href })),
-              ...assets.modulepreload.map((href) => ({ rel: "modulepreload", href })),
-            ],
-          }),
-    }),
-  });
-
-export default createHandler();
+export default createRequestHandler(app, {
+  server: ItemsApiServer,
+  serverFunctions,
+  document: ({ match }) => ({
+    title: Route.isMatch(routeById.route_items_$id, match) ? `Item ${match.params.id}` : "Items",
+  }),
+});

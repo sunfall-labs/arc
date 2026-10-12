@@ -514,6 +514,13 @@ export const publicHoverDocGroups = [
     declarations: ["RouterLinkProps", "isPlainLeftClick", "RouterLink"],
   },
   {
+    file: "packages/solid/src/live-query.ts",
+    allDeclarations: ["LiveQuery"],
+    namespaceDeclarations: {
+      LiveQuery: ["RenderError", "Options", "Handle", "Input", "bind"],
+    },
+  },
+  {
     file: "packages/solid/src/component.ts",
     allDeclarations: ["Component"],
     namespaceDeclarations: {
@@ -528,9 +535,6 @@ export const publicHoverDocGroups = [
         "ResourceReader",
         "ResourceRowsReader",
         "Reader",
-        "LiveQueryHandle",
-        "LiveQueryInput",
-        "LiveQueryOptions",
         "ActionError",
         "ActionHandle",
         "StateView",
@@ -542,7 +546,6 @@ export const publicHoverDocGroups = [
         "define",
         "instance",
         "resource",
-        "liveQuery",
         "action",
         "state",
         "stream",
@@ -623,7 +626,7 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/start/src/node.ts",
-    allDeclarations: ["createNodeHandler", "createNodeServerHandler"],
+    allDeclarations: ["createNodeHandler", "createNodeServerHandler", "serve", "serveMain"],
   },
 ];
 

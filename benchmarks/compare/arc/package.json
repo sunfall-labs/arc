@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
-    "build": "vite build && vite build --ssr src/server.tsx --outDir dist/server",
-    "start": "NODE_ENV=production node server.mjs"
+    "build": "vite build",
+    "start": "NODE_ENV=production node dist/server/index.js"
   },
   "dependencies": {
     "@solidjs/web": "2.0.0-rc.14",

@@ -157,7 +157,14 @@ const validateNumber = (
   return value;
 };
 
-/** Validates and clones one Resource success snapshot from unknown input. */
+/**
+ * Validates one Resource success snapshot from unknown input.
+ *
+ * Validation checks the snapshot's shape and keeps its `input` and
+ * `state.value` by reference: values reach a snapshot freshly encoded (or
+ * cloned, without a schema) and leave it through `JSON.parse` or a schema
+ * decode, so copying them here again would only cost time and memory.
+ */
 export const validateResourceHydrationSnapshot = <I = unknown, A = unknown>(
   value: unknown,
   operation: ResourceSnapshotCodecOperation = "hydrate",
@@ -193,10 +200,10 @@ export const validateResourceHydrationSnapshot = <I = unknown, A = unknown>(
   return {
     name: validateString(snapshot.name, operation, `${path}.name`),
     key: validateString(snapshot.key, operation, `${path}.key`),
-    input: cloneResourceSnapshotValue(snapshot.input) as I,
+    input: snapshot.input as I,
     state: {
       _tag: "Success",
-      value: cloneResourceSnapshotValue(state.value) as A,
+      value: state.value as A,
       waiting: false,
       timestamp: validateNumber(state.timestamp, operation, `${path}.state.timestamp`),
     } satisfies ResourceHydrationSuccessState<A>,
@@ -267,18 +274,16 @@ const encodeResourceHydrationValueEffect = (
   operation: ResourceSnapshotCodecOperation,
   path: string,
 ): Effect.Effect<unknown, ResourceSnapshotCodecError> => {
-  const encoded = Schema.isSchema(schema)
+  // A schema encode builds the snapshot's value; without one, the snapshot
+  // copies the live value so the payload never aliases Resource state.
+  return Schema.isSchema(schema)
     ? Schema.encodeUnknownEffect(schema as Schema.Encoder<unknown>)(value).pipe(
         Effect.mapError(catchSnapshotCodecError(operation, path)),
       )
-    : Effect.succeed(value);
-
-  return Effect.flatMap(encoded, (encodedValue) =>
-    Effect.try({
-      try: () => cloneResourceSnapshotValue(encodedValue),
-      catch: catchSnapshotCodecError(operation, path),
-    }),
-  );
+    : Effect.try({
+        try: () => cloneResourceSnapshotValue(value),
+        catch: catchSnapshotCodecError(operation, path),
+      });
 };
 
 /** Effect wrapper for validating a Resource hydration payload object. */

@@ -11,7 +11,7 @@ export const frameworks = [
     id: "arc",
     label: "Arc",
     cwd: join(compareRoot, "arc"),
-    start: ["server.mjs"],
+    start: ["dist/server/index.js"],
     packages: ["@sunfall/arc-start", "@sunfall/arc-core", "solid-js", "effect", "vite"],
   },
   {
