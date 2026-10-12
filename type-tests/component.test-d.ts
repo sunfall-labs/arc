@@ -266,7 +266,7 @@ void renameSubmit;
 // Programs: the definition's services join R.
 const Counter = Program.define<number, { readonly _tag: "Load" }, never, ProjectApi>({
   initial: 0,
-  update: (model) => model + 1,
+  on: { Load: (model) => model + 1 },
 });
 const counterBinding = Component.program(Counter);
 type _counterBinding = Assert<
@@ -282,16 +282,22 @@ type _counterBinding = Assert<
 
 // Streams and callbacks: services join R; callbacks must handle their failures.
 const feedBinding = Component.stream(
+  "feed",
   Stream.fromEffect(Realtime.use((realtime) => Effect.succeed(realtime.feed().length))),
   0,
 );
 type _feedBinding = Assert<Eq<typeof feedBinding, Effect.Effect<() => number, never, Realtime>>>;
-const openBinding = Component.callback((id: string) =>
+const openBinding = Component.callback("open", (id: string) =>
   ProjectApi.use((api) => api.get(id)).pipe(Effect.ignore),
 );
 type _openBinding = Assert<
   Eq<typeof openBinding, Effect.Effect<(id: string) => void, never, ProjectApi>>
 >;
+// Every callback is a named transition: its Signal writes commit as `<Component>.<name>`.
+// @ts-expect-error a callback needs a name
+Component.callback((id: string) => Effect.log(id));
+// @ts-expect-error a stream needs a name
+Component.stream(Stream.make(1), 0);
 
 // Router: route preload services and route Components' services and failures
 // join the component, so `launch` checks them.
@@ -429,7 +435,7 @@ export function negatives() {
   Component.launch(RoutedApp.pipe(Component.provide(ProjectApiLive)), root);
 
   // @ts-expect-error callbacks must handle their failures
-  Component.callback((id: string) => ProjectApi.use((api) => api.get(id)));
+  Component.callback("open", (id: string) => ProjectApi.use((api) => api.get(id)));
 
   Component.define("WrongProps", function* () {
     const Card = yield* ProjectCard;

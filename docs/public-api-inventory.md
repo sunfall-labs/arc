@@ -1,11 +1,11 @@
 # Public API Inventory
 
-Last updated: 2026-05-17.
-
-This is the first release-candidate inventory required by the framework
-perfection charter. It tracks only import paths exported by package manifests;
-source files that are not reachable through `package.json#exports` are internal
-unless this document explicitly promotes them.
+This is the reference list of every import path the framework packages export,
+with its classification. It tracks only import paths exported by package
+manifests; source files that are not reachable through `package.json#exports`
+are internal unless this document explicitly promotes them. `pnpm verify` checks
+it against `type-tests/public-api.manifest.json` and the package manifests
+(`scripts/audit-public-api-inventory.mjs`), so it cannot drift.
 
 ## Classification Rules
 
@@ -102,8 +102,11 @@ selected by name. Their adapter plumbing, plus `definition-registry`,
 `resource-registry`, `resource-ui-binding`, `resource-failure-snapshot` (the
 SSR wire codec for failed Resource reads), `action-instance` and
 `program-start` (runtime-erased instance constructors for renderer bindings),
-`scope` (the ambient `UiScope`), `signal-watch`, and `stable-stringify` (DB
-query identity), is exported only from
+`scope` (the ambient `UiScope`), `signal-watch`, `signal-transaction`'s
+framework commit seam (`batchSignalWrites` / `signalTransaction` with a
+`TimelineCause`, `withSignalTransition` for an ambient named transition, and
+`writeUntracedSignals` for bookkeeping that is never recorded), and
+`stable-stringify` (DB query identity), is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
 exactly one import path; nothing is exported from both entrypoints.
 
@@ -119,11 +122,19 @@ Golden-path public groups:
 - `Signal`, `Form`, `Capability`
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
   `TimelineRecording` (`entries`, `position`, `travel(sequence)`, `resume()`)
-  over every committed change set; `Timeline.describe(cause)` renders a
-  `TimelineCause`. `Signal.make(initial, { name })` labels a signal, and
-  `Signal.transaction(effect, { cause })` / `Signal.batch(f, { cause })` label
-  a commit. `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the
-  typed failures.
+  over every committed change set; every `TimelineEntry` has a `cause`, and
+  `Timeline.describe(cause)` renders a `TimelineCause` (application commits
+  are `TimelineTransitionCause`: `{ _tag: "Transition", name }`).
+  `Signal.make(initial, { name })` requires a name. Every write happens in a
+  named transition: `Component.callback(name, f)` / `Component.stream(name,
+...)` (named `<Component>.<name>`), `Signal.fromStream(stream, initial, {
+name })`, `Signal.transaction(effect, { name? })` / `Signal.batch(f, { name?
+})` (unnamed ones take the caller's transition), Actions, Programs, and
+  framework events. A write outside all of them dies with the
+  `SignalWriteOutsideTransition` defect (exported for matching).
+  `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the typed
+  failures. `Form.make({ name, ... })` names a form's state and its
+  `<name>.setField` / `touchField` / `reset` / `validate` transitions.
 - `makeRuntime`, `runWithRuntime`, `SunfallArcRuntime.provide(...)`,
   `AnySunfallArcRuntime`
 - `ActionTransport` (with `ActionTransportResponse`): the Action counterpart of
@@ -171,6 +182,11 @@ retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
 - `Action.planInvalidation(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
+- `Action.planOptimistic(definition, input)` (`Action.OptimisticChange`) is the
+  test surface for `optimistic`: it runs the callback against a recording
+  transaction and returns the changes it would make (a Signal's next value, or
+  a row store plus the `Insert`/`Update`/`Delete` change as given) without
+  applying any or needing a runtime, store, or backend.
 - `PlainValue` is the expert-public type vocabulary for non-executable data
   seams. Promise-shaped values must be adapted through `Effect.tryPromise(...)`,
   and direct Effect values are executable work unless wrapped as
@@ -252,9 +268,8 @@ Release decisions:
   `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
   schema-encoded JSON with an `error` schema, the failure `_tag` only without
   one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
-  cross with the schema. `RouteFactory<Path>` (`Route.Factory<Path>`)
-  with `RouteDefineOptions<...>` lets builders such as Start file routes reuse
-  `Route.define(...)` option checking and inference. Planning Effects also expose
+  cross with the schema. `RouteDefineOptions<...>` names the options
+  `Route.define(path, options)` checks. Planning Effects also expose
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
@@ -324,23 +339,22 @@ Release decisions:
   rejected so host async work is routed through Effect primitives, and a
   throwing callback is a defect (as with `Effect.sync`).
 - `Program` is the public facade for the headless frontend loop around
-  centralized model/message state. `Program.define(...)` accepts either a plain
-  initial model with a pure-or-Effect `update(model, message)` callback or, for
-  tagged messages, an exhaustive `on` handler map keyed by every message `_tag`.
-  `Program.update(...)` builds the same callback from a handler map when callers
-  want the compact handlers inside a conventional definition. `Program.emit(...)`
+  centralized model/message state. `Program.define(...)` takes a plain initial
+  model and an exhaustive `on` handler map keyed by every message `_tag`
+  (messages are always tagged; there is no `update` callback). Handlers are
+  pure and synchronous: they return the next model or `Program.next(model,
+commands)`, never an Effect. `Program.emit(...)`
   is the one command constructor: it emits an immediate message, or runs an
   Effect after the model commits and emits the message it produces; an Effect
   that completes with `void` emits nothing, so background work is
   `Program.emit(effect)` too. `Program.commands(...)` batches commands for
   `Program.next(model, ...)`.
   `Program.next(...)` widens variant commands through the Program's message
-  union so handlers do not need command-level union generics. Both definition
-  surfaces use the same Effect commands and Stream subscriptions.
+  union so handlers do not need command-level union generics.
   `Program.start(definition, { runtime })` always takes an explicit runtime
   (there is no default-runtime fallback); it adds runtime startup/provision
   errors to the failure channel and rejects runtimes that do not provide the
-  Program's update, command, and subscription requirements. UI code starts
+  Program's command and subscription requirements. UI code starts
   Programs with Solid's `Component.program(...)`.
   Program models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
@@ -364,19 +378,20 @@ Release decisions:
   already committed updates acknowledge successfully. Committed model changes
   own subscription restarts, and stale subscription generations cannot emit
   follow-up messages or timeline facts.
-  Internally, Program Contract, Program Primitives, Program Story Harness, and
-  Program Runtime Coordinator Modules separate public data Interfaces, pure
-  constructors/normalizers, deterministic story execution, and live
-  Queue/Fiber/Scope execution while the public export surface stays anchored at
-  `program.ts`.
+  Internally, Program Contract, Program Primitives, and Program Runtime
+  Coordinator Modules separate public data Interfaces, pure
+  constructors/normalizers/`Program.step`, and live Queue/Fiber/Scope execution
+  while the public export surface stays anchored at `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
   `ProgramDisposed` for live `dispatch(...)` acknowledgement drops. The
   Solid `Component.program(...)` binding runs on its instance's already-started
   runtime, so its handle carries no `ER`.
-  `Program.step(...)` and `Program.story(...)` are the deterministic test
-  surface: they run updates as Effects, expose returned commands without running
-  them implicitly, and let tests resolve commands back into typed messages.
+  `Program.step(program, model, message)` is the one test surface: a pure,
+  synchronous call returning `{ model, commands }` with the commands unrun.
+  A command is a description whose `effect` a test runs (with test services)
+  to get the message it emits. The runtime applies messages through the same
+  function.
 - `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
   `Form.data(...)` is the explicit intermediate object conversion, preserving
@@ -450,8 +465,7 @@ Release decisions:
 The root export is the application surface only (about forty names). It
 includes:
 
-- Local source modules: `file-route`, `hydration`, `request-trace`,
-  `start-action-client`,
+- Local source modules: `hydration`, `request-trace`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
   `start-collection-resolution`, `start-document`, `start-fetch`,
   `start-request-handler`, `start-transport-endpoints`,
@@ -502,10 +516,12 @@ includes:
   restores the ones the server reports settled (`settledSubmissions` in the
   hydration payload) without re-patching them. Start adds no exports for
   either.
-- file routes: `FileRoute.define(path)(options)` takes the same options as core
-  `Route.define(path, options)`; Start checks `path` against the discovered file.
-  Static preload hints use core `preloadResources` / `preloadCollections`, and
-  runtime work lives in `preload`.
+- file routes: a route module exports `route = Route.define(path, options)`;
+  Start has no route constructor of its own. The generated route tree checks
+  the declared `path` against the path derived from the file, as a type error
+  and again when the tree loads. Static preload hints use core
+  `preloadResources` / `preloadCollections`, and runtime work lives in
+  `preload`.
 - actions: the app's `actions` are the Actions the server serves; `App.launch`
   routes their submissions from the single UI binding (Solid's
   `Component.action(...)`) over the network with the same result and error
@@ -994,7 +1010,14 @@ Release decisions:
   `AsyncResult` status accessor (actions, collections, live queries);
   row-valued accessors are `rows()`; a Resource renders through its reader
   (`reader(input)`, with `waiting` / `failure`); pure synchronous state writes
-  (`clearFailures()`, `Form.setField`) stay synchronous.
+  (`clearFailures()`, `Form.setField`) stay synchronous and carry their own
+  Timeline causes.
+- `Component.callback(name, f)` is the one way component code changes Signals
+  it owns: each call forks `f(...args)` in the instance Scope, started
+  immediately, as the named transition `<Component>.<name>`; Actions and
+  Programs it runs keep their own causes. `Component.stream(name, stream,
+initial)` commits each element as `<Component>.<name>`.
+  `Component.Instance.name` exposes the component name to setup-time bindings.
 - `Component.router(routes, options?)` creates the instance's router with the
   setup's runtime and context. The routes' preload services and route
   Components' services and failures (`RouterServices`, `RouterError`) join the

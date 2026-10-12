@@ -18,11 +18,14 @@ import {
   readSignalTransactionValue,
   renderedSignalProjections,
   signalTransaction,
+  withSignalTransition,
   writeSignalTransactionValue,
-  type SignalTransactionOptions,
   type SignalTransactionState,
   type SignalTransactionWritable,
 } from "./signal-transaction.js";
+import type { TimelineTransitionCause } from "./timeline.js";
+
+export { SignalWriteOutsideTransition } from "./signal-transaction.js";
 
 export const SignalTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/Signal",
@@ -42,9 +45,12 @@ export interface ReadableSignal<A> extends Subscribable {
 }
 
 /**
- * Mutable signal. Every write is transactional: it joins the caller's open
- * transaction (`Signal.transaction` / `Signal.batch`) or commits on its own.
- * Subscribers run only after commit, and only when `Object.is` sees a change.
+ * Mutable signal. Every write is transactional and named: it joins the
+ * caller's open transaction (`Signal.transaction` / `Signal.batch`, an Action,
+ * a Program update) or commits on its own under the caller's named
+ * `Component.callback`. A write outside every named transition dies with
+ * `SignalWriteOutsideTransition`. Subscribers run only after commit, and only
+ * when `Object.is` sees a change.
  */
 export interface WritableSignal<A> extends ReadableSignal<A> {
   /** Replaces the value or computes a next value from the current one. */
@@ -61,13 +67,25 @@ export interface SignalStreamOptions {
   readonly strategy?: "sliding" | "dropping" | "suspend";
 }
 
-export type { SignalTransactionOptions };
-
-/** Options for `Signal.make`. */
-export interface SignalOptions {
-  /** Label shown on `Timeline` entries. Unnamed signals get a stable `signal#N` id. */
+/** Options for `Signal.transaction` and `Signal.batch`. */
+export interface SignalTransactionOptions {
+  /**
+   * Names the commit on the `Timeline` (a `Transition` cause). Without one the
+   * transaction commits under the caller's named transition, and writing in it
+   * outside any dies with `SignalWriteOutsideTransition`. A nested transaction
+   * names the commit only when the outer one has no name.
+   */
   readonly name?: string;
 }
+
+/** Options for `Signal.make` and `Signal.fromStream`. */
+export interface SignalOptions {
+  /** Label shown on `Timeline` changes and in `SignalWriteOutsideTransition`. */
+  readonly name: string;
+}
+
+const transitionCause = (name: string | undefined): TimelineTransitionCause | undefined =>
+  name === undefined ? undefined : { _tag: "Transition", name };
 
 /** Manually records a dependency on a subscribable source for the active tracker. */
 export const trackDependency = (source: Subscribable): void => {
@@ -152,26 +170,19 @@ abstract class BaseSignal<A> implements ReadableSignal<A> {
   }
 }
 
-/** Ids handed to unnamed signals the first time a timeline labels them. */
-let unnamedSignalCount = 0;
-
 class WritableSignalImpl<A>
   extends BaseSignal<A>
   implements WritableSignal<A>, SignalTransactionWritable
 {
-  private label: string | undefined;
-
   constructor(
     private value: A,
-    options: SignalOptions | undefined,
+    private readonly name: string,
   ) {
     super();
-    this.label = options?.name;
   }
 
   timelineName(): string {
-    this.label ??= `signal#${++unnamedSignalCount}`;
-    return this.label;
+    return this.name;
   }
 
   get(): A {
@@ -351,9 +362,12 @@ export namespace Signal {
   export type Writable<A> = WritableSignal<A>;
   export type StreamOptions = SignalStreamOptions;
 
-  /** Creates a writable signal, optionally named for `Timeline` entries. */
-  export const make = <A>(initial: A, options?: SignalOptions): WritableSignal<A> =>
-    new WritableSignalImpl(initial, options);
+  /**
+   * Creates a writable signal. `name` labels its `Timeline` changes and the
+   * `SignalWriteOutsideTransition` defect a write outside a named transition raises.
+   */
+  export const make = <A>(initial: A, options: SignalOptions): WritableSignal<A> =>
+    new WritableSignalImpl(initial, options.name);
 
   /** Creates a derived signal that tracks the signals read by `compute`. */
   export const derive = <A>(compute: () => A): ReadableSignal<A> => new DerivedSignalImpl(compute);
@@ -371,19 +385,22 @@ export namespace Signal {
    * Reads inside see the transaction's own writes; other fibers and the UI see
    * none of them until success commits all of them at once. Failure or
    * interruption commits nothing. Nested transactions join the outer one, and
-   * fibers forked inside belong to it until it ends. `cause` labels the
-   * commit on a recording `Timeline`.
+   * fibers forked inside belong to it until it ends. `name` labels the commit
+   * on the `Timeline`; without it the commit takes the caller's named
+   * transition, and a write with neither dies with `SignalWriteOutsideTransition`.
    */
-  export const transaction: <A, E, R>(
+  export const transaction = <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     options?: SignalTransactionOptions,
-  ) => Effect.Effect<A, E, R> = signalTransaction;
+  ): Effect.Effect<A, E, R> => signalTransaction(effect, transitionCause(options?.name));
 
   /**
    * Synchronous counterpart of `transaction`: reads inside `f` see its writes,
-   * subscribers run once after it returns, and a throw commits nothing.
+   * subscribers run once after it returns, and a throw commits nothing. Name
+   * it to write from plain synchronous code (a test, a Solid handler).
    */
-  export const batch: <A>(f: () => A, options?: SignalTransactionOptions) => A = batchSignalWrites;
+  export const batch = <A>(f: () => A, options?: SignalTransactionOptions): A =>
+    batchSignalWrites(f, transitionCause(options?.name));
 
   /** Writes `f(current)` and returns the value now visible to the caller. */
   export const updateAndGet = <A>(
@@ -423,16 +440,21 @@ export namespace Signal {
       changes(signal, options),
     );
 
-  /** Creates a signal from a stream inside an Effect scope. */
+  /**
+   * Creates a signal from a stream inside an Effect scope. `name` labels the
+   * signal, and each element commits under a transition of the same name.
+   */
   export const fromStream = <A, R>(
     stream: Stream.Stream<A, never, R>,
     initial: A,
+    options: SignalOptions,
   ): Effect.Effect<ReadableSignal<A>, never, R | Scope.Scope> =>
     Effect.gen(function* () {
-      const signal = make(initial);
+      const signal = make(initial, options);
 
       yield* stream.pipe(
         Stream.runForEach((value) => Effect.sync(() => signal.set(value))),
+        (run) => withSignalTransition(run, { _tag: "Transition", name: options.name }),
         Effect.forkScoped({ startImmediately: true }),
       );
 

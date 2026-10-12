@@ -91,13 +91,13 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("fan-out: 1k components read one shared signal, 50 updates, one flush", () => {
-    const shared = Signal.make(0);
+    const shared = Signal.make(0, { name: "shared" });
     const Reader = () => textCell(() => String(shared.get()));
     const view = mount(() =>
       Array.from({ length: 1000 }, () => createComponent(Reader as never, {})),
     );
     for (let update = 1; update <= 50; update++) {
-      shared.set(update);
+      Signal.batch(() => shared.set(update), { name: "Bench.shared" });
     }
     flush();
     expectText(view.container, "50".repeat(1000));
@@ -105,7 +105,7 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("keyed list: create 1k rows from an Arc signal", () => {
-    const rows = Signal.make(makeRows(1000));
+    const rows = Signal.make(makeRows(1000), { name: "rows" });
     const view = mount(() => {
       return createComponent(
         For as never,
@@ -127,7 +127,7 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("keyed list: update every 10th row of 1k", () => {
-    const rows = Signal.make(makeRows(1000));
+    const rows = Signal.make(makeRows(1000), { name: "rows" });
     const view = mount(() => {
       return createComponent(
         For as never,
@@ -140,10 +140,14 @@ describe("Sunfall Arc client render", () => {
       );
     });
     for (let round = 0; round < 5; round++) {
-      rows.set((current) =>
-        current.map((row, index) =>
-          index % 10 === 0 ? { ...row, label: `${row.label} !${round}` } : row,
-        ),
+      Signal.batch(
+        () =>
+          rows.set((current) =>
+            current.map((row, index) =>
+              index % 10 === 0 ? { ...row, label: `${row.label} !${round}` } : row,
+            ),
+          ),
+        { name: "Bench.rows" },
       );
       flush();
     }
@@ -158,13 +162,13 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("fan-out: 1k components read one shared signal, 50 updates", () => {
-    const shared = Signal.make(0);
+    const shared = Signal.make(0, { name: "shared" });
     const Reader = () => textCell(() => String(shared.get()));
     const view = mount(() =>
       Array.from({ length: 1000 }, () => createComponent(Reader as never, {})),
     );
     for (let update = 1; update <= 50; update++) {
-      shared.set(update);
+      Signal.batch(() => shared.set(update), { name: "Bench.shared" });
       flush();
     }
     expectText(view.container, "50".repeat(1000));

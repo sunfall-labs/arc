@@ -82,24 +82,25 @@ const solidProviderRoutesProps: RouterProviderProps<typeof solidRoutes> = {
   // @ts-expect-error RouterProvider renders a router from `Component.router(...)`, not routes.
   routes: solidRoutes,
 };
-const solidCountSignal = Signal.make(0);
+const solidCountSignal = Signal.make(0, { name: "solidCountSignal" });
 const solidReadSignalValue: number = solidCountSignal.get();
 const solidEffectRuntime = makeRuntime();
 const solidSignalValue = (): number => solidCountSignal.get();
-const solidStreamValue = Component.stream(Stream.succeed("ready"), "idle");
-const SolidProgram = Program.define<number, "tick">({
+const solidStreamValue = Component.stream("status", Stream.succeed("ready"), "idle");
+type SolidTick = { readonly _tag: "Tick" };
+const SolidProgram = Program.define<number, SolidTick>({
   initial: 0,
-  update: (model) => Program.next(model + 1),
+  on: { Tick: (model) => Program.next(model + 1) },
 });
-declare const solidProgramHandle: Component.ProgramHandle<number, "tick", never>;
-const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, "tick", never>> =
+declare const solidProgramHandle: Component.ProgramHandle<number, SolidTick, never>;
+const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, SolidTick, never>> =
   Component.program(SolidProgram);
 // @ts-expect-error Program history lives on the app Timeline, not on the Program handle.
 solidProgramHandle.clearTimeline();
 const solidProgramDispatch: Effect.Effect<
   void,
-  ProgramFailure<"tick", EffectInputCallbackError | Program.Disposed>
-> = solidProgramHandle.dispatch("tick");
+  ProgramFailure<SolidTick, EffectInputCallbackError | Program.Disposed>
+> = solidProgramHandle.dispatch({ _tag: "Tick" });
 declare const solidUnknownProgramHandle: Component.ProgramHandle<number, unknown, never>;
 const solidProgramCount: number = solidProgramHandle.model();
 void solidProgramCount;
@@ -218,9 +219,9 @@ const solidActionStateTag: "Initial" | "Success" | "Failure" = solidAction.resul
 const solidActionInput: Option.Option<{ readonly id: string }> = solidAction.input();
 // Event handlers bridge the Effect through `Component.callback`, which requires
 // the failures to be handled.
-void Component.callback((id: string) => solidAction.submit({ id }).pipe(Effect.ignore));
+void Component.callback("submit", (id: string) => solidAction.submit({ id }).pipe(Effect.ignore));
 // @ts-expect-error -- `Component.callback` rejects unhandled submission failures.
-void Component.callback((id: string) => solidAction.submit({ id }));
+void Component.callback("submit", (id: string) => solidAction.submit({ id }));
 const solidExports: Array<unknown> = [
   RouterContextMissing,
   RouterLink,

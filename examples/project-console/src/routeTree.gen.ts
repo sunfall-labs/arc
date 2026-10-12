@@ -3,13 +3,26 @@
 
 import { Route } from "@sunfall/arc-core";
 
-import { Route as route_root } from "./routes/index.js";
-import { Route as route_projects } from "./routes/projects/index.js";
-import { Route as route_projects_$id } from "./routes/projects/$id.js";
+import { route as route_root } from "./routes/index.js";
+import { route as route_projects } from "./routes/projects/index.js";
+import { route as route_projects_$id } from "./routes/projects/$id.js";
 
 const route_root_path: "/" = route_root.path;
 const route_projects_path: "/projects" = route_projects.path;
 const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;
+
+for (const [route, path, file] of [
+  [route_root, "/", "src/routes/index.ts"],
+  [route_projects, "/projects", "src/routes/projects/index.ts"],
+  [route_projects_$id, "/projects/:id", "src/routes/projects/$id.ts"],
+] as const) {
+  if ((route.path as string) !== path) {
+    throw new Error(
+      `${file} declares Route.define(${JSON.stringify(route.path)}), ` +
+        `but its file location maps to ${JSON.stringify(path)}.`,
+    );
+  }
+}
 
 export { route_root, route_projects, route_projects_$id };
 
@@ -59,7 +72,7 @@ export const fileRouteModules = [
     routePath: "/",
     segments: [],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "projects/index",
@@ -75,7 +88,7 @@ export const fileRouteModules = [
       },
     ],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "projects/$id",
@@ -101,7 +114,7 @@ export const fileRouteModules = [
         optional: false,
       },
     ],
-    exportName: "Route",
+    exportName: "route",
   },
 ] as const;
 /** Parent, layout, error boundary, and metadata relationships for each generated route. */
@@ -118,7 +131,7 @@ export const fileRouteMetadata = [
       routePath: "/",
       segments: [],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     layouts: [],
     metadataModules: [],
@@ -140,7 +153,7 @@ export const fileRouteMetadata = [
         },
       ],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_root",
     parentRoutePath: "/",
@@ -174,7 +187,7 @@ export const fileRouteMetadata = [
           optional: false,
         },
       ],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_projects",
     parentRoutePath: "/projects",
@@ -187,8 +200,6 @@ export const fileRouteMetadata = [
 export type RouteTree = typeof routes;
 /** Map type keyed by generated route id. */
 export type RouteById = typeof routeById;
-/** Union of every generated route definition. */
-export type FileRoute = RouteTree[number];
 /** Union of generated route ids such as `route_projects_$id`. */
 export type FileRouteId = keyof RouteById;
 /** Params for each generated route id. */

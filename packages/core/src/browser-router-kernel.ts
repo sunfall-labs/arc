@@ -13,6 +13,7 @@ import {
   type BrowserRouterError,
   type BrowserRouterState,
 } from "./browser-router-state.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Positional arguments accepted by router navigation helpers for one route. */
 export type BrowserNavigateArgs<R extends AnyBrowserRoute> =
@@ -254,8 +255,10 @@ export const createBrowserRouterKernel = <
     });
 
   const setState = (next: BrowserRouterState<Routes, ER>): void => {
-    Signal.batch(() => state.set(next), {
-      cause: { _tag: "Router", href: next.href, status: next._tag },
+    batchSignalWrites(() => state.set(next), {
+      _tag: "Router",
+      href: next.href,
+      status: next._tag,
     });
   };
 

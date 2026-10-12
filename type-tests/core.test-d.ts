@@ -583,6 +583,7 @@ const actionResultLabel: string = ActionResult.match(actionSuccess, {
 
 const profileSchema = Schema.Struct({ name: Schema.String });
 const profileForm: FormInstance<{ readonly name: string }, "required"> = Form.make({
+  name: "profileForm",
   schema: profileSchema,
   initial: { name: "" },
   validate: (values, errors) =>
@@ -591,20 +592,33 @@ const profileForm: FormInstance<{ readonly name: string }, "required"> = Form.ma
 const profileValidationEffect = Form.validate(profileForm);
 const profileFormData = Form.data(new FormData());
 
-type CounterMessage = "increment" | "decrement";
-const counterProgram = Program.define({
+type CounterMessage = { readonly _tag: "Increment" } | { readonly _tag: "Decrement" };
+const counterProgram = Program.define<number, CounterMessage>({
   initial: 0,
-  update: (model: number, message: CounterMessage) =>
-    Program.next<number, CounterMessage>(message === "increment" ? model + 1 : model - 1),
+  on: {
+    Increment: (model) => model + 1,
+    Decrement: (model) => Program.next(model - 1),
+  },
 });
-const counterStep = Program.next(1, Program.commands(Program.emit<CounterMessage>("increment")));
+const counterStep = Program.next(
+  1,
+  Program.commands(Program.emit<CounterMessage>({ _tag: "Increment" })),
+);
 const counterCommand: Program.Command<CounterMessage> = Program.emit(Effect.void);
 const counterCommands = Program.commands(
-  Program.emit<CounterMessage>("increment"),
+  Program.emit<CounterMessage>({ _tag: "Increment" }),
   Program.emit(Effect.void),
 );
 const counterSubscription = Program.subscription(Stream.empty as Stream.Stream<CounterMessage>);
-const counterStory = Program.story(counterProgram);
+// `Program.step` is pure: it returns the next model and the unrun commands.
+const counterPureStep: Program.Step<number, CounterMessage> = Program.step(counterProgram, 0, {
+  _tag: "Increment",
+});
+const counterPureStepModel: number = counterPureStep.model;
+const counterPureStepCommands: ReadonlyArray<Program.Command<CounterMessage>> =
+  counterPureStep.commands;
+// @ts-expect-error Program.step only accepts the Program's messages.
+Program.step(counterProgram, 0, { _tag: "Reset" });
 const counterRuntimeError: Program.RuntimeError<never> =
   null as unknown as Program.RuntimeError<never>;
 const counterDispatchError: Program.DispatchError<never> =
@@ -632,22 +646,25 @@ const taggedCounterHandlers: Program.HandlerMap<TaggedCounterModel, TaggedCounte
     loading: false,
   }),
 };
-const taggedCounterDefinition: Program.HandlerDefinition<TaggedCounterModel, TaggedCounterMessage> =
-  {
-    initial: { count: 0, loading: false },
-    on: taggedCounterHandlers,
-  };
-const taggedCounterProgram = Program.define<TaggedCounterModel, TaggedCounterMessage>(
-  taggedCounterDefinition,
-);
-const taggedCounterProgramFromUpdate = Program.define<TaggedCounterModel, TaggedCounterMessage>({
+const taggedCounterProgram = Program.define<TaggedCounterModel, TaggedCounterMessage>({
   initial: { count: 0, loading: false },
-  update: Program.update<TaggedCounterModel, TaggedCounterMessage>(taggedCounterHandlers),
+  on: taggedCounterHandlers,
 });
+const taggedCounterLoadCommand: Effect.Effect<TaggedCounterMessage | void> = Program.step(
+  taggedCounterProgram,
+  taggedCounterProgram.initial,
+  { _tag: "Load" },
+).commands[0]!.effect;
 const taggedCounterImmediateCommand = Program.emit({ _tag: "Increment" } as const);
 const taggedCounterImmediateStep: Program.Step<TaggedCounterModel, TaggedCounterMessage> =
   Program.next({ count: 0, loading: false }, Program.emit({ _tag: "Increment" } as const));
-const taggedCounterStory = Program.story(taggedCounterProgramFromUpdate);
+const effectfulTaggedCounterHandlers: Program.HandlerMap<TaggedCounterModel, TaggedCounterMessage> =
+  {
+    // @ts-expect-error Program handlers are pure: Effect work goes in commands.
+    Increment: (model) => Effect.succeed(model),
+    Load: (model) => model,
+    Loaded: (model) => model,
+  };
 // @ts-expect-error Program handler maps must cover every tagged message.
 const incompleteTaggedCounterHandlers: Program.HandlerMap<
   TaggedCounterModel,
@@ -659,7 +676,8 @@ const incompleteTaggedCounterHandlers: Program.HandlerMap<
 void taggedCounterProgram;
 void taggedCounterImmediateCommand;
 void taggedCounterImmediateStep;
-void taggedCounterStory;
+void taggedCounterLoadCommand;
+void effectfulTaggedCounterHandlers;
 void incompleteTaggedCounterHandlers;
 
 const uiScope = new UiScope();
@@ -825,7 +843,8 @@ void counterStep;
 void counterCommand;
 void counterCommands;
 void counterSubscription;
-void counterStory;
+void counterPureStepModel;
+void counterPureStepCommands;
 void counterRuntimeError;
 void counterDispatchError;
 void counterInstance;
@@ -906,7 +925,10 @@ const coreInternalAction = makeActionInstance(
   coreErasedRuntime,
 );
 const coreInternalProgram = startProgramOnRuntime(
-  Program.define<number, "tick">({ initial: 0, update: (model) => model + 1 }),
+  Program.define<number, { readonly _tag: "Tick" }>({
+    initial: 0,
+    on: { Tick: (model) => model + 1 },
+  }),
   coreErasedRuntime,
 );
 void coreInternalAction;

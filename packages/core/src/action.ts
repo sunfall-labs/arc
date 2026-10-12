@@ -12,8 +12,15 @@ import {
 } from "./action-outbox.js";
 import { makeActionOutboxLayer } from "./action-outbox-layer.js";
 import type { KeyValueStore } from "effect/persistence";
-import type { ActionOptimisticTransaction } from "./action-optimistic.js";
-import { invalidationsForEffect } from "./action-execution-workflow.js";
+import {
+  makeActionOptimisticPlanRuntime,
+  type ActionOptimisticChange,
+  type ActionOptimisticTransaction,
+} from "./action-optimistic.js";
+import {
+  applyActionOptimisticEffect,
+  invalidationsForEffect,
+} from "./action-execution-workflow.js";
 import { makeActionInstance } from "./action-instance.js";
 import { registerActionDefinition } from "./definition-registry.js";
 import type {
@@ -184,6 +191,7 @@ export interface ActionUseOptions<R = never, ER = never> {
 
 export {
   ActionOptimisticRowsTypeId,
+  type ActionOptimisticChange,
   type ActionOptimisticRowChange,
   type ActionOptimisticRows,
   type ActionOptimisticRowsLayer,
@@ -260,6 +268,8 @@ export namespace Action {
   export type Policy<E = never> = ActionPolicy<E>;
   /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
+  /** Public namespace alias for one change `Action.planOptimistic` reports. */
+  export type OptimisticChange = ActionOptimisticChange;
 
   /** Public namespace alias for the durability policy of `Action.define({ durable })`. */
   export type DurablePolicy = ActionDurablePolicy;
@@ -329,6 +339,31 @@ export namespace Action {
     input: I,
   ): Effect.Effect<ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>> =>
     Effect.flatMap(invalidationsForEffect(definition, value, input), Resource.planInvalidation);
+
+  /**
+   * Plans what a definition's `optimistic` patch changes for `input`, without
+   * applying anything: no runtime, store, or backend is involved. Each Signal
+   * patch reports the value the signal would read (computed from its current
+   * value); each row change reports the store and the change as given. A
+   * definition without `optimistic` plans nothing. This is how optimistic
+   * patches are tested.
+   *
+   * @example
+   * ```ts
+   * const changes = yield* Action.planOptimistic(RenameProject, { id, name: "Atlas 2" });
+   * // [{ _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } }]
+   * ```
+   */
+  export const planOptimistic = <I, A, E, R>(
+    definition: ActionDefinition<I, A, E, R>,
+    input: I,
+  ): Effect.Effect<ReadonlyArray<ActionOptimisticChange>, never, R> =>
+    Effect.suspend(() => {
+      const plan = makeActionOptimisticPlanRuntime(definition.name);
+      return applyActionOptimisticEffect(definition, input, plan, "submit").pipe(
+        Effect.map(() => plan.changes()),
+      );
+    });
 
   /**
    * Defines and registers a reusable action without binding it to UI state.

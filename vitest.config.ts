@@ -91,7 +91,12 @@ export default defineConfig({
         },
         test: {
           name: "solid-core",
-          include: ["packages/**/*.test.ts", "examples/**/*.test.ts"],
+          // The golden path's testing snippets run as tests too.
+          include: [
+            "packages/**/*.test.ts",
+            "examples/**/*.test.ts",
+            "type-tests/golden-path/*.test.ts",
+          ],
           exclude: [
             ...configDefaults.exclude,
             "packages/solid/**/!(*.server).test.ts",

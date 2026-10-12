@@ -46,18 +46,16 @@ import {
   type StartStaticHistoryAdapterOptions,
   type StartStaticHistoryWindow,
   type StartTransportEndpointOverrides,
-  FileRoute,
 } from "@sunfall/arc-start";
 import { Component } from "@sunfall/arc-solid";
 import { Context, Effect, Layer, Schedule, Schema } from "effect";
-import { type ActionDefinition, Route } from "@sunfall/arc-core";
+import { type ActionDefinition } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
   App.define,
   App.launch,
   createRequestHandler,
   currentStartStaticHref,
-  FileRoute.define,
   hydrateFromDocument,
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
@@ -140,17 +138,6 @@ void greetingHandler;
 void greetingLaunch;
 // @ts-expect-error hydration options are an object; there is no positional id
 hydrateFromDocument(document, undefined, {});
-
-const typedFileRoute = FileRoute.define("/typed/:id")({
-  preloadResources: [],
-});
-const typedFileRoutePath: "/typed/:id" = typedFileRoute.path;
-const typedFileRouteParams: { readonly id: string } = {} as Route.Params<typeof typedFileRoute>;
-const coreRoute = Route.define("/typed/:id", { preloadResources: [] });
-const sameShape: typeof coreRoute = typedFileRoute;
-void typedFileRoutePath;
-void typedFileRouteParams;
-void sameShape;
 
 declare const startActionDefinition: ActionDefinition<
   { readonly id: string },

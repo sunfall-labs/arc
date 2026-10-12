@@ -95,11 +95,6 @@ export {
 } from "./start-transport-endpoints.js";
 
 export {
-  /** File-backed route definitions: `FileRoute.define(path)(options)`. */
-  FileRoute,
-} from "./file-route.js";
-
-export {
   /** Progressive (no-JS) HTML form helpers for Start actions. */
   StartAction,
 } from "./start-action-client.js";

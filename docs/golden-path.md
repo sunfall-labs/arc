@@ -15,11 +15,11 @@ type-checks it and fails if a snippet on this page no longer matches its file
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | read server data                                                     | **Resource**: `Resource.define`, read with `Component.resource`              | the data never leaves the client (Signal), or you edit rows locally (Collection)   |
 | change server data                                                   | **Action**: `Action.define` with `invalidates` tags                          | the change is local UI state: use a Signal                                         |
-| hold client-only UI state                                            | **Signal**: `Signal.make` in Component setup                                 | it has many messages, transitions, or async follow-ups: use a Program              |
+| hold client-only UI state                                            | **Signal**: `Signal.make` in setup, written in a named `Component.callback`  | it has many messages, transitions, or async follow-ups: use a Program              |
 | run a state machine with many messages                               | **Program**: `Program.define`, bound with `Component.program`                | one or two independent values: use Signals                                         |
 | keep normalized rows with indexes, live queries, or optimistic edits | **Collection**: `Collection.define({ sync: ref })`, backed by a Resource     | you only render a list you fetched: a Resource is enough                           |
 | build a screen or feature that reads or writes state                 | **Component**: `Component.define`                                            | it only renders props: write a plain Solid function                                |
-| map a URL to a screen and its data                                   | **Route**: `Route.define`, or `FileRoute.define` in Start                    | the state is not addressable (a modal, a tab): use a Signal                        |
+| map a URL to a screen and its data                                   | **Route**: `Route.define`                                                    | the state is not addressable (a modal, a tab): use a Signal                        |
 | call a backend or service                                            | **Capability**: `Capability.define` plus a Layer per host                    | it is pure computation: write a function                                           |
 | wire and start the app                                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client) | never skip it: this is where missing services and unhandled failures become errors |
 | answer "how did the UI get into this state?"                         | **Timeline**: `Timeline.record`, then `travel`                               | production telemetry: use [devtools](devtools.md) summaries                        |
@@ -37,6 +37,12 @@ Two defaults settle most arguments:
 - **State that matters has a typed owner.** If rendering, caching, testing, or
   debugging depends on it, it belongs in one of the definitions above, not in
   ad hoc component locals.
+- **Every state change has a name.** A Signal changes only inside a named
+  transition: a `Component.callback("name", ...)`, an Action, a Program
+  message, or a framework event (Resource load, Collection sync, navigation).
+  A write anywhere else dies with `SignalWriteOutsideTransition`, so the
+  Timeline reads like a message log: `ProjectSidebar.filter`,
+  `Action "Project.rename" submit`.
 
 ## How The Pieces Fit
 
@@ -326,8 +332,9 @@ export const App = Component.define("App", function* (props: { readonly href: st
 - Preloaded Resources read synchronously in the page, so navigation and
   hydration show no loading flash.
 - In a Start app, each route moves to `src/routes/<path>.ts` as
-  `export const Route = FileRoute.define(path)(sameOptions)`, and the Vite
-  plugin generates `routeTree.gen.ts`. The options are identical. The app
+  `export const route = Route.define(path, sameOptions)`, and the Vite
+  plugin generates `routeTree.gen.ts`, which fails when the declared path
+  differs from the one the file location implies. The app
   still attaches components with `Route.withComponent`, and the plugin
   lazy-loads a page Component imported only for that call, keeping its type.
 
@@ -365,7 +372,8 @@ export const RenameForm = Component.define(
     const rename = yield* Component.action(RenameProject);
     // `submit` fails with the Action's errors; a DOM handler cannot report them,
     // so the callback must handle them. `failure()` still shows the latest one.
-    const save = yield* Component.callback((name: string) =>
+    // A named transition: its commits read `RenameForm.save` on the Timeline.
+    const save = yield* Component.callback("save", (name: string) =>
       rename.submit({ id: props.project.id, name }).pipe(Effect.ignore),
     );
 
@@ -454,7 +462,7 @@ export const Projects = Collection.define({
 ```
 
 `src/project-list.tsx` now binds the collection and keeps the filter in a
-Signal:
+Signal, written only through the named `filter` callback:
 
 <!-- snippet: type-tests/golden-path/project-list.tsx -->
 
@@ -462,6 +470,7 @@ Signal:
 import { Signal } from "@sunfall/arc-core";
 import { Component, RouterLink } from "@sunfall/arc-solid";
 import { SolidDb } from "@sunfall/arc-solid-db";
+import { Effect } from "effect";
 import { For, Show } from "solid-js";
 import { Projects } from "./collection.js";
 import { ProjectRoute } from "./routes.js";
@@ -472,13 +481,17 @@ export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
   // E += the collection's load error, exactly like a Resource reader (here never).
   const projects = yield* SolidDb.collection(Projects);
   // Client-only UI state: a Signal per instance, named for the Timeline.
-  const status = Signal.make<Status>("active", { name: "sidebar.status" });
+  const status = Signal.make<Status>("active", { name: "ProjectSidebar.status" });
+  // Writes happen in a named transition; the Timeline shows `ProjectSidebar.filter`.
+  const filter = yield* Component.callback("filter", (next: Status) =>
+    Effect.sync(() => status.set(next)),
+  );
 
   return () => (
     <nav class={{ refreshing: projects.waiting() }}>
       <select
         value={status.get()}
-        onChange={(event) => status.set(event.currentTarget.value as Status)}
+        onChange={(event) => filter(event.currentTarget.value as Status)}
       >
         <option value="active">Active</option>
         <option value="archived">Archived</option>
@@ -653,8 +666,13 @@ Effect.runFork(App.launch(app));
 
 `Timeline.record` records every committed change, whatever owns it: Signals,
 Resource entries, Action state, Program models, the router, and Collections.
-`travel` re-renders the UI as it was after any entry while Effects keep
-running against the live state.
+Every entry has a name, because every write happens inside a named
+transition: a Component's callbacks commit as `<Component>.<name>`
+(`ProjectSidebar.filter`), and Actions, Programs, Resources, Collections, and
+the router label their own commits. A write outside all of them fails at the
+write with `SignalWriteOutsideTransition`, naming the Signal. `travel`
+re-renders the UI as it was after any entry while Effects keep running against
+the live state.
 
 `src/timeline-panel.tsx`:
 
@@ -669,10 +687,10 @@ import { For } from "solid-js";
 export const TimelinePanel = Component.define("TimelinePanel", function* () {
   // Records every commit until this instance unmounts. E += TimelineAlreadyRecording.
   const recording = yield* Timeline.record({ limit: 500 });
-  const travel = yield* Component.callback((sequence: number) =>
+  const travel = yield* Component.callback("travel", (sequence: number) =>
     recording.travel(sequence).pipe(Effect.ignore),
   );
-  const resume = yield* Component.callback(() => recording.resume());
+  const resume = yield* Component.callback("resume", () => recording.resume());
 
   return () => (
     <aside>
@@ -704,11 +722,127 @@ export const launchTimelinePanel = (container: HTMLElement) =>
 
 Mount it beside the app in development with
 `Effect.runFork(launchTimelinePanel(panelElement))`. Rename a project and the
-panel lists the Action's submit and success, the Resource reloads that its
-tags triggered, and the collection sync that followed; changing the sidebar filter
-shows `sidebar.status` because the Signal was named. In tests, record inside the
-test's Scope and assert on the DOM after `travel`
+panel reads like a message log: `RenameForm.save`'s Action submit and success,
+the Resource reloads its tags triggered, and the collection sync that followed;
+changing the sidebar filter shows `ProjectSidebar.filter` changing
+`ProjectSidebar.status`. In tests, record inside the test's Scope and assert on
+the DOM after `travel`
 ([example](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
+
+## Testing
+
+UI logic is tested as plain functions: no runtime, DOM, or timers.
+
+A Program's handlers are pure, so `Program.step(program, model, message)` is
+the whole test harness. It returns `{ model, commands }` without running the
+commands; each command is a description whose `effect` you run, with test
+services, to get the message it emits. Here is a Program that loads the
+project list:
+
+<!-- snippet: type-tests/golden-path/project-loader.ts -->
+
+```ts
+import { Program } from "@sunfall/arc-core";
+import { Effect } from "effect";
+import { ProjectApi, type Project } from "./projects.js";
+
+type Model = {
+  readonly status: "idle" | "loading" | "ready";
+  readonly projects: ReadonlyArray<Project>;
+};
+type Message =
+  | { readonly _tag: "Load" }
+  | { readonly _tag: "Loaded"; readonly projects: ReadonlyArray<Project> };
+
+// Handlers are pure: they return the next model, and Effect work leaves them
+// as commands that run after the model commits.
+export const ProjectLoader = Program.define<Model, Message, never, ProjectApi>({
+  name: "ProjectLoader",
+  initial: { status: "idle", projects: [] },
+  on: {
+    Load: (model) =>
+      Program.next(
+        { ...model, status: "loading" },
+        Program.emit(
+          ProjectApi.use((api) => api.list()).pipe(
+            Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
+          ),
+        ),
+      ),
+    Loaded: (_model, message) => ({ status: "ready", projects: message.projects }),
+  },
+});
+```
+
+and its tests:
+
+<!-- snippet: type-tests/golden-path/project-loader.test.ts -->
+
+```ts
+import { Program } from "@sunfall/arc-core";
+import { Effect } from "effect";
+import { expect, test } from "vitest";
+import { ProjectLoader } from "./project-loader.js";
+import { ProjectId, type Project } from "./projects.js";
+import { ProjectApiMemory } from "./projects.memory.js";
+
+const atlas: Project = { id: ProjectId.make("atlas"), name: "Atlas", status: "active" };
+
+test("Load starts loading and fetches the projects", () => {
+  // One transition is one function call: no runtime, DOM, or timers.
+  const loading = Program.step(ProjectLoader, ProjectLoader.initial, { _tag: "Load" });
+  expect(loading.model.status).toBe("loading");
+  expect(loading.commands).toHaveLength(1);
+
+  // A command is a description: run its Effect with test services to get the
+  // message it emits.
+  const emitted = Effect.runSync(
+    loading.commands[0]!.effect.pipe(Effect.provide(ProjectApiMemory)),
+  );
+  expect(emitted).toMatchObject({ _tag: "Loaded", projects: [atlas, expect.anything()] });
+});
+
+test("Loaded shows the projects", () => {
+  const loading = { status: "loading", projects: [] } as const;
+  const ready = Program.step(ProjectLoader, loading, { _tag: "Loaded", projects: [atlas] });
+  expect(ready.model).toEqual({ status: "ready", projects: [atlas] });
+  expect(ready.commands).toEqual([]);
+});
+```
+
+An Action's `optimistic` patch is tested with `Action.planOptimistic(definition,
+input)`. It runs the patch against a recording transaction and returns what it
+would change, applying nothing: a Signal patch reports the value the signal
+would read, and a row patch reports the collection and the change.
+
+<!-- snippet: type-tests/golden-path/rename.test.ts -->
+
+```ts
+import { Action } from "@sunfall/arc-core";
+import { Effect } from "effect";
+import { expect, test } from "vitest";
+import { Projects } from "./collection.js";
+import { ProjectId } from "./projects.js";
+import { ProjectApiMemory } from "./projects.memory.js";
+import { RenameProject } from "./rename.js";
+
+test("renaming patches the sidebar row at once", () => {
+  const id = ProjectId.make("atlas");
+  // Plans the patch without applying it: no runtime, store, or backend.
+  // `ProjectApiMemory` satisfies the Action's types; the plan never calls it.
+  const changes = Effect.runSync(
+    Action.planOptimistic(RenameProject, { id, name: "Atlas 2" }).pipe(
+      Effect.provide(ProjectApiMemory),
+    ),
+  );
+  expect(changes).toEqual([
+    { _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } },
+  ]);
+});
+```
+
+To test what the screen shows, render the Component (see
+[Solid adapter](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
 
 ## Rules Of Thumb
 
@@ -727,8 +861,10 @@ test's Scope and assert on the DOM after `travel`
   alike.
 - **One status vocabulary.** Every binding reports `waiting()` and
   `failure()`: readers, collections, live queries, and Actions.
-- **Run work through `Component.callback`.** `submit`, `dispatch`, `preload`,
-  and `refresh` return Effects; DOM handlers get them via a callback.
+- **Run work through named `Component.callback`s.** `submit`, `dispatch`,
+  `preload`, and `refresh` return Effects, and Signal writes need a name; DOM
+  handlers get both via `Component.callback("name", f)`, whose commits read
+  `<Component>.<name>` on the Timeline.
 - **Change server data with Actions.** `optimistic` patches Signals and
   Collection rows for the life of the submission; there is no other write
   path. Add `durable: { maxAge }` when a change must survive going offline
@@ -741,8 +877,11 @@ test's Scope and assert on the DOM after `travel`
   render without a fallback flash.
 - **Key lists by identity.** `<For each={rows} keyed={(row) => row.id}>` keeps
   rows mounted when a refresh returns new objects.
-- **Name the Signals you want to see.** `Signal.make(value, { name })` labels
-  Timeline entries; unnamed signals show as `signal#N`.
+- **Write Signals only in named transitions.** `Signal.make(value, { name })`
+  requires a name for the Signal; writing it outside a callback, Action, or
+  Program dies with `SignalWriteOutsideTransition`. Solid effects and bare
+  handlers call a named callback instead, and tests wrap direct writes in
+  `Signal.batch(f, { name })`.
 - **Create per-instance state in setup.** A module-level Signal is shared by
   every request on the server.
 
@@ -756,3 +895,9 @@ test's Scope and assert on the DOM after `travel`
 - [Deployment](deployment.md): fetch and Node hosts.
 - [Migration notes](migration-notes.md): coming from TanStack Query, Remix,
   reducers, or earlier Arc alphas.
+- [Devtools](devtools.md): runtime facts, causal graphs, and panels.
+- [Effect style guide](effect-style.md) and [Invariants](invariants.md): the
+  rules framework and app code follow.
+- [Public API inventory](public-api-inventory.md): every exported import path.
+- [Comparison](comparison.md): how Arc relates to TanStack, Next, Remix, and
+  Foldkit.

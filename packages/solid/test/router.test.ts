@@ -1537,8 +1537,8 @@ describe("createBrowserRouter", () => {
           let dispose: () => void = () => undefined;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const currentNode = Signal.make<JSX.Element>(undefined);
-            const renderError = Signal.make<unknown>(undefined);
+            const currentNode = Signal.make<JSX.Element>(undefined, { name: "currentNode" });
+            const renderError = Signal.make<unknown>(undefined, { name: "renderError" });
             const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
               owner: getOwner(),
               initialInput: {
@@ -1593,8 +1593,8 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const currentNode = Signal.make<JSX.Element>(undefined);
-            const renderError = Signal.make<unknown>(undefined);
+            const currentNode = Signal.make<JSX.Element>(undefined, { name: "currentNode" });
+            const renderError = Signal.make<unknown>(undefined, { name: "renderError" });
             const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
               owner: getOwner(),
               initialInput: {
@@ -1684,8 +1684,10 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const currentNode = Signal.make<JSX.Element>(undefined);
-            const renderErrorSignal = Signal.make<unknown>(undefined);
+            const currentNode = Signal.make<JSX.Element>(undefined, { name: "currentNode" });
+            const renderErrorSignal = Signal.make<unknown>(undefined, {
+              name: "renderErrorSignal",
+            });
             const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
               owner: getOwner(),
               initialInput: {
@@ -1775,8 +1777,10 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const currentNode = Signal.make<JSX.Element>(undefined);
-            const renderErrorSignal = Signal.make<unknown>(undefined);
+            const currentNode = Signal.make<JSX.Element>(undefined, { name: "currentNode" });
+            const renderErrorSignal = Signal.make<unknown>(undefined, {
+              name: "renderErrorSignal",
+            });
             const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
               owner: getOwner(),
               initialInput: {
@@ -1861,8 +1865,8 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const currentNode = Signal.make<JSX.Element>(undefined);
-            const renderError = Signal.make<unknown>(undefined);
+            const currentNode = Signal.make<JSX.Element>(undefined, { name: "currentNode" });
+            const renderError = Signal.make<unknown>(undefined, { name: "renderError" });
             const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
               owner: getOwner(),
               initialInput: {
@@ -2322,8 +2326,8 @@ describe("createBrowserRouter", () => {
           let dispose: () => void = () => undefined;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const currentNode = Signal.make<JSX.Element>(undefined);
-            const renderError = Signal.make<unknown>(undefined);
+            const currentNode = Signal.make<JSX.Element>(undefined, { name: "currentNode" });
+            const renderError = Signal.make<unknown>(undefined, { name: "renderError" });
             const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
               owner: getOwner(),
               initialInput: {

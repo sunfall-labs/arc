@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { EffectInputCallbackError, type RejectPromiseLikeValue } from "./effect-like.js";
 import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import { Signal, type WritableSignal } from "./signal.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Settles one optimistic transaction: commit or rollback. */
 export type ActionOptimisticSettle = Effect.Effect<void>;
@@ -283,6 +284,7 @@ export const makeActionOptimisticTransactionRuntime = (
       patch: SignalPatch<A>,
     ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
     settleRows: (layer: ActionOptimisticRowsLayer) => Effect.Effect<void>,
+    event: "success" | "failure",
   ): ActionOptimisticSettle =>
     Effect.gen(function* () {
       // Row layers settle first: they cannot fail, so a failing signal
@@ -299,9 +301,14 @@ export const makeActionOptimisticTransactionRuntime = (
           plans.push(plan);
         }
       }
-      for (const plan of plans) {
-        applySignalPatchPlan(plan);
-      }
+      batchSignalWrites(
+        () => {
+          for (const plan of plans) {
+            applySignalPatchPlan(plan);
+          }
+        },
+        { _tag: "Action", action: actionName, event },
+      );
       touched.clear();
     }).pipe(Effect.orDie);
 
@@ -314,10 +321,92 @@ export const makeActionOptimisticTransactionRuntime = (
           base: nextBase,
         })),
       (layer) => layer.commit,
+      "success",
     ),
     rollback: finish(
       () => Effect.succeed({ _tag: "Rollback" }),
       (layer) => layer.rollback,
+      "failure",
     ),
   };
+};
+
+/**
+ * One change an Action's `optimistic` patch makes, as `Action.planOptimistic`
+ * reports it: the value a Signal would read, or a row change for a row store.
+ */
+export type ActionOptimisticChange =
+  | {
+      readonly _tag: "Signal";
+      readonly signal: WritableSignal<any>;
+      /** The value the signal would read with this patch applied. */
+      readonly value: unknown;
+    }
+  | {
+      readonly _tag: "Insert";
+      readonly rows: ActionOptimisticRows<any, any>;
+      readonly values: ReadonlyArray<object>;
+    }
+  | {
+      readonly _tag: "Update";
+      readonly rows: ActionOptimisticRows<any, any>;
+      readonly key: unknown;
+      readonly update: ActionOptimisticRowUpdate<any>;
+    }
+  | {
+      readonly _tag: "Delete";
+      readonly rows: ActionOptimisticRows<any, any>;
+      readonly key: unknown;
+    };
+
+/** A transaction that records changes instead of applying them. */
+export interface ActionOptimisticPlanRuntime {
+  readonly api: ActionOptimisticTransaction;
+  readonly changes: () => ReadonlyArray<ActionOptimisticChange>;
+}
+
+/**
+ * Creates a transaction that records every patch as an `ActionOptimisticChange`
+ * and writes nothing. A signal patch is computed from the signal's current
+ * value (and the plan's earlier patches to it); row changes are recorded as
+ * given, without touching the row store.
+ */
+export const makeActionOptimisticPlanRuntime = (
+  actionName: string,
+): ActionOptimisticPlanRuntime => {
+  const changes: Array<ActionOptimisticChange> = [];
+  const planned = new Map<AnyWritableSignal, unknown>();
+
+  const api: ActionOptimisticTransaction = {
+    signal: <A>(signal: WritableSignal<A>, update: ActionOptimisticSignalUpdate<A>) =>
+      Effect.gen(function* () {
+        const current = (planned.has(signal) ? planned.get(signal) : Signal.peek(signal)) as A;
+        const apply = typeof update === "function" ? (update as (current: A) => A) : () => update;
+        const value = yield* applySignalPatchEffect(
+          actionName,
+          { transaction: Symbol("Action.planOptimistic"), apply },
+          current,
+        );
+        planned.set(signal, value);
+        changes.push({ _tag: "Signal", signal, value });
+      }).pipe(Effect.orDie),
+    insert: (rows, values) =>
+      Effect.sync(() => {
+        changes.push({
+          _tag: "Insert",
+          rows,
+          values: Array.isArray(values) ? values : [values as never],
+        });
+      }),
+    update: (rows, key, update) =>
+      Effect.sync(() => {
+        changes.push({ _tag: "Update", rows, key, update });
+      }),
+    delete: (rows, key) =>
+      Effect.sync(() => {
+        changes.push({ _tag: "Delete", rows, key });
+      }),
+  };
+
+  return { api, changes: () => changes };
 };

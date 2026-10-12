@@ -168,8 +168,9 @@ const ProjectWorkQueue = Component.define(
     );
     // The row moves at once (`$synced: false`) and settles with the Action.
     const move = yield* Component.action(MoveWorkItem);
-    const moveItem = yield* Component.callback((id: WorkItemId, status: WorkItemStatus) =>
-      move.submit({ id, status }).pipe(Effect.ignore),
+    const moveItem = yield* Component.callback(
+      "moveItem",
+      (id: WorkItemId, status: WorkItemStatus) => move.submit({ id, status }).pipe(Effect.ignore),
     );
 
     return () => (
@@ -423,7 +424,7 @@ const ProjectActions = Component.define(
     );
 
     // Program failures land in `actions.failures()`, so handlers ignore them.
-    const send = yield* Component.callback((message: ProjectActionsMessage) =>
+    const send = yield* Component.callback("send", (message: ProjectActionsMessage) =>
       actions.dispatch(message).pipe(Effect.ignore),
     );
 

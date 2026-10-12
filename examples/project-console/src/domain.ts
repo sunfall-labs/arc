@@ -1,4 +1,4 @@
-import { Action, ActionResult, Capability, Resource, Server, Signal } from "@sunfall/arc-core";
+import { Action, ActionResult, Capability, Resource, Server } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
 import { Effect, Schedule, Schema, Stream } from "effect";
 import {
@@ -213,8 +213,6 @@ export const projectNameActionTarget = (input: {
   readonly id: ProjectIdType;
   readonly redirectTo?: ProjectReturnTo;
 }): StartAction.Form<typeof SubmitProjectName> => StartAction.form(SubmitProjectName, { input });
-
-export const projectSearch = Signal.make("");
 
 const presenceEvent = (tick: number): PresenceEvent => ({
   activeUsers: 4 + (tick % 4),

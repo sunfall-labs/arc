@@ -5,6 +5,51 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Anonymous Signal Writes
+
+Every state change now has a name, so the Timeline reads like a message log.
+A Signal changes only inside a named transition; a write anywhere else dies
+with `SignalWriteOutsideTransition`, naming the Signal.
+
+| Before                                                    | After                                                                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Signal.make(initial)` / `Signal.make(initial, { name })` | `Signal.make(initial, { name })`: the name is required                                           |
+| `onInput={(event) => draft.set(event.target.value)}`      | `const edit = yield* Component.callback("edit", (v: string) => Effect.sync(() => draft.set(v)))` |
+| `Component.callback(f)`                                   | `Component.callback("name", f)`: commits as `<Component>.<name>`                                 |
+| `Component.stream(stream, initial)`                       | `Component.stream("name", stream, initial)`                                                      |
+| `Signal.fromStream(stream, initial)`                      | `Signal.fromStream(stream, initial, { name })`                                                   |
+| `Signal.batch(f, { cause: { _tag: "User", label } })`     | `Signal.batch(f, { name })` (likewise `Signal.transaction`)                                      |
+| `TimelineUserCause` (`{ _tag: "User", label }`)           | `TimelineTransitionCause` (`{ _tag: "Transition", name }`)                                       |
+| `TimelineEntry.cause: TimelineCause \| undefined`         | `TimelineEntry.cause: TimelineCause`                                                             |
+| `Form.make({ schema, initial })`                          | `Form.make({ name, schema, initial })`                                                           |
+
+Solid effects that wrote Signals call a named callback (or become a
+`Signal.derive`); tests that wrote Signals directly wrap the write in
+`Signal.batch(() => signal.set(value), { name: "test" })`.
+
+## From FileRoute
+
+`FileRoute.define(path)(options)` is removed: a Start route module now exports
+`route` built with core `Route.define(path, options)`. The options were already
+identical; only the export name and the call shape change. The generated route
+tree imports `route` from each module and rejects a declared path that differs
+from the path the file location implies (a type error, and an error when the
+tree loads).
+
+```ts
+// before
+import { FileRoute } from "@sunfall/arc-start";
+export const Route = FileRoute.define("/projects/:id")({ params: ProjectRouteParams });
+
+// after
+import { Route } from "@sunfall/arc-core";
+export const route = Route.define("/projects/:id", { params: ProjectRouteParams });
+```
+
+Code that imported a route module's `Route` export imports `route` instead.
+`Route.Factory<Path>` and the generated `FileRoute` type (`RouteTree[number]`)
+are removed with it.
+
 ## From Offline Mutation Queues
 
 Collections no longer keep a pending-mutation queue. A change that must
@@ -54,7 +99,7 @@ before the first restore.
 This alpha applies three naming rules across every package:
 
 1. Definition constructors are `define`, namespaced: `Resource.define`,
-   `Route.define`, `App.define`, `FileRoute.define`, `Component.define`,
+   `Route.define`, `App.define`, `Component.define`,
    beside `Action.define`, `Program.define`, `Collection.define`, and
    `Capability.define`.
 2. Operations that return Effects carry no `Effect` suffix, and each has one
@@ -71,7 +116,9 @@ through `Component.callback`, which requires failures to be handled:
 const rename = yield * Component.action(RenameProject);
 const save =
   yield *
-  Component.callback((name: string) => rename.submit({ id: props.id, name }).pipe(Effect.ignore));
+  Component.callback("save", (name: string) =>
+    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
+  );
 return () => <RenameForm onRename={save} />;
 ```
 
@@ -88,7 +135,7 @@ Effect.runFork(App.launch(app));
 | `Resource.requestFamily({ request, resolver, ... })`                                                                         | `Resource.define({ request, resolver, ... })`                                                                                                 |
 | `route(path, options)`                                                                                                       | `Route.define(path, options)`                                                                                                                 |
 | `defineApp(config)`                                                                                                          | `App.define({ root, routes, ... })` from `@sunfall/arc-start`                                                                                 |
-| `defineFileRoute(path)(options)`                                                                                             | `FileRoute.define(path)(options)`                                                                                                             |
+| `defineFileRoute(path)(options)`, `FileRoute.define(path)(options)`                                                          | `export const route = Route.define(path, options)`                                                                                            |
 | `Component.make(name, setup)`                                                                                                | `Component.define(name, setup)`                                                                                                               |
 | `Resource.prefetchEffect` / `refreshEffect` / `statusEffect` / `readEffect`                                                  | `Resource.preload` / `refresh` / `status` / `read`                                                                                            |
 | `Resource.deleteEffect(ref)`                                                                                                 | `Resource.evict(ref)`                                                                                                                         |
@@ -130,7 +177,7 @@ Effect.runFork(App.launch(app));
 | Collection sync adapter `refetch`                                                                                            | `refresh`                                                                                                                                     |
 | `Collection.flushAllPendingMutationsEffect` / `backgroundSyncPendingMutationsEffect`                                         | removed: Actions own writes                                                                                                                   |
 | Solid DB handle `result()` / `preloadFailure()`, `onPreloadFailure`, `pendingMutations()`                                    | `waiting()` / `failure()`; a never-loaded failure throws to `<Errored>` (`catchTags`)                                                         |
-| `Route.define(path, { component })`, `FileRoute.define(path)({ component })`                                                 | `Route.withComponent(route, Component, props?)` (Start code-splits it)                                                                        |
+| `Route.define(path, { component })`                                                                                          | `Route.withComponent(route, Component, props?)` (Start code-splits it)                                                                        |
 | `Collection.RuntimeError<E>`, `collection.preload().pipe(Effect.orDie)` in a route preload                                   | `E`: collection loads fail only with their declared error; contract breaks are defects                                                        |
 | Vite plugin `serverFunctionManifest` / `actionManifest` options                                                              | removed: the plugin derives both from the server entry's `createRequestHandler`                                                               |
 | `catchTags({ LoadErrorTag })` on a reader of a Resource without `error` (render failure was the raw load error)              | declare `error: LoadErrorSchema` on the Resource, or handle `ResourceUntypedFailure` (its `tag` only)                                         |
@@ -164,11 +211,11 @@ Reducer loops often split model transitions, async work queues, and component
 effects across several files. In Sunfall Arc, move that loop into a Program:
 
 - The reducer state becomes `initial`.
-- The action union becomes a Program message union, preferably tagged with
-  `_tag`.
-- The reducer switch becomes `Program.define({ initial, on })` for tagged
-  messages, or `Program.update(handlers)` when an existing definition still
-  wants an `update(model, message)` callback.
+- The action union becomes a Program message union tagged with `_tag`
+  (`"increment"` becomes `{ _tag: "Increment" }`).
+- The reducer switch becomes the `on` map of `Program.define({ initial, on })`,
+  one pure handler per `_tag`. There is no `update(model, message)` callback,
+  and a handler never returns an Effect.
 - A handler returns the next model directly, or `Program.next(model, commands)`
   when work should run after the model commits.
 - Follow-up work is a command from `Program.emit(...)`: `Program.emit(message)`,
@@ -179,7 +226,14 @@ effects across several files. In Sunfall Arc, move that loop into a Program:
 
 The migration is done when models and messages are plain values, Promise work is
 wrapped at the Effect edge before a follow-up message is emitted, and
-`Program.story(...)` can exercise the transitions without mounting a UI.
+`Program.step(program, model, message)` tests each transition as a pure
+function call without mounting a UI.
+
+Earlier alphas accepted an `update` callback (which could return an Effect),
+`Program.update(handlers)`, and the `Program.story(...)` harness. Move every
+`update` into `on`, move Effect work in handlers into `Program.emit(effect)`
+commands, and replace stories with `Program.step(...)` plus running a
+command's `effect`.
 
 ## From Solid Hooks To Components
 
@@ -227,9 +281,8 @@ behind Resource families and Actions:
   network through the same handle, and `StartAction.form(...)` renders them
   as progressive no-JS forms.
 - Route loaders call `Resource.preload(...)` in `preload` and declare
-  `preloadResources` / `preloadCollections`; file routes use
-  `FileRoute.define(path)(options)` with exactly the same options as core
-  `Route.define(path, options)`.
+  `preloadResources` / `preloadCollections`; file routes export
+  `route = Route.define(path, options)`, the same constructor as any route.
 
 Keep Promise-returning query functions at the host boundary only. Inside the
 framework slice, prefer Effect loaders so retries, services, scopes, tracing,
@@ -241,7 +294,8 @@ TanStack Start route files often combine route definitions, loaders, server
 functions, and generated route typing. Sunfall Arc keeps the same copyable route
 shape but makes app graph facts explicit:
 
-- File routes use `FileRoute.define(...)` and generated route maps.
+- File routes export `route = Route.define(path, options)`; Start generates
+  the route maps and fails when the declared path differs from the file's.
 - Server functions use `Server.contract(...)`, `Server.implement(...)`, and
   browser-safe contract imports.
 - Request handling starts at `createRequestHandler(app, { server })`; Promise

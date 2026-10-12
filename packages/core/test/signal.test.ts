@@ -3,18 +3,21 @@ import { describe, expect, it } from "vitest";
 import { EffectInputCallbackError, Signal } from "../src/index.js";
 import { runWithScope, UiScope, watch } from "../src/internal.js";
 
+/** Commits `f`'s writes under a named transition, as an app's callback would. */
+const write = (f: () => void): void => Signal.batch(f, { name: "test" });
+
 describe("Signal", () => {
   it("tracks derived dependencies", () => {
-    const count = Signal.make(1);
+    const count = Signal.make(1, { name: "count" });
     const doubled = Signal.derive(() => count.get() * 2);
 
     expect(doubled.get()).toBe(2);
-    count.set(3);
+    write(() => count.set(3));
     expect(doubled.get()).toBe(6);
   });
 
   it("deduplicates repeated derived reads of the same source", () => {
-    const count = Signal.make(1);
+    const count = Signal.make(1, { name: "count" });
     let computes = 0;
     const repeated = Signal.derive(() => {
       computes++;
@@ -26,7 +29,7 @@ describe("Signal", () => {
     });
 
     expect(repeated.get()).toBe(2);
-    count.set(2);
+    write(() => count.set(2));
     unsubscribe();
 
     expect(repeated.get()).toBe(4);
@@ -35,13 +38,13 @@ describe("Signal", () => {
   });
 
   it("queues derived recomputes triggered during computation", () => {
-    const count = Signal.make(0);
+    const count = Signal.make(0, { name: "count" });
     let computes = 0;
     const derived = Signal.derive(() => {
       computes++;
       const value = count.get();
       if (value === 0) {
-        count.set(1);
+        write(() => count.set(1));
       }
       return value;
     });
@@ -51,9 +54,9 @@ describe("Signal", () => {
   });
 
   it("unsubscribes stale conditional derived dependencies", () => {
-    const useLeft = Signal.make(true);
-    const left = Signal.make("left");
-    const right = Signal.make("right");
+    const useLeft = Signal.make(true, { name: "useLeft" });
+    const left = Signal.make("left", { name: "left" });
+    const right = Signal.make("right", { name: "right" });
     let computes = 0;
     const selected = Signal.derive(() => {
       computes++;
@@ -61,19 +64,19 @@ describe("Signal", () => {
     });
 
     expect(selected.get()).toBe("left");
-    useLeft.set(false);
+    write(() => useLeft.set(false));
     expect(selected.get()).toBe("right");
-    left.set("stale");
+    write(() => left.set("stale"));
     expect(selected.get()).toBe("right");
-    right.set("fresh");
+    write(() => right.set("fresh"));
     expect(selected.get()).toBe("fresh");
     expect(computes).toBe(5);
   });
 
   it("rolls back derived subscriptions when evaluation throws", () => {
-    const left = Signal.make(0);
-    const right = Signal.make(0);
-    const shouldThrow = Signal.make(false);
+    const left = Signal.make(0, { name: "left" });
+    const right = Signal.make(0, { name: "right" });
+    const shouldThrow = Signal.make(false, { name: "shouldThrow" });
     const cause = new Error("derive failed");
     let computes = 0;
     const selected = Signal.derive(() => {
@@ -88,20 +91,20 @@ describe("Signal", () => {
     const unsubscribe = selected.subscribe(() => undefined);
 
     expect(selected.get()).toBe(0);
-    shouldThrow.set(true);
+    write(() => shouldThrow.set(true));
     const computesAfterFailure = computes;
 
     expect(() => selected.get()).toThrow(EffectInputCallbackError);
-    right.set(1);
+    write(() => right.set(1));
     expect(computes).toBe(computesAfterFailure);
 
-    shouldThrow.set(false);
+    write(() => shouldThrow.set(false));
     expect(selected.get()).toBe(0);
     unsubscribe();
   });
 
   it("keeps unrelated subscribers running when a derived evaluator throws", () => {
-    const count = Signal.make(0);
+    const count = Signal.make(0, { name: "count" });
     const cause = new Error("derive failed");
     const derived = Signal.derive(() => {
       const value = count.get();
@@ -117,7 +120,7 @@ describe("Signal", () => {
     });
 
     expect(derived.get()).toBe(0);
-    expect(() => count.set(1)).not.toThrow();
+    expect(() => write(() => count.set(1))).not.toThrow();
     expect(unrelatedRuns).toBe(1);
     expect(() => derived.get()).toThrow(EffectInputCallbackError);
 
@@ -127,9 +130,9 @@ describe("Signal", () => {
 
   it("rolls back watch subscriptions and keeps subscribers running when evaluation throws", async () => {
     const scope = new UiScope();
-    const left = Signal.make(0);
-    const right = Signal.make(0);
-    const shouldThrow = Signal.make(false);
+    const left = Signal.make(0, { name: "left" });
+    const right = Signal.make(0, { name: "right" });
+    const shouldThrow = Signal.make(false, { name: "shouldThrow" });
     const cause = new Error("watch failed");
     let evaluates = 0;
 
@@ -153,14 +156,14 @@ describe("Signal", () => {
       unrelatedRuns++;
     });
 
-    expect(() => shouldThrow.set(true)).not.toThrow();
+    expect(() => write(() => shouldThrow.set(true))).not.toThrow();
     expect(unrelatedRuns).toBe(1);
     const evaluatesAfterFailure = evaluates;
 
-    right.set(1);
+    write(() => right.set(1));
     expect(evaluates).toBe(evaluatesAfterFailure);
 
-    shouldThrow.set(false);
+    write(() => shouldThrow.set(false));
     expect(evaluates).toBe(evaluatesAfterFailure + 1);
 
     unrelatedUnsubscribe();
@@ -168,7 +171,7 @@ describe("Signal", () => {
   });
 
   it("stops tracking derived dependencies after the last subscriber unsubscribes", () => {
-    const count = Signal.make(1);
+    const count = Signal.make(1, { name: "count" });
     let computes = 0;
     const doubled = Signal.derive(() => {
       computes++;
@@ -180,7 +183,7 @@ describe("Signal", () => {
     unsubscribe();
     const computesAfterUnsubscribe = computes;
 
-    count.set(2);
+    write(() => count.set(2));
 
     expect(computes).toBe(computesAfterUnsubscribe);
     expect(doubled.get()).toBe(4);
@@ -188,22 +191,22 @@ describe("Signal", () => {
   });
 
   it("notifies subscribers only when values change", () => {
-    const count = Signal.make(0);
+    const count = Signal.make(0, { name: "count" });
     let updates = 0;
     const unsubscribe = count.subscribe(() => {
       updates++;
     });
 
-    count.set(0);
-    count.set(1);
+    write(() => count.set(0));
+    write(() => count.set(1));
     unsubscribe();
-    count.set(2);
+    write(() => count.set(2));
 
     expect(updates).toBe(1);
   });
 
   it("supports untracked reads", () => {
-    const count = Signal.make(1);
+    const count = Signal.make(1, { name: "count" });
     const doubled = Signal.derive(() => Signal.peek(count) * 2);
     const values: number[] = [];
     const unsubscribe = doubled.subscribe(() => {
@@ -211,14 +214,14 @@ describe("Signal", () => {
     });
 
     expect(doubled.get()).toBe(2);
-    count.set(2);
+    write(() => count.set(2));
     expect(doubled.get()).toBe(2);
     expect(values).toEqual([]);
     unsubscribe();
   });
 
   it("exposes current and future values as an Effect stream", () => {
-    const count = Signal.make(0);
+    const count = Signal.make(0, { name: "count" });
 
     return Effect.runPromise(
       Effect.scoped(
@@ -230,8 +233,8 @@ describe("Signal", () => {
           );
 
           yield* Effect.yieldNow;
-          count.set(1);
-          count.set(2);
+          write(() => count.set(1));
+          write(() => count.set(2));
 
           const values = yield* Fiber.join(fiber);
           yield* Effect.sync(() => expect(values).toEqual([0, 1, 2]));
@@ -250,6 +253,7 @@ describe("Signal", () => {
               Stream.tap((n) => (n === 2 ? Deferred.succeed(settled, undefined) : Effect.void)),
             ),
             0,
+            { name: "streamed" },
           );
 
           yield* Deferred.await(settled);

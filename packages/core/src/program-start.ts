@@ -3,6 +3,7 @@ import type {
   ProgramDispatchError,
   ProgramInstance,
   ProgramRuntimeError,
+  ProgramTaggedMessage,
 } from "./program-contract.js";
 import { makeProgramRuntimeInstance } from "./program-runtime.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
@@ -14,7 +15,13 @@ import { getCurrentScope } from "./scope.js";
  * its typed facade; renderer adapters pass a runtime whose services they check
  * elsewhere.
  */
-export const startProgramOnRuntime = <Model, Message, E = never, R = never, ER = never>(
+export const startProgramOnRuntime = <
+  Model,
+  Message extends ProgramTaggedMessage,
+  E = never,
+  R = never,
+  ER = never,
+>(
   definition: ProgramDefinition<Model, Message, E, R>,
   runtime: AnySunfallArcRuntime<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> =>

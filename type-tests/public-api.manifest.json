@@ -96,6 +96,7 @@
         "route-match",
         "runtime",
         "scope",
+        "signal-transaction",
         "signal-watch",
         "stable-stringify"
       ],
@@ -246,7 +247,6 @@
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start.test-d.ts",
       "sourceSurface": [
-        "file-route",
         "hydration",
         "request-trace",
         "start-action-client",
@@ -279,7 +279,6 @@
         "StartTransportEndpointConflictError",
         "StartTransportEndpointPathError",
         "createRequestHandler",
-        "FileRoute",
         "hydrateFromDocument",
         "makeStartStaticHistoryAdapter"
       ]
@@ -386,7 +385,6 @@
         "routeFileRouteMetadata",
         "RouteTree",
         "RouteById",
-        "FileRoute",
         "FileRouteId",
         "FileRouteParamsById",
         "FileRouteSearchById",

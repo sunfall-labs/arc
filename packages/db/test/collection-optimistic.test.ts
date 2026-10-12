@@ -629,7 +629,7 @@ describe("Action optimistic Collection patches", () => {
 
   it("patches Signals and rows in one transaction that settles together", () =>
     withRuntime(async (runtime) => {
-      const lastRenamed = Signal.make<string | undefined>(undefined);
+      const lastRenamed = Signal.make<string | undefined>(undefined, { name: "lastRenamed" });
       const Projects = Collection.define<Project>({
         name: "Projects.optimistic-signal-and-rows",
         getKey: (project) => project.id,
@@ -656,4 +656,33 @@ describe("Action optimistic Collection patches", () => {
       expect(Signal.peek(lastRenamed)).toBeUndefined();
       expect(read(runtime, () => Projects.get("atlas")?.name)).toBe("Atlas");
     }));
+});
+
+describe("Action.planOptimistic with Collection patches", () => {
+  it("reports row changes without touching any store", () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.plan-optimistic",
+      getKey: (project) => project.id,
+      initialData: [atlas],
+    });
+    const orion: Project = { id: "orion", name: "Orion", status: "blocked", progress: 0 };
+    const Rework = Action.define({
+      name: "Projects.plan-optimistic.rework",
+      optimistic: (name: string, transaction) =>
+        Effect.gen(function* () {
+          yield* transaction.update(Projects, "atlas", { name });
+          yield* transaction.insert(Projects, orion);
+          yield* transaction.delete(Projects, "atlas");
+        }),
+      run: (_name: string) => Effect.void,
+    });
+
+    const changes = Effect.runSync(Action.planOptimistic(Rework, "Atlas 2"));
+
+    expect(changes).toEqual([
+      { _tag: "Update", rows: Projects, key: "atlas", update: { name: "Atlas 2" } },
+      { _tag: "Insert", rows: Projects, values: [orion] },
+      { _tag: "Delete", rows: Projects, key: "atlas" },
+    ]);
+  });
 });

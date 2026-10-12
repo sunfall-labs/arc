@@ -9,27 +9,33 @@ import {
   type ProgramMessageValue,
   ProgramDisposed,
   type ProgramRuntimeError,
+  type ProgramTaggedMessage,
 } from "./program-contract.js";
 import {
-  isProgramStep,
   makeProgramFailure,
   normalizeProgramSubscriptions,
-  programNext,
+  programStepEffect,
   validateProgramModelSync,
   validateProgramMessageEffect,
-  validateProgramStepModelEffect,
 } from "./program-primitives.js";
 import { makeProgramRuntimeScheduler } from "./program-runtime-scheduler.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal } from "./signal.js";
 import type { TimelineProgramCause } from "./timeline.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 interface QueuedMessage<Message, E> {
   readonly message: ProgramMessageValue<Message>;
   readonly ack?: Deferred.Deferred<void, ProgramFailure<Message, E>>;
 }
 
-export interface ProgramRuntimeInstanceOptions<Model, Message, E, R, ER> {
+export interface ProgramRuntimeInstanceOptions<
+  Model,
+  Message extends ProgramTaggedMessage,
+  E,
+  R,
+  ER,
+> {
   readonly definition: ProgramDefinition<Model, Message, E, R>;
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly scope:
@@ -52,7 +58,13 @@ const completeAck = <Message, E>(
     : Deferred.succeed(queued.ack, undefined).pipe(Effect.asVoid);
 };
 
-export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never, ER = never>(
+export const makeProgramRuntimeInstance = <
+  Model,
+  Message extends ProgramTaggedMessage,
+  E = never,
+  R = never,
+  ER = never,
+>(
   options: ProgramRuntimeInstanceOptions<Model, Message, E, R, ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
   const { definition, runtime, scope } = options;
@@ -90,9 +102,10 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   });
 
   const recordFailure = (failure: ProgramFailure<Message, ProgramRuntimeError<E, ER>>): void =>
-    Signal.batch(() => failures.update((current) => [...current, failure]), {
-      cause: cause("failure", failure.message),
-    });
+    batchSignalWrites(
+      () => failures.update((current) => [...current, failure]),
+      cause("failure", failure.message),
+    );
 
   const disposedFailure = (
     message: ProgramMessageValue<Message>,
@@ -174,88 +187,42 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   const processMessage = (
     queued: QueuedMessage<Message, DispatchFailure>,
   ): Effect.Effect<void, never, R | Scope.Scope> =>
-    invokeEffectInput(
-      "Program.update",
-      definition.update,
-      Signal.peek(model),
-      queued.message as never,
-    ).pipe(
+    programStepEffect(definition, Signal.peek(model), queued.message).pipe(
       Effect.matchEffect({
-        onFailure: (error) =>
+        onFailure: (error) => failQueuedMessage(queued, error),
+        onSuccess: (step) =>
           Effect.gen(function* () {
-            const failure = makeProgramFailure<Message, RuntimeFailure>(
-              "Update",
-              error,
-              queued.message as Message,
-            );
-            const reportFailure = yield* Effect.sync(() => {
+            const before = Signal.peek(model);
+            const committed = yield* Effect.sync(() => {
               if (disposed) {
                 return false;
               }
-              recordFailure(failure);
+              batchSignalWrites(
+                () => {
+                  committedDispatches.add(queued);
+                  model.set(step.model as Model);
+                },
+                cause("message", queued.message as Message),
+              );
+              if (!Object.is(before, step.model)) {
+                restartSubscriptions(step.model as Model);
+              }
               return true;
             });
-            yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
+
+            if (!committed) {
+              yield* completeAck(queued, disposedFailure(queued.message));
+              return;
+            }
+
+            if (disposed) {
+              yield* completeAck(queued);
+              return;
+            }
+
+            yield* runCommands(step.commands, queued.message);
+            yield* completeAck(queued);
           }),
-        onSuccess: (update) =>
-          validateProgramStepModelEffect(
-            isProgramStep(update) ? update : programNext<Model, Message, E, R>(update),
-          ).pipe(
-            Effect.matchEffect({
-              onFailure: (error) =>
-                Effect.gen(function* () {
-                  const failure = makeProgramFailure<Message, RuntimeFailure>(
-                    "Update",
-                    error,
-                    queued.message as Message,
-                  );
-                  const reportFailure = yield* Effect.sync(() => {
-                    if (disposed) {
-                      return false;
-                    }
-                    recordFailure(failure);
-                    return true;
-                  });
-                  yield* completeAck(
-                    queued,
-                    reportFailure ? failure : disposedFailure(queued.message),
-                  );
-                }),
-              onSuccess: (step) =>
-                Effect.gen(function* () {
-                  const before = Signal.peek(model);
-                  const committed = yield* Effect.sync(() => {
-                    if (disposed) {
-                      return false;
-                    }
-                    Signal.batch(
-                      () => {
-                        committedDispatches.add(queued);
-                        model.set(step.model as Model);
-                      },
-                      { cause: cause("message", queued.message as Message) },
-                    );
-                    if (!Object.is(before, step.model)) {
-                      restartSubscriptions(step.model as Model);
-                    }
-                    return true;
-                  });
-
-                  if (!committed) {
-                    yield* completeAck(queued, disposedFailure(queued.message));
-                    return;
-                  }
-
-                  if (disposed) {
-                    yield* completeAck(queued);
-                    return;
-                  }
-
-                  yield* runCommands(step.commands, queued.message);
-                  yield* completeAck(queued);
-                }),
-            }),
-          ),
       }),
     );
 
@@ -407,7 +374,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     failures,
     dispatch: instanceDispatchEffect,
     clearFailures: () =>
-      Signal.batch(() => failures.set([]), { cause: cause("clearFailures", undefined) }),
+      batchSignalWrites(() => failures.set([]), cause("clearFailures", undefined)),
     dispose: disposeEffect,
   };
 

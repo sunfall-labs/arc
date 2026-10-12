@@ -1,4 +1,5 @@
 import { Signal, type TimelineCollectionCause, type WritableSignal } from "@sunfall/arc-core";
+import { batchSignalWrites } from "@sunfall/arc-core/internal";
 import { Semaphore, type Deferred } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type {
@@ -96,14 +97,15 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
 const collectionCause = (
   state: CollectionState<any, any, any>,
   event: TimelineCollectionCause["event"],
-): { readonly cause: TimelineCollectionCause } => ({
-  cause: { _tag: "Collection", collection: state.name, event },
-});
+): TimelineCollectionCause => ({ _tag: "Collection", collection: state.name, event });
 
 /** Publishes a row change: the one write path for a collection's version signal. */
 export const bumpCollectionState = (state: CollectionState<any, any, any>): void => {
   state.indexCache.clear();
-  Signal.batch(() => state.version.update((value) => value + 1), collectionCause(state, "change"));
+  batchSignalWrites(
+    () => state.version.update((value) => value + 1),
+    collectionCause(state, "change"),
+  );
 };
 
 /** Restores a captured version after rolling rows back to a snapshot. */
@@ -112,7 +114,7 @@ export const restoreCollectionVersion = (
   version: number,
 ): void => {
   state.indexCache.clear();
-  Signal.batch(() => state.version.set(version), collectionCause(state, "change"));
+  batchSignalWrites(() => state.version.set(version), collectionCause(state, "change"));
 };
 
 /** The one write path for a collection's load state. */
@@ -120,7 +122,7 @@ export const commitCollectionLoadState = <E>(
   state: CollectionState<any, any, E>,
   loadState: AsyncResult.AsyncResult<void, E>,
 ): void => {
-  Signal.batch(() => state.loadState.set(loadState), collectionCause(state, "sync"));
+  batchSignalWrites(() => state.loadState.set(loadState), collectionCause(state, "sync"));
 };
 
 export const augmentCollectionRow = <A extends object, K extends CollectionKey>(

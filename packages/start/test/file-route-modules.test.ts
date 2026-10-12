@@ -36,13 +36,26 @@ describe("file route definition module generation", () => {
     expect(generated).toMatchInlineSnapshot(`
       "import { Route } from "@sunfall/arc-core";
 
-      import { Route as route_root } from "./routes/index.js";
-      import { Route as route_projects_new } from "./routes/projects/new.js";
-      import { Route as route_projects_$id } from "./routes/projects/$id.js";
+      import { route as route_root } from "./routes/index.js";
+      import { route as route_projects_new } from "./routes/projects/new.js";
+      import { route as route_projects_$id } from "./routes/projects/$id.js";
 
       const route_root_path: "/" = route_root.path;
       const route_projects_new_path: "/projects/new" = route_projects_new.path;
       const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;
+
+      for (const [route, path, file] of [
+        [route_root, "/", "src/routes/index.tsx"],
+        [route_projects_new, "/projects/new", "src/routes/projects/new.tsx"],
+        [route_projects_$id, "/projects/:id", "src/routes/projects/$id.tsx"],
+      ] as const) {
+        if ((route.path as string) !== path) {
+          throw new Error(
+            \`\${file} declares Route.define(\${JSON.stringify(route.path)}), \` +
+              \`but its file location maps to \${JSON.stringify(path)}.\`,
+          );
+        }
+      }
 
       export { route_root, route_projects_new, route_projects_$id };
 
@@ -92,7 +105,7 @@ describe("file route definition module generation", () => {
           routePath: "/",
           segments: [],
           params: [],
-          exportName: "Route",
+          exportName: "route",
         },
         {
           id: "projects/new",
@@ -112,7 +125,7 @@ describe("file route definition module generation", () => {
             },
           ],
           params: [],
-          exportName: "Route",
+          exportName: "route",
         },
         {
           id: "projects/$id",
@@ -138,7 +151,7 @@ describe("file route definition module generation", () => {
               optional: false,
             },
           ],
-          exportName: "Route",
+          exportName: "route",
         },
       ] as const;
       /** Parent, layout, error boundary, and metadata relationships for each generated route. */
@@ -155,7 +168,7 @@ describe("file route definition module generation", () => {
             routePath: "/",
             segments: [],
             params: [],
-            exportName: "Route",
+            exportName: "route",
           },
           layouts: [],
           metadataModules: [],
@@ -181,7 +194,7 @@ describe("file route definition module generation", () => {
               },
             ],
             params: [],
-            exportName: "Route",
+            exportName: "route",
           },
           parentRouteId: "route_root",
           parentRoutePath: "/",
@@ -215,7 +228,7 @@ describe("file route definition module generation", () => {
                 optional: false,
               },
             ],
-            exportName: "Route",
+            exportName: "route",
           },
           parentRouteId: "route_root",
           parentRoutePath: "/",
@@ -228,8 +241,6 @@ describe("file route definition module generation", () => {
       export type RouteTree = typeof routes;
       /** Map type keyed by generated route id. */
       export type RouteById = typeof routeById;
-      /** Union of every generated route definition. */
-      export type FileRoute = RouteTree[number];
       /** Union of generated route ids such as \`route_projects_$id\`. */
       export type FileRouteId = keyof RouteById;
       /** Params for each generated route id. */
@@ -268,13 +279,26 @@ describe("file route definition module generation", () => {
       [
         'import { Route } from "@sunfall/arc-core";',
         "",
-        'import { Route as route_root } from "./routes/index.js";',
-        'import { Route as route_projects_new } from "./routes/projects/new.js";',
-        'import { Route as route_projects_$id } from "./routes/projects/$id.js";',
+        'import { route as route_root } from "./routes/index.js";',
+        'import { route as route_projects_new } from "./routes/projects/new.js";',
+        'import { route as route_projects_$id } from "./routes/projects/$id.js";',
         "",
         'const route_root_path: "/" = route_root.path;',
         'const route_projects_new_path: "/projects/new" = route_projects_new.path;',
         'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
+        "",
+        "for (const [route, path, file] of [",
+        '  [route_root, "/", "src/routes/index.tsx"],',
+        '  [route_projects_new, "/projects/new", "src/routes/projects/new.tsx"],',
+        '  [route_projects_$id, "/projects/:id", "src/routes/projects/$id.tsx"],',
+        "] as const) {",
+        "  if ((route.path as string) !== path) {",
+        "    throw new Error(",
+        "      `${file} declares Route.define(${JSON.stringify(route.path)}), ` +",
+        "        `but its file location maps to ${JSON.stringify(path)}.`,",
+        "    );",
+        "  }",
+        "}",
         "",
         "export { route_root, route_projects_new, route_projects_$id };",
         "",
@@ -374,8 +398,8 @@ describe("file route definition module generation", () => {
     expect(generated).toMatchInlineSnapshot(`
       "import { Route } from "@sunfall/arc-core";
 
-      import { Route as route_root } from "./routes/index.js";
-      import { Route as route_projects_$id } from "./routes/projects/$id.js";
+      import { route as route_root } from "./routes/index.js";
+      import { route as route_projects_$id } from "./routes/projects/$id.js";
       import { ErrorBoundary as errorBoundary_route_root } from "./routes/error.js";
       import { ErrorBoundary as errorBoundary_route_projects } from "./routes/projects/error.js";
       import { Layout as layout_route_root } from "./routes/layout.js";
@@ -385,6 +409,18 @@ describe("file route definition module generation", () => {
 
       const route_root_path: "/" = route_root.path;
       const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;
+
+      for (const [route, path, file] of [
+        [route_root, "/", "src/routes/index.tsx"],
+        [route_projects_$id, "/projects/:id", "src/routes/projects/$id.tsx"],
+      ] as const) {
+        if ((route.path as string) !== path) {
+          throw new Error(
+            \`\${file} declares Route.define(\${JSON.stringify(route.path)}), \` +
+              \`but its file location maps to \${JSON.stringify(path)}.\`,
+          );
+        }
+      }
 
       export { route_root, route_projects_$id };
 
@@ -515,7 +551,7 @@ describe("file route definition module generation", () => {
           routePath: "/",
           segments: [],
           params: [],
-          exportName: "Route",
+          exportName: "route",
         },
         {
           id: "projects/$id",
@@ -541,7 +577,7 @@ describe("file route definition module generation", () => {
               optional: false,
             },
           ],
-          exportName: "Route",
+          exportName: "route",
         },
       ] as const;
       /** Parent, layout, error boundary, and metadata relationships for each generated route. */
@@ -558,7 +594,7 @@ describe("file route definition module generation", () => {
             routePath: "/",
             segments: [],
             params: [],
-            exportName: "Route",
+            exportName: "route",
           },
           layouts: [
             {
@@ -625,7 +661,7 @@ describe("file route definition module generation", () => {
                 optional: false,
               },
             ],
-            exportName: "Route",
+            exportName: "route",
           },
           parentRouteId: "route_root",
           parentRoutePath: "/",
@@ -710,8 +746,6 @@ describe("file route definition module generation", () => {
       export type RouteTree = typeof routes;
       /** Map type keyed by generated route id. */
       export type RouteById = typeof routeById;
-      /** Union of every generated route definition. */
-      export type FileRoute = RouteTree[number];
       /** Union of generated route ids such as \`route_projects_$id\`. */
       export type FileRouteId = keyof RouteById;
       /** Params for each generated route id. */
@@ -766,7 +800,7 @@ describe("file route definition module generation", () => {
       createFileRouteDefinitionsModule(manifest, {
         generatedFile: "src/generated/routeTree.gen.ts",
       }),
-    ).toContain('import { Route as route_projects_$id } from "../routes/projects/$id.js";');
+    ).toContain('import { route as route_projects_$id } from "../routes/projects/$id.js";');
   });
 
   it("emits source-scoped companion identifiers for sibling route groups", () => {
@@ -806,14 +840,18 @@ describe("file route definition module generation", () => {
     ).toThrow(FileRouteDefinitionsModuleInvalidIdentifier);
   });
 
-  it("rejects invalid route module export names", () => {
-    const manifest = generateFileRouteManifestArtifact(["src/routes/index.ts"], {
-      routeDirectory: "src/routes",
-    });
+  it("rejects invalid companion module export names", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      ["src/routes/index.ts", "src/routes/layout.ts"],
+      { routeDirectory: "src/routes" },
+    );
 
     expect(() =>
-      createFileRouteDefinitionsModule(manifest, {
-        routeModuleExportName: "not-valid",
+      createFileRouteDefinitionsModule({
+        ...manifest,
+        modules: manifest.modules.map((module) =>
+          module.kind === "Layout" ? { ...module, exportName: "not-valid" } : module,
+        ),
       }),
     ).toThrow(FileRouteDefinitionsModuleInvalidExportName);
   });

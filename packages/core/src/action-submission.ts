@@ -4,6 +4,7 @@ import { settleResult } from "./async-result-settle.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 import type { TimelineActionCause } from "./timeline.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /**
  * Submission concurrency policy shared by Core Actions and Start Actions.
@@ -124,12 +125,12 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     plan: P | undefined,
     event: TimelineActionCause["event"],
   ): void => {
-    Signal.batch(
+    batchSignalWrites(
       () => {
         invalidationPlan.set(plan);
         state.set(next);
       },
-      { cause: { _tag: "Action", action: options.actionName, event } },
+      { _tag: "Action", action: options.actionName, event },
     );
   };
   let version = 0;

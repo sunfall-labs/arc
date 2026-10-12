@@ -4,16 +4,12 @@ import {
   type ProgramDefinition,
   type ProgramDispatchError,
   type ProgramFailure,
-  type ProgramHandlerDefinition,
   type ProgramHandlerMap,
   type ProgramInstance,
   type ProgramPhase,
   ProgramDisposed,
   type ProgramRuntimeError,
   type ProgramStep,
-  type ProgramStory,
-  type ProgramStoryEntry,
-  type ProgramStoryOptions,
   type ProgramSubscription,
   type ProgramSubscriptionInput,
   type ProgramTaggedMessage,
@@ -29,21 +25,15 @@ export {
   type ProgramDefinition,
   type ProgramDispatchError,
   type ProgramFailure,
-  type ProgramHandlerDefinition,
   type ProgramHandlerMap,
   type ProgramInstance,
   type ProgramPhase,
   type ProgramRuntimeError,
   type ProgramStep,
-  type ProgramStory,
-  type ProgramStoryEntry,
-  type ProgramStoryOptions,
   type ProgramSubscription,
   type ProgramSubscriptionInput,
   type ProgramTaggedMessage,
   type ProgramUpdate,
-  type ProgramUpdateError,
-  type ProgramUpdateRequirements,
   type ProgramSubscriptionError,
   type ProgramSubscriptionRequirements,
 } from "./program-contract.js";
@@ -52,12 +42,10 @@ import {
   programCommands,
   programEmit,
   programNext,
-  programStepEffect,
+  programStep,
   programSubscription,
-  programUpdate,
 } from "./program-primitives.js";
 import { startProgramOnRuntime } from "./program-start.js";
-import { makeProgramStory } from "./program-story.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import type { AnySunfallArcRuntime, SunfallArcRuntime } from "./runtime.js";
 
@@ -89,7 +77,14 @@ type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
  * definition requirements. UI code binds Programs with its renderer adapter
  * (Solid's `Component.program(...)`), which supplies the runtime.
  */
-function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
+function startProgram<
+  Model,
+  Message extends ProgramTaggedMessage,
+  E = never,
+  R = never,
+  ER = never,
+  RRuntime = R,
+>(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
@@ -99,12 +94,12 @@ function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime
 /** Public namespace facade for defining, starting, testing, and typing Programs. */
 export namespace Program {
   /** Definition for a headless model/message loop with Effect-owned work. */
-  export type Definition<Model, Message, E = never, R = never> = ProgramDefinition<
+  export type Definition<
     Model,
-    Message,
-    E,
-    R
-  >;
+    Message extends ProgramTaggedMessage,
+    E = never,
+    R = never,
+  > = ProgramDefinition<Model, Message, E, R>;
   /** Running Program handle with model, dispatch, failures, and disposal state. */
   export type Instance<Model, Message, E = never, DispatchE = E> = ProgramInstance<
     Model,
@@ -120,22 +115,15 @@ export namespace Program {
   export type DispatchError<E, ER = never> = ProgramDispatchError<E, ER>;
   /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
   export type Disposed = ProgramDisposed;
-  /** Plain message shape for tag-indexed Program handler maps. */
+  /** Tagged message shape every Program message has. */
   export type TaggedMessage = ProgramTaggedMessage;
-  /** Exhaustive handlers keyed by each tagged message `_tag`. */
+  /** Exhaustive pure handlers keyed by each message `_tag`. */
   export type HandlerMap<
     Model,
     Message extends ProgramTaggedMessage,
     E = never,
     R = never,
   > = ProgramHandlerMap<Model, Message, E, R>;
-  /** Definition shorthand that replaces `update` with an exhaustive `on` handler map. */
-  export type HandlerDefinition<
-    Model,
-    Message extends ProgramTaggedMessage,
-    E = never,
-    R = never,
-  > = ProgramHandlerDefinition<Model, Message, E, R>;
   /** Options for starting a Program on an explicit typed Runtime Spine. */
   export type StartOptions<RRuntime = never, ER = never> = ProgramStartOptions<RRuntime, ER>;
   /** Services still required after applying a typed Runtime Spine to a Program. */
@@ -145,9 +133,9 @@ export namespace Program {
   >;
   /** Visible runtime phase for a started Program. */
   export type Phase = ProgramPhase;
-  /** User update callback shape for model/message transitions. */
+  /** Value a message handler returns: the next model, or the next model plus commands. */
   export type Update<Model, Message, E = never, R = never> = ProgramUpdate<Model, Message, E, R>;
-  /** Pure model step plus commands returned by Program updates or stories. */
+  /** Next model plus the commands a transition returned, unrun. */
   export type Step<Model, Message, E = never, R = never> = ProgramStep<Model, Message, E, R>;
   /** Effect-backed unit of Program work that may emit a message. */
   export type Command<Message, E = never, R = never> = ProgramCommand<Message, E, R>;
@@ -161,31 +149,29 @@ export namespace Program {
     E,
     R
   >;
-  /** One deterministic story assertion step for Program tests and docs. */
-  export type StoryEntry<Model, Message, E = never, R = never> = ProgramStoryEntry<
-    Model,
-    Message,
-    E,
-    R
-  >;
-  /** Deterministic Program story runner that executes updates without live subscriptions. */
-  export type Story<Model, Message, E = never, R = never> = ProgramStory<Model, Message, E, R>;
-  /** Options for deterministic story execution. */
-  export type StoryOptions<Model> = ProgramStoryOptions<Model>;
-
   /**
    * Defines a headless model/message Program.
    *
-   * The update callback returns an Effect or pure step; Promise-shaped models
-   * and messages are rejected so async work stays in the Effect runtime.
+   * `on` holds one pure handler per message `_tag`: it returns the next model,
+   * or `Program.next(model, commands)`. Effect work goes in commands, never in
+   * handlers; Promise-shaped models and messages are rejected so async work
+   * stays in the Effect runtime.
    */
   export const define = defineProgram;
-  /** Builds an update callback from exhaustive tagged-message handlers. */
-  export const update = programUpdate;
-  /** Runs one Program update deterministically without starting subscriptions. */
-  export const step = programStepEffect;
-  /** Creates a deterministic Program story for tests and examples. */
-  export const story = makeProgramStory;
+  /**
+   * Applies one message to a model: a pure, synchronous call that returns the
+   * next model and the commands the transition returned, without running
+   * them. Run a command's `effect` to get the message it emits. This is how
+   * Program transitions are tested; no runtime, DOM, or timers are involved.
+   *
+   * @example
+   * ```ts
+   * const loading = Program.step(Counter, Counter.initial, { _tag: "Load" });
+   * expect(loading.commands).toHaveLength(1);
+   * expect(Effect.runSync(loading.commands[0].effect)).toEqual({ _tag: "Loaded", count: 3 });
+   * ```
+   */
+  export const step = programStep;
   /** Starts a Program on the current or explicit Runtime Spine and UI scope. */
   export const start = startProgram;
   /**

@@ -55,7 +55,7 @@ describe("durable Actions in Components", () => {
           const Panel = Component.define("Panel", function* () {
             const advance = yield* Component.action(Advance);
             const outbox = yield* Action.outbox;
-            submit = yield* Component.callback(() =>
+            submit = yield* Component.callback("advance", () =>
               advance.submit({ id: "atlas" }).pipe(Effect.ignore),
             );
             // A function child, as compiled JSX expressions are: it re-runs

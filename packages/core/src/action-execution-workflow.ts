@@ -13,6 +13,7 @@ import {
 import {
   makeActionOptimisticTransactionRuntime,
   type ActionOptimisticSettle,
+  type ActionOptimisticTransaction,
   type ActionOptimisticTransactionRuntime,
 } from "./action-optimistic.js";
 import { ActionOutbox } from "./action-outbox.js";
@@ -31,6 +32,8 @@ import {
 import type { ActionDefinition } from "./action.js";
 import { ActionTransport, type ActionTransportSubmission } from "./action-transport.js";
 import type { ServerClientError } from "./server.js";
+import { withSignalTransition } from "./signal-transaction.js";
+import type { TimelineActionCause } from "./timeline.js";
 
 const actionCallbackError = (operation: string, cause: unknown): EffectInputCallbackError =>
   cause instanceof EffectInputCallbackError
@@ -110,20 +113,28 @@ export const runActionEffect = <I, A, E, R>(
   ).pipe(callbackContractDefects) as Effect.Effect<A, E, R>;
 };
 
-/** Applies a definition's `optimistic` patches through `transaction`. */
+/**
+ * Applies a definition's `optimistic` patches through `transaction`. Each patch
+ * commits as it is made (so it shows while later optimistic work runs), labelled
+ * with the Action and `event` (`submit`, or the Action Outbox's `queue` / `restore`).
+ */
 export const applyActionOptimisticEffect = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
-  transaction: ActionOptimisticTransactionRuntime,
+  transaction: { readonly api: ActionOptimisticTransaction },
+  event: TimelineActionCause["event"],
 ): Effect.Effect<void, never, R> =>
   definition.optimistic === undefined
     ? Effect.void
-    : invokeEffectInput(
-        `Action.optimistic(${definition.name})`,
-        definition.optimistic,
-        input,
-        transaction.api,
-      ).pipe(Effect.asVoid, callbackContractDefects);
+    : withSignalTransition(
+        invokeEffectInput(
+          `Action.optimistic(${definition.name})`,
+          definition.optimistic,
+          input,
+          transaction.api,
+        ).pipe(Effect.asVoid, callbackContractDefects),
+        { _tag: "Action", action: definition.name, event },
+      );
 
 export interface ActionExecutionOptions<I, A, E, R> {
   readonly definition: ActionDefinition<I, A, E, R>;
@@ -283,7 +294,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           const transaction = makeActionOptimisticTransactionRuntime(definition.name);
           rollback = transaction.rollback;
           if (!endpoint) {
-            yield* applyActionOptimisticEffect(definition, input, transaction);
+            yield* applyActionOptimisticEffect(definition, input, transaction, "submit");
           }
 
           const outcome = yield* executeActionEffect({

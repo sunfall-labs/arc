@@ -167,7 +167,6 @@ import {
   type StartRequestHandler,
   type StartRequestHandlerError,
   type StartRequestTrace,
-  FileRoute,
 } from "@sunfall/arc-start";
 import { makeActionTransportLayer } from "../packages/start/src/start-action-transport.js";
 import { makeRpcClientLayer } from "../packages/start/src/start-rpc-client.js";
@@ -417,14 +416,14 @@ Program.emit<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
 // @ts-expect-error Program subscriptions cannot emit Effect-shaped messages
 Program.subscription(Stream.succeed(effectNumberValue));
 // @ts-expect-error Program initial models cannot be Effect-shaped values
-Program.define<Effect.Effect<number>, "noop">({
+Program.define<Effect.Effect<number>, { readonly _tag: "Noop" }>({
   initial: effectNumberValue,
-  update: (model: Effect.Effect<number>) => model,
+  on: { Noop: (model: Effect.Effect<number>) => model },
 });
 // @ts-expect-error Program.next models cannot be Promise-shaped values
 Program.next(promisedProject);
 // @ts-expect-error Program.next models cannot hide Promise-shaped values behind explicit unknown
-Program.next<unknown, "bad">(promisedProject);
+Program.next<unknown, { readonly _tag: "Bad" }>(promisedProject);
 // @ts-expect-error Effects cannot hide Program.next Promise-shaped model values
 Effect.succeed(Program.next(promisedProject));
 // @ts-expect-error Program commands cannot emit Promise-shaped messages
@@ -433,32 +432,26 @@ Program.emit<unknown>(Effect.succeed(promisedProject));
 Program.emit(promisedProject);
 // @ts-expect-error Program subscriptions cannot emit Promise-shaped messages
 Program.subscription(Stream.succeed(promisedProject));
-// @ts-expect-error Program message types cannot be Promise-shaped
-Program.define<number, typeof promisedNumber>({ initial: 0, update: (model: number) => model });
-// @ts-expect-error Program message types cannot be undefined because command Effects use undefined as the no-message sentinel
-Program.define<number, undefined>({ initial: 0, update: (model: number) => model });
-// @ts-expect-error Program message types cannot be void because command Effects use undefined as the no-message sentinel
-Program.define<number, void>({ initial: 0, update: (model: number) => model });
+// @ts-expect-error Program messages are tagged values, never Promise-shaped
+Program.define<number, typeof promisedNumber>({ initial: 0, on: {} });
+// @ts-expect-error Program messages are tagged values, never undefined (the command no-message sentinel)
+Program.define<number, undefined>({ initial: 0, on: {} });
+// @ts-expect-error Program messages are tagged values, never void (the command no-message sentinel)
+Program.define<number, void>({ initial: 0, on: {} });
+// @ts-expect-error Program messages are tagged values, not bare strings
+Program.define<number, "tick">({ initial: 0, on: {} });
 // @ts-expect-error Program dispatch commands cannot accept undefined messages
 Program.emit<undefined>(undefined);
 // An Effect that completes with `void` is a command that emits nothing.
-const programBackgroundCommand: Program.Command<"done"> = Program.emit(Effect.void);
+const programBackgroundCommand: Program.Command<{ readonly _tag: "Done" }> = Program.emit(
+  Effect.void,
+);
 void programBackgroundCommand;
 // @ts-expect-error Program initial models cannot be Promise-shaped
-Program.define<typeof promisedNumber, "noop">({
+Program.define<typeof promisedNumber, { readonly _tag: "Noop" }>({
   initial: promisedNumber,
-  update: (model: typeof promisedNumber) => model,
+  on: { Noop: (model: typeof promisedNumber) => model },
 });
-const promiseResetStory = Program.story(
-  Program.define<number, "noop">({
-    initial: 0,
-    update: (model) => model,
-  }),
-);
-// @ts-expect-error Program story resets cannot be Promise-shaped
-promiseResetStory.reset(promisedNumber);
-// @ts-expect-error Program story resets cannot be Effect-shaped model values
-promiseResetStory.reset(effectNumberValue);
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
@@ -964,8 +957,8 @@ Route.href(OptionalProjectRoute, { params: { id: "atlas" } });
 Route.href(OptionalProjectRoute, { params: { slug: "atlas" } });
 
 const generatedRouteTree = [
-  FileRoute.define("/")({}),
-  FileRoute.define("/generated-projects/:id")({}),
+  Route.define("/", {}),
+  Route.define("/generated-projects/:id", {}),
 ] as const;
 const generatedRouteById = {
   route_root: generatedRouteTree[0],
@@ -1040,7 +1033,6 @@ const emptyFileRouteManifest: FileRouteManifest = {
 const fileRouteDefinitionsOptions: FileRouteDefinitionsModuleOptions = {
   generatedFile: "src/routeTree.gen.ts",
   importMode: "relative",
-  routeModuleExportName: "Route",
 };
 const generatedFileRouteModule: string = createFileRouteDefinitionsModule(
   emptyFileRouteManifest,
@@ -2166,6 +2158,29 @@ const renameProjectRowError: Action.Definition<
   ProjectApi
 > = RenameProjectRow;
 void renameProjectRowError;
+// `Action.planOptimistic` describes the patch without applying it; it carries
+// the definition's services and never fails.
+const renameProjectRowPlan: Effect.Effect<
+  ReadonlyArray<Action.OptimisticChange>,
+  never,
+  ProjectApi
+> = Action.planOptimistic(RenameProjectRow, { id: "atlas", name: "Atlas" });
+// @ts-expect-error the plan input is the Action's input type
+Action.planOptimistic(RenameProjectRow, { id: "atlas" });
+const renameProjectRowChange = (change: Action.OptimisticChange): unknown => {
+  switch (change._tag) {
+    case "Signal":
+      return change.value;
+    case "Insert":
+      return change.values;
+    case "Update":
+      return change.update;
+    case "Delete":
+      return change.key;
+  }
+};
+void renameProjectRowPlan;
+void renameProjectRowChange;
 
 Collection.define<Project>({
   name: "Projects.badCollection",
@@ -2325,6 +2340,7 @@ SolidDb.liveQuery(
   },
 );
 const solidProjectStreamBinding: Effect.Effect<() => Project, never, ProjectApi> = Component.stream(
+  "project",
   Stream.suspend(() =>
     Stream.fromEffect(ProjectApi.use((api) => api.get("atlas")).pipe(Effect.orDie)),
   ),
@@ -2628,6 +2644,7 @@ const projectProgramRuntime = makeRuntime(
 // Event handlers run Effects through `Component.callback`: services join R,
 // and failures must be handled.
 const uiCallback: Effect.Effect<(id: string) => void, never, ProjectApi> = Component.callback(
+  "open",
   (id: string) => ProjectApi.use((api) => api.get(id)).pipe(Effect.ignore),
 );
 void uiCallback;
@@ -2646,27 +2663,24 @@ const ProjectProgram = Program.define<
 >({
   name: "ProjectProgram",
   initial: { selected: undefined, loading: false },
-  update: (model, message) => {
-    switch (message._tag) {
-      case "Load":
-        return Program.next(
-          { ...model, loading: true },
-          Program.emit<ProjectProgramMessage, ProjectError | Server.ClientError, ProjectApi>(
-            ProjectApi.use((api) =>
-              Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }) as const),
-            ),
+  on: {
+    Load: (model, message) =>
+      Program.next(
+        { ...model, loading: true },
+        Program.emit<ProjectProgramMessage, ProjectError | Server.ClientError, ProjectApi>(
+          ProjectApi.use((api) =>
+            Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }) as const),
           ),
-        );
-      case "Loaded":
-        return { selected: message.project, loading: false };
-      case "Refresh":
-        return model.selected
-          ? Program.next(
-              model,
-              Program.emit<ProjectProgramMessage>({ _tag: "Load", id: model.selected.id }),
-            )
-          : model;
-    }
+        ),
+      ),
+    Loaded: (_model, message) => ({ selected: message.project, loading: false }),
+    Refresh: (model) =>
+      model.selected
+        ? Program.next(
+            model,
+            Program.emit<ProjectProgramMessage>({ _tag: "Load", id: model.selected.id }),
+          )
+        : model,
   },
   subscriptions: (model) =>
     model.selected ? Stream.succeed<ProjectProgramMessage>({ _tag: "Refresh" }) : undefined,
@@ -2696,7 +2710,10 @@ const projectProgramHistory: ReadonlyArray<TimelineEntry> = projectTimeline.entr
   .get()
   .filter((entry) => entry.changes.some((change) => change.signal === projectProgram.model));
 projectProgramHistory.map((entry) => entry.sequence.toFixed());
-const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]?.cause);
+const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]!.cause);
+// Every entry has a cause: writes outside a named transition never commit.
+const projectTimelineCause: TimelineCause = projectProgramHistory[0]!.cause;
+void projectTimelineCause;
 const projectTimelinePosition: number | undefined = projectTimeline.position.get();
 const projectTimelineTravel: Effect.Effect<void, TimelineEntryUnavailable> =
   projectTimeline.travel(1);
@@ -2712,21 +2729,32 @@ if (projectProgramCause?._tag === "Program") {
   void program;
   void event;
 }
-const renameCause: TimelineCause = { _tag: "User", label: "Rename project" };
+const renameCause: TimelineCause = { _tag: "Transition", name: "ProjectPage.rename" };
 const namedTimelineSignal = Signal.make("Atlas", { name: "Project.title" });
 const labelledTransaction: Effect.Effect<void> = Signal.transaction(
   Effect.sync(() => namedTimelineSignal.set("Apollo")),
-  { cause: renameCause },
+  { name: "ProjectPage.rename" },
 );
-const labelledBatch: number = Signal.batch(() => 1, { cause: renameCause });
+const labelledBatch: number = Signal.batch(() => 1, { name: "ProjectPage.rename" });
 // @ts-expect-error Timeline causes are a closed tagged union
-Signal.batch(() => 1, { cause: { _tag: "Custom", label: "nope" } });
+const customCause: TimelineCause = { _tag: "Custom", label: "nope" };
+// @ts-expect-error framework causes are not part of the public transaction options
+Signal.batch(() => 1, { cause: renameCause });
 // @ts-expect-error signal names are strings
 Signal.make(0, { name: 1 });
+// @ts-expect-error every writable signal is named
+Signal.make(0);
+// @ts-expect-error a stream-backed signal is named too
+Signal.fromStream(Stream.make(1), 0);
+void customCause;
 // @ts-expect-error Program history lives on the app Timeline, not on the Program instance
 projectProgram.clearTimeline();
-// @ts-expect-error Program definitions no longer carry per-program timeline retention
-Program.define<number, "tick">({ initial: 0, update: (model) => model, timeline: false });
+Program.define<number, { readonly _tag: "Tick" }>({
+  initial: 0,
+  on: { Tick: (model) => model },
+  // @ts-expect-error Program definitions no longer carry per-program timeline retention
+  timeline: false,
+});
 void projectTimelineRecord;
 void projectTimelineLabel;
 void projectTimelinePosition;
@@ -2752,13 +2780,17 @@ const ProjectProgramWithMissingService = Program.define<
   ProjectApi | RuntimeMissingService
 >({
   initial: { selected: undefined, loading: false },
-  update: (model) =>
-    Program.next(
-      model,
-      Program.emit(
-        RuntimeMissingService.use((service) => service.readMissing()).pipe(Effect.asVoid),
+  on: {
+    Load: (model) =>
+      Program.next(
+        model,
+        Program.emit(
+          RuntimeMissingService.use((service) => service.readMissing()).pipe(Effect.asVoid),
+        ),
       ),
-    ),
+    Loaded: (model) => model,
+    Refresh: (model) => model,
+  },
 });
 Program.start(ProjectProgramWithMissingService, {
   // @ts-expect-error runtime-bound Program start cannot erase services the runtime does not provide
@@ -2785,44 +2817,27 @@ const projectProgramRuntimeErrorDispatch: Effect.Effect<
     | ProgramRuntimeStartupError
   >
 > = projectProgramWithRuntimeError.dispatch({ _tag: "Load", id: "atlas" });
-const projectProgramStep: Effect.Effect<
-  Program.Step<
-    ProjectProgramModel,
-    ProjectProgramMessage,
-    ProjectError | Server.ClientError,
-    ProjectApi
-  >,
-  Program.Failure<
-    ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError
-  >,
+// `Program.step` is pure and synchronous: no runtime, services, or errors.
+const projectProgramStep: Program.Step<
+  ProjectProgramModel,
+  ProjectProgramMessage,
+  ProjectError | Server.ClientError,
   ProjectApi
 > = Program.step(
   ProjectProgram,
   { selected: undefined, loading: false },
   { _tag: "Load", id: "atlas" },
 );
-void projectProgramStep;
-const projectProgramStory: Program.Story<
-  ProjectProgramModel,
-  ProjectProgramMessage,
+// A command is an inspectable Effect description; running it needs its services.
+const projectProgramLoadCommand: Effect.Effect<
+  ProjectProgramMessage | void,
   ProjectError | Server.ClientError,
   ProjectApi
-> = Program.story(ProjectProgram);
-const projectProgramStoryEntry: Effect.Effect<
-  Program.StoryEntry<
-    ProjectProgramModel,
-    ProjectProgramMessage,
-    ProjectError | Server.ClientError,
-    ProjectApi
-  >,
-  Program.Failure<
-    ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError
-  >,
-  ProjectApi
-> = projectProgramStory.send({ _tag: "Load", id: "atlas" });
-void projectProgramStoryEntry;
+> = projectProgramStep.commands[0]!.effect;
+// @ts-expect-error Program.step keeps message payloads typed
+Program.step(ProjectProgram, { selected: undefined, loading: false }, { _tag: "Load" });
+void projectProgramStep;
+void projectProgramLoadCommand;
 void projectProgramRuntimeErrorDispatch;
 void projectProgramStartOptions;
 void missingProgramRuntimeRequirement;
@@ -2849,43 +2864,42 @@ const solidProjectProgramDispatch: Effect.Effect<
 > = solidProjectProgram.dispatch({ _tag: "Load", id: "atlas" });
 void solidProjectProgramDispatch;
 
-Program.define<number, "bad">({
+type BadMessage = { readonly _tag: "Bad" };
+
+Program.define<number, BadMessage>({
   initial: 0,
-  // @ts-expect-error Program updates must return Effect or a pure update, not Promise
-  update: () => promisedNumber,
+  // @ts-expect-error Program handlers return a model or Program.next(...), not a Promise
+  on: { Bad: () => promisedNumber },
 });
 
-Program.define<unknown, "bad">({
+Program.define<unknown, BadMessage>({
   initial: {},
-  // @ts-expect-error Program updates cannot hide Promise-shaped values behind explicit unknown
-  update: () => promisedProject,
+  // @ts-expect-error Program handlers cannot hide Promise-shaped values behind explicit unknown
+  on: { Bad: () => promisedProject },
 });
 
-Program.define<unknown, "bad">({
-  initial: {},
-  // @ts-expect-error Program updates cannot hide Effect Promise successes behind explicit unknown
-  update: () => Effect.succeed(promisedProject),
-});
-
-Program.define<number, "bad">({
+Program.define<number, BadMessage>({
   initial: 0,
-  update: (model) => model + 1,
+  // @ts-expect-error Program handlers are pure: Effect work goes in commands
+  on: { Bad: (model) => Effect.succeed(model + 1) },
+});
+
+Program.define<number, BadMessage>({
+  initial: 0,
+  on: { Bad: (model) => model + 1 },
   // @ts-expect-error Program subscriptions cannot hide Promise-shaped values behind explicit unknown
   subscriptions: () => promisedProject,
 });
 
-Program.define<number, "bad">({
+Program.define<number, BadMessage>({
   initial: 0,
-  update: (model) => model + 1,
+  on: { Bad: (model) => model + 1 },
   // @ts-expect-error Program subscriptions cannot hide Effect Promise successes behind explicit unknown
   subscriptions: () => Effect.succeed(promisedProject),
 });
 
-// @ts-expect-error Program model types cannot be Promise-shaped
-Program.define<typeof promisedNumber, "bad">({
-  initial: promisedNumber,
-  update: () => Effect.succeed(promisedNumber),
-});
+// @ts-expect-error Program handlers must use the `on` handler map
+Program.define<number, BadMessage>({ initial: 0, update: (model: number) => model });
 
 // @ts-expect-error service method input remains typed
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
@@ -2922,11 +2936,6 @@ Route.define("/promise-preload", {
 // @ts-expect-error annotated route preload results still reject Promise-shaped values
 const annotatedPromiseRoutePreloadResult: RoutePreloadResult = promisedVoid;
 
-FileRoute.define("/promise-file-preload")({
-  // @ts-expect-error file route preload must return Effect or a pure value, not Promise
-  preload: () => promisedVoid,
-});
-
 interface RoutePreloadApi {
   readonly warm: (id: string) => Effect.Effect<void>;
 }
@@ -2935,7 +2944,7 @@ const RoutePreloadApi = Capability.define<RoutePreloadApi>("RoutePreloadApi");
 const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
-const FileRoutePreloadHelperRoute = FileRoute.define("/file-preload-helper/:id")({
+const FileRoutePreloadHelperRoute = Route.define("/file-preload-helper/:id", {
   preloadResources: [ProjectById],
   preloadCollections: [ProjectsCollection],
   preload: ({ params }) =>
@@ -2957,7 +2966,7 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
   Route.PreloadError,
   ProjectApi | RoutePreloadApi
 > = Route.preload(fileRoutePreloadHelperMatch);
-const BrandedFileRoutePreloadHelperRoute = FileRoute.define("/file-preload-branded/:id")({
+const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
   preloadResources: [BrandedProjectById],
@@ -3149,8 +3158,8 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
   name: "Project.touch",
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
-      const label = Signal.make("idle");
-      const unknownLabel = Signal.make<unknown>("idle");
+      const label = Signal.make("idle", { name: "label" });
+      const unknownLabel = Signal.make<unknown>("idle", { name: "unknownLabel" });
       yield* transaction.signal(label, id);
       // @ts-expect-error optimistic patches must match the target signal value type
       yield* transaction.signal(label, 123);
@@ -3349,7 +3358,7 @@ const InferredTouchProject = Action.define({
   output: ProjectSchema,
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
-      const label = Signal.make("idle");
+      const label = Signal.make("idle", { name: "label" });
       yield* transaction.signal(label, id);
     }),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
@@ -3730,17 +3739,20 @@ ActionResult.fields<ProjectFormValues, string>({
 });
 
 const projectForm = Form.make({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
 });
 
 Form.make({
+  name: "projectForm",
   schema: ProjectFormSchema,
   // @ts-expect-error initial values must satisfy the schema type
   initial: { id: "atlas", name: "Atlas Billing", spend: "1200" },
 });
 
 Form.make({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   // @ts-expect-error form validation must return Effect or a pure value, not Promise
@@ -3748,6 +3760,7 @@ Form.make({
 });
 
 Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   validate: (_values, validation) =>
@@ -3756,6 +3769,7 @@ Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
 });
 
 Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   validate: (_values, validation) =>

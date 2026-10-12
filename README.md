@@ -54,12 +54,15 @@ Read in this order when you are new to the repo:
 
 Useful deeper references:
 
-- [Design reference](Design.md)
-- [Framework perfection charter](docs/framework-perfection-charter.md)
+- [DB](docs/db.md): Collections, live queries, sync, and persistence
+- [Devtools](docs/devtools.md)
 - [Migration notes](docs/migration-notes.md)
+- [Invariants](docs/invariants.md)
 - [Public API inventory](docs/public-api-inventory.md)
-- [Public release readiness](docs/public-release-readiness.md)
-- [Release notes draft](docs/release-notes.md)
+- [Comparison with other frameworks](docs/comparison.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing and releasing](CONTRIBUTING.md)
+- [Docs site design reference](Design.md)
 - [Devtools panel example](examples/devtools-panel/README.md)
 - [Devtools extension example](examples/devtools-extension/README.md)
 - [Project console example](examples/project-console/README.md)
@@ -118,10 +121,9 @@ pnpm example:leak-scan
 - `@sunfall/arc-solid-db`: Solid collection and live query hooks.
 - `@sunfall/arc-tsrx`: TSRX/Solid Vite preset for examples and starters.
 
-## Current Release Bar
+## Release Bar
 
-The current cleanup goal is tracked in
-[docs/perfection-progress.md](docs/perfection-progress.md). A release-candidate
-handoff requires a green `pnpm verify`, current benchmark baselines, package
-dry-run evidence, public API decisions, and no known misleading docs or
-Promise-first framework internals.
+A release requires a green `pnpm verify`, current benchmark baselines, package
+dry-run evidence, and public API decisions recorded in the
+[Public API inventory](docs/public-api-inventory.md). See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the publishing process.

@@ -1,8 +1,7 @@
-import { Resource } from "@sunfall/arc-core";
-import { FileRoute } from "@sunfall/arc-start";
+import { Resource, Route } from "@sunfall/arc-core";
 import { RecipeIndex } from "../../content.js";
 
-export const Route = FileRoute.define("/blog/introducing-sunfall-arc")({
+export const route = Route.define("/blog/introducing-sunfall-arc", {
   preloadResources: [RecipeIndex],
   preloadCollections: [],
   preload: () => Resource.preload(RecipeIndex("all")),

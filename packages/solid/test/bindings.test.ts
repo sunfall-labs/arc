@@ -324,7 +324,7 @@ describe("Component bindings", () => {
               runtime,
               Effect.gen(function* () {
                 const action = yield* Component.action(Save);
-                return yield* Component.callback((id: string) =>
+                return yield* Component.callback("save", (id: string) =>
                   action.submit(id).pipe(Effect.ignore),
                 );
               }),
@@ -351,25 +351,23 @@ describe("Component bindings", () => {
             | { readonly _tag: "Loaded"; readonly project: Project };
           const definition = Program.define<{ readonly name: string }, Message, never, ProjectApi>({
             initial: { name: "idle" },
-            update: (model, message) => {
-              switch (message._tag) {
-                case "Load":
-                  return Program.next(
-                    model,
-                    Program.emit(
-                      ProjectApi.use((api) =>
-                        api
-                          .get("atlas")
-                          .pipe(Effect.map((project) => ({ _tag: "Loaded", project }) as const)),
-                      ),
+            on: {
+              Load: (model) =>
+                Program.next(
+                  model,
+                  Program.emit(
+                    ProjectApi.use((api) =>
+                      api
+                        .get("atlas")
+                        .pipe(Effect.map((project) => ({ _tag: "Loaded", project }) as const)),
                     ),
-                  );
-                case "Loaded":
-                  return Program.next(
-                    { name: message.project.name },
-                    Program.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
-                  );
-              }
+                  ),
+                ),
+              Loaded: (_model, message) =>
+                Program.next(
+                  { name: message.project.name },
+                  Program.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
+                ),
             },
           });
 
@@ -404,6 +402,7 @@ describe("Component bindings", () => {
             return bindInInstance(
               runtime,
               Component.stream(
+                "projectName",
                 Stream.fromEffect(
                   ProjectApi.use((api) => api.get("atlas")).pipe(
                     Effect.map((project) => project.name),
@@ -434,7 +433,7 @@ describe("Component bindings", () => {
             dispose = rootDispose;
             return bindInInstance(
               runtime,
-              Component.callback((id: string) =>
+              Component.callback("open", (id: string) =>
                 ProjectApi.use((api) => api.get(id)).pipe(
                   Effect.tap((project) => Deferred.succeed(started, project.name)),
                   Effect.andThen(Effect.never),

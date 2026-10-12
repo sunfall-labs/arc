@@ -1,4 +1,10 @@
-import { makeRuntime, Program, Signal, Timeline } from "@sunfall/arc-core";
+import {
+  makeRuntime,
+  Program,
+  Signal,
+  SignalWriteOutsideTransition,
+  Timeline,
+} from "@sunfall/arc-core";
 import { createComponent, render } from "@solidjs/web";
 import { flush } from "solid-js";
 import { Effect } from "effect";
@@ -29,10 +35,14 @@ describe("Timeline in the Solid DOM", () => {
           let program:
             | Component.ProgramHandle<{ readonly count: number }, CounterMessage, never>
             | undefined;
+          let rename: ((next: string) => void) | undefined;
 
           const View = Component.define("View", function* () {
             const counter = yield* Component.program(CounterProgram);
             program = counter;
+            rename = yield* Component.callback("rename", (next: string) =>
+              Effect.sync(() => title.set(next)),
+            );
             return () => reactive(() => `${title.get()}:${counter.model().count}`);
           });
           const dispose = render(
@@ -44,10 +54,21 @@ describe("Timeline in the Solid DOM", () => {
           expect(container.textContent).toBe("Draft:0");
 
           yield* program!.dispatch({ _tag: "Increment" });
-          title.set("Published");
+          // A DOM handler calls the named callback; its write lands synchronously.
+          rename!("Published");
           yield* program!.dispatch({ _tag: "Increment" });
           flush();
           expect(container.textContent).toBe("Published:2");
+          // Every commit reads as a named message.
+          expect(
+            Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause)),
+          ).toEqual([
+            'Program "Counter" message Increment',
+            "View.rename",
+            'Program "Counter" message Increment',
+          ]);
+          // A write outside every named transition (here, a bare DOM handler) fails loudly.
+          expect(() => title.set("Bare")).toThrow(SignalWriteOutsideTransition);
 
           const [firstIncrement] = Signal.peek(recording.entries);
           yield* recording.travel(firstIncrement!.sequence);

@@ -28,7 +28,6 @@ describe("Core definition registry", () => {
 
     expect(actionDefinitionRegistry().get(Ping.name)).toBe(Ping);
     expect(getActionDefinition(Ping.name)).toBe(Ping);
-    expect(Server.definitions().get(ping.name)).toBe(ping);
     expect(Server.functions().get(ping.name)).toBe(ping);
     expect(Server.get(ping.name)).toBe(ping);
   });
@@ -57,7 +56,7 @@ describe("Core definition registry", () => {
     expect(app.registry.actions.has(AfterAction.name)).toBe(false);
     expect(app.registry.serverFunctions.has(afterServer.name)).toBe(false);
     expect(actionDefinitionRegistry().get(AfterAction.name)).toBe(AfterAction);
-    expect(Server.definitions().get(afterServer.name)).toBe(afterServer);
+    expect(Server.functions().get(afterServer.name)).toBe(afterServer);
   });
 
   it("accepts an explicit app registry instead of inheriting globals", () => {
@@ -88,7 +87,7 @@ describe("Core definition registry", () => {
     expect(app.registry.actions.has(GlobalAction.name)).toBe(false);
     expect(app.registry.serverFunctions.has(globalServer.name)).toBe(false);
     expect(actionDefinitionRegistry().get(GlobalAction.name)).toBe(GlobalAction);
-    expect(Server.definitions().get(globalServer.name)).toBe(globalServer);
+    expect(Server.functions().get(globalServer.name)).toBe(globalServer);
   });
 
   it("normalizes explicit registry Map inputs by definition name", () => {

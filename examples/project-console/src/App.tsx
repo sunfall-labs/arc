@@ -9,7 +9,6 @@ import {
   ProjectsRef,
   makeProjectId,
   makePresenceStream,
-  projectSearch,
   type PresenceEvent,
   type ProjectId,
   type ProjectSummary,
@@ -123,11 +122,17 @@ const ProjectRows = Component.define(
 ).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
 const AppShell = Component.define("AppShell", function* () {
-  const presence = yield* Component.stream(makePresenceStream(), initialPresence);
+  const presence = yield* Component.stream("presence", makePresenceStream(), initialPresence);
   // ProjectSummaries follows ProjectsRef, so refreshing the Resource refreshes
   // the sidebar rows too.
-  const refresh = yield* Component.callback((id: ProjectId | undefined) =>
+  const refresh = yield* Component.callback("refresh", (id: ProjectId | undefined) =>
     Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(Effect.ignore),
+  );
+  // Client-only UI state, written only through a named transition: the
+  // Timeline reads each keystroke as `AppShell.search`.
+  const projectSearch = Signal.make("", { name: "AppShell.projectSearch" });
+  const search = yield* Component.callback("search", (value: string) =>
+    Effect.sync(() => projectSearch.set(value)),
   );
   const Rows = yield* ProjectRows;
   // Durable submissions (AdvanceProject) waiting to sync. The server render
@@ -168,7 +173,7 @@ const AppShell = Component.define("AppShell", function* () {
                 type="search"
                 placeholder="Filter projects"
                 value={projectSearch.get()}
-                onInput={(event) => projectSearch.set(event.currentTarget.value)}
+                onInput={(event) => search(event.currentTarget.value)}
               />
             </label>
 

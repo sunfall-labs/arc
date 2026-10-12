@@ -5,9 +5,7 @@ intended to cover the TanStack DB shape while keeping Sunfall Arc's runtime spin
 runtime/request-local state, Effect-first loading, Action-owned writes, typed
 signals, and scoped host adapters.
 
-The broader framework plan is in
-[Best Full-Stack Framework Plan](./best-framework-plan.md). The DB package wins
-when it gives applications normalized data, live queries, optimistic mutation,
+The DB package wins when it gives applications normalized data, live queries, optimistic mutation,
 persistence, and sync without leaving the Effect runtime model.
 
 ## Winning Data Layer
@@ -141,7 +139,7 @@ read in the factory rebuilds the query.
 const ProjectList = Component.define("ProjectList", function* () {
   const projects = yield* SolidDb.collection(Projects); // E += the load error
   const archive = yield* Component.action(ArchiveProject);
-  const onArchive = yield* Component.callback((id: ProjectId) =>
+  const onArchive = yield* Component.callback("archive", (id: ProjectId) =>
     archive.submit({ id }).pipe(Effect.ignore),
   );
 

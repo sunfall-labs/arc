@@ -3,14 +3,14 @@
 
 import { Route } from "@sunfall/arc-core";
 
-import { Route as route_root } from "./routes/index.js";
+import { route as route_root } from "./routes/index.js";
 import {
-  Route as route_blog_introducing_sunfall_arc,
+  route as route_blog_introducing_sunfall_arc,
 } from "./routes/blog/introducing-sunfall-arc.js";
-import { Route as route_cookbook } from "./routes/cookbook/index.js";
-import { Route as route_cookbook_$slug } from "./routes/cookbook/$slug.js";
-import { Route as route_docs } from "./routes/docs/index.js";
-import { Route as route_docs_$slug } from "./routes/docs/$slug.js";
+import { route as route_cookbook } from "./routes/cookbook/index.js";
+import { route as route_cookbook_$slug } from "./routes/cookbook/$slug.js";
+import { route as route_docs } from "./routes/docs/index.js";
+import { route as route_docs_$slug } from "./routes/docs/$slug.js";
 
 const route_root_path: "/" = route_root.path;
 const route_blog_introducing_sunfall_arc_path:
@@ -20,6 +20,26 @@ const route_cookbook_path: "/cookbook" = route_cookbook.path;
 const route_cookbook_$slug_path: "/cookbook/:slug" = route_cookbook_$slug.path;
 const route_docs_path: "/docs" = route_docs.path;
 const route_docs_$slug_path: "/docs/:slug" = route_docs_$slug.path;
+
+for (const [route, path, file] of [
+  [route_root, "/", "src/routes/index.ts"],
+  [
+    route_blog_introducing_sunfall_arc,
+    "/blog/introducing-sunfall-arc",
+    "src/routes/blog/introducing-sunfall-arc.ts",
+  ],
+  [route_cookbook, "/cookbook", "src/routes/cookbook/index.ts"],
+  [route_cookbook_$slug, "/cookbook/:slug", "src/routes/cookbook/$slug.ts"],
+  [route_docs, "/docs", "src/routes/docs/index.ts"],
+  [route_docs_$slug, "/docs/:slug", "src/routes/docs/$slug.ts"],
+] as const) {
+  if ((route.path as string) !== path) {
+    throw new Error(
+      `${file} declares Route.define(${JSON.stringify(route.path)}), ` +
+        `but its file location maps to ${JSON.stringify(path)}.`,
+    );
+  }
+}
 
 export {
   route_root,
@@ -92,7 +112,7 @@ export const fileRouteModules = [
     routePath: "/",
     segments: [],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "blog/introducing-sunfall-arc",
@@ -112,7 +132,7 @@ export const fileRouteModules = [
       },
     ],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "cookbook/index",
@@ -128,7 +148,7 @@ export const fileRouteModules = [
       },
     ],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "cookbook/$slug",
@@ -154,7 +174,7 @@ export const fileRouteModules = [
         optional: false,
       },
     ],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "docs/index",
@@ -170,7 +190,7 @@ export const fileRouteModules = [
       },
     ],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
   {
     id: "docs/$slug",
@@ -196,7 +216,7 @@ export const fileRouteModules = [
         optional: false,
       },
     ],
-    exportName: "Route",
+    exportName: "route",
   },
 ] as const;
 /** Parent, layout, error boundary, and metadata relationships for each generated route. */
@@ -213,7 +233,7 @@ export const fileRouteMetadata = [
       routePath: "/",
       segments: [],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     layouts: [],
     metadataModules: [],
@@ -239,7 +259,7 @@ export const fileRouteMetadata = [
         },
       ],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_root",
     parentRoutePath: "/",
@@ -263,7 +283,7 @@ export const fileRouteMetadata = [
         },
       ],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_root",
     parentRoutePath: "/",
@@ -297,7 +317,7 @@ export const fileRouteMetadata = [
           optional: false,
         },
       ],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_cookbook",
     parentRoutePath: "/cookbook",
@@ -321,7 +341,7 @@ export const fileRouteMetadata = [
         },
       ],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_root",
     parentRoutePath: "/",
@@ -355,7 +375,7 @@ export const fileRouteMetadata = [
           optional: false,
         },
       ],
-      exportName: "Route",
+      exportName: "route",
     },
     parentRouteId: "route_docs",
     parentRoutePath: "/docs",
@@ -368,8 +388,6 @@ export const fileRouteMetadata = [
 export type RouteTree = typeof routes;
 /** Map type keyed by generated route id. */
 export type RouteById = typeof routeById;
-/** Union of every generated route definition. */
-export type FileRoute = RouteTree[number];
 /** Union of generated route ids such as `route_projects_$id`. */
 export type FileRouteId = keyof RouteById;
 /** Params for each generated route id. */
