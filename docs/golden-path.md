@@ -314,12 +314,14 @@ export const App = Component.define("App", function* (props: { readonly href: st
   the failure's `tag`.
 - `Route.withComponent(route, Component, (route) => props)` binds a feature
   Component to a route directly; without the mapper the Component takes
-  `Route.Props<typeof route>`.
+  `Route.Props<typeof route>`. It is the only way to attach a component.
 - Preloaded Resources read synchronously in the page, so navigation and
   hydration show no loading flash.
 - In a Start app, each route moves to `src/routes/<path>.ts` as
   `export const Route = FileRoute.define(path)(sameOptions)`, and the Vite
-  plugin generates `routeTree.gen.ts`. The options are identical.
+  plugin generates `routeTree.gen.ts`. The options are identical. The app
+  still attaches components with `Route.withComponent`, and the plugin
+  lazy-loads a page Component imported only for that call, keeping its type.
 
 ### 4. An Action for the rename
 

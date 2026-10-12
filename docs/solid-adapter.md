@@ -292,7 +292,12 @@ const move =
 `SolidDb.liveQuery(query)` as setup-time bindings. Collection handles are
 reactive reads (`rows`, `get`, `index`) plus `waiting` and `failure`; rows stay
 readable while loading and after a failed refresh, and a collection that never
-loaded throws its failed load to `<Errored>`. Actions change the rows. A live query's
+loaded throws its failed load to `<Errored>`. Actions change the rows. Bindings
+preload on mount in the browser only: a server render reads what the route
+preload loaded, and Start renders a collection whose first load failed as not
+yet loaded (a failure has no hydrated form), so the hydrating client renders
+the same markup and then loads it: a hydrating binding starts its first
+preload once the hydration pass settles. A live query's
 factory runs tracked: a signal or prop it reads (`props.projectId`) rebuilds the
 query. Both read the instance runtime's Collection Store.
 
@@ -385,7 +390,12 @@ const App = Component.define("App", function* (props: { readonly initialHref?: s
 ```
 
 Route components may be plain Solid functions or typed `Component`s; a
-`Component` route view renders with the router's setup context. Without a
+`Component` route view renders with the router's setup context.
+`Route.withComponent` is the only way to attach one, and in a Start app the
+Vite plugin lazy-loads a component imported only for that call (keep each
+page Component in its own module to get a chunk per page); the router's
+service and failure check still sees its type. Links may name the route or the
+`withComponent` copy: routes compare by path. Without a
 mapper the component takes `Route.Props<typeof route>` (`params`, `search`,
 `match`); with one, `Route.withComponent(route, component, (route) => props)`
 checks the mapped props against the component's props. Router options are

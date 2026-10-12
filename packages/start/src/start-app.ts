@@ -1,8 +1,8 @@
 import {
   makeRuntime,
+  Route,
   type ActionTransport,
   type Resource,
-  type Route,
   type ServerClient,
 } from "@sunfall/arc-core";
 import type { Collection } from "@sunfall/arc-db";
@@ -223,6 +223,15 @@ export namespace App {
           }),
         );
         const href = options.href ?? `${location.pathname}${location.search}`;
+        // A code-split route component must be loaded before hydrating, so the
+        // first client pass renders the markup the server rendered. A failed
+        // load surfaces where the router renders the route.
+        yield* Effect.try(() => Route.match(app.routes, href)).pipe(
+          Effect.flatMap((match) =>
+            match === undefined ? Effect.void : Route.preloadComponent(match),
+          ),
+          Effect.ignore,
+        );
         return yield* Component.launch(
           app.root as Component<RootProps, never, ClientServices | AppLaunchServices>,
           container,

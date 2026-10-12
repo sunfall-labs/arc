@@ -33,6 +33,7 @@ describe("SolidDb.collection (server)", () => {
         expect(events.loads).toBe(1);
         // Nothing threw to a boundary, so no error data was serialized into the page.
         expect(html).toContain(`<div id="root">${failingProjectsMarkup}</div>`);
+        expect(events.renders).toEqual([failingProjectsMarkup]);
         expect(events.typedFallbacks).toBe(0);
         expect(html).not.toContain("_$HY.r[");
         const payload = JSON.parse(

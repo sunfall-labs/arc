@@ -33,13 +33,16 @@ describe("SolidDb.collection (hydration)", () => {
           const serverText = container.firstChild;
 
           yield* Component.mount(Root, container, { runtime, hydrate: true });
-          // The client's first pass matches the server markup and reuses its node.
-          expect(container.textContent).toBe(failingProjectsMarkup);
+          // The hydration pass renders exactly the server markup and claims its node.
+          expect(events.renders[0]).toBe(failingProjectsMarkup);
           expect(container.firstChild).toBe(serverText);
           expect(events.typedFallbacks).toBe(0);
 
-          // After hydrating, the client loads the collection itself; its typed
-          // failure reaches `catchTags` like any client-side load failure.
+          // Once the hydration pass settles, the client loads the collection
+          // itself; its typed failure reaches `catchTags` like any client load.
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("projects: loading")),
+          );
           expect(events.loads).toBe(1);
           yield* Deferred.succeed(loaded, undefined);
           yield* Effect.promise(() =>

@@ -398,7 +398,8 @@ submitting runtime; every other Action runs its `run` locally. Start's
 result type and error type (the Action's own errors plus `Server.ClientError`).
 A superseded `parallel` submission applies only its invalidations, so hydrated
 values stay latest-only. The server's action endpoint always runs Actions
-locally.
+locally and never applies `optimistic`: only the submitting client patches its
+own state, and the request's store is discarded with the response.
 
 JSON action clients and progressive form helpers share the same Start Action
 Request Codec. Schema-backed input encoding happens before values cross the
@@ -739,7 +740,20 @@ with the page they belong to.
 A route's component is attached with `Route.withComponent(route, component)`,
 where it takes `Route.Props<typeof route>`, or with
 `Route.withComponent(route, component, (route) => props)`, which maps the
-route props to a feature component's own props (checked against them).
+route props to a feature component's own props (checked against them). It is
+the only way to attach one: route options (and `FileRoute.define` options) take
+no `component`. Routes compare by path, so `RouterLink`, `navigate`, and
+`Route.isMatch` given the route reach the copy `withComponent` returned.
+In the browser, Start's Vite plugin splits the component a `withComponent`
+call attaches into its own chunk when that call is its only use (an import
+used nowhere else, or a module-local declaration that depends on no other
+module-local binding). Only the runtime value becomes a lazy component that
+the router loads before rendering; the call's source types are unchanged, so
+the router still checks the split Component's services and failures.
+`App.launch` loads the initial route's split component before hydrating
+(`Route.preloadComponent` on a route reaches the components its copies
+attach), so the first client pass renders the server markup.
+`autoCodeSplitting: false` keeps every route component eager.
 A route's preload failure is typed. `preload` is inferred from its own body
 (params from `params` or the path, services and failures from what it
 returns), so inline pipelines keep their types. Like an Effect RPC `error`
@@ -850,7 +864,8 @@ build, Start writes `src/routeTree.gen.ts` by default, following the file-based
 routing convention of keeping generated route types in the project for editors,
 agents, and non-Vite tooling. Route files export a named `Route` built with
 `FileRoute.define(path)(options)`, which takes the same options as core
-`Route.define(path, options)`; static preload hints and preload work stay together:
+`Route.define(path, options)`; static preload hints and preload work stay
+together, and the component is attached where the app builds its router:
 
 ```ts
 export const Route = FileRoute.define("/projects/:id")({

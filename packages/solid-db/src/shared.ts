@@ -12,7 +12,7 @@ import type { Component } from "@sunfall/arc-solid";
 import { Cause, Effect, Option } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { isServer } from "@solidjs/web";
-import { createRenderEffect, onCleanup, type Accessor } from "solid-js";
+import { createRenderEffect, isHydrating, onCleanup, onSettled, type Accessor } from "solid-js";
 
 /**
  * Failures a collection or live query read can throw to `<Errored>`: its
@@ -86,10 +86,28 @@ export const makeSolidDbReactiveBinding = <E, R = never>(
 
   // Preloading is a side effect, so it runs in the apply phase whenever the
   // source set (and with it the preload work) changes. A server render only
-  // reads: the route preload loads what it renders, and a load started here
-  // would change the state the hydrating client restores mid-render.
+  // reads: the route preload loads what it renders. A hydrating client first
+  // renders what the server rendered, so its first preload waits until the
+  // hydration pass settles (a load it started would flip `waiting` first).
+  const enabled = !isServer && options.preload !== false;
+  let deferred = enabled && isHydrating();
+  let pending: Effect.Effect<void, unknown, R> | undefined;
   createRenderEffect(options.load, (preloadEffect) => {
-    preloadController.start(preloadEffect, !isServer && options.preload !== false);
+    if (deferred) {
+      pending = preloadEffect;
+      return;
+    }
+    preloadController.start(preloadEffect, enabled);
+  });
+  // Registered on every side, so the server and client create the same owner
+  // tree (and with it the same hydration keys).
+  onSettled(() => {
+    if (!deferred) {
+      return;
+    }
+    deferred = false;
+    preloadController.start(pending, enabled);
+    pending = undefined;
   });
 
   onCleanup(() => {

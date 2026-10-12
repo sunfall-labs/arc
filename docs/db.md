@@ -122,7 +122,11 @@ the Component's `R`, and their declared load errors join its `E`, exactly like
 a Resource reader's: rows stay readable while loading and after a failed
 refresh, but a collection that never loaded throws its failed load to the
 nearest `<Errored>`, where `Component.catchTags` handles it. Snapshot-codec and
-callback-contract failures are defects there, not part of `E`.
+callback-contract failures are defects there, not part of `E`. Bindings preload
+on mount in the browser only. During SSR, a collection whose first load failed
+stays out of the hydration payload and Start's server render reads it as not
+yet loaded, exactly the state the hydrating client starts from; the client
+then loads it, and a failure reaches `catchTags` there.
 `SolidDb.collection(definition, options?)` returns reactive reads (`rows`,
 `get`, `index`) and status (`waiting`, `failure`).
 `SolidDb.liveQuery(query, options?)` returns `rows`, `waiting`, `failure`,
