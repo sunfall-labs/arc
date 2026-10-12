@@ -16,8 +16,8 @@ story.
   inspectors, request inspectors, invalidation inspectors, resource indexes, and
   a causal graph.
 - `DevtoolsCausalGraph` turns facts into deterministic nodes and edges for
-  request traces, routes, route plans, resources, resource families, DB
-  collections, actions, invalidations, schema coverage, missing schemas,
+  request traces, routes, route plans, resources, resource families, actions,
+  invalidations, schema coverage, missing schemas,
   runtime events, endpoints, and modules. Route preload ResourceFamily nodes
   prefer app graph definitions when present, so schema, tag, and policy depth
   is not lost when preload facts arrive before app graph facts.
@@ -59,8 +59,7 @@ Actions can be observed directly from their public instance. The observer is
 scoped, records action state transitions as runtime events, and links successful
 states to the action's invalidation plan when one exists. Action facts mirror the
 submission `AsyncResult`: `state` is its tag (`Initial`, `Success`, or `Failure`)
-and `waiting` is true while a submission is in flight. Start request traces
-report collection load state the same way (`state` tag plus `waiting`).
+and `waiting` is true while a submission is in flight.
 Resource events publish `ResourceFailure` with the full `cause` (typed errors
 and defects) and `ResourceInterrupted` when a load was cancelled and the entry
 returned to its prior settled result:
@@ -139,8 +138,8 @@ The causal graph answers questions like:
 
 - Which route plan matched a route and preloaded a resource?
 - Which action emitted an invalidation plan?
-- Which request handled an endpoint, route plan, resource, collection, action,
-  or server function?
+- Which request handled an endpoint, route plan, resource, action, or server
+  function?
 - Which tag or ref caused a resource to be invalidated?
 - Which runtime event observed a resource, action, route plan, or invalidation?
 - Which app graph schema coverage bucket reported a missing schema?
@@ -182,7 +181,7 @@ When `StartBuildPolicy.diagnostics` is configured, the Start Vite Diagnostics
 Gate runs during Vite builds and fails if resolved route-module diagnostics
 violate the policy, even when the app does not import
 `virtual:sunfall-arc/app-graph`. The static `virtual:sunfall-arc/app-graph` module
-is topology-only; route-module/resource/collection diagnostics live behind the
+is topology-only; route-module/resource diagnostics live behind the
 explicit `virtual:sunfall-arc/app-graph/runtime-diagnostics` import, which also
 exports typed `diagnosticsPolicyViolations` for devtools and agent consumers.
 Use
@@ -190,12 +189,12 @@ Use
 resolved diagnostics gate through Vite; pass `--json` when the caller wants the
 resolved graph payload. The default CLI output is an agent-readable repair
 report grouped by source owner, with concrete edits for missing wire schemas
-and route preload resource/collection declarations.
+and route preload resource declarations.
 For edit planning, use `sunfall-arc-start impact`; for topology questions rather
 than repair lists, use `sunfall-arc-start graph`.
 It projects the resolved diagnostics into a typed agent graph with Route,
-Action, ServerFunction, ResourceFamily, ResourceTag, Collection, Endpoint,
-Module, and Finding nodes plus self-review facts for policy cleanliness, wire
+Action, ServerFunction, ResourceFamily, ResourceTag, Endpoint, Module, and
+Finding nodes plus self-review facts for policy cleanliness, wire
 schema completeness, and route preload declarations.
 Queries are positional and stay JSON-safe:
 
@@ -229,8 +228,8 @@ Effect-native event streams:
 - Start app graph diagnostics expose the static facts: matched route modules,
   server function modules and RPC endpoint, action modules and action endpoint,
   schema coverage, action invalidation/optimistic/retry/concurrency metadata,
-  route preload resource and collection declarations, resource families,
-  resource tags, and DB collection definitions.
+  route preload resource declarations, resource families (with their `rows`
+  indexes and change feeds), and resource tags.
 - `Route.planNavigation(...)` exposes the route facts: matched href,
   params, search, preloaded resource refs, and the resource hydration count.
   Start request traces also carry route-plan hydration resource keys so the
@@ -238,8 +237,9 @@ Effect-native event streams:
 - `Resource.subscribeEvents()` exposes runtime resource lifecycle facts
   without reading cache internals, including `ResourceInvalidated` events emitted
   before invalidated refs refresh.
-- Collection store subscriptions expose DB collection lifecycle and mutation
-  facts without reading private row maps.
+- Row change feeds (`rows.changes`) publish `ResourceRowsChanged` and
+  `ResourceRowsChangesFailure` on the same stream; devtools records them as
+  ordinary resource runtime facts.
 - `store.trackAction(action)` exposes action state and invalidation plan
   facts without reading private action internals.
 - `store.recordActionState(..., { serializedInvalidationPlan })` exposes
@@ -248,14 +248,14 @@ Effect-native event streams:
 - `store.trackTimeline(recording)` records a running Timeline's retained
   and future entries as `TimelineCommit` runtime events until its Scope closes.
   Each commit has a `label` (`Timeline.describe(cause)`) and its `cause`, which
-  is always present. Its target is the Program, Action, Resource, or Collection
-  its cause names; a `Transition` cause (a named `Component.callback`, stream,
+  is always present. Its target is the Program, Action, or Resource its cause
+  names; a `Transition` cause (a named `Component.callback`, stream,
   or `Signal.batch`/`Signal.transaction`) has no fact target and is read by its
   label. Unnamed Programs share the `Program` target, so name Programs that
   should appear separately.
 - `store.recordRequestTrace(trace)` exposes the request-level join across
-  request context, response context, services, route plans, resources,
-  collections, server functions, actions, streams, fibers, and teardown.
+  request context, response context, services, route plans, resources, server
+  functions, actions, streams, fibers, and teardown.
 - `createRequestHandler(..., { onRequestTrace })` emits that shape for SSR,
   server RPC, Start action, response stream-close, stream-cancel, and
   request-failure paths. Teardown records reason, duration, and before/after
@@ -268,10 +268,10 @@ Adapters record those facts into `makeDevtoolsStore()` through its Effect
 methods. `getSummary()` then provides route, invalidation, runtime, and
 request/resource inspectors, while `getCausalGraph()` links the golden
 path with deterministic edges such as request trace `UsesEndpoint`, request
-trace `Records` resources/collections/actions/server functions, route plan
+trace `Records` resources/actions/server functions, route plan
 `Matches` route, route plan `Preloads` and `Hydrates` resource, action `Emits`
 invalidation, invalidation `Targets` tags, tag `Causes` resource invalidation,
-and runtime events `Observes` resources, collections, programs, actions, and
+and runtime events `Observes` resources, programs, actions, and
 request traces.
 
 Runtime event ids are unique per sequence/tag pair. When a host supplies a
@@ -294,7 +294,6 @@ rendering:
 - Resources
 - Actions
 - Programs
-- Collections
 - Requests
 - Diagnostics
 - Causal Graph
@@ -398,9 +397,9 @@ transport, render output, typecheck, and production build.
 The devtools product should grow in this order:
 
 - App Graph: routes, route modules, server functions, actions, resources,
-  collections, schemas, endpoints, and module ownership.
+  schemas, endpoints, and module ownership.
 - Route Inspector: matched route, params, search, declared preload ownership,
-  concrete preloaded refs, collection preload, and hydration payloads.
+  concrete preloaded refs, and hydration payloads.
 - Resource Timeline: pending, success, failure, interruption, hydration,
   invalidation, deletion, GC scheduling, and stale/refresh state.
 - Action Timeline: `AsyncResult` tag plus `waiting`, input, concurrency,
@@ -409,10 +408,10 @@ The devtools product should grow in this order:
 - Program Timeline: messages, before/after model snapshots, command
   starts/completions/failures, emitted follow-up messages, subscription events,
   typed failures, and disposal.
-- Collection Inspector: row counts, indexes, live query plans, pending
-  mutations, persistence, sync adapter, and rollback facts.
+- Rows Inspector: per-Resource row counts, indexes, change-feed health, live
+  query plans, optimistic row layers, and persistence.
 - Request Trace: request context, response context, server functions, actions,
-  resources, collections, streams, fibers, interruption, and teardown.
+  resources, streams, fibers, interruption, and teardown.
 - Diagnostics Repair: missing schemas, unknown preload ownership, unsafe
   modules, and exact owner/edit guidance.
 

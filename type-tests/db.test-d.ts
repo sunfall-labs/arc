@@ -168,3 +168,10 @@ const dbExports: Array<unknown> = [
   publicQueryAggregate,
 ];
 void dbExports;
+
+// Query's scalar vocabulary types.
+const joinKey: Query.JoinKey = "atlas";
+const sortValue: Query.SortValue = new Date(0);
+const sortDirection: Query.SortDirection = "desc";
+const groupKey: Query.GroupKey<{ readonly status: string }> = { status: "active" };
+void [joinKey, sortValue, sortDirection, groupKey];

@@ -332,10 +332,6 @@ export const publicHoverDocGroups = [
     ],
   },
   {
-    file: "packages/core/src/resource-persistence.ts",
-    declarations: ["ResourcePersistOptions"],
-  },
-  {
     file: "packages/core/src/resource-ui-binding.ts",
     declarations: [
       "ResourceUiInput",
@@ -452,10 +448,6 @@ export const publicHoverDocGroups = [
         "live",
       ],
     },
-  },
-  {
-    file: "packages/solid/src/live-query.ts",
-    declarations: ["LiveQueryRenderError", "LiveQueryOptions", "LiveQueryHandle", "LiveQueryInput"],
   },
   {
     file: "packages/core/src/browser-router-state.ts",

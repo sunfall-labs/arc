@@ -8,11 +8,12 @@ target. The public API is owned by Sunfall Arc:
 
 - `Signal` for fine-grained client state.
 - `Program` for headless model/message loops with Effect-owned work.
-- `Resource` for typed async/cache state.
-- `Collection` / `Query` for normalized client data, secondary indexes, and
-  live materialized queries.
-- `Action` for every change to server data: optimistic Signal, Resource, and
-  Collection patches, the Effect that writes, and invalidation.
+- `Resource` for typed async/cache state; a list Resource declares `rows`
+  (key, indexes, change feed) for keyed lookups and row patches.
+- `Query` (`@sunfall/arc-db`) for live materialized queries over the rows of
+  Resources.
+- `Action` for every change to server data: optimistic Signal, Resource entry,
+  and Resource row patches, the Effect that writes, and invalidation.
 - `Capability` for named app services and test layers.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
@@ -22,7 +23,7 @@ Future versions can add a custom TSRX host profile once the runtime semantics ar
 
 This architecture document explains the concrete shape of the framework: the
 runtime spine,
-dependency injection, routing, resources, collections, actions, server
+dependency injection, routing, resources, queries, actions, server
 contracts, SSR, hydration, diagnostics, and devtools all converge on one typed
 app graph.
 
@@ -32,14 +33,14 @@ The end-state architecture has four layers that intentionally share the same
 domain vocabulary.
 
 1. Definition layer: schemas, branded ids, capabilities, server contracts,
-   programs, resources, collections, actions, forms, and routes are stable typed
+   programs, resources, actions, forms, and routes are stable typed
    definitions. Definitions are safe to import broadly when they do not include
    server handlers.
 2. Generated graph layer: file-route manifests, server function manifests,
    action manifests, generated route definitions, and Start app graph
    diagnostics turn definitions into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
-   the collection store, UI scopes, route scopes, Program fibers, action fibers,
+   UI scopes, route scopes, Program fibers, action fibers,
    server clients, response context, hydration, and event streams execute the
    graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
@@ -58,13 +59,13 @@ Sunfall Arc should stay unusually strict in these places:
 - server contracts are shared, handlers are server-only;
 - request work gets a fresh runtime and store;
 - route preload is typed, interruptible, and declared for diagnostics;
-- resources and collections live in the active runtime/store, never global
-  process state;
+- resources live in the active runtime/store, never global process state;
 - Program handlers are pure: they return plain model data or `Program.next(...)`;
   async work leaves the handler through Effect commands and Stream
   subscriptions, so `Program.step` tests a transition with no runtime;
 - actions are the one mutation path: they own mutation policy, optimistic
-  Signal, Resource, and Collection patches, invalidation, and result shape;
+  Signal, Resource entry, and Resource row patches, invalidation, and result
+  shape;
 - a failure that can reach rendering joins a Component's `E`; a failure of work
   a caller starts is returned to that caller; a callback that breaks its
   contract is a defect;
@@ -130,8 +131,7 @@ async-state vocabulary. Arc signals own it and Solid renders it:
   (idle is `Initial`; a `run`, `optimistic`, or `invalidates` callback that
   breaks its contract is a defect, not part of `E`); the latest invalidation
   plan stays its own signal.
-- `collection.result()` is `AsyncResult<void, E>` (rows stay their own signal),
-  and `liveQuery.result` is `AsyncResult<ReadonlyArray<T>, E>` beside the
+- A live query's `state` is `AsyncResult<ReadonlyArray<T>, E>` beside the
   always-available `rows`. Every `AsyncResult`-valued accessor is named
   `result`; Solid handles project it to `waiting()` and `failure()`.
 
@@ -344,7 +344,7 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
 - Solid Components get their runtime from their entry point
   (`App.launch` or `createRequestHandler` in a Start app; `Component.launch`,
   `mount`, or `embed` otherwise), which checks the tree's services against it; every setup-time binding (resources, actions, programs, streams,
-  callbacks, collections, the router and its route preloads) runs on its
+  callbacks, live queries, the router and its route preloads) runs on its
   instance's runtime with the setup's context. There is no runtime context and
   no implicit default runtime.
 
@@ -412,7 +412,7 @@ response metadata.
 The client side of that transport is Core's `ActionTransport` service, the
 Action counterpart of `Server.Client`. Every Action instance looks it up when it
 submits: Actions the transport serves run remotely, and the response (decoded
-outcome, hydrated Resources and Collections, invalidations) applies to the
+outcome, hydrated Resources, invalidations) applies to the
 submitting runtime; every other Action runs its `run` locally. Start's
 `App.launch(app)` provides it for the app's `actions`, next to the RPC
 `Server.Client`. UI code never chooses: Solid's
@@ -461,37 +461,37 @@ The transaction has one verb per kind of state. `set(target, update)` patches a
 value: a writable Signal, or the entry a Resource ref names (`ProjectById(id)`,
 from any family). `update` is a plain value or a pure updater of the current
 one, typed by the target (the Resource's output type). `insert`, `update`, and
-`delete` patch rows. Every patch applies before `run` (or the remote
-submission).
+`delete` patch single rows of a Resource that declares `rows`, by key: they
+take its ref (`ProjectsRef`), and the key and row are typed by its `rows`.
+Every patch applies before `run` (or the remote submission).
 
 A Resource patch is a layer over the entry's synced value in the submitting
-runtime's store, like a row layer. Readers (`Resource.result`,
+runtime's store. Readers (`Resource.result`,
 `Resource.read`, the Solid reader with its `waiting` and `failure`) see the
 patched value with the entry's own status, so there is no Suspense flash; a
 reload during the submission replaces the synced value underneath and the
-layer stays on top. Loads (`Resource.preload`, `refresh`, `changes`, and so a
-Collection following the Resource) and snapshots see only the synced value.
+layer stays on top. Loads (`Resource.preload`, `refresh`, `changes`) and
+snapshots see only the synced value.
 An entry that has not loaded is left alone: the patch is a no-op.
 
-Collection patches are layers over the collection's synced rows in the
-submitting runtime's store: rows read `$synced: false`, a `follow`/refresh
-snapshot replaces the base underneath without dropping the layer, and later
-submissions' layers stack on top. Success commits the transaction: Signal and
-Resource patches fold into the base value and row layers fold into the synced
-base, where the `invalidates` reload (or, remotely, the response's
-invalidations) replaces them. A typed failure, defect, or interruption rolls
-the transaction back and rebases every other submission's patches. So does a
-rejected `ActionResult`: a run (local, remote, or a durable replay) that
-returns `ValidationFailure` or `Failure` means the change did not happen, so
-its patches roll back exactly as on a failure, without folding and without a
-reload; `Success` and `Redirect` results commit. Patch,
-commit, and rollback writes commit under the Action's Timeline cause
-(`submit`, `success`, `failure`), so travel shows them. Snapshots (SSR
-dehydration, persistence) carry only the synced base: a patch belongs to an
-in-flight submission and never crosses a wire. Collections implement the
-`ActionOptimisticRows` seam from Core, so Core owns the transaction and DB owns
-the row layering; `Collection.applyChanges` remains the direct write for
-remote feeds and local-only collections, never for server data.
+Row patches are the same layers: each is an updater of the entry's rows
+array, so a reload replaces the rows underneath and the patch reapplies on
+top, and later submissions' layers stack in order. An update shares the
+array's key positions and moves only the index buckets the row left or
+joined (`resource-rows.ts`), so a patch never rebuilds the lookups; an update
+or delete of a missing key is a no-op, and an update that changes the key is
+a defect. Success commits the transaction: Signal and Resource patches fold
+into the synced value, where the `invalidates` reload (or, remotely, the
+response's invalidations) replaces them. A typed failure, defect, or
+interruption rolls the transaction back and rebases every other submission's
+patches. So does a rejected `ActionResult`: a run (local, remote, or a
+durable replay) that returns `ValidationFailure` or `Failure` means the
+change did not happen, so its patches roll back exactly as on a failure,
+without folding and without a reload; `Success` and `Redirect` results
+commit. Patch, commit, and rollback writes commit under the Action's Timeline
+cause (`submit`, `success`, `failure`), so travel shows them. Snapshots (SSR
+dehydration, persistence) carry only the synced value: a patch belongs to an
+in-flight submission and never crosses a wire.
 
 `Action.planOptimistic(definition, input)` tests a patch without writing
 anything or calling a backend: it runs `optimistic` against a recording
@@ -499,19 +499,26 @@ transaction and returns the changes it would make, applying none. A `set`
 reports `{ _tag: "Set", target, value }` with the value the Signal or Resource
 entry would read, computed from its current value in the caller's runtime (a
 Resource entry that has not loaded plans no change); a row change reports the
-store and the change as given (`{ _tag: "Update", rows: Projects, key,
+ref and the change as given (`{ _tag: "Update", target: ProjectsRef, key,
 update: { name } }`). It is the optimistic counterpart of
 `Action.planInvalidation`.
 
-Collection persistence uses the same `KeyValueStore` as the Action Outbox
-below. A persisted collection stores its synced snapshot at
-`arc/collections/v<version>/<key>` (key defaults to the collection name,
-version to `1`), encoded with `KeyValueStore.toSchemaStore` over the snapshot
-schema with the collection's `output` row codec, so collection and outbox keys
-never collide. Persistence adds `KeyValueStore` to the collection's `R` and
-`KeyValueStoreError` to its `E`. Durable commits (direct writes, hydrate,
-restore, load writeback) serialize on a semaphore owned by each store's
-`CollectionState`.
+Resource persistence (`policy.persist: { key, version }`,
+`resource-persistence.ts`) uses the same `KeyValueStore` as the Action Outbox
+below. A persisted family writes each settled value (loads, hydration,
+`rows.changes` batches) at `arc/resources/v<version>/<key>/<ref key>`,
+encoded through `output` like a hydration snapshot; optimistic patches are
+never persisted. A never-loaded entry restores the persisted value at once
+and reloads in the background. The store is read with
+`Effect.serviceOption`, so without a `KeyValueStore` persistence does nothing,
+and storage or decode failures are logged rather than failing loads.
+
+A `rows.changes(input)` feed starts with an entry's first load (or first read
+after hydration) on the runtime's Resource Store. Each batch of
+`Upsert`/`Update`/`Delete` changes applies to the synced rows under the
+Timeline cause `Resource ... change` and publishes `ResourceRowsChanged`; a
+failed feed publishes `ResourceRowsChangesFailure` and stops. Disposing the
+runtime or evicting the entry interrupts it.
 
 ### Durable Submissions
 
@@ -690,12 +697,10 @@ mutations a typed dependency graph without coupling actions to route shapes,
 component trees, or hand-written cache-key strings, and without leaking a server
 request's resource graph into another request.
 
-Resource, collection, and action definitions also publish static diagnostics for
-tooling.
+Resource and action definitions also publish static diagnostics for tooling.
 `Resource.diagnostics()` reports declared families, tags, schema flags,
-tag-providing behavior, and stale/GC/retry policy. the DB definition registry
-(`@sunfall/arc-db/internal`) reports declared collection names, schema flags, load presence, mutation
-handlers, retry policy, and persistence policy. Start action manifests report
+tag-providing behavior, stale/GC/retry/persist policy, and declared `rows`
+(index names and whether a change feed exists). Start action manifests report
 whether invalidation, optimistic updates, retry policy, and concurrency are known
 for each action. Generated definitions can prove action facts from
 `Action.define(...)`; hand-written manifests can opt in, otherwise diagnostics
@@ -719,7 +724,7 @@ domain facts, which matched these live resource refs, for these causes.”
 
 `DevtoolsRequestTrace` is the request-level join point for the same public
 facts. A trace records request and response context, service names, route plans,
-resources, collections, server functions, actions, streams, fibers, status, and
+resources, server functions, actions, streams, fibers, status, and
 teardown in JSON-safe data. Start request handlers expose an `onRequestTrace`
 hook that emits a structurally compatible payload for SSR, server RPC, Start
 actions, response stream close, stream cancellation, and request failure paths.
@@ -770,8 +775,8 @@ failure's `_tag` can cross a server render without a schema (see
 [SSR Hydration](#ssr-hydration)). A load callback that throws synchronously
 (`EffectInputCallbackError`) is a programming defect, re-caused as `Die` so no
 handler can (or must) match it.
-`SolidDb.collection` and `SolidDb.liveQuery` contribute their declared load
-errors the same way (rows throw a never-loaded collection's failed load), while
+`Component.liveQuery` contributes its sources' declared load errors the same way
+(rows throw when no source has loaded and the latest load failed), while
 `Component.action` contributes nothing: `submit` returns its failures to the
 caller, and `Component.callback` requires them handled.
 `provide` removes services from `R`; `launch`, `mount`, and `embed` accept only
@@ -789,10 +794,10 @@ The cost model:
   `Component.program` (a fine-grained model projection), `Component.stream`,
   `Component.callback` (Effects from DOM handlers, failures handled),
   `Component.router` (routes' preload and route Component services join `R`),
-  and `@sunfall/arc-solid-db`'s `SolidDb.collection` / `SolidDb.liveQuery`.
+  and `Component.liveQuery` (a live query over rows Resources).
   `Component.instance` is the seam for writing more.
-- **Per-runtime sharing is by construction**: Resources and Collections live in
-  the runtime's stores, and `Component.provide` builds its Layer once per
+- **Per-runtime sharing is by construction**: Resources live in the runtime's
+  Resource Store, and `Component.provide` builds its Layer once per
   runtime in a host Scope released on runtime disposal. A reader keeps one
   fiber-backed async memo per ref; releasing the last claim defers disposal to
   a microtask, so an owner that recomputes (or a suspended read re-run) in the
@@ -812,7 +817,7 @@ plain Solid component on an explicit runtime.
 A Start app does not call these itself. `createRequestHandler(app, ...)` renders
 `app.root` with `embed` under each request runtime, so each instance's setup
 runs in that runtime and route-preloaded Resources read synchronously.
-`App.launch(app)` restores the Resource and Collection snapshot into the
+`App.launch(app)` restores the Resource snapshot into the
 browser runtime and then hydrates that markup with
 `launch(app.root, root, { runtime, hydrate: true })`, rendering the same tree.
 Both pass the root `App.RootProps` (`{ href }`): the request's path and search
@@ -1025,19 +1030,15 @@ This runs route preload through `Resource.collect`, so the framework can
 explain which resources a navigation touched and which hydration entries it
 would send before rendering the page. Start uses this same route plan for
 SSR preload. If a touched resource cannot be serialized, planning fails through
-the typed `Resource.SnapshotCodecError` Effect error channel. When
-`@sunfall/arc-start` is present, it separately composes
-`collectCollections` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
-observed without making `@sunfall/arc-core` depend on `@sunfall/arc-db`.
+the typed `Resource.SnapshotCodecError` Effect error channel. Resources with
+`rows` are ordinary Resources here: their rows are the preloaded value.
 
-Routes can also declare the resource families and DB collections their preload
-is expected to touch through `preloadResources` and `preloadCollections`. The app
-graph treats those declarations as static facts and keeps runtime
-`Route.planNavigation(...)` plus Start collection collection as the
-dynamic proof for a concrete href. If a route has a preload but no declaration,
-graph diagnostics report the preload resources or collections as `unknown`
-rather than guessing. Once route modules have been resolved,
-`unknownRoutePreloadResources` and `unknownRoutePreloadCollections` name routes
+Routes can also declare the resource families their preload is expected to
+touch through `preloadResources`. The app graph treats those declarations as
+static facts and keeps runtime `Route.planNavigation(...)` as the dynamic
+proof for a concrete href. If a route has a preload but no declaration, graph
+diagnostics report the preload resources as `unknown` rather than guessing.
+Once route modules have been resolved, `unknownRoutePreloadResources` names routes
 that still have `preload: present` with unknown preload declarations, and the
 typed diagnostics validators can enforce those as policy.
 
@@ -1083,12 +1084,8 @@ attached where the app builds its router:
 export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
-  preloadResources: [ProjectById],
-  preloadCollections: [ProjectSummaries],
-  preload: ({ params }) =>
-    Effect.all([Resource.preload(ProjectById(params.id)), ProjectSummaries.preload()], {
-      discard: true,
-    }),
+  preloadResources: [ProjectById, ProjectSummaries],
+  preload: ({ params }) => Resource.preload([ProjectById(params.id), ProjectSummaries("all")]),
 });
 ```
 
@@ -1165,61 +1162,35 @@ children, so the Resource is not loaded again. A failure that does not encode
 (or decode) with the schema becomes a `ResourceFailureCodecError` defect. Setup
 failures and defects carry nothing across: on the server they are opaque, and
 no `catchTags` handler matches them there (put failing data behind a Resource
-with an `error` schema to render it during SSR). Collections never reach this
-path during SSR (a failed first load renders as not yet loaded), and Action
-failures never throw to a boundary: `submit` returns them.
+with an `error` schema to render it during SSR). Action failures never throw
+to a boundary: `submit` returns them.
 
 Preload dehydration has both sync and Effect forms. Runtime/request work should
 prefer `Resource.hydrationPayload(refs)` so the payload is read from the
 Resource Store provided by the Runtime Spine. The sync `Resource.hydrationPayload`
 is for already-current UI contexts and tests.
 
-DB collections join the same Start hydration script. When a route preload calls
-`collection.preload()` or `collection.refresh()`, Start records
-that Collection Definition and dehydrates its request-runtime snapshot
-automatically:
-
-```ts
-const ProjectRoute = Route.define("/projects/:id", {
-  preload: () => Projects.preload(),
-});
-```
-
-Matched routes can also declare Collection Definitions with `preloadCollections`;
-concrete definitions need no lookup, while string declarations must resolve
-through the app's `collections`. Start fails unresolved string declarations with
-`StartPreloadError` instead of consulting the process-global DB registry. It
-preloads resolved route declarations that the route did not already touch and
-dehydrates their request-runtime snapshots. The app's collections are always
-dehydrated, route-declared collections are included next, and route-touched
-collections that are not already listed or declared are appended. The
-collections are declared once, on the app:
-
-```ts
-export const app = App.define({ root: Root, routes, collections: [Projects, Tasks] });
-```
-
-The server handler dehydrates them, and `App.launch(app)` hands the same
-definitions to `hydrateFromDocument(document, { collections })` so resources
-and collection rows are restored from one script into the browser runtime the
-UI uses, before it hydrates the root. Action responses hydrate into the same
-definitions. Lower-level resource-only hosts run
-`yield* Resource.hydrate(payload)` on their runtime.
+Rows need no hydration channel of their own: a Resource with `rows` hydrates
+as its value, and the browser rebuilds key positions and index buckets lazily
+on first read. `App.launch(app)` runs `hydrateFromDocument(document)`, which
+restores every Resource from one script into the browser runtime the UI uses,
+before it hydrates the root. Action responses hydrate the same way.
+Lower-level hosts run `yield* Resource.hydrate(payload)` on their runtime.
 
 Streamed SSR chunks are emitted as JSON scripts with
 `data-sunfall-arc-hydration-chunk`; `hydrateFromDocument(...)` applies the
 root payload first and then every
 streamed chunk. Streamed chunk hydration is
 progressive by design: each parsed Start hydration payload validates before that
-payload mutates Resource or Collection state, but a later chunk failure does not
+payload mutates Resource state, but a later chunk failure does not
 roll back chunks that already applied. Consumed DOM chunks are marked with
 `data-sunfall-arc-hydration-consumed` only after the full chunk scan succeeds,
 making repeated scans skip the same script unless `markConsumed: false` is
 passed.
 Malformed root hydration payload scripts fail with
 `StartHydrationPayloadParseError`; malformed streamed chunk scripts fail with
-`StartHydrationChunkParseError`; malformed Resource or Collection snapshots
-fail with the corresponding snapshot codec error.
+`StartHydrationChunkParseError`; malformed Resource snapshots fail with
+`Resource.SnapshotCodecError`.
 
 The DOM renderer still owns its own hydration bootstrap. Start's document emits
 Solid's `generateHydrationScript()` in the head and the Sunfall Arc resource
@@ -1382,19 +1353,18 @@ RPC/action endpoints, and schema coverage for server functions and actions.
 Server function and action diagnostics include stable ids, server exports,
 client transport/import references, module kinds, and wire-schema completeness.
 Static graph diagnostics mark route-module features like params schemas, search
-schemas, preloads, declared preload resources/collections, and components as
+schemas, preloads, declared preload resources, and components as
 `unknown`; the `virtual:sunfall-arc/app-graph` module stays a pure static DTO and
 does not import application route implementations. Runtime route-module facts
 are available only from the explicit
 `virtual:sunfall-arc/app-graph/runtime-diagnostics` module, which SSR-loads the
 route modules and resolves those feature flags to `present` or `absent` for
 devtools and agents that ask for runtime diagnostics. Declared preload resource
-families are exposed as source-attributed route facts, and declared preload
-collections are exposed as route-to-collection facts, while runtime route plans
+families are exposed as source-attributed route facts, while runtime route plans
 continue to show the exact resource refs touched for a specific navigation.
-Runtime diagnostics can also include static `Resource.diagnostics()` and
-DB collection registry diagnostics so devtools can explain resource families,
-tags, and DB collection definitions without reading private stores. A shared
+Runtime diagnostics can also include static `Resource.diagnostics()` so
+devtools can explain resource families, tags, and rows without reading
+private stores. A shared
 diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
 duplicate loose shape guards at each Adapter seam. Builds can enforce static
 manifest policy with
@@ -1403,7 +1373,7 @@ manifest policy with
 projects can opt into requiring error schemas too. Resolved route-module policy
 lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
 Diagnostics Gate SSR-loads the resolved graph through Vite and fails the build
-if configured resource or collection preload declarations are still unknown,
+if configured resource preload declarations are still unknown,
 even when application code never imports `virtual:sunfall-arc/app-graph`. The
 runtime diagnostics virtual module exports `diagnosticsPolicyViolations` as a readonly
 `StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
@@ -1433,7 +1403,7 @@ sunfall-arc-start graph action Project.rename --json
 ```
 
 `createStartAgentGraph(...)` turns diagnostics into typed Route, Action,
-ServerFunction, ResourceFamily, ResourceTag, Collection, Endpoint, Module, and
+ServerFunction, ResourceFamily, ResourceTag, Endpoint, Module, and
 Finding nodes with deterministic edges and self-review facts. This is the
 agent-operable map: agents can query the app by framework meaning before they
 edit source files, while the underlying facts still come from the compile-time
@@ -1591,8 +1561,8 @@ Arc owns application state in writable signals, and every committed change set
 passes through one seam in `signal-transaction.ts`: the solo-write path or the
 transaction/batch commit. `Timeline.record(...)` installs a recorder on that
 seam for the life of a Scope, so one recording covers user Signals, Resource
-entries, Action state, Program models and failures, router state, and
-collection load state and versions. Every write happens inside a named
+entries (including `rows.changes` batches), Action state, Program models and
+failures, and router state. Every write happens inside a named
 transition, so every entry reads like a message (Foldkit-style
 predictability: no state changes without a name):
 
@@ -1625,8 +1595,8 @@ deterministic.
   submissions (`submit`, `success`, `failure`, `interrupt`, `reset`, and the
   outbox's `queue`, `restore`, `replay`, `dismiss`; optimistic patches carry
   the submission's event), Program messages and failures, Resource entry
-  loads, settles, hydration, and resets, router navigation, and collection
-  syncs and row changes. An explicit cause wins over the ambient transition,
+  loads, settles, hydration, resets, and change-feed batches, and router
+  navigation. An explicit cause wins over the ambient transition,
   so an Action submitted from a callback still reads
   `Action "Project.rename" submit`.
 - **A write outside every named transition dies** with
@@ -1639,8 +1609,7 @@ deterministic.
   renders it.
 - **Names** come from `Signal.make(initial, { name })`, where `name` is
   required. Framework signals name themselves (`Board.model`,
-  `Project.rename.state`, `Project.get(<key>)`, `Router.state`,
-  `ProjectSummaries.loadState`). A router outlet's rendered node is derived
+  `Project.rename.state`, `Project.get(<key>)`, `Router.state`). A router outlet's rendered node is derived
   from recorded router state, so it is bookkeeping, not recorded: travel
   re-renders the travelled route.
 - **Travel renders the past; it does not rewrite state.** Committed state stays
@@ -1665,15 +1634,14 @@ deterministic.
   1000 entries); closing the recording Scope uninstalls the recorder, resumes
   the live head, and drops retained entries. One recording is installed at a
   time; a second fails with `TimelineAlreadyRecording`.
-- **Limits.** Collection rows live in mutable maps behind a version signal, so
-  collection syncs and changes are recorded but travel cannot rewind the rows
-  themselves; collection-backed views keep showing live rows. Travel also does
-  not move the browser URL: a travelled router renders the old route while
+- **Limits.** Rows are part of a Resource entry's value, so travel rewinds
+  them with the entry; their lookups are derived per value and never
+  recorded. Travel does not move the browser URL: a travelled router renders the old route while
   history stays at the head.
 
 Devtools consumes the same entries: `store.trackTimeline(recording)`
 records each entry as a JSON-safe `TimelineCommit` runtime event, linked to the
-Program, Action, Resource, or Collection fact its cause names.
+Program, Action, or Resource fact its cause names.
 
 ## Progressive Action Results
 

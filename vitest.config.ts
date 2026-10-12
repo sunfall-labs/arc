@@ -93,10 +93,7 @@ export default defineConfig({
             "examples/**/*.test.ts",
             "type-tests/golden-path/*.test.ts",
           ],
-          exclude: [
-            ...configDefaults.exclude,
-            "packages/solid/**/!(*.server).test.ts",
-          ],
+          exclude: [...configDefaults.exclude, "packages/solid/**/!(*.server).test.ts"],
           benchmark: {
             include: ["benchmarks/**/*.bench.ts"],
             exclude: ["benchmarks/**/*.client.bench.ts"],

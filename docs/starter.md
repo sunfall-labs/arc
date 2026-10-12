@@ -5,11 +5,11 @@ for each job and builds one feature end to end. Then copy a starter.
 
 Use the smallest starter that proves the path you need:
 
-| Starter                                                   | Use it when                                                                         | Run                  | Verify                                                      |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------- |
-| [`examples/basic-starter`](../examples/basic-starter)     | You want the smallest copyable full-stack app shell.                                | `pnpm starter:dev`   | `pnpm starter:verify`                                       |
-| [`examples/project-console`](../examples/project-console) | You want the full example with actions, forms, collections, mocks, and diagnostics. | `pnpm example:dev`   | `pnpm --filter @sunfall/arc-example-project-console verify` |
-| [`examples/docs-site`](../examples/docs-site)             | You want the cookbook/docs-site dogfood path.                                       | `pnpm docs-site:dev` | `pnpm docs-site:verify`                                     |
+| Starter                                                   | Use it when                                                                           | Run                  | Verify                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------- |
+| [`examples/basic-starter`](../examples/basic-starter)     | You want the smallest copyable full-stack app shell.                                  | `pnpm starter:dev`   | `pnpm starter:verify`                                       |
+| [`examples/project-console`](../examples/project-console) | You want the full example with actions, forms, Resource rows, mocks, and diagnostics. | `pnpm example:dev`   | `pnpm --filter @sunfall/arc-example-project-console verify` |
+| [`examples/docs-site`](../examples/docs-site)             | You want the cookbook/docs-site dogfood path.                                         | `pnpm docs-site:dev` | `pnpm docs-site:verify`                                     |
 
 The source examples are workspace packages for framework development.
 `pnpm starter:package` writes standalone copies of the basic and
@@ -62,8 +62,8 @@ Effect.runFork(App.launch(app));
 
 Use the project console when you need the larger example with forms,
 actions (one `Component.action` binding; the app's `actions` list makes
-`App.launch` route the server-served rename over the network), local-first
-collections, mocks, and diagnostics. Its project page lives in its own
+`App.launch` route the server-served rename over the network), Resource rows
+patched optimistically, a live query, mocks, and diagnostics. Its project page lives in its own
 module (`src/project-page.tsx`) and is attached with `Route.withComponent`, so
 the Start plugin loads it as a separate chunk while the router still checks
 its services. Use the basic starter when you need the smallest copyable app

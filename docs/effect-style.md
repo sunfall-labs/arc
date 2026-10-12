@@ -10,7 +10,7 @@ edge.
 
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
-- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, DB collections, capabilities, and form validators.
+- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, query callbacks, capabilities, and form validators.
 - Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. `Program.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
@@ -28,7 +28,7 @@ edge.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
-- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `program`, `stream`, `callback`, `router`, `SolidDb.collection` / `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
+- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `program`, `stream`, `callback`, `router`, `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
@@ -169,15 +169,11 @@ failures in the typed `EffectInputCallbackError` channel.
 SSR hydration must populate both layers:
 
 ```ts
-yield *
-  hydrateStartPayload(payload, {
-    runtime,
-    collections: [Projects, Tasks],
-  });
+yield * hydrateStartPayload(payload, { runtime });
 ```
 
-Start hydration helpers call `Resource.hydrate(payload)` for resource
-entries and collection hydration for DB snapshots, so the resource signal used
+Start hydration helpers call `Resource.hydrate(payload)` for resource entries
+(rows included: they are part of the Resource value), so the resource signal used
 by components and the Effect cache entry in the active `ResourceStore` update
 together. `App.launch(app)` runs `hydrateFromDocument(...)` for the full browser
 payload; use `hydrateStartPayload(...)` for already-parsed payloads.
@@ -196,7 +192,7 @@ const UserCard = Component.define("UserCard", function* (props: { readonly id: U
 ```
 
 Async state is always Effect's `AsyncResult` (`effect/reactivity`): Resources,
-Actions, Collections, and Live Queries settle every load or submission from its
+Actions, and Live Queries settle every load or submission from its
 `Exit`, stamped with the Effect `Clock`. Typed errors and defects become a
 `Failure` carrying the full `Cause`; interruption is cancellation and returns to
 the prior settled result. Do not mirror `AsyncResult` into ad hoc flags; read

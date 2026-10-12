@@ -42,7 +42,7 @@ documented as outside the current release bar.
   host boundaries only.
 - Framework internals keep Effect forms for async work.
 - Framework callbacks, including programs, resources, actions, routes, server
-  functions, collections, capabilities, and forms, reject `Promise` return
+  functions, query callbacks, capabilities, and forms, reject `Promise` return
   values at type-check time; app code uses `Effect.tryPromise` explicitly at the
   host/library seam instead.
 - Request work uses a fresh Request Runtime with the app services and a
@@ -80,8 +80,8 @@ documented as outside the current release bar.
   Store.
 - Resource cache entries, known inputs, hydration state, tag indexes, event
   streams, and lifetime fibers do not leak across runtimes or requests.
-- Runtime-spine modules, such as the DB collection store, attach to the active
-  Resource Store and are disposed with it.
+- Runtime-spine modules (Component hosts, `rows.changes` feeds) attach to the
+  active Resource Store and are disposed with it.
 - Resource lifetimes use Effect fibers, `Clock`, interruption, and scopes rather
   than hidden host timers.
 - Hydration populates both the synchronous UI signal state and the Effect cache.
@@ -89,18 +89,20 @@ documented as outside the current release bar.
   successful cache hits.
 - Resource events are published through the Resource Store event stream.
 
-## DB Collections
+## Resource Rows
 
-- Collection definitions are stable declarations; row state, optimistic Action
-  patches, load state, and collection event streams belong to the active
-  Resource Store's collection store.
-- DB collection registry diagnostics (`@sunfall/arc-db/internal`) expose collection names, schema presence, load
-  presence, indexes, sync, retry policy, and persistence policy without
-  reading live rows or optimistic patches.
-- Collection diagnostics and adapters can subscribe to events through the internal
-  collection store without reading private row maps.
-- Separate runtimes and request Resource Stores never share collection rows,
-  optimistic patches, or collection event subscriptions.
+- Rows are derived from a Resource's value, never stored separately: the value
+  is the one cached, hydrated, and persisted copy.
+- A reload is diffed by key; a row equal to its previous version keeps its
+  object identity. Lookups (key positions, index buckets) are cached per value
+  and never mutate a shown array.
+- Row patches are optimistic layers over the entry's synced value, owned by
+  one Action submission; loads, snapshots, and persistence see only the synced
+  value.
+- Resource family diagnostics report declared index names and whether a
+  change feed exists, without reading live rows.
+- Separate runtimes and request Resource Stores never share rows, row
+  patches, or change feeds.
 
 ## Invalidation Graph
 
@@ -153,15 +155,10 @@ documented as outside the current release bar.
   `unknown`. Static graph facts come from route `preloadResources` declarations;
   runtime route plans remain the proof of exact resource refs touched for a
   concrete href.
-- Route preload collection diagnostics distinguish `declared`, `none`, and
-  `unknown`. Static graph facts come from route `preloadCollections`
-  declarations; Start's collection preload collector remains the proof of exact
-  DB collections touched for a concrete request.
 - Resolved app graph diagnostics must list routes whose preload is present but
-  whose preload resources or collections are still `unknown`, and
+  whose preload resources are still `unknown`, and
   `validateStartAppGraphRoutePreloadResourcesDiagnostics` can turn those
-  into a typed failure for CI/devtools policy. The collection equivalent is
-  `validateStartAppGraphRoutePreloadCollectionsDiagnostics`.
+  into a typed failure for CI/devtools policy.
 - App graph diagnostics must expose server-function and action ownership by
   stable id, server export, client reference, module kind, endpoint, and
   wire-schema completeness so agents can route edits without guessing across
@@ -171,7 +168,7 @@ documented as outside the current release bar.
   from the server entry's `Action.define` values, so these facts are always
   known; there is no build policy for unknown behavior.
 - Start build policy can opt into resolved diagnostics checks for route preload
-  resource and collection declarations. The check runs from the generated
+  resource declarations. The check runs from the generated
   `virtual:sunfall-arc/app-graph` module, where route modules have been imported
   and route feature facts are no longer static placeholders.
 
@@ -217,7 +214,7 @@ documented as outside the current release bar.
 - Generated artifacts should be deterministic, machine-readable, and source
   attributable.
 - The generated app graph is the preferred agent entrypoint for route, server
-  function, action, resource, and collection vocabulary topology.
+  function, action, and resource vocabulary topology.
 - Error messages should say what happened, where it happened, why it matters, and
   how to fix it.
 - Agents should be able to inspect the app graph without guessing from import

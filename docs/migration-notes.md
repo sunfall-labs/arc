@@ -5,6 +5,48 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Collection
+
+Collections are gone: a Resource is the one server-data model. Every
+Collection was a second copy of a Resource (`sync: ref` loaded through it,
+and Start stored and hydrated both), so the rows now live on the Resource
+itself. Move `getKey` and `indexes` into a `rows` option on the Resource the
+collection followed (or the one its `sync.load` called), read rows from the
+Resource reader, and patch them on the Resource ref.
+
+| Before                                                                         | After                                                                                       |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `Collection.define({ name, output: Row, getKey, indexes, sync: ProjectsRef })` | `rows: { key, indexes }` on the Resource behind `ProjectsRef` (`output: Schema.Array(Row)`) |
+| `sync: { load, refresh }`                                                      | the Resource's `load` (a forced reload is `Resource.refresh`)                               |
+| `sync: { follow }`                                                             | `Resource.invalidate` / tags; a remote feed is `rows.changes`                               |
+| `sync: { changes }`, `applyChanges([...])` from a remote feed                  | `rows: { changes: (input) => Stream<ReadonlyArray<Resource.RowChange<Row, Key>>> }`         |
+| local-only collection (no `sync`), `applyChanges` for client rows              | a Signal (`Signal.make<ReadonlyArray<Row>>`) written in a named callback                    |
+| `SolidDb.collection(Projects)`                                                 | `Component.resource(ProjectList)`                                                           |
+| `projects.rows()`, `projects.get(key)`, `projects.index(name, value)`          | `projects("all")`, `projects.get("all", key)`, `projects.index("all", name, value)`         |
+| `projects.waiting()` / `projects.failure()`                                    | `projects.waiting("all")` / `projects.failure("all")`                                       |
+| `transaction.update(Projects, key, patch)` (and `insert`, `delete`)            | `transaction.update(ProjectsRef, key, patch)`; the key is typed by `rows.key`               |
+| draft updater `(draft) => { draft.name = n }`                                  | pure updater `(row) => ({ ...row, name: n })`                                               |
+| row metadata `$key`, `$synced`, `$origin`, `$collection`                       | removed: rows are the output's elements; `waiting` and `Action.outbox` report pending work  |
+| `Collection.liveQuery({ query, getKey })`                                      | `Query.live(query)`, or `Component.liveQuery(query)` in a Component                         |
+| `query.from({ project: Projects })`                                            | `query.from({ project: ProjectsRef })`                                                      |
+| `SolidDb.liveQuery(query)` from `@sunfall/arc-solid-db`                        | `Component.liveQuery(query)` from `@sunfall/arc-solid`; the package is deleted              |
+| `persistence: { key, version }`, `persist()`, `restore()`                      | `policy: { persist: { key, version } }` on the Resource (restore is automatic)              |
+| `snapshot()` / `hydrate()` / `Collection.HydrationPayload`                     | Resource hydration: rows hydrate as their Resource                                          |
+| `preloadCollections: [Projects]`, `Projects.preload()` in a route              | `preloadResources: [ProjectList]`, `Resource.preload(ProjectsRef)`                          |
+| `App.define({ collections: [Projects] })`                                      | removed: preloaded Resources hydrate on their own                                           |
+| `Timeline` cause `Collection`                                                  | `Resource` causes (`change` for a `rows.changes` batch)                                     |
+| `QueryPlanSourceDiagnostics.collection`, join strategy `"collection-index"`    | `.resource`, `"index"` (and `"scan"`)                                                       |
+
+- Rows hydrate, cache, and persist once, as the Resource value. A reload is
+  diffed by key, so unchanged rows keep their object identity.
+- Persisted values move from `arc/collections/v<n>/<name>` to
+  `arc/resources/v<n>/<key>/<ref key>`; old snapshots are not read, and the
+  Resource simply reloads.
+- `ReadonlyCollectionMutation`, `CollectionRowNotFound`,
+  `CollectionRowKeyChanged`, `CollectionSnapshotCodecError`, and
+  `UnknownCollectionIndex` are removed: an update of a missing key is a no-op,
+  and a key change or an unknown index is a defect.
+
 ## From Duplicate Names And Forms
 
 Every public thing now has one name and one form. Types a namespace owns are
@@ -102,56 +144,24 @@ are removed with it.
 
 ## From Offline Mutation Queues
 
-Collections no longer keep a pending-mutation queue. A change that must
-survive going offline is a durable Action: give it an input schema and
+There is no pending-mutation queue to manage. A change that must survive
+going offline is a durable Action: give it an input schema and
 `durable: { maxAge }`, provide a `KeyValueStore` in the client Layer
 (`KeyValueStore.layerStorage(() => localStorage)`), and serve it from the Start
 app's `actions` so the server deduplicates replays. Treat `ActionQueued` from
 `submit` as "saved, waiting to sync", and render `Action.outbox` pending and
 failures for the global status.
 
-## From Collection Storage Adapters And SQLitePersistence
-
-Collection persistence now uses the runtime's `effect/persistence`
-`KeyValueStore`, the same store as durable Action submissions. Provide one in
-the app's Layer (`KeyValueStore.layerStorage(() => localStorage)` in the
-browser, `KeyValueStore.layerMemory` in tests, `KeyValueStore.layerSql` over
-your own `SqlClient` for SQLite or Postgres) instead of passing storage to each
-collection.
-
-| Before                                                                                                       | After                                                          |
-| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| `persistence: { storage, key }`                                                                              | `persistence: { key, version? }`; the store comes from context |
-| `Projects.persist(storage, { key })`                                                                         | `Projects.persist({ key? })`                                   |
-| `Projects.restore(storage, { key })`                                                                         | `Projects.restore({ key? })`                                   |
-| `Collection.storage(localStorage)`                                                                           | `KeyValueStore.layerStorage(() => localStorage)`               |
-| `Collection.memoryStorage()`, `Collection.MemoryStorage`                                                     | `KeyValueStore.layerMemory`                                    |
-| `Collection.PersistenceStorage<E, R>`, `Collection.StorageLike`                                              | `KeyValueStore.KeyValueStore`                                  |
-| `Collection.PersistenceConfig<E, R>`                                                                         | `Collection.PersistenceConfig`                                 |
-| `CollectionStorageError`                                                                                     | `KeyValueStoreError`                                           |
-| `SQLitePersistence.*` (`storage`, `statementDriver`, ...)                                                    | `KeyValueStore.layerSql({ table? })` with your `SqlClient`     |
-| `SQLitePersistenceInvalidRow`, `...InvalidStatementParams`, `...InvalidTableName`, `...UnsupportedStatement` | removed; failures are `KeyValueStoreError`                     |
-| default key `sunfall-arc:collection:<name>`                                                                  | `arc/collections/v1/<name>` (`version` sets `v<n>`)            |
-
-A persisted collection's `E` now includes `KeyValueStoreError` and its `R`
-includes `KeyValueStore`; `Collection.define` infers both, and explicitly typed
-definitions must spell them.
-
-Existing data is not read: snapshots under the old `sunfall-arc:collection:*`
-keys and rows in the old SQLite persistence table restore as empty, and the
-next persist writes the new key. Synced collections simply reload. To carry a
-local-only collection over, read the old value once (it is the same snapshot
-JSON) and write it to `arc/collections/v1/<name>` with the `KeyValueStore`
-before the first restore.
-
 ## From Effect-Suffixed Names And Path Addressing
+
+(Collection rows in the table below predate the move to Resource rows; see
+[From Collection](#from-collection) for where each now lives.)
 
 This alpha applies three naming rules across every package:
 
 1. Definition constructors are `define`, namespaced: `Resource.define`,
    `Route.define`, `App.define`, `Component.define`,
-   beside `Action.define`, `Program.define`, `Collection.define`, and
-   `Capability.define`.
+   beside `Action.define`, `Program.define`, and `Capability.define`.
 2. Operations that return Effects carry no `Effect` suffix, and each has one
    form: where a synchronous twin existed it is gone. Hosts without an Effect
    context run the Effect (`Effect.runFork(...)` from a cleanup hook starts
@@ -303,8 +313,8 @@ only model:
   server serves in `App.define({ actions })`.
 - `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.program`,
   `Component.stream`, and `Component.callback`.
-- `useCollection` / `useLiveQuery` become `SolidDb.collection` /
-  `SolidDb.liveQuery`.
+- `useCollection` becomes `Component.resource` of a Resource with `rows`, and
+  `useLiveQuery` becomes `Component.liveQuery` (see [From Collection](#from-collection)).
 - `<RuntimeProvider runtime>` plus `<RouterProvider routes>` become
   `yield* Component.router(routes)` and `<RouterProvider router={router}>`, and
   a Start app's entries become `createRequestHandler(app, { server })` and
@@ -331,7 +341,7 @@ behind Resource families and Actions:
   network through the same handle, and `StartAction.form(...)` renders them
   as progressive no-JS forms.
 - Route loaders call `Resource.preload(...)` in `preload` and declare
-  `preloadResources` / `preloadCollections`; file routes export
+  `preloadResources`; file routes export
   `route = Route.define(path, options)`, the same constructor as any route.
 
 Keep Promise-returning query functions at the host boundary only. Inside the
