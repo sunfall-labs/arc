@@ -1,6 +1,18 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { EffectInputCallbackError, type RejectPromiseLikeValue } from "./effect-like.js";
 import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
+import { ResourceTypeId } from "./resource-identifiers.js";
+import type { ResourceLifetimeEntry } from "./resource-lifetime.js";
+import {
+  applyResourceOptimisticSettle,
+  cacheResourceOptimisticCommitEffect,
+  patchResourceEffect,
+  peekResourceValueEffect,
+  planResourceOptimisticSettle,
+  type ResourceOptimisticTarget,
+} from "./resource-runtime.js";
+import { resourceRefStoreKey } from "./resource-dependency-graph.js";
+import type { AnyResourceRef, ResourceRef } from "./resource.js";
 import { Signal, type WritableSignal } from "./signal.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
@@ -12,7 +24,7 @@ type Primitive = null | undefined | string | number | boolean | bigint | symbol;
 // Applied per union member: the function guard (`call`/`apply`/`bind`) keeps
 // updater functions from passing as values (including behind `unknown`), but
 // intersecting it with a primitive such as `undefined` would yield `never`.
-type ActionOptimisticSignalValue<A> = A extends Primitive
+type ActionOptimisticValue<A> = A extends Primitive
   ? A & RejectPromiseLikeValue<A>
   : A &
       RejectPromiseLikeValue<A> & {
@@ -21,9 +33,16 @@ type ActionOptimisticSignalValue<A> = A extends Primitive
         readonly bind?: never;
       };
 
-type ActionOptimisticSignalUpdate<A> =
-  | ActionOptimisticSignalValue<A>
-  | ((current: A) => ActionOptimisticSignalValue<A>);
+/** A plain next value, or a pure updater of the current one, for `transaction.set`. */
+export type ActionOptimisticSetUpdate<A> =
+  | ActionOptimisticValue<A>
+  | ((current: A) => ActionOptimisticValue<A>);
+
+/**
+ * What `transaction.set` patches: a writable Signal, or the entry a Resource
+ * ref names (any Resource family; the patch applies to its output value).
+ */
+export type ActionOptimisticSetTarget<A> = WritableSignal<A> | ResourceRef<any, A, any, any>;
 
 /** Expert-public marker for row stores an Action can patch optimistically. */
 export const ActionOptimisticRowsTypeId: unique symbol = Symbol.for(
@@ -79,11 +98,15 @@ export interface ActionOptimisticRows<A extends object, K> {
  * Promise-shaped value, or a row the collection rejects is a defect.
  */
 export interface ActionOptimisticTransaction {
-  /** Patches a writable signal. */
-  readonly signal: <A>(
-    signal: WritableSignal<A>,
-    // The signal fixes `A`; the update is checked against it, never inferred from.
-    update: ActionOptimisticSignalUpdate<NoInfer<A>>,
+  /**
+   * Patches a writable Signal, or the loaded value of a Resource entry
+   * (`ProjectById(id)`): readers see the patched value while a reload
+   * replaces the value underneath. An entry that has not loaded is left alone.
+   */
+  readonly set: <A>(
+    target: ActionOptimisticSetTarget<A>,
+    // The target fixes `A`; the update is checked against it, never inferred from.
+    update: ActionOptimisticSetUpdate<NoInfer<A>>,
   ) => Effect.Effect<void>;
   /** Inserts (or replaces) rows; they read `$synced: false` until the submission settles. */
   readonly insert: <A extends object, K>(
@@ -134,25 +157,31 @@ interface PlannedSignalPatchFinish<A> {
 
 const signalPatchStates = new WeakMap<AnyWritableSignal, AnySignalPatchState>();
 
-const optimisticSignalPatchError = (actionName: string, cause: unknown): EffectInputCallbackError =>
+const isResourceRef = (target: ActionOptimisticSetTarget<any>): target is AnyResourceRef =>
+  (target as { readonly [ResourceTypeId]?: unknown })[ResourceTypeId] === ResourceTypeId;
+
+const optimisticPatchError = (actionName: string, cause: unknown): EffectInputCallbackError =>
   cause instanceof EffectInputCallbackError
     ? cause
     : new EffectInputCallbackError({
-        operation: `Action.optimistic(${actionName}).signal`,
+        operation: `Action.optimistic(${actionName}).set`,
         cause,
         guidance:
-          "Optimistic signal update functions must be pure and total. A synchronous throw is a defect.",
+          "Optimistic update functions must be pure and total. A synchronous throw is a defect.",
       });
 
-const optimisticSignalPromiseGuidance =
-  "Optimistic signal updates must return plain values. Move host Promise work into the action run Effect with Effect.tryPromise(...) before patching local signal state.";
+const optimisticPromiseGuidance =
+  "Optimistic updates must return plain values. Move host Promise work into the action run Effect with Effect.tryPromise(...) before patching local state.";
 
-const rejectOptimisticSignalPatchValue = <A>(actionName: string, value: A): A =>
-  rejectPromiseLikeSyncCallbackValue(
-    `Action.optimistic(${actionName}).signal`,
-    value,
-    optimisticSignalPromiseGuidance,
-  );
+/** The update as a pure function of the current value that rejects Promise-shaped results. */
+const optimisticUpdater =
+  <A>(actionName: string, update: ActionOptimisticSetUpdate<A>) =>
+  (current: A): A =>
+    rejectPromiseLikeSyncCallbackValue(
+      `Action.optimistic(${actionName}).set`,
+      typeof update === "function" ? (update as (current: A) => A)(current) : (update as A),
+      optimisticPromiseGuidance,
+    );
 
 const applySignalPatchEffect = <A>(
   actionName: string,
@@ -160,8 +189,8 @@ const applySignalPatchEffect = <A>(
   value: A,
 ): Effect.Effect<A, EffectInputCallbackError> =>
   Effect.try({
-    try: () => rejectOptimisticSignalPatchValue(actionName, patch.apply(value)),
-    catch: (cause) => optimisticSignalPatchError(actionName, cause),
+    try: () => patch.apply(value),
+    catch: (cause) => optimisticPatchError(actionName, cause),
   });
 
 const recomputeSignalValueEffect = <A>(
@@ -224,9 +253,10 @@ let nextOptimisticTransaction = 0;
 /**
  * Creates one optimistic transaction for an Action submission.
  *
- * The transaction owns every signal patch and row-store layer it touches.
- * Commit folds them into their base values, while rollback removes them and
- * recomputes any later optimistic patches from other submissions.
+ * The transaction owns every Signal patch, Resource entry patch, and row-store
+ * layer it touches. Commit folds them into their base values, while rollback
+ * removes them and recomputes any later optimistic patches from other
+ * submissions.
  */
 export const makeActionOptimisticTransactionRuntime = (
   actionName: string,
@@ -234,6 +264,8 @@ export const makeActionOptimisticTransactionRuntime = (
   const transaction = Symbol("Action.optimistic");
   const transactionId = `action:${actionName}:${++nextOptimisticTransaction}`;
   const touched = new Set<AnyWritableSignal>();
+  // Every Resource entry this transaction patched, in first-touch order.
+  const resources = new Map<ResourceLifetimeEntry<any, any>, ResourceOptimisticTarget>();
   // One layer per row store, in first-touch order.
   const rowLayers = new Map<ActionOptimisticRows<any, any>, ActionOptimisticRowsLayer>();
 
@@ -247,28 +279,39 @@ export const makeActionOptimisticTransactionRuntime = (
       }
     });
 
-  const api: ActionOptimisticTransaction = {
-    signal: <A>(
-      signal: WritableSignal<A>,
-      update: ActionOptimisticSignalUpdate<A>,
-    ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        const existing = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;
-        const state = existing ?? {
-          base: Signal.peek(signal),
-          patches: [],
-        };
-        const apply = typeof update === "function" ? (update as (current: A) => A) : () => update;
+  const setSignal = <A>(signal: WritableSignal<A>, apply: (current: A) => A): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const existing = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;
+      const state = existing ?? {
+        base: Signal.peek(signal),
+        patches: [],
+      };
+      const nextState = {
+        base: state.base,
+        patches: [...state.patches, { transaction, apply }],
+      };
+      const value = yield* recomputeSignalValueEffect(actionName, nextState);
+      signal.set(value);
+      signalPatchStates.set(signal, nextState);
+      touched.add(signal);
+    }).pipe(Effect.orDie);
 
-        const nextState = {
-          base: state.base,
-          patches: [...state.patches, { transaction, apply }],
-        };
-        const value = yield* recomputeSignalValueEffect(actionName, nextState);
-        signal.set(value);
-        signalPatchStates.set(signal, nextState);
-        touched.add(signal);
-      }).pipe(Effect.orDie),
+  const setResource = <A>(ref: AnyResourceRef, apply: (current: A) => A): Effect.Effect<void> =>
+    patchResourceEffect(ref, transaction, apply).pipe(
+      Effect.mapError((cause) => optimisticPatchError(actionName, cause)),
+      Effect.map((target) => {
+        if (target !== undefined && !resources.has(target.entry)) {
+          resources.set(target.entry, target);
+        }
+      }),
+      Effect.orDie,
+    );
+
+  const api: ActionOptimisticTransaction = {
+    set: (target, update) => {
+      const apply = optimisticUpdater(actionName, update);
+      return isResourceRef(target) ? setResource(target, apply) : setSignal(target, apply);
+    },
     insert: (rows, values) =>
       applyRows(rows, {
         _tag: "Insert",
@@ -287,8 +330,8 @@ export const makeActionOptimisticTransactionRuntime = (
     event: "success" | "failure",
   ): ActionOptimisticSettle =>
     Effect.gen(function* () {
-      // Row layers settle first: they cannot fail, so a failing signal
-      // updater never strands a row layer.
+      // Row layers settle first: they cannot fail, so a failing updater never
+      // strands a row layer.
       const layers = Array.from(rowLayers.values());
       rowLayers.clear();
       for (const layer of layers) {
@@ -301,15 +344,30 @@ export const makeActionOptimisticTransactionRuntime = (
           plans.push(plan);
         }
       }
+      const targets = Array.from(resources.values());
+      resources.clear();
+      const resourcePlans = yield* Effect.try({
+        try: () =>
+          targets.flatMap((target) => {
+            const plan = planResourceOptimisticSettle(target, transaction, event === "success");
+            return plan === undefined ? [] : [plan];
+          }),
+        catch: (cause) => optimisticPatchError(actionName, cause),
+      });
+      // Signal and Resource patches settle in one commit named by the Action.
       batchSignalWrites(
         () => {
           for (const plan of plans) {
             applySignalPatchPlan(plan);
           }
+          for (const plan of resourcePlans) {
+            applyResourceOptimisticSettle(plan);
+          }
         },
         { _tag: "Action", action: actionName, event },
       );
       touched.clear();
+      yield* Effect.forEach(resourcePlans, cacheResourceOptimisticCommitEffect, { discard: true });
     }).pipe(Effect.orDie);
 
   return {
@@ -333,13 +391,15 @@ export const makeActionOptimisticTransactionRuntime = (
 
 /**
  * One change an Action's `optimistic` patch makes, as `Action.planOptimistic`
- * reports it: the value a Signal would read, or a row change for a row store.
+ * reports it: the value a Signal or Resource entry would read, or a row change
+ * for a row store.
  */
 export type ActionOptimisticChange =
   | {
-      readonly _tag: "Signal";
-      readonly signal: WritableSignal<any>;
-      /** The value the signal would read with this patch applied. */
+      readonly _tag: "Set";
+      /** The patched Signal, or the Resource ref naming the patched entry. */
+      readonly target: WritableSignal<any> | AnyResourceRef;
+      /** The value the target would read with this patch applied. */
       readonly value: unknown;
     }
   | {
@@ -367,28 +427,42 @@ export interface ActionOptimisticPlanRuntime {
 
 /**
  * Creates a transaction that records every patch as an `ActionOptimisticChange`
- * and writes nothing. A signal patch is computed from the signal's current
- * value (and the plan's earlier patches to it); row changes are recorded as
- * given, without touching the row store.
+ * and writes nothing. A `set` is computed from the target's current value (and
+ * the plan's earlier patches to it); a Resource entry that has not loaded is
+ * left alone, so it plans no change. Row changes are recorded as given,
+ * without touching the row store.
  */
 export const makeActionOptimisticPlanRuntime = (
   actionName: string,
 ): ActionOptimisticPlanRuntime => {
   const changes: Array<ActionOptimisticChange> = [];
-  const planned = new Map<AnyWritableSignal, unknown>();
+  const planned = new Map<unknown, unknown>();
+
+  const current = (
+    target: ActionOptimisticSetTarget<unknown>,
+  ): Effect.Effect<Option.Option<unknown>> => {
+    const key = isResourceRef(target) ? resourceRefStoreKey(target) : target;
+    return planned.has(key)
+      ? Effect.succeed(Option.some(planned.get(key)))
+      : isResourceRef(target)
+        ? peekResourceValueEffect(target)
+        : Effect.sync(() => Option.some(Signal.peek(target)));
+  };
 
   const api: ActionOptimisticTransaction = {
-    signal: <A>(signal: WritableSignal<A>, update: ActionOptimisticSignalUpdate<A>) =>
+    set: (target, update) =>
       Effect.gen(function* () {
-        const current = (planned.has(signal) ? planned.get(signal) : Signal.peek(signal)) as A;
-        const apply = typeof update === "function" ? (update as (current: A) => A) : () => update;
-        const value = yield* applySignalPatchEffect(
-          actionName,
-          { transaction: Symbol("Action.planOptimistic"), apply },
-          current,
-        );
-        planned.set(signal, value);
-        changes.push({ _tag: "Signal", signal, value });
+        const value = yield* current(target as ActionOptimisticSetTarget<unknown>);
+        if (Option.isNone(value)) {
+          return;
+        }
+        const apply = optimisticUpdater(actionName, update as ActionOptimisticSetUpdate<unknown>);
+        const next = yield* Effect.try({
+          try: () => apply(value.value),
+          catch: (cause) => optimisticPatchError(actionName, cause),
+        });
+        planned.set(isResourceRef(target) ? resourceRefStoreKey(target) : target, next);
+        changes.push({ _tag: "Set", target, value: next });
       }).pipe(Effect.orDie),
     insert: (rows, values) =>
       Effect.sync(() => {

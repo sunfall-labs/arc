@@ -96,7 +96,7 @@ const defineApp = (name: string, maxAge: string = "1 hour") => {
     name,
     input: Advance,
     durable: { maxAge: maxAge as "1 hour" },
-    optimistic: (input, transaction) => transaction.signal(total, (value) => value + input.by),
+    optimistic: (input, transaction) => transaction.set(total, (value) => value + input.by),
     run: (input) => Effect.succeed(input.by),
   });
   return { total, AdvanceAction };

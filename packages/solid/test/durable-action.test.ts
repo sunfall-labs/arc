@@ -39,7 +39,7 @@ describe("durable Actions in Components", () => {
             name: "SolidDurable.advance",
             input: Schema.Struct({ id: Schema.String }),
             durable: { maxAge: "1 hour" },
-            optimistic: (_input, transaction) => transaction.signal(progress, (value) => value + 8),
+            optimistic: (_input, transaction) => transaction.set(progress, (value) => value + 8),
             run: ({ id }) => Effect.succeed(id),
           });
           const runtime = makeRuntime(
