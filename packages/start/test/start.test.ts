@@ -394,7 +394,7 @@ describe("Sunfall Arc Start", () => {
     const handler = createStartRequestHandler(app, {
       render: ({ match, hydrationPlan }) => {
         renderPlanRootResourceCount = hydrationPlan.root.payload.resources.length;
-        renderPlanResourceNames = hydrationPlan.streamedResourceChunks.flatMap((chunk) =>
+        renderPlanResourceNames = hydrationPlan.resourceChunks.flatMap((chunk) =>
           chunk.resources.map((resource) => resource.name),
         );
         renderRootScript = hydrationPlan.root.script;
@@ -430,7 +430,7 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createStartRequestHandler(app, {
       render: ({ hydrationPlan }) => {
-        const streamedScripts = hydrationPlan.streamedResourceChunks
+        const streamedScripts = hydrationPlan.resourceChunks
           .map((chunk, index) => createStreamHydrationScriptSync(chunk, index))
           .join("");
         return `<html><body>${hydrationPlan.root.script}${streamedScripts}</body></html>`;
@@ -495,7 +495,7 @@ describe("Sunfall Arc Start", () => {
     const rootPairs = new Set(
       plan.root.payload.resources.map((resource) => `${resource.name}:${resource.key}`),
     );
-    const streamedPairs = plan.streamedResourceChunks.flatMap((chunk) =>
+    const streamedPairs = plan.resourceChunks.flatMap((chunk) =>
       chunk.resources.map((resource) => `${resource.name}:${resource.key}`),
     );
 

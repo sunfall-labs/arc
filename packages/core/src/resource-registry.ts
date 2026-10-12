@@ -267,10 +267,6 @@ export const registerResourceTagDefinition = (
 export const resourceDefinitionRegistry = (): ReadonlyMap<string, AnyResourceFamily> =>
   defaultResourceDefinitionRegistry.definitions().families;
 
-/** Process-wide Resource tag definitions keyed by tag name. */
-export const resourceTagDefinitionRegistry = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
-  defaultResourceDefinitionRegistry.definitions().tags;
-
 /** Resolves a Resource hydration family, preferring the active Resource Store. */
 export const lookupResourceHydrationFamily = (
   name: string,

@@ -15,8 +15,8 @@ export type StartDocumentTagAttributes = Readonly<Record<string, string>>;
  * The head (`<title>` and `<meta>` tags) is the matched route's `head`
  * through the app's `App.define({ head })`, so the browser can keep it in
  * step on navigation. Start renders the rest: the doctype, charset and
- * viewport, Solid's hydration bootstrap, the app root element, the streamed
- * and root hydration payloads, and the browser entry script, in the order
+ * viewport, Solid's hydration bootstrap, the app root element, the Resource
+ * chunks and root hydration payload, and the browser entry script, in the order
  * hydration needs.
  */
 export interface StartDocument {
@@ -79,11 +79,11 @@ const renderTag = (tag: "meta" | "link", attributes: StartDocumentTagAttributes)
     .map(([name, value]) => ` ${name}="${escapeHtml(value)}"`)
     .join("")} />`;
 
-/** The document shell around the streamed app markup. */
+/** The document shell around the rendered app markup. */
 export interface StartDocumentShell {
   /** Everything up to and including the opening app root element. */
   readonly open: string;
-  /** Closes the app root element; streamed hydration chunks follow it. */
+  /** Closes the app root element; the Resource hydration chunks follow it. */
   readonly closeRoot: string;
   /** The root hydration payload, the browser entry, and the closing tags. */
   readonly close: string;

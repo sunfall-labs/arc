@@ -1,16 +1,16 @@
 /** Default DOM id for the root Start hydration payload script. */
 export const hydrationScriptId = "__SUNFALL_ARC_HYDRATION__";
-/** Attribute that marks streamed Start hydration chunk script elements. */
+/** Attribute that marks Start hydration chunk script elements. */
 export const streamHydrationAttribute = "data-sunfall-arc-hydration-chunk";
-/** Attribute storing a streamed hydration chunk's stable ordering sequence. */
+/** Attribute storing a hydration chunk's stable ordering sequence. */
 export const streamHydrationSequenceAttribute = "data-sunfall-arc-hydration-sequence";
-/** Attribute used to skip already-applied streamed hydration chunks. */
+/** Attribute used to skip already-applied hydration chunks. */
 export const streamHydrationConsumedAttribute = "data-sunfall-arc-hydration-consumed";
-/** Script MIME type used for JSON hydration payloads and streamed chunks. */
+/** Script MIME type used for JSON hydration payloads and hydration chunks. */
 export const streamHydrationScriptType = "application/json";
 
 /**
- * Options for reading streamed hydration chunks from a rendered document.
+ * Options for reading hydration chunks from a rendered document.
  *
  * By default consumed chunks are skipped; `includeConsumed` rereads them, and
  * `consumedAttribute` customizes the marker attribute.
@@ -28,31 +28,31 @@ export interface StartHydrationScriptElement {
   readonly textContent: string | null;
   /** Reads marker and sequence attributes when present. */
   getAttribute?(name: string): string | null;
-  /** Marks a streamed chunk as consumed after hydration. */
+  /** Marks a hydration chunk as consumed after hydration. */
   setAttribute?(name: string, value: string): void;
 }
 
-/** Minimal document shape required to read streamed hydration chunks. */
+/** Minimal document shape required to read hydration chunks. */
 export interface StartHydrationChunkDocument {
-  /** Finds streamed hydration chunk script elements. */
+  /** Finds hydration chunk script elements. */
   querySelectorAll?(
     selectors: string,
   ): Iterable<StartHydrationScriptElement> | ArrayLike<StartHydrationScriptElement>;
 }
 
-/** Minimal document shape required for root and streamed hydration. */
+/** Minimal document shape required for root and chunk hydration. */
 export interface StartHydrationDocument
   extends Pick<Document, "getElementById">, StartHydrationChunkDocument {}
 
-/** Raw script element prepared for streamed hydration chunk parsing. */
+/** Raw script element prepared for hydration chunk parsing. */
 export interface StartHydrationChunkScriptElement {
-  /** DOM element that carried the streamed hydration chunk. */
+  /** DOM element that carried the hydration chunk. */
   readonly element: StartHydrationScriptElement;
   /** DOM order used to preserve stable ordering when chunk sequences tie. */
   readonly index: number;
   /** Sequence read from the element attribute, or DOM order when missing/invalid. */
   readonly sequence: number;
-  /** Raw JSON text to parse as a streamed hydration chunk or legacy root payload. */
+  /** Raw JSON text to parse as a hydration chunk or legacy root payload. */
   readonly text: string;
 }
 
@@ -86,7 +86,7 @@ export const readStartHydrationScriptText = (
   return element === null ? undefined : (element.textContent ?? "");
 };
 
-/** Read raw streamed hydration script elements without parsing their JSON. */
+/** Read raw hydration chunk script elements without parsing their JSON. */
 export const readStartHydrationChunkScriptElements = (
   document: StartHydrationChunkDocument,
   options: ReadStartHydrationChunksOptions = {},
@@ -113,7 +113,7 @@ export const readStartHydrationChunkScriptElements = (
   return chunks;
 };
 
-/** Mark a streamed hydration chunk element as consumed after a successful apply. */
+/** Mark a hydration chunk element as consumed after a successful apply. */
 export const markStartHydrationChunkElementConsumed = (
   element: StartHydrationScriptElement,
   options: ReadStartHydrationChunksOptions = {},

@@ -884,16 +884,6 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     }
   });
 
-export const hydrateResourceRef = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-  state: AsyncResult.Success<A, E>,
-  store: ResourceStoreState,
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const tags = yield* resourceProvidedTags(ref, state.value);
-    yield* applyHydratedResourceRefEffect(ref, state, tags, store);
-  });
-
 export const deleteResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
   Effect.gen(function* () {
     const store = yield* activeResourceStore;

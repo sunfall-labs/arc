@@ -35,7 +35,7 @@ export {
 export {
   /** Reads and hydrates Start payloads from a document as an Effect. */
   hydrateFromDocument,
-  /** Error raised when a streamed hydration chunk cannot be parsed. */
+  /** Error raised when a hydration chunk cannot be parsed. */
   StartHydrationChunkParseError,
   /** Error raised when the root hydration payload cannot be parsed. */
   StartHydrationPayloadParseError,
@@ -43,7 +43,7 @@ export {
   StartHydrationPayloadSerializeError,
   /** Options for `hydrateFromDocument`. */
   type HydrateFromDocumentOptions,
-  /** Minimal document shape required for root and streamed hydration. */
+  /** Minimal document shape required for root and chunk hydration. */
   type StartHydrationDocument,
   /** Errors produced while reading or applying hydration payloads. */
   type StartHydrationError,

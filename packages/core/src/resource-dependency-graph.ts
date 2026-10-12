@@ -217,16 +217,6 @@ export const resourceProvidedTags = <I, A, E, R>(
     }
   });
 
-export const recordResourceProvidedTags = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-  value: A,
-  store: ResourceStoreState,
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const tags = yield* resourceProvidedTags(ref, value);
-    recordResourceProvidedTagsSync(ref, tags, store);
-  });
-
 export const resourceRefsForTag = (
   tag: ResourceTag,
   store: ResourceStoreState,

@@ -149,8 +149,8 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
       Effect.flatMap((rendered) =>
         Effect.forEach(
           rendered === undefined
-            ? context.hydrationPlan.streamedResourceChunks
-            : [...context.hydrationPlan.streamedResourceChunks, rendered],
+            ? context.hydrationPlan.resourceChunks
+            : [...context.hydrationPlan.resourceChunks, rendered],
           (payload, sequence) => createStreamHydrationScript(payload, sequence),
         ),
       ),
@@ -158,7 +158,7 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
       // unless an encoder produced something JSON cannot carry: a defect.
       Effect.orDie,
       // Rendered to a string, the page is complete: one body, written at once,
-      // with the hydration chunks after the root as a streamed page has them.
+      // with the Resource hydration chunks after the root.
       Effect.map((hydrationScripts) =>
         completeResponse(
           `${shell.open}${body}${shell.closeRoot}${hydrationScripts.join("")}${shell.close}`,
@@ -226,8 +226,8 @@ type ServerlessApp<RootServices> = [
  * server functions (`implementations`) over the action and RPC endpoints.
  *
  * Each page request preloads the matched route on a request runtime built from
- * `server`, renders `app.root` with `Component.embed`, and streams the
- * document with the hydration payload `App.launch` restores. The returned
+ * `server`, renders `app.root` with `Component.embed`, and answers the
+ * complete document with the hydration payload `App.launch` restores. The returned
  * handler is platform-neutral and returns an Effect; host adapters
  * (`@sunfall/arc-start/fetch`, `@sunfall/arc-start/node`) run it.
  *

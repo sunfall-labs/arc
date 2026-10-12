@@ -107,7 +107,7 @@ const unnamedWrite = (signal: SignalTransactionWritable): never => {
 /**
  * Runs `effect` as a named transition: writes outside a transaction commit
  * under `cause`, and transactions opened without a cause inherit it. Unlike a
- * transaction it stages nothing, so each write (and any Action or Program it
+ * transaction it stages nothing, so each write (and any Action or State it
  * starts, which keep their own causes) commits as it happens.
  */
 export const withSignalTransition = <A, E, R>(

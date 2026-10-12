@@ -10,10 +10,12 @@ import {
 } from "./hydration.js";
 
 /**
- * Root payload/script plus resource chunks prepared for streamed SSR hydration.
+ * Root payload/script plus the Resource hydration chunks for one SSR render.
  *
- * `root.script` is the safe root script for streamed renderers. Route resource
- * payloads are excluded from it and appear only in `streamedResourceChunks`.
+ * `root.script` is the root script for renderers that emit Resource chunks
+ * separately (the default document does). Route Resource payloads are
+ * excluded from it and appear only in `resourceChunks`. `legacy` carries
+ * everything in one payload for renderers that emit a single script.
  */
 export interface StartRenderHydrationPlan {
   readonly root: {
@@ -24,10 +26,10 @@ export interface StartRenderHydrationPlan {
     readonly payload: StartHydrationPayload;
     readonly script: string;
   };
-  readonly streamedResourceChunks: readonly StartHydrationPayload[];
+  readonly resourceChunks: readonly StartHydrationPayload[];
 }
 
-/** Inputs for building the root-plus-streamed SSR hydration plan. */
+/** Inputs for building the root-plus-chunks SSR hydration plan. */
 export interface CreateStartRenderHydrationPlanOptions {
   /** Resource hydration payload collected during request preload/render. */
   readonly resources: Resource.HydrationPayload;
@@ -44,12 +46,12 @@ export interface CreateStartRenderHydrationPlanOptions {
 const emptyResourceHydrationPayload: Resource.HydrationPayload = { resources: [] };
 
 /**
- * Builds the hydration plan used by streamed renderers.
+ * Builds the hydration plan for one SSR render.
  *
- * The root payload carries non-streamed state: the route failure or not-found
- * outcome and settled durable submissions.
- * Route resource refs move into streamed chunks so a renderer cannot emit the
- * same resource pair in both the root script and the stream.
+ * The root payload carries the request's outcome: the route failure or
+ * not-found verdict, settled durable submissions, and a posted form.
+ * Route Resource refs move into separate chunks so a renderer cannot emit
+ * the same Resource pair in both the root script and a chunk.
  */
 export const createStartRenderHydrationPlan = (
   options: CreateStartRenderHydrationPlanOptions,
@@ -70,7 +72,7 @@ export const createStartRenderHydrationPlan = (
       ...createStartHydrationPayload(options.resources, options),
       ...settled,
     };
-    const streamedResourceChunks =
+    const resourceChunks =
       options.resources.resources.length === 0
         ? []
         : [createStartHydrationPayload(options.resources)];
@@ -88,6 +90,6 @@ export const createStartRenderHydrationPlan = (
           return legacyScript;
         },
       },
-      streamedResourceChunks,
+      resourceChunks,
     };
   });
