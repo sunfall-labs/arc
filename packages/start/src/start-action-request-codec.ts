@@ -252,7 +252,7 @@ const readActionJsonEffect = (
 ): Effect.Effect<StartActionRequest, ActionProtocolError> =>
   Effect.flatMap(
     Effect.tryPromise({
-      try: () => request.json() as Promise<unknown>,
+      try: () => request.json(),
       catch: (cause) => protocolBodyReadError("Expected a JSON action request body.", cause),
     }),
     (payload) =>
