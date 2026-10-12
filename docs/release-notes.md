@@ -15,6 +15,13 @@ first public alpha version is `0.1.0-alpha.1`.
   (`settledSubmissions`), read from the `sunfall-arc-outbox` cookie it keeps,
   so a submission whose response was lost no longer shows its patch twice
   after a reload.
+- Durable submissions are scoped to their submitter. Start mints an
+  HttpOnly `sunfall-arc-submitter` cookie (on the first document of an app
+  with durable Actions, or the first durable submission) and keys each
+  execution by the token's digest plus the submission id: only the
+  submitting browser can replay an id and read its recorded response, and
+  `settledSubmissions` reports only that browser's own executions. Another
+  request reusing an id runs as a new submission.
 - Start's default in-memory `WorkflowEngine` rotates per Action and forgets
   records once no client can replay them (`durable.maxAge` after they
   settle), instead of growing for the life of the server. A submission id

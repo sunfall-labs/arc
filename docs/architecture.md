@@ -536,13 +536,15 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
 
 On the server, Start's action endpoint runs a submission that carries an id as
 an `effect/workflow` Workflow, one per Action
-(`sunfall-arc/action/<name>`), with the submission id as its idempotency key.
+(`sunfall-arc/action/<name>`), keyed by its submitter and submission id (see
+Submitter scope below).
 Its single Activity decodes the input, runs the Action at the endpoint, and
 encodes the response; the response record (status, headers, body: the value or
 typed failure encoded with the Action's schemas, plus hydration and
 invalidation metadata) is the Workflow's success value, and its error channel
 is empty, since typed failures are part of the response. A replayed POST with
-the same id returns the recorded response without running `run` again, and a
+the same id from the same browser returns the recorded response without
+running `run` again, and a
 duplicate that arrives mid-run joins the running execution. The engine is the
 server Layer's `WorkflowEngine` when it provides one (a cluster or SQL-backed
 engine gives exactly-once across instances and restarts), otherwise the
@@ -569,6 +571,34 @@ without re-applying their patch, because the rendered state already reflects
 their outcome, and their replay only fetches the recorded response. A
 submission that settles after the server polls stays patched until its
 replay returns, as before.
+
+**Submitter scope.** A recorded response is the original submitter's data, so
+an execution belongs to the browser that started it. Start keeps a random
+32-byte token in the `sunfall-arc-submitter` cookie (HttpOnly, SameSite=Lax,
+Path=/, Secure over https, 400 days), minted with Effect's `Crypto` service
+(over Web Crypto) on the first document response of an app that has durable
+Actions, or on the first durable submission from a browser that has none (a
+static page). A minting response is also marked `Cache-Control: private`, so
+no shared cache hands one browser's token to another. The workflow payload
+carries the token's SHA-256 digest (the owner key), never the token, and the
+idempotency key is owner key plus submission id. So:
+
+- The same browser replaying an id, after a lost response or across reloads,
+  gets the recorded response.
+- Any other request with that id (another browser, no cookie, a malformed
+  token, a cross-site POST, which SameSite=Lax strips of the cookie) is a
+  different execution: it runs the Action as a new submission and never sees
+  the original response.
+- The `settledSubmissions` lookup polls only the requesting browser's own
+  executions, so naming another browser's ids in the outbox cookie confirms
+  nothing; a document request without a submitter reports none.
+
+Because the document mints the submitter before the page can submit, a
+submission whose response is lost replays under the token that recorded it.
+A submission from a page that never received a minting response (a static
+page whose first durable response is lost) replays under a new token and runs
+again; the token is browser state, so any server instance sharing the engine
+recognizes it.
 
 ## Resource Dependency Graph
 

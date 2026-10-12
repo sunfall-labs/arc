@@ -16,6 +16,7 @@ import {
 } from "@sunfall/arc-core";
 import { makeActionInstance } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, type Scope } from "effect";
+import { ensureRequestSubmitterOwnerEffect } from "./start-action-submitter.js";
 import {
   makeStartActionWorkflows,
   runActionSubmissionWorkflow,
@@ -373,14 +374,16 @@ export const createServerActionResponseEffectWithRuntime = <
           if (decoded.id === undefined || durable === undefined) {
             return yield* produce;
           }
-          // A durable submission runs as a Workflow execution keyed by its id:
-          // a replayed id returns the recorded response without running the
-          // Action again.
+          // A durable submission runs as a Workflow execution keyed by its
+          // submitter and id: the same browser replaying the id gets the
+          // recorded response without running the Action again; a request
+          // from any other browser starts its own execution.
+          const owner = yield* ensureRequestSubmitterOwnerEffect(request, responseContext);
           return yield* runActionSubmissionWorkflow(
             workflows,
             runtime as unknown as AnySunfallArcRuntime<unknown>,
             { name: action.name, durable },
-            { id: decoded.id, input: decoded.input },
+            { owner, id: decoded.id, input: decoded.input },
             produce,
           );
         }),

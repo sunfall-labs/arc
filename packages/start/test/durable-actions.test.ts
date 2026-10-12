@@ -1,4 +1,4 @@
-import { Context, Deferred, Effect, Fiber, Layer, Schedule, Schema } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer, Schedule, Schema, type Scope } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import { TestClock } from "effect/testing";
 import { WorkflowEngine } from "effect/workflow";
@@ -17,6 +17,7 @@ import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
 import { serverActionPath } from "../src/rpc.js";
 import { startActionOutboxCookie } from "../src/start-action-outbox-cookie.js";
+import { startActionSubmitterCookieName } from "../src/start-action-submitter.js";
 import {
   makeStartActionWorkflows,
   runActionSubmissionWorkflow,
@@ -49,6 +50,41 @@ const actionRequest = (body: unknown): Request =>
 
 const readJson = (response: Response) => Effect.promise(() => response.json() as Promise<unknown>);
 
+type Handler = (request: Request) => Effect.Effect<Response, unknown, Scope.Scope>;
+
+/** A browser's cookie jar in front of a handler: stores `Set-Cookie`, sends `Cookie`. */
+const makeBrowser = () => {
+  const jar = new Map<string, string>();
+  const send = (handler: Handler, request: Request) =>
+    Effect.gen(function* () {
+      const headers = new Headers(request.headers);
+      const cookies = [...jar].map(([name, value]) => `${name}=${value}`);
+      const sent = headers.get("cookie");
+      if (sent !== null) {
+        cookies.push(sent);
+      }
+      if (cookies.length > 0) {
+        headers.set("cookie", cookies.join("; "));
+      }
+      const response = yield* Effect.orDie(
+        Effect.scoped(handler(new Request(request, { headers }))),
+      );
+      for (const cookie of response.headers.getSetCookie()) {
+        const [pair] = cookie.split(";", 1);
+        const separator = pair!.indexOf("=");
+        jar.set(pair!.slice(0, separator), pair!.slice(separator + 1));
+      }
+      return response;
+    });
+  return {
+    jar,
+    send,
+    /** Loads a document, as a page load does before any submission. */
+    visit: (handler: Handler, path = "/") =>
+      send(handler, new Request(`https://example.com${path}`)),
+  };
+};
+
 describe("durable Action submissions over Start", () => {
   it("sends the submission id and answers a duplicate POST without running the Action again", () =>
     Effect.runPromise(
@@ -56,6 +92,7 @@ describe("durable Action submissions over Start", () => {
         const { Advance, runs } = defineAdvance("Start.durable.dedupe");
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
         const handler = createStartRequestHandler(app, { actions: [Advance] });
+        const browser = makeBrowser();
         const bodies: Array<{ readonly name: string; readonly id?: string }> = [];
         const fetcher: StartFetch = (input, init) =>
           Effect.gen(function* () {
@@ -64,7 +101,7 @@ describe("durable Action submissions over Start", () => {
               input instanceof Request
                 ? input.url
                 : new URL(String(input), "https://example.com").href;
-            return yield* Effect.orDie(Effect.scoped(handler(new Request(url, init))));
+            return yield* browser.send(handler, new Request(url, init));
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
@@ -80,20 +117,62 @@ describe("durable Action submissions over Start", () => {
         expect(sent!.name).toBe("Start.durable.dedupe");
         expect(typeof sent!.id).toBe("string");
 
-        // A replay of the same submission returns the original response.
+        // The first durable submission minted the browser's submitter: an
+        // HttpOnly, SameSite=Lax, Secure (https) cookie scripts never read.
+        expect(browser.jar.get(startActionSubmitterCookieName)).toMatch(/^[\w-]{43}$/);
+
+        // The same browser replaying the submission gets the original response.
         const original = { _tag: "Success", value: { id: "atlas", progress: 8 } };
-        const duplicate = yield* Effect.scoped(handler(actionRequest(sent)));
+        const duplicate = yield* browser.send(handler, actionRequest(sent));
         expect(duplicate.status).toBe(200);
+        expect(duplicate.headers.getSetCookie()).toEqual([]);
         expect(yield* readJson(duplicate)).toEqual(original);
         expect(runs.count).toBe(1);
 
         // A different id is a different submission.
-        const fresh = yield* Effect.scoped(handler(actionRequest({ ...sent, id: "other" })));
+        const fresh = yield* browser.send(handler, actionRequest({ ...sent, id: "other" }));
         expect(yield* readJson(fresh)).toEqual({
           _tag: "Success",
           value: { id: "atlas", progress: 16 },
         });
         expect(runs.count).toBe(2);
+
+        // Another browser that learned the id never reads the recorded
+        // response: it runs its own execution, under its own new submitter.
+        const stranger = makeBrowser();
+        const replayed = yield* stranger.send(handler, actionRequest(sent));
+        expect(yield* readJson(replayed)).toEqual({
+          _tag: "Success",
+          value: { id: "atlas", progress: 24 },
+        });
+        expect(runs.count).toBe(3);
+        const [minted] = replayed.headers.getSetCookie();
+        expect(minted).toMatch(
+          new RegExp(
+            `^${startActionSubmitterCookieName}=[\\w-]{43}; Max-Age=\\d+; Path=/; HttpOnly; Secure; SameSite=Lax$`,
+          ),
+        );
+        expect(stranger.jar.get(startActionSubmitterCookieName)).not.toBe(
+          browser.jar.get(startActionSubmitterCookieName),
+        );
+
+        // A malformed submitter is no submitter: it gets a fresh execution.
+        const forged = yield* Effect.scoped(
+          handler(
+            new Request(actionRequest(sent), {
+              headers: {
+                "content-type": "application/json",
+                accept: "application/json",
+                cookie: `${startActionSubmitterCookieName}=forged`,
+              },
+            }),
+          ),
+        );
+        expect(yield* readJson(forged)).toEqual({
+          _tag: "Success",
+          value: { id: "atlas", progress: 32 },
+        });
+        expect(runs.count).toBe(4);
         yield* runtime.dispose;
       }),
     ));
@@ -118,10 +197,12 @@ describe("durable Action submissions over Start", () => {
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
         const handler = createStartRequestHandler(app, { actions: [Slow] });
         const body = { name: Slow.name, input: { id: "atlas" }, id: "submission-1" };
+        const browser = makeBrowser();
+        yield* browser.visit(handler);
 
-        const first = yield* Effect.forkChild(Effect.scoped(handler(actionRequest(body))));
+        const first = yield* Effect.forkChild(browser.send(handler, actionRequest(body)));
         yield* Effect.sleep("5 millis");
-        const second = yield* Effect.forkChild(Effect.scoped(handler(actionRequest(body))));
+        const second = yield* Effect.forkChild(browser.send(handler, actionRequest(body)));
         yield* Effect.sleep("5 millis");
         yield* Deferred.succeed(gate, undefined);
 
@@ -146,11 +227,14 @@ describe("durable Action submissions over Start", () => {
           );
           const server = Layer.succeed(WorkflowEngine.WorkflowEngine)(engine);
           const body = { name: Advance.name, input: { id: "atlas" }, id: "shared-1" };
+          // The submitter is a browser cookie, not server state: any instance
+          // recognizes it.
+          const browser = makeBrowser();
 
           for (let instance = 0; instance < 2; instance++) {
             const app = makeStartServerApp({ routes: [Route.define("/", {})] as const, server });
             const handler = createStartRequestHandler(app, { actions: [Advance] });
-            const response = yield* Effect.scoped(handler(actionRequest(body)));
+            const response = yield* browser.send(handler, actionRequest(body));
             expect(yield* readJson(response)).toEqual({
               _tag: "Success",
               value: { id: "atlas", progress: 8 },
@@ -162,9 +246,13 @@ describe("durable Action submissions over Start", () => {
           const app = makeStartServerApp({ routes: [Route.define("/", {})] as const, server });
           const handler = createStartRequestHandler(app, { actions: [Advance] });
           const plain = { name: Advance.name, input: { id: "atlas" } };
-          yield* Effect.scoped(handler(actionRequest(plain)));
-          yield* Effect.scoped(handler(actionRequest(plain)));
+          yield* browser.send(handler, actionRequest(plain));
+          yield* browser.send(handler, actionRequest(plain));
           expect(runs.count).toBe(3);
+
+          // Another browser replaying the id on the shared engine runs anew.
+          yield* makeBrowser().send(handler, actionRequest(body));
+          expect(runs.count).toBe(4);
         }),
       ),
     ));
@@ -175,6 +263,11 @@ describe("durable Action submissions over Start", () => {
         const { Advance, runs, progress } = defineAdvance("Start.durable.lost-response");
         const app = makeStartServerApp({ routes: [Route.define("/", {})] as const });
         const handler = createStartRequestHandler(app, { actions: [Advance] });
+        const browser = makeBrowser();
+        // The page load gives the browser its submitter before it submits.
+        const page = yield* browser.visit(handler);
+        expect(page.headers.get("cache-control")).toBe("private");
+        expect(browser.jar.has(startActionSubmitterCookieName)).toBe(true);
         const network = { loseResponses: true };
         const fetcher: StartFetch<TypeError> = (input, init) =>
           Effect.gen(function* () {
@@ -182,7 +275,7 @@ describe("durable Action submissions over Start", () => {
               input instanceof Request
                 ? input.url
                 : new URL(String(input), "https://example.com").href;
-            const response = yield* Effect.orDie(Effect.scoped(handler(new Request(url, init))));
+            const response = yield* browser.send(handler, new Request(url, init));
             if (network.loseResponses) {
               // The server committed, but the connection dropped.
               return yield* Effect.fail(new TypeError("Failed to fetch"));
@@ -226,10 +319,12 @@ describe("durable Action submissions over Start", () => {
           actions: [Advance],
           render: (context) => JSON.stringify(context.hydrationPlan.root.payload),
         });
+        const browser = makeBrowser();
+        yield* browser.visit(handler);
         const fetcher: StartFetch<TypeError> = (input, init) =>
           Effect.gen(function* () {
             const url = new URL(String(input), "https://example.com").href;
-            yield* Effect.orDie(Effect.scoped(handler(new Request(url, init))));
+            yield* browser.send(handler, new Request(url, init));
             // The server committed, but the connection dropped.
             return yield* Effect.fail(new TypeError("Failed to fetch"));
           });
@@ -255,17 +350,32 @@ describe("durable Action submissions over Start", () => {
           [...pending, { action: Advance.name, id: "never-sent" }],
           false,
         ).split(";", 1)[0]!;
-        const document = yield* Effect.scoped(
-          handler(new Request("https://example.com/", { headers: { cookie } })),
-        );
-        const payload = (yield* Effect.promise(() => document.json())) as {
-          readonly settledSubmissions?: ReadonlyArray<string>;
-        };
-        expect(payload.settledSubmissions).toEqual([pending[0]!.id]);
+        const reload = (from: ReturnType<typeof makeBrowser>, outbox?: string) =>
+          Effect.flatMap(
+            from.send(
+              handler,
+              new Request("https://example.com/", {
+                headers: outbox === undefined ? {} : { cookie: outbox },
+              }),
+            ),
+            (document) =>
+              Effect.promise(
+                () =>
+                  document.json() as Promise<{
+                    readonly settledSubmissions?: ReadonlyArray<string>;
+                  }>,
+              ),
+          );
+        expect((yield* reload(browser, cookie)).settledSubmissions).toEqual([pending[0]!.id]);
+        // Every later reload of the same browser still sees it settled.
+        expect((yield* reload(browser, cookie)).settledSubmissions).toEqual([pending[0]!.id]);
 
-        // Without the cookie there is nothing to report.
-        const plain = yield* Effect.scoped(handler(new Request("https://example.com/")));
-        expect(yield* Effect.promise(() => plain.json())).not.toHaveProperty("settledSubmissions");
+        // Without the outbox cookie there is nothing to report.
+        expect(yield* reload(browser)).not.toHaveProperty("settledSubmissions");
+
+        // Another browser naming the same ids learns nothing: settlement is
+        // reported only for the asking browser's own submissions.
+        expect(yield* reload(makeBrowser(), cookie)).not.toHaveProperty("settledSubmissions");
         yield* runtime.dispose;
       }),
     ));
@@ -282,12 +392,12 @@ describe("durable Action submissions over Start", () => {
             state,
             runtime as unknown as AnySunfallArcRuntime<unknown>,
             action,
-            { id, input: null },
+            { owner: "browser", id, input: null },
             Effect.sync(() => new Response(String(++runs))),
           ).pipe(Effect.flatMap((response) => Effect.promise(() => response.text())));
         const records = () => {
           const lane = state.lanes.get(action.name)!;
-          return { generations: lane.generations.length, ids: lane.byId.size };
+          return { generations: lane.generations.length, ids: lane.byKey.size };
         };
 
         expect(yield* submit("a")).toBe("1");

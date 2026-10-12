@@ -11,7 +11,7 @@ import {
   type ResourceStore as ResourceStoreState,
 } from "@sunfall/arc-core";
 import { invokeEffectInput } from "@sunfall/arc-core/internal";
-import { Effect, Scope } from "effect";
+import { Effect, Option, Scope } from "effect";
 import { type StartCollectionHydrationOptions } from "./hydration.js";
 import type { StartServerApp } from "./start-server-app.js";
 import {
@@ -48,6 +48,7 @@ import {
   settledActionSubmissionsEffect,
 } from "./start-action-workflow.js";
 import { readStartActionOutboxCookie } from "./start-action-outbox-cookie.js";
+import { ensureRequestSubmitterOwnerEffect } from "./start-action-submitter.js";
 import {
   createServerActionResponseEffectWithRuntime,
   createServerRpcResponseEffectWithRuntime,
@@ -233,12 +234,23 @@ export const createStartRequestHandler = <
         );
         // Probed after preload, so a submission reported settled is one the
         // preloaded state already reflects.
+        const actionMap = yield* Effect.try(() =>
+          makeActionMap(explicitActionMap, app.registry),
+        ).pipe(Effect.orElseSucceed(() => new Map()));
+        // An app with durable Actions gives every browser a submitter before
+        // its first submission, so even a submission whose response is lost
+        // replays under the submitter that recorded it.
+        const hasDurableActions = [...actionMap.values()].some(
+          (action) => action.durable !== undefined,
+        );
+        const owner = hasDurableActions
+          ? Option.some(yield* ensureRequestSubmitterOwnerEffect(request, responseContext))
+          : Option.none<string>();
         const settledSubmissions = yield* settledActionSubmissionsEffect(
           workflows,
           requestRuntime as unknown as AnySunfallArcRuntime<unknown>,
-          yield* Effect.try(() => makeActionMap(explicitActionMap, app.registry)).pipe(
-            Effect.orElseSucceed(() => new Map()),
-          ),
+          actionMap,
+          owner,
           readStartActionOutboxCookie(request),
         );
         const hydrationPlan = yield* createStartRenderHydrationPlanEffect({

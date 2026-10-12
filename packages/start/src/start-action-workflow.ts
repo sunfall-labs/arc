@@ -27,7 +27,14 @@ const ActionResponseRecord = Schema.Struct({
 type ActionResponseRecord = typeof ActionResponseRecord.Type;
 
 const SubmissionPayload = Schema.Struct({
-  /** The submission id: the workflow's idempotency key. */
+  /**
+   * The submitting browser's owner key (the digest of its submitter token).
+   * With `id` it forms the idempotency key, so an execution belongs to the
+   * browser that started it: the same id from another browser is a different
+   * execution and never sees this one's response.
+   */
+  owner: Schema.String,
+  /** The submission id, unique within its submitter. */
   id: Schema.String,
   /** The encoded Action input, as the client sent it. */
   input: Schema.Unknown,
@@ -47,7 +54,7 @@ type Engine = WorkflowEngine.WorkflowEngine["Service"];
 
 /**
  * Per engine: the Actions registered with it, and the Activity bodies of its
- * in-flight executions (keyed by Action name and submission id). Handlers that
+ * in-flight executions (keyed by Action name and submission key). Handlers that
  * share an engine share both, so any of them can run an execution.
  */
 interface EngineRegistrations {
@@ -76,7 +83,8 @@ interface MemoryGeneration {
   readonly engine: Engine;
   readonly registrations: EngineRegistrations;
   readonly openedAt: number;
-  readonly ids: Set<string>;
+  /** The submission keys (owner and id) this generation holds. */
+  readonly keys: Set<string>;
   inFlight: number;
   settledAt: number;
 }
@@ -84,8 +92,8 @@ interface MemoryGeneration {
 /** A durable Action's in-memory engine generations, oldest first. */
 interface MemoryLane {
   readonly generations: Array<MemoryGeneration>;
-  /** The generation holding each live submission id. */
-  readonly byId: Map<string, MemoryGeneration>;
+  /** The generation holding each live submission, by submission key. */
+  readonly byKey: Map<string, MemoryGeneration>;
 }
 
 /** Per-handler state: the in-memory engines used when the server Layer provides none. */
@@ -105,7 +113,16 @@ export interface DurableSubmissionAction {
   readonly durable: { readonly maxAge: Duration.Input };
 }
 
-const producerKey = (actionName: string, id: string): string => `${actionName}\u0000${id}`;
+/** One submitter's submission: its owner key and id. */
+export interface SubmissionKey {
+  readonly owner: string;
+  readonly id: string;
+}
+
+const submissionKey = (key: SubmissionKey): string => `${key.owner}\u0000${key.id}`;
+
+const producerKey = (actionName: string, key: SubmissionKey): string =>
+  `${actionName}\u0000${submissionKey(key)}`;
 
 const workflowFor = (actionName: string): SubmissionWorkflow => {
   const existing = workflows.get(actionName);
@@ -114,7 +131,7 @@ const workflowFor = (actionName: string): SubmissionWorkflow => {
   }
   const workflow: SubmissionWorkflow = Workflow.make(`sunfall-arc/action/${actionName}`, {
     payload: SubmissionPayload,
-    idempotencyKey: (payload) => payload.id,
+    idempotencyKey: submissionKey,
     success: ActionResponseRecord,
   });
   workflows.set(actionName, workflow);
@@ -144,7 +161,7 @@ const openMemoryGeneration = (now: number): Effect.Effect<MemoryGeneration> =>
       engine: Context.get(context, WorkflowEngine.WorkflowEngine),
       registrations: makeRegistrations(scope),
       openedAt: now,
-      ids: new Set(),
+      keys: new Set(),
       inFlight: 0,
       settledAt: now,
     };
@@ -152,13 +169,13 @@ const openMemoryGeneration = (now: number): Effect.Effect<MemoryGeneration> =>
 
 /**
  * Picks the in-memory generation for one submission and counts it in flight:
- * the generation already holding its id (a replay or a duplicate), else the
+ * the generation already holding it (a replay or a duplicate), else the
  * newest open one. Closes generations whose records no client can still replay.
  */
 const acquireMemoryGeneration = (
   state: StartActionWorkflows,
   action: DurableSubmissionAction,
-  id: string,
+  submission: SubmissionKey,
 ): Effect.Effect<MemoryGeneration> =>
   state.lock.withPermits(1)(
     Effect.gen(function* () {
@@ -166,7 +183,7 @@ const acquireMemoryGeneration = (
       const maxAge = Duration.toMillis(action.durable.maxAge);
       let lane = state.lanes.get(action.name);
       if (lane === undefined) {
-        lane = { generations: [], byId: new Map() };
+        lane = { generations: [], byKey: new Map() };
         state.lanes.set(action.name, lane);
       }
       const newest = lane.generations.at(-1);
@@ -177,15 +194,16 @@ const acquireMemoryGeneration = (
       for (const generation of lane.generations.slice(0, -1)) {
         if (generation.inFlight === 0 && now - generation.settledAt >= maxAge) {
           lane.generations.splice(lane.generations.indexOf(generation), 1);
-          for (const retired of generation.ids) {
-            lane.byId.delete(retired);
+          for (const retired of generation.keys) {
+            lane.byKey.delete(retired);
           }
           yield* Scope.close(generation.registrations.scope, Exit.void);
         }
       }
-      const generation = lane.byId.get(id) ?? current;
-      generation.ids.add(id);
-      lane.byId.set(id, generation);
+      const key = submissionKey(submission);
+      const generation = lane.byKey.get(key) ?? current;
+      generation.keys.add(key);
+      lane.byKey.set(key, generation);
       generation.inFlight++;
       return generation;
     }),
@@ -212,7 +230,7 @@ const withSubmissionEngine = <A, R>(
   state: StartActionWorkflows,
   runtime: AnySunfallArcRuntime<unknown>,
   action: DurableSubmissionAction,
-  id: string,
+  submission: SubmissionKey,
   use: (engine: Engine, registrations: EngineRegistrations) => Effect.Effect<A, never, R>,
 ): Effect.Effect<A, never, R> =>
   Effect.gen(function* () {
@@ -221,7 +239,7 @@ const withSubmissionEngine = <A, R>(
       return yield* use(provided.value, providedRegistrationsFor(provided.value));
     }
     return yield* Effect.acquireUseRelease(
-      acquireMemoryGeneration(state, action, id),
+      acquireMemoryGeneration(state, action, submission),
       (generation) => use(generation.engine, generation.registrations),
       releaseMemoryGeneration,
     );
@@ -249,7 +267,7 @@ const registerOnce = (
           success: ActionResponseRecord,
           execute: Effect.suspend(
             () =>
-              registrations.producers.get(producerKey(actionName, payload.id)) ??
+              registrations.producers.get(producerKey(actionName, payload)) ??
               Effect.die(
                 new Error(
                   `Durable submission ${payload.id} of Action "${actionName}" resumed without a request to run it.`,
@@ -278,16 +296,17 @@ const fromRecord = (record: ActionResponseRecord): Response =>
   });
 
 /**
- * Runs one durable submission as a Workflow execution keyed by its id:
- * `produce` (decode, run the Action, encode the response) is the Activity,
- * so a replayed id returns the original response without running it again,
- * and a duplicate that arrives mid-run joins the running execution.
+ * Runs one durable submission as a Workflow execution keyed by its submitter
+ * and id: `produce` (decode, run the Action, encode the response) is the
+ * Activity, so the same browser replaying an id gets the original response
+ * without running it again, and a duplicate that arrives mid-run joins the
+ * running execution. Another browser sending the same id starts its own.
  */
 export const runActionSubmissionWorkflow = <E, R>(
   state: StartActionWorkflows,
   runtime: AnySunfallArcRuntime<unknown>,
   action: DurableSubmissionAction,
-  submission: { readonly id: string; readonly input: unknown },
+  submission: SubmissionKey & { readonly input: unknown },
   produce: Effect.Effect<Response, E, R>,
 ): Effect.Effect<Response, never, R> =>
   Effect.gen(function* () {
@@ -300,13 +319,13 @@ export const runActionSubmissionWorkflow = <E, R>(
       Effect.flatMap(toRecord),
       Effect.provideContext(context),
     ) as Effect.Effect<ActionResponseRecord>;
-    const key = producerKey(action.name, submission.id);
+    const key = producerKey(action.name, submission);
 
     return yield* withSubmissionEngine(
       state,
       runtime,
       action,
-      submission.id,
+      submission,
       (engine, registrations) =>
         Effect.gen(function* () {
           const producers = registrations.producers;
@@ -316,7 +335,7 @@ export const runActionSubmissionWorkflow = <E, R>(
             producers.set(key, producer);
           }
           const record = yield* workflow
-            .execute({ id: submission.id, input: submission.input })
+            .execute({ owner: submission.owner, id: submission.id, input: submission.input })
             .pipe(
               Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
               Effect.ensuring(
@@ -335,18 +354,21 @@ export const runActionSubmissionWorkflow = <E, R>(
 /**
  * The ids among a browser's `pending` durable submissions that already
  * settled on this server: their outcome is in the state the server renders
- * next, so the client restores them without re-applying their patch. A
+ * next, so the client restores them without re-applying their patch. Only the
+ * requesting browser's own executions (`owner`) count, so the answer never
+ * confirms another browser's ids; a browser without a submitter owns none. A
  * submission still running, unknown, or unreadable counts as unsettled, which
- * keeps the client's patch (the pre-existing behavior).
+ * keeps the client's patch.
  */
 export const settledActionSubmissionsEffect = (
   state: StartActionWorkflows,
   runtime: AnySunfallArcRuntime<unknown>,
   actions: ReadonlyMap<string, { readonly durable?: unknown }>,
+  owner: Option.Option<string>,
   pending: ReadonlyArray<{ readonly action: string; readonly id: string }>,
 ): Effect.Effect<ReadonlyArray<string>> =>
   Effect.gen(function* () {
-    if (pending.length === 0) {
+    if (pending.length === 0 || Option.isNone(owner)) {
       return [];
     }
     const provided = yield* providedEngineOf(runtime);
@@ -355,14 +377,15 @@ export const settledActionSubmissionsEffect = (
       if (actions.get(action)?.durable === undefined) {
         continue;
       }
+      const key = { owner: owner.value, id };
       const engine = Option.isSome(provided)
         ? provided.value
-        : state.lanes.get(action)?.byId.get(id)?.engine;
+        : state.lanes.get(action)?.byKey.get(submissionKey(key))?.engine;
       if (engine === undefined) {
         continue;
       }
       const workflow = workflowFor(action);
-      const result = yield* workflow.executionId({ id, input: null }).pipe(
+      const result = yield* workflow.executionId({ ...key, input: null }).pipe(
         Effect.flatMap((executionId) => engine.poll(workflow, executionId)),
         Effect.catchCause(() => Effect.succeedNone),
       );
