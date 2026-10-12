@@ -82,13 +82,15 @@ describe("createRequestHandler(app)", () => {
     expect(html.endsWith("</body></html>")).toBe(true);
   });
 
-  it("renders unmatched URLs with the default document", async () => {
+  it("renders unmatched URLs with the default document and a 404 status", async () => {
     const handler = createRequestHandler(app, {
       server: Layer.succeed(Greeting)({ text: "server" }),
     });
     const { response, html } = await render(handler, "https://arc.test/unknown");
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
+    // The document says it is a not-found render, so it hydrates as one at any URL.
+    expect(html).toContain('"notFound":true');
     expect(html).not.toContain("<title>");
     expect(html).toContain('<div id="root">server /unknown</div>');
     expect(html).toContain('<script type="module" src="/src/main.tsx"></script>');

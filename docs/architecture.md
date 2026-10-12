@@ -1204,6 +1204,22 @@ Without an `error` schema only the failure `_tag` crosses and the rebuilt cause
 is `{ _tag }`. A failure that does not encode (or decode) with the schema
 renders as a `RoutePreloadFailureCodecError` defect, without its data.
 
+An unmatched URL is a render outcome too: the request renders the router's
+`NotFound` state (the app's not-found view) with status 404, and the root
+payload carries `notFound: true`. `hydrateFromDocument(...)` records it with
+`Route.hydrateNotFound()`, and the hydrating router starts `NotFound` whatever
+its href matches, without preloading. That is what lets one document serve
+every missing URL: Start's static prerender renders an unmatched URL under
+the reserved `/__sunfall-arc/` prefix through the same handler and writes it to
+`404.html` at the output root (its `StartPrerenderPageContext.source` is
+`"not-found"`, so `filter` can drop it, and an explicit page that writes
+`404.html` replaces it). Asset URLs are absolute under Vite's `base`, so the
+page works at any depth. On a static host, client navigation keeps the same
+meaning: when the target page's HTML answers 404 (the host's `404.html`),
+`makeStartStaticHistoryAdapter`'s `prepareHref` succeeds with
+`{ _tag: "NotFound" }` and the router settles in `NotFound` without running the
+route's preload.
+
 A failure that reaches a Solid `<Errored>` boundary during a server render
 follows the same rule. Solid serializes whatever such a boundary catches into
 the page so the hydrating client can rethrow it into the same boundary, so the

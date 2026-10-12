@@ -126,11 +126,13 @@ export const createBrowserRouterHostController = <
       stopHistory = history.listen(kernel.navigateHref);
       // Skip the initial preload when the first state is already settled for
       // this href: a host-chosen `Ready` (server output being hydrated) or a
-      // `Failure` (unmatchable href, or a hydrated server preload failure).
+      // `Failure` (unmatchable href, or a hydrated server preload failure), or
+      // `NotFound` (no route matched, or a hydrated not-found document).
       const initialState = kernel.state.get();
       const settled =
         initialState.href === initialHref &&
         (initialState._tag === "Failure" ||
+          initialState._tag === "NotFound" ||
           (initialState._tag === "Ready" && options.initialMatchedState !== undefined));
       if (!settled) {
         kernel.navigateHref(initialHref);

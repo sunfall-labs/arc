@@ -33,7 +33,11 @@ export type StartPrerenderPageInput = string | StartPrerenderPage;
 /** Planned page identity passed through filters and prerender callbacks. */
 export interface StartPrerenderPageContext {
   readonly path: string;
-  readonly source: "static-route" | "page" | "crawl" | "root";
+  /**
+   * Why the page is planned. `"not-found"` is the app's not-found page: an
+   * unmatched URL rendered through the handler and written to `404.html`.
+   */
+  readonly source: "static-route" | "page" | "crawl" | "root" | "not-found";
 }
 
 /** Event emitted after one prerender page is written successfully. */
@@ -126,6 +130,22 @@ interface StartPrerenderPlannedPage extends StartPrerenderPageContext {
   readonly outputPath?: string;
 }
 
+/**
+ * The unmatched URL rendered for the not-found page. It sits under Start's
+ * reserved `/__sunfall-arc/` prefix, so no app route claims it.
+ */
+const notFoundPath = "/__sunfall-arc/not-found";
+
+/** Static hosts serve `404.html` at the output root for every missing URL. */
+const notFoundOutputPath = "404.html";
+
+const plannedOutputPath = (
+  page: StartPrerenderPlannedPage,
+  options: Pick<ResolvedStartPrerenderOptions, "autoSubfolderIndex">,
+): string =>
+  page.outputPath?.replace(/^\/+/, "") ??
+  startStaticPageOutputPath(page.path, { autoSubfolderIndex: options.autoSubfolderIndex });
+
 const prerenderError = (
   operation: StartPrerenderError["operation"],
   message: string,
@@ -199,7 +219,17 @@ export const planStartPrerenderPages = (
     });
   }
 
-  return [...pages.values()];
+  // Every static deployment wants the app's own not-found page, unless an
+  // explicit page already writes `404.html`.
+  const planned = [...pages.values()];
+  const notFound = { path: notFoundPath, source: "not-found" as const };
+  if (
+    !planned.some((page) => plannedOutputPath(page, options) === notFoundOutputPath) &&
+    options.filter?.(notFound) !== false
+  ) {
+    planned.push({ ...notFound, outputPath: notFoundOutputPath });
+  }
+  return planned;
 };
 
 /** The parts of Vite's build manifest (`build.manifest`) that prerendering reads. */
@@ -340,7 +370,12 @@ const renderPage = (
       if (!(response instanceof Response)) {
         return yield* Effect.fail(fail("Prerender handlers must return a Response.", response));
       }
-      if (response.status < 200 || response.status >= 300) {
+      // The not-found page is written whatever the handler's status: `404`
+      // for an unmatched route, `200` for an app with a catch-all route.
+      const written =
+        (response.status >= 200 && response.status < 300) ||
+        (page.source === "not-found" && response.status === 404);
+      if (!written) {
         return yield* Effect.fail(
           fail(`Prerendering ${page.path} returned HTTP ${response.status}.`),
         );
@@ -464,9 +499,7 @@ export const runStartPrerender = (
         }
 
         const { status, html } = rendered.success;
-        const outputPath =
-          page.outputPath?.replace(/^\/+/, "") ??
-          startStaticPageOutputPath(page.path, { autoSubfolderIndex: options.autoSubfolderIndex });
+        const outputPath = plannedOutputPath(page, options);
         yield* writePage(outDir, outputPath, html, page.path);
         const event = { page, outputPath, status };
         pages.push(event);

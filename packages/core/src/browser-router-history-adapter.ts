@@ -39,8 +39,11 @@ export interface BrowserHistoryAdapter {
    *
    * Static hosts can use this to hydrate prerendered Resource payloads before
    * the normal route preload runs. Dynamic hosts usually leave this undefined.
+   * Succeeding with `{ _tag: "NotFound" }` reports that the host has no page
+   * for the href (a static host answered with its 404 page): the router skips
+   * route preload and settles in the `NotFound` state.
    */
-  prepareHref?(href: string): Effect.Effect<void, unknown>;
+  prepareHref?(href: string): Effect.Effect<void | { readonly _tag: "NotFound" }, unknown>;
   /** Applies a programmatic navigation and returns the href to process. */
   commit(href: string, options?: BrowserNavigateOptions): string;
 }

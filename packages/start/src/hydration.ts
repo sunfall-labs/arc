@@ -95,6 +95,11 @@ export interface StartHydrationPayload extends Resource.HydrationPayload {
   /** Route preload failure the server rendered; the hydrating router starts in that `Failure` state. */
   readonly routeFailure?: Route.PreloadFailureSnapshot;
   /**
+   * The server rendered the not-found state (no route matched); the hydrating
+   * router starts `NotFound` whatever URL the document is served at.
+   */
+  readonly notFound?: true;
+  /**
    * Ids of the browser's pending durable submissions (from its outbox cookie)
    * that the server settled before rendering this state. `App.launch` restores
    * them without re-applying their optimistic patch.
@@ -195,13 +200,20 @@ const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A =>
   throw Cause.squash(exit.cause);
 };
 
-/** Builds a Start payload from Resource dehydration output and a route failure. */
+/** The route outcome a render shows, carried by its root payload. */
+export interface StartHydrationRouteOutcome {
+  readonly routeFailure?: Route.PreloadFailureSnapshot | undefined;
+  readonly notFound?: boolean | undefined;
+}
+
+/** Builds a Start payload from Resource dehydration output and the rendered route outcome. */
 export const createStartHydrationPayload = (
   resources: Resource.HydrationPayload,
-  routeFailure?: Route.PreloadFailureSnapshot,
+  route: StartHydrationRouteOutcome = {},
 ): StartHydrationPayload => ({
   resources: resources.resources,
-  ...(routeFailure === undefined ? {} : { routeFailure }),
+  ...(route.routeFailure === undefined ? {} : { routeFailure: route.routeFailure }),
+  ...(route.notFound === true ? { notFound: true } : {}),
 });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -225,6 +237,7 @@ const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload
   isRecord(value) &&
   Array.isArray(value.resources) &&
   (value.routeFailure === undefined || isRoutePreloadFailureSnapshot(value.routeFailure)) &&
+  (value.notFound === undefined || value.notFound === true) &&
   (value.settledSubmissions === undefined ||
     (Array.isArray(value.settledSubmissions) &&
       value.settledSubmissions.every((id) => typeof id === "string")));
@@ -376,10 +389,12 @@ export const mergeStartHydrationPayloads = (
   const resources: Array<StartHydrationPayload["resources"][number]> = [];
   const settledSubmissions = new Set<string>();
   let routeFailure: Route.PreloadFailureSnapshot | undefined;
+  let notFound = false;
 
   for (const payload of payloads) {
     resources.push(...payload.resources);
     routeFailure = payload.routeFailure ?? routeFailure;
+    notFound ||= payload.notFound === true;
     for (const id of payload.settledSubmissions ?? []) {
       settledSubmissions.add(id);
     }
@@ -388,6 +403,7 @@ export const mergeStartHydrationPayloads = (
   return {
     resources,
     ...(routeFailure === undefined ? {} : { routeFailure }),
+    ...(notFound ? { notFound: true } : {}),
     ...(settledSubmissions.size > 0 ? { settledSubmissions: [...settledSubmissions] } : {}),
   };
 };
@@ -502,6 +518,9 @@ export const hydrateStartPayload = (
     yield* Resource.hydrate(payload, options);
     if (payload.routeFailure !== undefined) {
       yield* Route.hydratePreloadFailure(payload.routeFailure);
+    }
+    if (payload.notFound === true) {
+      yield* Route.hydrateNotFound();
     }
   });
 

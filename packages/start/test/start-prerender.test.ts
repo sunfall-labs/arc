@@ -30,6 +30,8 @@ const writePrerenderFixture = (
     readonly body?: string;
     readonly failFirstAttempt?: boolean;
     readonly status?: number;
+    /** Status for the unmatched not-found URL; it renders a not-found body. */
+    readonly notFoundStatus?: number;
   } = {},
 ): string => {
   const outDir = join(root, "dist");
@@ -52,7 +54,28 @@ const writePrerenderFixture = (
     join(root, "src/server.ts"),
     [
       "let attempts = 0;",
-      "export default function handleRequest() {",
+      "export default function handleRequest(request) {",
+      ...(options.notFoundStatus === undefined
+        ? []
+        : [
+            '  if (new URL(request.url).pathname === "/__sunfall-arc/not-found") {',
+            "    return new Response(",
+            `      ${JSON.stringify(
+              [
+                "<!doctype html>",
+                "<html>",
+                '  <head><link rel="stylesheet" href="/src/styles.css" /></head>',
+                "  <body>",
+                "    <main>Page not found</main>",
+                '    <script type="module" src="/src/main.tsx"></script>',
+                "  </body>",
+                "</html>",
+              ].join("\n"),
+            )},`,
+            `      { status: ${options.notFoundStatus} }`,
+            "    );",
+            "  }",
+          ]),
       ...(options.failFirstAttempt
         ? ["  attempts += 1;", '  if (attempts === 1) throw new Error("flaky render");']
         : []),
@@ -83,13 +106,21 @@ const writePrerenderFixture = (
 
 const promiseLikeCallbackResult = { then() {} } as never;
 
+const notFoundPath = "/__sunfall-arc/not-found";
+
 describe("Start prerender planning", () => {
   it("discovers static file routes and keeps dynamic routes explicit", () => {
     const pages = planStartPrerenderPages(manifest, {
       pages: [{ path: "/posts/hello", outputPath: "posts/hello/index.html" }],
     });
 
-    expect(pages.map((page) => page.path)).toEqual(["/", "/about", "/admin", "/posts/hello"]);
+    expect(pages.map((page) => page.path)).toEqual([
+      "/",
+      "/about",
+      "/admin",
+      "/posts/hello",
+      notFoundPath,
+    ]);
     expect(pages.find((page) => page.path === "/posts/hello")?.outputPath).toBe(
       "posts/hello/index.html",
     );
@@ -102,7 +133,25 @@ describe("Start prerender planning", () => {
       pages: [{ path: "/about", prerender: false }],
     });
 
-    expect(pages.map((page) => page.path)).toEqual(["/"]);
+    expect(pages.map((page) => page.path)).toEqual(["/", notFoundPath]);
+  });
+
+  it("plans the not-found page for 404.html unless a page already writes it", () => {
+    expect(planStartPrerenderPages(manifest, true).at(-1)).toEqual({
+      path: notFoundPath,
+      source: "not-found",
+      outputPath: "404.html",
+    });
+    expect(
+      planStartPrerenderPages(manifest, {
+        pages: [{ path: "/missing", outputPath: "/404.html" }],
+      }).map((page) => page.path),
+    ).not.toContain(notFoundPath);
+    expect(
+      planStartPrerenderPages(manifest, {
+        filter: ({ source }) => source !== "not-found",
+      }).map((page) => page.path),
+    ).not.toContain(notFoundPath);
   });
 
   it("normalizes prerender defaults and disabled configs", () => {
@@ -148,7 +197,7 @@ describe("Start prerender planning", () => {
       const html = readFileSync(join(outDir, "index.html"), "utf8");
 
       expect(result.failures).toEqual([]);
-      expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
+      expect(result.pages.map((page) => page.page.path)).toEqual(["/", notFoundPath]);
       expect(html).toContain('href="/assets/shared-abc.css"');
       expect(html).toContain('href="/assets/app-abc.css"');
       expect(html).toContain('src="/assets/app-abc.js"');
@@ -184,11 +233,70 @@ describe("Start prerender planning", () => {
       const html = readFileSync(join(outDir, "index.html"), "utf8");
 
       expect(result.failures).toEqual([]);
-      expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
+      expect(result.pages.map((page) => page.page.path)).toEqual(["/", notFoundPath]);
       expect(html).toContain('href="/arc/assets/app-abc.css"');
       expect(html).toContain('src="/arc/assets/app-abc.js"');
       expect(html).not.toContain("/src/styles.css");
       expect(html).not.toContain("/src/main.tsx");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("writes the handler's 404 not-found render to 404.html with base-path assets", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-404-"));
+
+    try {
+      const outDir = writePrerenderFixture(root, { notFoundStatus: 404 });
+
+      const result = await Effect.runPromise(
+        runStartPrerender({
+          root,
+          outDir,
+          base: "/arc/",
+          manifest,
+          configFile: false,
+          serverEntry: "/src/server.ts",
+          prerender: { autoStaticPathsDiscovery: false, crawlLinks: false },
+        }),
+      );
+      const html = readFileSync(join(outDir, "404.html"), "utf8");
+
+      expect(result.failures).toEqual([]);
+      expect(result.pages.at(-1)).toEqual({
+        page: { path: notFoundPath, source: "not-found", outputPath: "404.html" },
+        outputPath: "404.html",
+        status: 404,
+      });
+      expect(html).toContain("Page not found");
+      // Served at any depth, so every asset URL is absolute under the base.
+      expect(html).toContain('href="/arc/assets/app-abc.css"');
+      expect(html).toContain('src="/arc/assets/app-abc.js"');
+      expect(html).not.toContain("/src/");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails the build when the not-found render errors", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-404-"));
+
+    try {
+      const outDir = writePrerenderFixture(root, { notFoundStatus: 500 });
+      const error = await Effect.runPromise(
+        Effect.flip(
+          runStartPrerender({
+            root,
+            outDir,
+            manifest,
+            configFile: false,
+            serverEntry: "/src/server.ts",
+            prerender: { autoStaticPathsDiscovery: false, crawlLinks: false },
+          }),
+        ),
+      );
+
+      expect(error).toMatchObject({ operation: "render-page", path: notFoundPath });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -289,8 +397,8 @@ describe("Start prerender planning", () => {
         ),
       );
 
-      expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
-      expect(callbackCount).toBe(1);
+      expect(result.pages.map((page) => page.page.path)).toEqual(["/", notFoundPath]);
+      expect(callbackCount).toBe(2);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -32,6 +32,8 @@ export interface CreateStartRenderHydrationPlanOptions {
   readonly resources: Resource.HydrationPayload;
   /** Route preload failure the request renders; carried by the root payload. */
   readonly routeFailure?: Route.PreloadFailureSnapshot;
+  /** No route matched, so the request renders the not-found state; carried by the root payload. */
+  readonly notFound?: boolean;
   /** Pending durable submissions the server settled before rendering; carried by the root payload. */
   readonly settledSubmissions?: ReadonlyArray<string>;
 }
@@ -41,8 +43,8 @@ const emptyResourceHydrationPayload: Resource.HydrationPayload = { resources: []
 /**
  * Builds the hydration plan used by streamed renderers.
  *
- * The root payload carries non-streamed state: the route failure and settled
- * durable submissions.
+ * The root payload carries non-streamed state: the route failure or not-found
+ * outcome and settled durable submissions.
  * Route resource refs move into streamed chunks so a renderer cannot emit the
  * same resource pair in both the root script and the stream.
  */
@@ -55,12 +57,12 @@ export const createStartRenderHydrationPlan = (
         ? {}
         : { settledSubmissions: options.settledSubmissions };
     const rootPayload: StartHydrationPayload = {
-      ...createStartHydrationPayload(emptyResourceHydrationPayload, options.routeFailure),
+      ...createStartHydrationPayload(emptyResourceHydrationPayload, options),
       ...settled,
     };
     const rootScript = yield* createHydrationScript(rootPayload);
     const legacyPayload: StartHydrationPayload = {
-      ...createStartHydrationPayload(options.resources, options.routeFailure),
+      ...createStartHydrationPayload(options.resources, options),
       ...settled,
     };
     const streamedResourceChunks =

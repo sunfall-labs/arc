@@ -1,7 +1,10 @@
 import { Cause, Data, Effect, Exit, Fiber } from "effect";
 import { Route, RouteNavigationError } from "./route.js";
 import { matchRoutes } from "./route-match.js";
-import { takeHydratedRoutePreloadFailure } from "./route-preload-failure-hydration.js";
+import {
+  takeHydratedRouteNotFound,
+  takeHydratedRoutePreloadFailure,
+} from "./route-preload-failure-hydration.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal, SignalWrites, type ReadableSignal } from "./signal.js";
 import { makeRuntimeUiScope, type UiScope } from "./scope.js";
@@ -72,7 +75,7 @@ export interface BrowserRouterKernelOptions<Routes extends readonly AnyBrowserRo
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly initialHref: string;
   /** Host preparation run before route preload for a router-owned href. */
-  readonly prepareHref?: (href: string) => Effect.Effect<void, unknown>;
+  readonly prepareHref?: (href: string) => Effect.Effect<void | HrefNotFound, unknown>;
   readonly initialMatchedState?: (
     href: string,
     match: Route.Match<Routes[number]>,
@@ -116,18 +119,30 @@ const prepareHrefFailure = (href: string, cause: unknown): RouteNavigationError 
     cause,
   });
 
+/** A host preparation result: the host has no page for the href. */
+type HrefNotFound = { readonly _tag: "NotFound" };
+
+const isHrefNotFound = (prepared: void | HrefNotFound): prepared is HrefNotFound =>
+  prepared !== undefined && prepared._tag === "NotFound";
+
+/**
+ * Prepares the href, then preloads the route. Succeeds with `NotFound`
+ * (skipping route preload) when the host preparation reports no page.
+ */
 const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
   runtime: AnySunfallArcRuntime<ER>,
   match: Route.Match<R>,
-  prepareHrefEffect: (href: string) => Effect.Effect<void, RouteNavigationError>,
-): Effect.Effect<void, BrowserRouterError<readonly [R]> | ER> =>
+  prepareHrefEffect: (href: string) => Effect.Effect<void | HrefNotFound, RouteNavigationError>,
+): Effect.Effect<void | HrefNotFound, BrowserRouterError<readonly [R]> | ER> =>
   runtime.provide(
     Effect.scoped(
       prepareHrefEffect(match.href).pipe(
-        Effect.andThen(
-          Effect.all([Route.preload(match), Route.preloadComponent(match)], {
-            discard: true,
-          }),
+        Effect.flatMap((prepared) =>
+          isHrefNotFound(prepared)
+            ? Effect.succeed(prepared)
+            : Effect.all([Route.preload(match), Route.preloadComponent(match)], {
+                discard: true,
+              }),
         ),
       ),
     ),
@@ -187,12 +202,18 @@ export const createBrowserRouterKernel = <
   options: BrowserRouterKernelOptions<Routes, ER>,
 ): BrowserRouterKernel<Routes, ER> => {
   const { runtime, initialHref } = options;
-  const prepareHrefEffect = (href: string): Effect.Effect<void, RouteNavigationError> =>
+  const prepareHrefEffect = (
+    href: string,
+  ): Effect.Effect<void | HrefNotFound, RouteNavigationError> =>
     (options.prepareHref?.(href) ?? Effect.void).pipe(
       Effect.mapError((cause) => prepareHrefFailure(href, cause)),
     );
   const initialMatchedState = options.initialMatchedState ?? defaultInitialMatchedState<Routes, ER>;
   const initialRouterState = (): BrowserRouterState<Routes, ER> => {
+    // The hydrated document is a not-found render, whatever this href matches.
+    if (takeHydratedRouteNotFound(runtime.resourceStore)) {
+      return { _tag: "NotFound", href: initialHref };
+    }
     const matchExit = Effect.runSyncExit(matchRoutes(routes, initialHref));
     if (Exit.isFailure(matchExit)) {
       return browserRouterFailureState(
@@ -306,7 +327,11 @@ export const createBrowserRouterKernel = <
         yield* scope.dispose().pipe(Effect.catchCause(() => Effect.void));
 
         if (Exit.isSuccess(exit)) {
-          setState({ _tag: "Ready", href, match: nextMatch });
+          setState(
+            isHrefNotFound(exit.value)
+              ? { _tag: "NotFound", href }
+              : { _tag: "Ready", href, match: nextMatch },
+          );
         } else {
           setState(
             browserRouterFailureState(
@@ -344,7 +369,7 @@ export const createBrowserRouterKernel = <
       Effect.flatMap((href) => matchRoutes(routes, href)),
       Effect.flatMap((routeMatch) =>
         routeMatch
-          ? provideRouterPreloadEffect(runtime, routeMatch, prepareHrefEffect)
+          ? Effect.asVoid(provideRouterPreloadEffect(runtime, routeMatch, prepareHrefEffect))
           : Effect.void,
       ),
     );

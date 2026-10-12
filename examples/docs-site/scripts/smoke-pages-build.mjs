@@ -170,7 +170,18 @@ const createPagesServer = (basePath) =>
         Effect.tap((filePath) =>
           Effect.sync(() => {
             if (filePath === undefined) {
-              response.writeHead(404).end("Not found");
+              // Like GitHub Pages: a missing URL inside the site gets the
+              // site's 404.html with status 404.
+              const insideSite =
+                basePath === "/" ||
+                url.pathname === basePath.slice(0, -1) ||
+                url.pathname.startsWith(basePath);
+              if (!insideSite) {
+                response.writeHead(404).end("Not found");
+                return;
+              }
+              response.writeHead(404, { "content-type": "text/html" });
+              createReadStream(join(distRoot, "404.html")).pipe(response);
               return;
             }
 
@@ -238,16 +249,19 @@ const closeEffect = (server) =>
     });
   });
 
-const fetchOkEffect = (origin, path) =>
+const fetchStatusEffect = (origin, path, expected) =>
   Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () => fetch(new URL(path, origin)),
       catch: (cause) =>
         fail(`Failed to fetch ${path}.`, "Ensure the local smoke server is running.", cause),
     });
-    if (!response.ok) {
+    if (expected === "2xx" ? !response.ok : response.status !== expected) {
       return yield* Effect.fail(
-        fail(`Expected ${path} to return 2xx, got ${response.status}.`, "Fix the Pages output."),
+        fail(
+          `Expected ${path} to return ${expected}, got ${response.status}.`,
+          "Fix the Pages output.",
+        ),
       );
     }
     return yield* Effect.tryPromise({
@@ -255,6 +269,40 @@ const fetchOkEffect = (origin, path) =>
       catch: (cause) =>
         fail(`Failed to read response body for ${path}.`, "Check the local smoke response.", cause),
     });
+  });
+
+const fetchOkEffect = (origin, path) => fetchStatusEffect(origin, path, "2xx");
+
+// A deep missing URL answers with the app's own not-found page, whose assets
+// and hydration payload must resolve from that depth.
+const smokeNotFoundEffect = (origin, basePath) =>
+  Effect.gen(function* () {
+    const missingPath = `${basePath}docs/does-not-exist/deeper`;
+    const html = yield* fetchStatusEffect(origin, missingPath, 404);
+    const missing = [
+      ["the styled not-found page", html.includes("Page not found")],
+      ["the hydration payload", html.includes('id="__SUNFALL_ARC_HYDRATION__"')],
+    ].filter(([, present]) => !present);
+    if (missing.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${missingPath} is missing ${missing.map(([name]) => name).join(" and ")}.`,
+          "Start prerender writes the app's not-found render to 404.html.",
+        ),
+      );
+    }
+    const assets = prefixedAttributeValues(basePath, html).filter((value) =>
+      value.startsWith(`${basePath}assets/`),
+    );
+    if (assets.length === 0) {
+      return yield* Effect.fail(
+        fail(`${missingPath} loads no built assets.`, "Check the 404.html asset URLs."),
+      );
+    }
+    for (const asset of assets) {
+      yield* fetchOkEffect(new URL(missingPath, origin).href, asset);
+    }
+    return assets.length;
   });
 
 const prefixedAttributeValues = (basePath, html) =>
@@ -267,7 +315,9 @@ const mainEffect = Effect.gen(function* () {
   yield* accessEffect(join(distRoot, "index.html"));
 
   const htmlFiles = yield* collectHtmlFilesEffect(distRoot);
-  const nestedHtmlFile = htmlFiles.find((file) => relative(distRoot, file) !== "index.html");
+  const nestedHtmlFile = htmlFiles.find(
+    (file) => !["index.html", "404.html"].includes(relative(distRoot, file)),
+  );
   const nestedPath =
     nestedHtmlFile === undefined
       ? undefined
@@ -290,7 +340,11 @@ const mainEffect = Effect.gen(function* () {
       yield* fetchOkEffect(origin, url);
     }
 
-    console.log(`Smoke-tested ${urls.size} GitHub Pages URLs for base path ${basePath}.`);
+    const notFoundAssets = yield* smokeNotFoundEffect(origin, basePath);
+
+    console.log(
+      `Smoke-tested ${urls.size} GitHub Pages URLs and the 404 page (${notFoundAssets} assets) for base path ${basePath}.`,
+    );
   }).pipe(Effect.ensuring(closeEffect(server).pipe(Effect.catch(() => Effect.void))));
 });
 

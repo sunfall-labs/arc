@@ -18,7 +18,10 @@ import {
   activeResourceStore,
 } from "./resource-runtime.js";
 import type { ResourceSnapshotCodecError } from "./resource-snapshot-codec.js";
-import { hydrateRoutePreloadFailure } from "./route-preload-failure-hydration.js";
+import {
+  hydrateRouteNotFound,
+  hydrateRoutePreloadFailure,
+} from "./route-preload-failure-hydration.js";
 import {
   buildRoutePath,
   compareRoutePathSpecificity,
@@ -1302,6 +1305,19 @@ export namespace Route {
     snapshot: RoutePreloadFailureSnapshot,
   ): Effect.Effect<void> =>
     Effect.map(activeResourceStore, (store) => hydrateRoutePreloadFailure(store, snapshot));
+
+  /**
+   * Starts the next router created on the active runtime in the `NotFound`
+   * state, whatever its initial href matches.
+   *
+   * Start runs this in the browser runtime while hydrating a document the
+   * server rendered for an unmatched URL. A static host serves that one
+   * document (`404.html`) at every missing URL, including URLs a dynamic
+   * route matches, so the hydrating router shows the not-found view the
+   * document holds. The record is consumed by the first router that reads it.
+   */
+  export const hydrateNotFound = (): Effect.Effect<void> =>
+    Effect.map(activeResourceStore, hydrateRouteNotFound);
 
   /** Runs matched route preload and captures touched resources for hydration. */
   export const planPreload = <R extends Definition<string, unknown, unknown, any>>(

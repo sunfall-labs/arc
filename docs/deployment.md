@@ -143,6 +143,21 @@ built entry chunk and its CSS from Vite's build manifest. The plugin turns on
 `build.manifest` (a string `build.manifest` path is respected), so
 `dist/.vite/manifest.json` ships with the build.
 
+Prerendering also writes the app's not-found page to `404.html` at the output
+root: it renders an unmatched URL through the same handler, so the page is
+whatever the app's router renders when no route matches (a 404 response is
+expected and written). GitHub Pages, Netlify, Cloudflare Pages, and Vercel
+serve that file for every missing URL. Its asset and link URLs are absolute
+under Vite's `base`, so it works at any depth, such as
+`/repository-name/docs/missing/page` on a GitHub Pages project site. The
+browser hydrates it as the not-found page whatever the URL, even one a dynamic
+route matches but that has no prerendered page, and in-app links then
+navigate client-side. A client navigation whose target page answers 404
+settles on the not-found page too. To keep a different file, add an explicit
+page with `outputPath: "404.html"`; to skip it, return `false` from `filter`
+for the page whose `source` is `"not-found"`. Outside a prerender, Start
+answers every unmatched URL with status 404 and the same not-found render.
+
 For a fully static deployment, set `buildPolicy.staticClient: { target: "static" }`:
 the browser build then compiles the server-function `RpcClient` out of
 `App.launch`, so the app's client Layer must serve data from the prerendered
