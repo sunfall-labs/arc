@@ -883,6 +883,54 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
+  it("renders URLs whose params the route schema rejects as 404 and hydrates not found", async () => {
+    let preloaded = 0;
+    const ProjectRoute = Route.define("/projects/:id", {
+      params: Schema.Struct({ id: Schema.Literals(["atlas", "kepler"]) }),
+      preload: () =>
+        Effect.sync(() => {
+          preloaded++;
+        }),
+    });
+    const routes = [ProjectRoute] as const;
+    const app = makeStartServerApp({ routes });
+    let serverState: unknown;
+    const handler = createStartRequestHandler(app, {
+      render: ({ runtime, hydrationPlan, routePlan }) => {
+        serverState = createBrowserRouterKernel(routes, {
+          runtime: eraseRuntime(runtime),
+          initialHref: routePlan.href,
+        }).state.get();
+        return `<main>Not found</main>${hydrationPlan.legacy.script}`;
+      },
+    });
+
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/projects/unknown"))),
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(preloaded).toBe(0);
+    expect(serverState).toEqual({ _tag: "NotFound", href: "/projects/unknown" });
+    const payload = JSON.parse(
+      html.slice(html.indexOf("{", html.indexOf("</main>")), html.lastIndexOf("}") + 1),
+    ) as StartHydrationPayload;
+    expect(payload.notFound).toBe(true);
+
+    const clientRuntime = makeRuntime();
+    try {
+      await Effect.runPromise(clientRuntime.provide(hydrateStartPayload(payload)));
+      const hydrating = createBrowserRouterKernel(routes, {
+        runtime: eraseRuntime(clientRuntime),
+        initialHref: "/projects/unknown",
+      });
+      expect(hydrating.state.get()).toEqual(serverState);
+    } finally {
+      await Effect.runPromise(Effect.orDie(clientRuntime.dispose));
+    }
+  });
+
   it("keeps failing standalone preloadRequest when route preload fails", async () => {
     const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),

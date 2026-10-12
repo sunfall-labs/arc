@@ -6,6 +6,30 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Rejected Path Params Are Not Found (Breaking)
+
+- A URL whose path params fail the route's `params` schema does not match that
+  route: `Route.match` moves on to the next route (a later route may accept
+  the params) and returns `undefined` when none does, where it used to throw.
+  So `Route.planNavigation` plans `NotFound`, Start answers 404 with
+  `notFound: true` in the payload, and the browser router, static navigation,
+  and devtools route plans report `NotFound`, the same as for an unmatched
+  URL. Previously such a URL was a `RouteNavigationError`, and an SSR request
+  for it failed.
+- Search values still decode after the path matched and never change which
+  route matched: a `search` schema failure stays a typed
+  `RouteNavigationError`. Give a search field a default in its schema when a
+  bad or missing value should fall back.
+- The browser router publishes a navigation's target match (`Pending`) only
+  after the host's `prepareHref` found the page, keeping its current state
+  until then. Static navigation no longer exposes a match whose route data is
+  not hydrated yet (UI keyed on `router.match()`, such as a sidebar, read
+  data the static client cannot load when leaving a not-found page), nor a
+  match the host then answers 404 for.
+- The docs site drops its workarounds: an unknown docs slug is a plain
+  `NotFound`, and the sidebar's recipe links no longer wait for the first
+  route to finish loading.
+
 ### Static Prerender Writes 404.html
 
 - Start's static prerender renders an unmatched URL through the app's handler

@@ -308,9 +308,9 @@ export interface RouteComponentProps<
  * the precise params, search, preload services, and preload failure.
  */
 export interface RouteOptions<Path extends string, Params, Search, PreloadRequirements = never> {
-  /** Optional schema that decodes path params after route matching. */
+  /** Optional schema for the path params; a URL whose params it rejects does not match the route. */
   readonly params?: AnySchema<Params>;
-  /** Optional schema that decodes URL search values after route matching. */
+  /** Optional schema for the search values, decoded once the path matched; a rejection is a `RouteNavigationError`. */
   readonly search?: AnySchema<Search>;
   /**
    * Optional schema for the typed preload failure; see `RouteDefineOptions.error`.
@@ -417,9 +417,9 @@ export type RouteDefineOptions<
   ErrorSchema,
   Out,
 > = {
-  /** Optional schema that decodes path params after route matching. */
+  /** Optional schema for the path params; a URL whose params it rejects does not match the route. */
   readonly params?: ParamsSchema;
-  /** Optional schema that decodes URL search values after route matching. */
+  /** Optional schema for the search values, decoded once the path matched; a rejection is a `RouteNavigationError`. */
   readonly search?: SearchSchema;
   /**
    * Optional schema for the typed preload failure, like Effect RPC's `error`.
@@ -810,19 +810,44 @@ const routeHref = (
     search as Record<string, unknown> | undefined,
   );
 
+/** Marks path params the route's `params` schema rejects. */
+const paramsRejected: unique symbol = Symbol("RouteParamsRejected");
+
+/**
+ * Decodes matched path params. Params the schema rejects identify nothing, so
+ * the route does not match them; a defect in the schema still throws.
+ */
+const decodeParams = (schema: unknown, input: unknown): unknown => {
+  if (!Schema.isSchema(schema)) {
+    return input;
+  }
+  const exit = Schema.decodeUnknownExit(schema as Schema.Decoder<unknown>)(input);
+  if (Exit.isSuccess(exit)) {
+    return exit.value;
+  }
+  if (Cause.hasDies(exit.cause)) {
+    throw Cause.squash(exit.cause);
+  }
+  return paramsRejected;
+};
+
 const matchRouteDefinition = <R extends RouteDefinition<string, unknown, unknown, any, any>>(
   definition: R,
   input: string | URL,
 ): RouteMatch<R> | undefined => {
   const url = parseRouteUrl(input);
-  const params = matchRoutePath(definition.path, url.pathname);
-  if (!params) {
+  const pathParams = matchRoutePath(definition.path, url.pathname);
+  if (!pathParams) {
+    return undefined;
+  }
+  const params = decodeParams(definition.options.params, pathParams);
+  if (params === paramsRejected) {
     return undefined;
   }
 
   return {
     route: definition,
-    params: decode(definition.options.params, params),
+    params,
     search: decode(definition.options.search, searchObject(url.searchParams)),
     pathname: url.pathname,
     href: `${url.pathname}${url.search}`,
@@ -1080,10 +1105,13 @@ export namespace Route {
   /**
    * Returns the first matching route for a URL, or undefined when none match.
    *
-   * This sync helper delegates to each route's `match(...)`; schema-backed
-   * params/search decode failures throw. Use `Route.planNavigation(...)`
-   * for an Effect-returning navigation path with typed `RouteNavigationError`
-   * failures.
+   * Routes are tried most specific first. A route matches when its path
+   * pattern matches and its `params` schema decodes the path params: params
+   * the schema rejects identify nothing, so matching moves on to the next
+   * route, and a URL no route accepts is not found. Search values decode once
+   * the path matched; a `search` schema failure throws. Use
+   * `Route.planNavigation(...)` for an Effect-returning navigation path with
+   * a typed `RouteNavigationError` failure.
    */
   export const match = <const Routes extends readonly Definition<string, unknown, unknown, any>[]>(
     routes: Routes,

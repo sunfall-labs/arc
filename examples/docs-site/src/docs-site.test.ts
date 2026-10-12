@@ -225,6 +225,22 @@ describe("docs site", () => {
       }),
     ));
 
+  it("renders docs and recipe slugs the route schemas reject as the not-found page with status 404", () =>
+    Effect.runPromise(
+      Effect.forEach(["/docs/does-not-exist", "/cookbook/Not_A_Slug"], (path) =>
+        Effect.gen(function* () {
+          const response = yield* Effect.scoped(
+            handleRequest(new Request(`https://docs.test${path}`)),
+          );
+          const html = yield* Effect.tryPromise(() => response.text());
+
+          expect(response.status).toBe(404);
+          expect(html).toContain("<title>Page not found · Sunfall Arc</title>");
+          expect(html).toContain('"notFound":true');
+        }),
+      ),
+    ));
+
   it("renders the golden path with a drawn diagram, inline code headings, and scrolling tables", () =>
     Effect.runPromise(
       Effect.gen(function* () {

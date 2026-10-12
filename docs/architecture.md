@@ -1009,6 +1009,20 @@ Route.href(ProjectRoute, {
 });
 ```
 
+Path params identify the page, so they are part of matching. `Route.match`
+tries routes most specific first, and a route matches only when its path
+pattern matches and its `params` schema decodes the params; params the schema
+rejects identify nothing, so matching moves on to the next route, and a URL no
+route accepts is not found. Core matching, Start SSR (status 404,
+`notFound: true` in the payload), prerender, static navigation, the browser
+router, and devtools route plans all go through `Route.match`, so they agree:
+`/projects/Not-An-Id` is the same `NotFound` as `/nowhere`. Search values
+refine a page the path already identified, so they decode after the match and
+never change which route matched: a `search` schema failure is a typed
+`RouteNavigationError` (a failed request, not a 404). A search value with a
+sensible default says so in its schema (an optional field, or one with a
+decoding default), so every URL for the page decodes.
+
 The Solid adapter owns browser history through the router `Component.router`
 creates, provided by `RouterProvider` and rendered by `RouterOutlet`. On navigation it
 matches the route, runs `Route.preload` in an interruptible UI scope, then
@@ -1218,7 +1232,12 @@ page works at any depth. On a static host, client navigation keeps the same
 meaning: when the target page's HTML answers 404 (the host's `404.html`),
 `makeStartStaticHistoryAdapter`'s `prepareHref` succeeds with
 `{ _tag: "NotFound" }` and the router settles in `NotFound` without running the
-route's preload.
+route's preload. The router publishes a navigation's target match (`Pending`)
+only after the host prepared its href, and keeps its current state until then:
+before that the host may still answer that it has no page, and a static host
+has not hydrated the target's route data, so UI rendered for the match (a
+sidebar that switches on `router.match()`) would read data nothing can load.
+Without host preparation, `Pending` is published as the navigation starts.
 
 A failure that reaches a Solid `<Errored>` boundary during a server render
 follows the same rule. Solid serializes whatever such a boundary catches into

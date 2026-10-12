@@ -250,7 +250,7 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
-  it("keeps route match schema failures typed in browser router state", () =>
+  it("settles not found on params the route schema rejects and typed failure on bad search", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -258,7 +258,8 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const ProjectRoute = Route.define("/schema-projects/:id", {
-            params: Schema.Struct({ id: Schema.Number }),
+            params: Schema.Struct({ id: Schema.FiniteFromString }),
+            search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) }),
           });
 
           let dispose: () => void = () => undefined;
@@ -273,6 +274,20 @@ describe("createBrowserRouter", () => {
           );
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
+          expect(router.state()).toEqual({ _tag: "NotFound", href: "/schema-projects/atlas" });
+
+          router.navigateHref("/schema-projects/7");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(router.state()._tag).toBe("Ready");
+              expect(router.match()?.params).toEqual({ id: 7 });
+            }),
+          );
+
+          router.navigateHref("/schema-projects/kepler");
+          expect(router.state()).toEqual({ _tag: "NotFound", href: "/schema-projects/kepler" });
+
+          expect(() => router.navigateHref("/schema-projects/7?tab=nope")).not.toThrow();
           yield* Effect.promise(() =>
             vi.waitFor(() => {
               const state = router.state();
@@ -283,26 +298,8 @@ describe("createBrowserRouter", () => {
               >;
               expect(failure.match).toBeUndefined();
               expect(failure.error).toBeInstanceOf(RouteNavigationError);
-              expect(failure.error).toMatchObject({
-                input: "/schema-projects/atlas",
-              });
+              expect(failure.error).toMatchObject({ input: "/schema-projects/7?tab=nope" });
               expect(failure.cause.reasons.find(Cause.isFailReason)?.error).toBe(failure.error);
-            }),
-          );
-
-          expect(() => router.navigateHref("/schema-projects/kepler")).not.toThrow();
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              const state = router.state();
-              expect(state._tag).toBe("Failure");
-              const failure = state as Extract<
-                BrowserRouterState<readonly [typeof ProjectRoute]>,
-                { readonly _tag: "Failure" }
-              >;
-              expect(failure.error).toBeInstanceOf(RouteNavigationError);
-              expect(failure.error).toMatchObject({
-                input: "/schema-projects/kepler",
-              });
             }),
           );
         }),

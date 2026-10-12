@@ -5,6 +5,20 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Route Params Decode Failures
+
+A URL whose path params the route's `params` schema rejects is now not found:
+`Route.match` skips that route (trying the next one) instead of throwing, so
+Start answers 404 and the router settles in `NotFound`. Search values still
+decode after the match, and a `search` schema failure is still a
+`RouteNavigationError`.
+
+| Before                                                                                | After                                                                       |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `expect(() => Route.match(routes, badParamsUrl)).toThrow()`                           | `expect(Route.match(routes, badParamsUrl)).toBeUndefined()`                 |
+| a not-found view for a router `Failure` whose `RouteNavigationError` has no `match`   | the router's `NotFound` state (keep the `Failure` view for search failures) |
+| UI keyed on `router.match()` that waits for a `Ready` state before reading route data | read it directly: the target match is published once the host prepared it   |
+
 ## From Optional Server-Function Schemas
 
 Server functions now run on `effect/rpc`: every contract is an `Rpc`, so its

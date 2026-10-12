@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { Route, RouteNavigationError } from "./route.js";
 
 /**
- * Internal: runs `Route.match(...)` and reports schema decode throws as typed
+ * Internal: runs `Route.match(...)` and reports search-schema and route-grammar throws as typed
  * `RouteNavigationError` failures for router kernels and server preloads.
  */
 export const matchRoutes = <

@@ -148,6 +148,37 @@ describe("route", () => {
     expect(match?.params).toEqual({ slug: "atlas" });
   });
 
+  it("does not match a route whose params schema rejects the path params", () => {
+    const ProjectRoute = Route.define("/projects/:id", {
+      params: Schema.Struct({ id: Schema.FiniteFromString }),
+    });
+
+    expect(Route.match([ProjectRoute], "/projects/7")?.params).toEqual({ id: 7 });
+    expect(Route.match([ProjectRoute], "/projects/atlas")).toBeUndefined();
+  });
+
+  it("tries the next route when a route's params schema rejects the path params", () => {
+    const ProjectByIdRoute = Route.define("/projects/:id", {
+      params: Schema.Struct({ id: Schema.FiniteFromString }),
+    });
+    const ProjectBySlugRoute = Route.define("/projects/:slug", {});
+    const routes = [ProjectByIdRoute, ProjectBySlugRoute] as const;
+
+    expect(Route.match(routes, "/projects/7")?.route).toBe(ProjectByIdRoute);
+    const bySlug = Route.match(routes, "/projects/atlas");
+    expect(bySlug?.route).toBe(ProjectBySlugRoute);
+    expect(bySlug?.params).toEqual({ slug: "atlas" });
+  });
+
+  it("throws when the search schema rejects the search of a matched path", () => {
+    const ProjectRoute = Route.define("/projects/:id", {
+      search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) }),
+    });
+    const FallbackRoute = Route.define("/projects/:slug", {});
+
+    expect(() => Route.match([ProjectRoute, FallbackRoute], "/projects/atlas?tab=nope")).toThrow();
+  });
+
   it("runs route preload as an Effect", () => {
     let preloaded = "";
     const ProjectRoute = Route.define("/projects/:id", {
@@ -437,16 +468,39 @@ describe("route", () => {
     );
   });
 
-  it("captures route schema decode failures inside navigation effects", () => {
+  it("plans a URL whose params the route schema rejects as not found", () => {
     const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.Number }),
+    });
+
+    return Effect.runPromise(
+      Route.planNavigation([ProjectRoute] as const, "/projects/atlas").pipe(
+        Effect.tap((plan) =>
+          Effect.sync(() =>
+            expect(plan).toEqual({
+              _tag: "NotFound",
+              href: "/projects/atlas",
+              match: undefined,
+              refs: [],
+              resources: { resources: [] },
+            }),
+          ),
+        ),
+        Effect.asVoid,
+      ),
+    );
+  });
+
+  it("captures search schema decode failures inside navigation effects", () => {
+    const ProjectRoute = Route.define("/projects/:id", {
+      search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) }),
     });
 
     let effect:
       | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationPlanError>
       | undefined;
     expect(() => {
-      effect = Route.planNavigation([ProjectRoute] as const, "/projects/atlas");
+      effect = Route.planNavigation([ProjectRoute] as const, "/projects/atlas?tab=nope");
     }).not.toThrow();
 
     return Effect.runPromise(
@@ -454,7 +508,7 @@ describe("route", () => {
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
-            expect(error).toMatchObject({ input: "/projects/atlas" });
+            expect(error).toMatchObject({ input: "/projects/atlas?tab=nope" });
           }),
         ),
         Effect.asVoid,
@@ -462,21 +516,21 @@ describe("route", () => {
     );
   });
 
-  it("captures route schema decode failures inside match effects", () => {
+  it("captures search schema decode failures inside match effects", () => {
     const ProjectRoute = Route.define("/projects/:id", {
-      params: Schema.Struct({ id: Schema.Number }),
+      params: Schema.Struct({ id: Schema.FiniteFromString }),
+      search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) }),
     });
 
     return Effect.runPromise(
-      Effect.flip(matchRoutes([ProjectRoute] as const, "/projects/atlas")).pipe(
-        Effect.tap((error) =>
-          Effect.sync(() => {
-            expect(error).toBeInstanceOf(RouteNavigationError);
-            expect(error.input).toBe("/projects/atlas");
-          }),
-        ),
-        Effect.asVoid,
-      ),
+      Effect.gen(function* () {
+        expect(yield* matchRoutes([ProjectRoute] as const, "/projects/atlas")).toBeUndefined();
+        const error = yield* Effect.flip(
+          matchRoutes([ProjectRoute] as const, "/projects/7?tab=nope"),
+        );
+        expect(error).toBeInstanceOf(RouteNavigationError);
+        expect(error.input).toBe("/projects/7?tab=nope");
+      }),
     );
   });
 
@@ -503,12 +557,12 @@ describe("route", () => {
     );
   });
 
-  it("keeps schema decode failures synchronous for match helpers", () => {
+  it("keeps search decode failures synchronous for match helpers", () => {
     const ProjectRoute = Route.define("/projects/:id", {
-      params: Schema.Struct({ id: Schema.Number }),
+      search: Schema.Struct({ page: Schema.FiniteFromString }),
     });
 
-    expect(() => Route.match([ProjectRoute], "/projects/atlas")).toThrow();
+    expect(() => Route.match([ProjectRoute], "/projects/atlas?page=first")).toThrow();
     expect(() => Route.match([ProjectRoute] as const, "/projects/atlas")).toThrow();
   });
 });
