@@ -54,15 +54,6 @@ export {
   type StartHydrationPayload,
 } from "./hydration.js";
 
-export type {
-  /** Effect-returning fetch used by Start transports. */
-  StartFetch,
-  /** Request init accepted by `StartFetch`. */
-  StartFetchInit,
-  /** Request input accepted by `StartFetch`. */
-  StartFetchInput,
-} from "./start-fetch.js";
-
 export {
   /** Progressive (no-JS) HTML form helpers for Start actions. */
   StartAction,
@@ -76,7 +67,7 @@ export {
 export {
   /** Error raised when two served actions share a name. */
   StartActionDuplicateName,
-} from "./start-transport-protocol.js";
+} from "./start-action-request-codec.js";
 
 export {
   /** Error raised when a static base path is invalid. */

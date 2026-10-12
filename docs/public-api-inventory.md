@@ -151,7 +151,11 @@ Golden-path public groups:
   serves run remotely and the response applies to the submitting runtime,
   every other Action runs locally. Start's `App.launch(app)` provides it for
   the app's Actions. `Action.TransportSubmission` carries a durable
-  submission's id (its idempotency key).
+  submission's id (its idempotency key). The transport's failures are its
+  own error classes: `ActionTransportError` (delivery, status, malformed
+  response), `ActionProtocolError` (the endpoint rejected the submission), and
+  `ActionNotFound`; `Action.ClientError` is their union with schema and
+  callback failures.
 - Durable submissions: `Action.define({ input, durable: { maxAge } })`
   (`Action.DurablePolicy`, schema input required by the types) adds
   `ActionQueued` to the Action's error type. `Action.outboxLayer({
@@ -324,8 +328,10 @@ Release decisions:
   services provided by the explicit runtime are removed from `submit(...)`
   requirements, and the runtime error channel is added to the action error
   surface. The runtime is required: there is no default-runtime fallback.
-  Submissions report `Server.ClientError` beside the Action's own failures,
-  because a runtime-provided `ActionTransport` may serve the Action remotely.
+  Submissions report `Action.ClientError` (`ActionTransportError`,
+  `ActionProtocolError`, `ActionNotFound`, `Schema.SchemaError`,
+  `EffectInputCallbackError`) beside the Action's own failures, because a
+  runtime-provided `ActionTransport` may serve the Action remotely.
   A `run`, `optimistic`, or `invalidates` callback that breaks its contract is
   a defect, not part of the error type.
 - Actions are the one mutation path. `optimistic(input, transaction)` patches
@@ -410,16 +416,23 @@ commands)`, never an Effect. `State.emit(...)`
   `Form.data(...)` is the explicit intermediate object conversion, preserving
   repeated field names as arrays and allowing framework hidden fields to be
   omitted before decoding.
+- Server functions are `effect/rpc` Rpcs. `Server.contract(name, { input,
+output, error? })` requires `input` and `output` schemas (`error` defaults
+  to `Schema.Never`), infers its types from them, and carries the `Rpc` as
+  `contract.rpc` (tag = name); `Server.Fn` exposes the same `rpc`, `effect`,
+  and `local`. `Server.WireSchema` is the schema bound (no decoding or
+  encoding services). `Server.client`, `Server.implement`, `Server.mock`,
+  `Server.mockLayer`, `Server.localClient`, `Server.functions`,
+  `Server.registryDiagnostics`, and `Server.clearRegistryUnsafe` complete the
+  namespace; there is no `Server.route` (HTTP routes belong to
+  `effect/http`), no schema-presence manifest, and no envelope codec helpers.
 - `Server.Client.call(...)` preserves the target server function's requirement
-  type in its returned Effect. Browser RPC clients can still satisfy that with
+  type in its returned Effect. The browser `RpcClient` satisfies it with
   `never`, while local/mock clients can run functions that depend on test or app
-  services. `Server` schema encode/decode, RPC envelope parsing, manifest
-  schema-presence projection, and defect/server-error serialization now delegate
-  to the internal Server Wire Codec Module so local clients, mocks, and Start
-  transports share one wire policy. Mock/local clients also round-trip domain
-  failures through the function error schema; client-side failures such as
-  `EffectInputCallbackError`, schema errors, and transport errors stay in the
-  client error channel.
+  services. Mock and local clients round-trip inputs, outputs, and typed
+  failures through the Rpc's JSON codecs (the wire's codecs).
+  `Server.ClientError` is `RpcClientError` (transport) |
+  `ServerFunctionNotFound` | `Schema.SchemaError` | `EffectInputCallbackError`.
 - Resource state, status, `preload(...)`, `refresh(...)`, and Solid resource
   readers fail only with the Resource's declared load error `E`. A `load` or
   `provides` callback that breaks its contract (throws synchronously, returns
@@ -480,17 +493,16 @@ includes:
 
 - Local source modules: `hydration`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
-  `start-document`, `start-fetch`,
-  `start-request-handler`, `start-transport-protocol`,
+  `start-document`, `start-request-handler`,
   `static-client-navigation`, and `streaming`.
 - the app: `App.define({ root, routes, actions?, client? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
   client Layer must provide `R` (minus `App.LaunchServices`) or `App.define`
   does not compile. `App.launch(app, options?)` (`App.LaunchOptions`: `href`,
-  `hydration`, `transport`) is the browser entry: it builds the runtime from
+  `hydration`, `outbox`) is the browser entry: it builds the runtime from
   the client Layer plus the action transport and (outside static builds) the
-  RPC `Server.Client`, restores the server's hydration payload, and hydrates
+  server-function `Server.Client`, restores the server's hydration payload, and hydrates
   the root; it fails with the client Layer's error,
   `StartRootMissing`, or a hydration error (`App.LaunchError`).
 - request handling: `createRequestHandler(app, options?)` returns the
@@ -515,10 +527,14 @@ includes:
   `StartHydrationPayload`, `StartHydrationDocument`, `StartHydrationError`, and
   the `StartHydration*ParseError` / `StartHydrationPayloadSerializeError`
   classes are public error vocabulary.
-- transports: `App.launch` owns the browser RPC client and the action
-  transport, which use the fixed `/__sunfall-arc/rpc` and
-  `/__sunfall-arc/action` endpoints; `App.LaunchOptions.transport` sets their
-  `fetch` (`StartFetch`, `StartFetchInit`, `StartFetchInput`) and `headers`.
+- transports: `App.launch` owns the browser server-function client (an
+  `effect/rpc` `RpcClient`, JSON serialization) and the action transport,
+  which use the fixed `/__sunfall-arc/rpc` and `/__sunfall-arc/action`
+  endpoints. Both post through the runtime's one `HttpClient`: the client
+  Layer's when it provides one (headers, retries, custom fetch), else
+  `FetchHttpClient` (`App.LaunchServices` includes `HttpClient`). Start has no
+  fetch hook of its own. The server answers `/__sunfall-arc/rpc` with
+  `RpcServer.toHttpEffect` over an `RpcGroup` of `serverFunctions`.
 - durable submissions: `App.launch` provides the Action Outbox over the
   browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
   shared with persisted Resources;

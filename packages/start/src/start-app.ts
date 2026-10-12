@@ -9,14 +9,15 @@ import {
 } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import * as HttpClient from "effect/http/HttpClient";
 import { KeyValueStore } from "effect/persistence";
 import { hydrateFromDocument, type StartHydrationError } from "./hydration.js";
 import { startActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { makeActionTransportLayer } from "./start-action-transport.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import { startRootElementId } from "./start-document.js";
-import type { StartFetch } from "./start-fetch.js";
-import { makeRpcClientLayer } from "./start-rpc-client.js";
+import { rpcClientLayer } from "./start-rpc-client.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -59,9 +60,14 @@ export type AnyAppDefinition = AppDefinition<readonly AnyRoute[], any, any, any,
 /**
  * Services `App.launch` adds to the client Layer. `KeyValueStore` is the
  * client Layer's own when it provides one, else Web Storage
- * (`localStorage`), or memory where there is none.
+ * (`localStorage`), or memory where there is none. `HttpClient` is the
+ * client Layer's own when it provides one, else `FetchHttpClient`.
  */
-export type AppLaunchServices = ActionTransport | Server.Client | KeyValueStore.KeyValueStore;
+export type AppLaunchServices =
+  | ActionTransport
+  | Server.Client
+  | KeyValueStore.KeyValueStore
+  | HttpClient.HttpClient;
 
 /** Raised by `App.launch` when the document has no app root element. */
 export class StartRootMissing extends Data.TaggedError("StartRootMissing")<{
@@ -106,6 +112,19 @@ const clientKeyValueStore = Layer.unwrap(
   ),
 );
 
+/**
+ * The browser's one `HttpClient`, shared by the server-function `RpcClient`
+ * and the action transport: the client Layer's when it provides one (to add
+ * headers, retries, or a custom fetch), else `FetchHttpClient`.
+ */
+const clientHttpClient = Layer.unwrap(
+  Effect.map(Effect.serviceOption(HttpClient.HttpClient), (client) =>
+    Option.isSome(client)
+      ? Layer.succeed(HttpClient.HttpClient)(client.value)
+      : FetchHttpClient.layer,
+  ),
+);
+
 /** Start apps: one definition, served by `createRequestHandler` and launched by `App.launch`. */
 export namespace App {
   /** A Start app definition built by `App.define`. */
@@ -139,11 +158,6 @@ export namespace App {
     readonly href?: string;
     /** Resource hydration policy for the server snapshot (e.g. `timestamp: "now"`). */
     readonly hydration?: Resource.HydrationOptions;
-    /** Transport settings for server-function RPC and Action submissions. */
-    readonly transport?: {
-      readonly fetch?: StartFetch;
-      readonly headers?: HeadersInit | (() => HeadersInit);
-    };
     /**
      * Options for the Action Outbox that holds durable Action submissions
      * (`retry`; see `Action.outboxLayer`). The outbox persists to the
@@ -199,7 +213,7 @@ export namespace App {
   /**
    * The browser entry: builds the client runtime (the app's client Layer plus
    * the action transport, the Action Outbox, and, outside static builds, the
-   * RPC client), restores the server's hydration payload into it, hydrates the
+   * server-function `RpcClient`, both over one `HttpClient`), restores the server's hydration payload into it, hydrates the
    * server-rendered root, and then restores pending durable Action
    * submissions. Like `Component.launch`, it keeps the app mounted until
    * interrupted, then disposes the tree and the runtime.
@@ -228,12 +242,6 @@ export namespace App {
             guidance: `App.launch hydrates the element with id="${startRootElementId}" that Start's document renders. Load the browser entry from a page served by createRequestHandler.`,
           });
         }
-        const transport = {
-          ...(options.transport?.fetch === undefined ? {} : { fetch: options.transport.fetch }),
-          ...(options.transport?.headers === undefined
-            ? {}
-            : { headers: options.transport.headers }),
-        };
         const browserRpc =
           typeof __SUNFALL_ARC_BROWSER_RPC__ === "undefined" || __SUNFALL_ARC_BROWSER_RPC__;
         const runtime = yield* Effect.acquireRelease(
@@ -244,13 +252,9 @@ export namespace App {
                   clientKeyValueStore.pipe(
                     Layer.provideMerge(
                       Layer.mergeAll(
-                        app.client,
-                        makeActionTransportLayer({
-                          ...transport,
-                          actions: app.actions,
-                        }),
-                        browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
-                      ),
+                        makeActionTransportLayer({ actions: app.actions }),
+                        browserRpc ? rpcClientLayer : Layer.empty,
+                      ).pipe(Layer.provideMerge(clientHttpClient), Layer.provideMerge(app.client)),
                     ),
                   ),
                 ),

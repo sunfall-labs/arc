@@ -11,7 +11,6 @@ import {
   type SunfallArcRuntime,
   type Action,
   type ActionResult,
-  type Server,
   type State,
   StateRefTypeId,
 } from "@sunfall/arc-core";
@@ -19,7 +18,8 @@ import {
   eraseRuntime,
   makeActionInstance,
   resourceRenderCause,
-  resourceRowsGet,
+  resourceRowKey,
+  resourceRowPositions,
   resourceRowsIndex,
   SignalWrites,
   startStateOnRuntime,
@@ -32,7 +32,6 @@ import { pipeArguments, type Pipeable } from "effect/Pipeable";
 import {
   createComponent,
   createMemo,
-  createProjection,
   createRoot,
   Errored,
   getOwner,
@@ -45,6 +44,7 @@ import {
 } from "solid-js";
 import { hydrate as hydrateSolid, render as renderSolid, type JSX } from "@solidjs/web";
 import { setupRenderFailure, typedRenderFailure } from "./render-failure.js";
+import { projectView } from "./view-projection.js";
 import {
   bindLiveQuery,
   type LiveQueryHandle as LiveQueryBindingHandle,
@@ -363,6 +363,8 @@ const buildOncePerRuntime = <ROut, E, RIn>(
 interface ResourceReaderEntry<A, E> {
   readonly binding: ResourceSuspense<A, E>;
   readonly dispose: () => void;
+  /** Index buckets of stored rows, as the binding's view rows. */
+  readonly buckets: WeakMap<ReadonlyArray<unknown>, ReadonlyArray<unknown>>;
   users: number;
 }
 
@@ -400,11 +402,12 @@ const makeResourceReader = <I, A, E, R>(
         (dispose): ResourceReaderEntry<A, E> => ({
           binding: createResourceSuspense(runtime, ref),
           dispose,
+          buckets: new WeakMap(),
           users: 0,
         }),
       ),
     );
-  const claim = (input: I): ResourceSuspense<A, E> => {
+  const claim = (input: I): ResourceReaderEntry<A, E> => {
     const ref = family(input);
     let entry = entries.get(ref.key);
     if (entry === undefined) {
@@ -421,11 +424,20 @@ const makeResourceReader = <I, A, E, R>(
         }
       });
     }
-    return entry.binding;
+    return entry;
   };
-  const result = (input: I) => claim(input).result();
+  const result = (input: I) => claim(input).binding.result();
   const { name, rows } = family.family.options;
-  const reader = Object.assign((input: I): A => claim(input).read(), {
+  // Row lookups run on the stored rows (their lookup structures are cached
+  // by array identity) and return the view's row at the same position, so a
+  // looked-up row is the row `reader(input)` renders.
+  type Rows = ReadonlyArray<unknown>;
+  const rowsOf = (input: I) => {
+    const entry = claim(input);
+    const stored = entry.binding.raw() as Rows;
+    return { entry, stored, positions: resourceRowPositions(name, rows!, stored) };
+  };
+  const reader = Object.assign((input: I): A => claim(input).binding.read(), {
     waiting: (input: I): boolean => result(input).waiting,
     failure: (input: I): Cause.Cause<unknown> | undefined => {
       const current = result(input);
@@ -435,10 +447,22 @@ const makeResourceReader = <I, A, E, R>(
     },
     // Present on every reader; the types offer them only when the family
     // declares `rows`. Each reads the rows of the current value.
-    get: (input: I, key: Resource.RowKey): unknown =>
-      resourceRowsGet(name, rows!, claim(input).read() as ReadonlyArray<unknown>, key),
-    index: (input: I, index: string, value: unknown): ReadonlyArray<unknown> =>
-      resourceRowsIndex(name, rows!, claim(input).read() as ReadonlyArray<unknown>, index, value),
+    get: (input: I, key: Resource.RowKey): unknown => {
+      const { entry, positions } = rowsOf(input);
+      const position = positions.get(key);
+      return position === undefined ? undefined : (entry.binding.read() as Rows)[position];
+    },
+    index: (input: I, index: string, value: unknown): ReadonlyArray<unknown> => {
+      const { entry, stored, positions } = rowsOf(input);
+      const bucket = resourceRowsIndex(name, rows!, stored, index, value);
+      let viewed = entry.buckets.get(bucket);
+      if (viewed === undefined) {
+        const view = entry.binding.read() as Rows;
+        viewed = bucket.map((row) => view[positions.get(resourceRowKey(name, rows!, row))!]);
+        entry.buckets.set(bucket, viewed);
+      }
+      return viewed;
+    },
   }) satisfies Component.ResourceReader<I, A, unknown>;
   const dispose = (): void => {
     const current = Array.from(entries.values());
@@ -468,37 +492,24 @@ type StateModelLeaf =
 
 /**
  * Projects a State model signal into a fine-grained Solid view owned by the
- * current owner.
+ * current owner (see `projectView`).
  *
  * A State whose initial model is a primitive (a toggle, a search string)
  * reads the signal directly: there is nothing to reconcile, so it skips the
- * store projection. Object models are boxed so nullable and union models
- * share one path: `box.value` re-notifies only when the root changes identity
- * (a primitive change, an object/array swap, or a different keyed entity),
- * while reconcile adopts each committed model as the store's backing and
- * notifies only the leaves that changed. Either path renders every value
- * correctly; only the granularity differs.
- *
- * A projection (not a plain store) is required: plain stores share one proxy
- * per raw object across every store, so two instances of a State, whose
- * immutable models share objects such as `initial`, would see each other's
- * reconciles. A projection's proxies belong to its own family.
+ * store projection. Either path renders every value correctly; only the
+ * granularity differs.
  */
 const projectModel = <Model>(
   model: Signal.Readable<Model>,
   initial: unknown,
   key: Component.StateOptions["key"],
-): Accessor<Component.StateView<Model>> => {
-  if (typeof initial !== "object" || initial === null) {
-    return () => model.get() as Component.StateView<Model>;
-  }
-  const view = createProjection<{ value: Component.StateView<Model> }>(
-    () => ({ value: model.get() as Component.StateView<Model> }),
-    {},
-    { key: key === undefined ? "id" : key },
-  );
-  return () => view.value;
-};
+): Accessor<Component.StateView<Model>> =>
+  typeof initial !== "object" || initial === null
+    ? () => model.get() as Component.StateView<Model>
+    : projectView(
+        () => ({ value: model.get() as Component.StateView<Model> }),
+        key === undefined ? "id" : key,
+      );
 
 /**
  * True for a message's fields. A DOM event is not: a sender bound straight to
@@ -662,7 +673,9 @@ export namespace Component {
    * `reader(input)` is the only way to render the value: it suspends the
    * nearest `<Loading>` until the first value and keeps returning the current
    * (or, after a failed refresh, the stale) value afterwards, so content stays
-   * mounted across refreshes. Status chrome reads `waiting(input)` and
+   * mounted across refreshes. The value is a read-only fine-grained view: a
+   * binding re-runs only when the field it reads changes, so a refresh never
+   * disturbs what it did not change. Status chrome reads `waiting(input)` and
    * `failure(input)`, which carry no value.
    */
   export interface ResourceReader<I, A, E> {
@@ -704,7 +717,7 @@ export namespace Component {
    * Failures an Action submission reports: its own and transport failures. A
    * callback that breaks its contract is a defect, not part of the type.
    */
-  export type ActionError<E> = E | Server.ClientError;
+  export type ActionError<E> = E | Action.ClientError;
 
   /**
    * Instance-bound Action handle from `Component.action`.

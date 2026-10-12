@@ -1,6 +1,5 @@
 import {
-  Server,
-  ServerRpcProtocolError,
+  ActionProtocolError,
   applyResponseContext,
   type EffectInputCallbackError,
   makeResponseContext,
@@ -9,16 +8,20 @@ import {
   type Route,
   type ResponseContext,
   type Action,
+  type Server,
 } from "@sunfall/arc-core";
 import {
-  decodeServerWire,
+  decodeActionWire,
   makeActionInstance,
   type AppDefinitionRegistry,
   type AppDefinitionRegistryActionRequirements,
   type AppDefinitionRegistryServerFunctionRequirements,
   type ActionDefinitionRequirements,
 } from "@sunfall/arc-core/internal";
-import { Cause, Effect, Exit, type Scope } from "effect";
+import { Cause, Effect, Exit, Schema, type Scope } from "effect";
+import * as HttpServerRequest from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { RpcGroup, RpcSerialization, RpcServer, type Rpc } from "effect/rpc";
 import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
 import {
   makeStartActionWorkflows,
@@ -26,16 +29,22 @@ import {
   type StartActionWorkflows,
 } from "./start-action-workflow.js";
 import type { StartServerApp } from "./start-server-app.js";
-import { validateStartActionRequest, validateStartRpcRequest } from "./rpc.js";
+import {
+  validateStartActionRequest,
+  validateStartRpcRequest,
+  type StartTransportRequestError,
+} from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
   recordStartRequestFailure,
   withStartActionObservability,
   withStartRpcObservability,
   type StartRequestFacts,
+  type StartRequestFailureKind,
 } from "./request-trace.js";
 import {
   actionExitResponse,
+  actionFailureKind,
   actionFunctionNotFoundResponse,
   actionProtocolFailureResponse,
   actionResponseMeta,
@@ -44,22 +53,93 @@ import {
   actionTransportRequestFailureResponse,
 } from "./start-action-response-codec.js";
 import {
-  actionFailureKind,
-  exitToRpcResponse,
-  functionNotFoundResponse,
   makeActionMap,
-  protocolFailureResponse,
-  readRequestJson,
-  rpcFailureKind,
-  rpcRuntimeFailureResponse,
-  rpcTransportRequestFailureResponse,
-} from "./start-transport-protocol.js";
-import type { StartActionSource } from "./start-transport-protocol.js";
-import {
+  serializeDefect,
   readStartActionRequest,
   type StartActionDefinition,
+  type StartActionSource,
 } from "./start-action-request-codec.js";
 import { runStartTransportEndpoint } from "./start-transport-endpoint-runner.js";
+
+type AnyServerFunction = Server.Fn<any, any, any, any>;
+
+const rpcFailureKind = (
+  fn: AnyServerFunction,
+  exit: Exit.Exit<unknown, unknown>,
+): StartRequestFailureKind | undefined => {
+  if (Exit.isSuccess(exit)) {
+    return undefined;
+  }
+  const failure = exit.cause.reasons.find(Cause.isFailReason);
+  if (failure !== undefined) {
+    return Schema.is(fn.rpc.errorSchema)(failure.error) ? "domain" : "defect";
+  }
+  return exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect";
+};
+
+/**
+ * Serves the registry's server functions for one request with `effect/rpc`:
+ * an `RpcGroup` of their Rpcs, handled by `RpcServer` over HTTP with JSON
+ * serialization. Handlers run in this request's fiber context, so they see
+ * the request runtime (`RequestContext`, `ResponseContext`, server services).
+ */
+const serveServerFunctions = (
+  functions: ReadonlyMap<string, AnyServerFunction>,
+  request: Request,
+  facts: StartRequestFacts | undefined,
+): Effect.Effect<Response, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    let handled = false;
+    const served = [...functions.values()];
+    const group = RpcGroup.make(...served.map((fn) => fn.rpc as Rpc.Any));
+    const handlers = yield* group.toHandlers(
+      Object.fromEntries(
+        served.map((fn) => [
+          fn.name,
+          (payload: unknown) => {
+            handled = true;
+            return withStartRpcObservability(fn.name, fn.local(payload)).pipe(
+              Effect.onExit((exit) =>
+                Effect.sync(() => {
+                  const kind = rpcFailureKind(fn, exit);
+                  if (kind !== undefined) {
+                    recordStartRequestFailure(facts, kind);
+                  }
+                }),
+              ),
+            );
+          },
+        ]),
+      ) as never,
+    );
+    const httpEffect = yield* RpcServer.toHttpEffect(group, {
+      disableTracing: true,
+      disableFatalDefects: true,
+    }).pipe(
+      Effect.provideContext(handlers),
+      Effect.provideService(RpcSerialization.RpcSerialization, RpcSerialization.json),
+    );
+    const response = yield* httpEffect.pipe(
+      Effect.provideService(
+        HttpServerRequest.HttpServerRequest,
+        HttpServerRequest.fromWeb(request),
+      ),
+    );
+    if (!handled) {
+      // Malformed messages, unknown functions, and payloads that fail their
+      // input schema end before any handler runs.
+      recordStartRequestFailure(facts, "protocol");
+    }
+    return HttpServerResponse.toWeb(response);
+  }) as Effect.Effect<Response, never, Scope.Scope>;
+
+const rpcTransportRequestFailureResponse = (error: StartTransportRequestError): Response =>
+  new Response(null, {
+    status: error.status,
+    headers: error.allow === undefined ? {} : { allow: error.allow },
+  });
+
+const rpcRuntimeFailureResponse = (): Response => new Response(null, { status: 500 });
 
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
@@ -92,51 +172,7 @@ export const createServerRpcResponseEffectWithRuntime = <
       validateRequest: validateStartRpcRequest,
       transportFailureResponse: rpcTransportRequestFailureResponse,
       runtimeFailureResponse: rpcRuntimeFailureResponse,
-      run: () =>
-        Effect.gen(function* () {
-          const payload = yield* readRequestJson(request).pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                recordStartRequestFailure(facts, "protocol");
-                return protocolFailureResponse(error);
-              }),
-            ),
-          );
-          if (payload instanceof Response) {
-            return payload;
-          }
-
-          const decoded = yield* Server.decodeRpcRequest(payload).pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                recordStartRequestFailure(facts, "protocol");
-                return protocolFailureResponse(
-                  new ServerRpcProtocolError({
-                    message: error.message,
-                    payload: Server.serializeDefect(error),
-                  }),
-                );
-              }),
-            ),
-          );
-          if (decoded instanceof Response) {
-            return decoded;
-          }
-
-          const fn = app.registry.serverFunctions.get(decoded.name);
-          if (!fn) {
-            recordStartRequestFailure(facts, "protocol");
-            return functionNotFoundResponse(decoded.name);
-          }
-
-          const exit = yield* Effect.exit(
-            withStartRpcObservability(decoded.name, fn.invoke(decoded.input)),
-          );
-          if (Exit.isFailure(exit)) {
-            recordStartRequestFailure(facts, yield* rpcFailureKind(fn, exit));
-          }
-          return yield* exitToRpcResponse(fn, exit);
-        }),
+      run: () => serveServerFunctions(app.registry.serverFunctions, request, facts),
     },
   }) as Effect.Effect<
     Response,
@@ -261,14 +297,14 @@ export const createServerActionResponseEffectWithRuntime = <
           }
 
           const produce = Effect.gen(function* () {
-            const input = yield* decodeServerWire(action.input, decoded.input).pipe(
+            const input = yield* decodeActionWire(action.input, decoded.input).pipe(
               Effect.catch((error) =>
                 Effect.sync(() => {
                   recordStartRequestFailure(facts, "validation");
                   return actionProtocolFailureResponse(
-                    new ServerRpcProtocolError({
+                    new ActionProtocolError({
                       message: error.message,
-                      payload: Server.serializeDefect(error),
+                      payload: serializeDefect(error),
                     }),
                   );
                 }),

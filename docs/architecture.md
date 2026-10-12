@@ -19,7 +19,7 @@ target. The public API is owned by Sunfall Arc:
   Layer per host or test.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
-- `Server.contract` / `Server.client` / `Server.implement` for schema-described server calls.
+- `Server.contract` / `Server.client` / `Server.implement` for schema-described server calls (each contract is an `effect/rpc` `Rpc`).
 
 Future versions can add a custom TSRX host profile once the runtime semantics are stable.
 
@@ -315,6 +315,16 @@ whose initial model is a primitive (a toggle, a search string) skips the
 projection and reads the signal directly. Foldkit-style centralized state,
 Solid-style granular updates.
 
+Resource values take the same path. The Resource Store shares every new value
+of an entry with the one it replaces (deep-equal parts stay the previous
+objects, rows match by `rows.key`), so an equal refresh changes nothing Effect
+code or live queries can see, and the reader projects the value into the same
+kind of read-only view, keyed by `rows.key` or `"id"`. Both halves are needed:
+Solid re-applies a DOM binding whenever its computation re-runs, even to an
+equal value, so identity alone cannot stop a sibling-field change from
+rewriting an `<input>`, and a projection alone would leave Effect consumers
+with a new object per refresh.
+
 ## Runtime Spine
 
 Every app has an `SunfallArcRuntime`, backed by Effect `ManagedRuntime`. A
@@ -342,7 +352,7 @@ response Effect to run.
 
 Request and response facts are ordinary services. `RequestContext` exposes the
 current `Request`, parsed `URL`, headers, and cookies. `ResponseContext` lets
-preload, render, server functions, actions, and server routes set status,
+preload, render, server functions, and actions set status,
 headers, and cookies through Effect:
 
 <!-- prettier-ignore -->
@@ -453,10 +463,11 @@ Action counterpart of `Server.Client`. Every Action instance looks it up when it
 submits: Actions the transport serves run remotely, and the response (decoded
 outcome, hydrated Resources, invalidations) applies to the
 submitting runtime; every other Action runs its `run` locally. Start's
-`App.launch(app)` provides it for the app's `actions`, next to the RPC
-`Server.Client`. UI code never chooses: Solid's
+`App.launch(app)` provides it for the app's `actions`, next to the server-function
+`Server.Client`; both post through the runtime's one `HttpClient`. UI code never chooses: Solid's
 `Component.action(definition)` submits the same way either way, with the same
-result type and error type (the Action's own errors plus `Server.ClientError`).
+result type and error type (the Action's own errors plus `Action.ClientError`:
+`ActionTransportError`, `ActionProtocolError`, `ActionNotFound`).
 A superseded `parallel` submission applies only its invalidations, so hydrated
 values stay latest-only. The server's action endpoint always runs Actions
 locally and never applies `optimistic`: only the submitting client patches its
@@ -466,10 +477,11 @@ JSON action clients and progressive form helpers share the same Start Action
 Request Codec. Schema-backed input encoding happens before values cross the
 wire/form seam; synchronous form helpers fail with `StartActionFormEncodeError`
 when defaults cannot be encoded.
-The RPC and action browser clients also share a private Start client transport
-Module for request serialization, fetch invocation, status validation, and
-transport error mapping; the protocol Modules still own RPC/action-specific
-request and response decoding.
+The action client posts through the same `HttpClient` the server-function
+`RpcClient` uses (the client Layer's, else `FetchHttpClient`), so headers,
+retries, and trace propagation are configured once, on the `HttpClient`. The
+action wire protocol (no-JS forms, redirects, durable submission ids) stays
+Start's own.
 
 The small `StartAction.form(action, { input })` helper generates the form method,
 action URL, and hidden metadata fields. Visible form controls are merged over
@@ -607,7 +619,7 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   instead leaves the submission pending and fails the caller with
   `ActionQueued { actionName, id }`; the handle's `failure()` shows it, and
   the patch stays applied. Retryable means a transport failure that says
-  nothing about the Action (`isRetryableActionFailure`: `ServerTransportError`
+  nothing about the Action (`isRetryableActionFailure`: `ActionTransportError`
   with reason `Network`/`Interrupted`, or a 408, 429, or 5xx status that is
   not a Start defect). Typed domain failures, protocol failures, and defects
   are final.
@@ -1280,26 +1292,28 @@ request/response policy while keeping their own handler-selection concerns.
 
 ## Isomorphic Server Functions
 
-Server functions are contract-first. Shared modules define wire schemas, tagged
-errors, and named `Server.contract` values, then export browser-safe clients from
-those contracts:
+Server functions are contract-first, and every contract is an `effect/rpc`
+`Rpc`. Shared modules define wire schemas, tagged errors, and named
+`Server.contract` values, then export browser-safe clients from those
+contracts:
 
 ```ts
 export class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
   id: ProjectId,
 }) {}
 
-export const GetProject = Server.contract<{ readonly id: ProjectId }, Project, ProjectNotFound>(
-  "Project.get",
-  {
-    input: Schema.Struct({ id: ProjectId }),
-    output: Project,
-    error: ProjectNotFound,
-  },
-);
+export const GetProject = Server.contract("Project.get", {
+  input: Schema.Struct({ id: ProjectId }),
+  output: Project,
+  error: ProjectNotFound,
+});
 
 export const getProject = Server.client(GetProject);
 ```
+
+`input` and `output` are required; `error` defaults to `Schema.Never` (no
+typed failures). The contract's types come from the schemas, and
+`GetProject.rpc` is the `Rpc` (tag `"Project.get"`) Start serves.
 
 Application resources and actions import these shared clients. The same call site
 works on the server and in the browser:
@@ -1337,15 +1351,36 @@ function, so the browser graph never imports server handlers and handlers
 cannot drift from their public schema. Server-only code that needs no browser
 client still declares a contract and implements it in the same module.
 
-On the server, Start provides a request-local `Server.Client` during request
-preload and render, so shared clients dispatch to registered local handlers
-through the Effect runtime even when the app runtime also provides a remote
-client service. In the browser, `App.launch` provides a fetch-backed
-`Server.Client` (compiled out of static-client builds) that posts to the
-Start RPC endpoint, `POST /__sunfall-arc/rpc`. Start action clients and
-progressive forms post to `POST /__sunfall-arc/action`. Both paths are fixed:
-the request handler, the Vite dev middleware, and the clients share them. The
-resource/action/router code above does not change.
+The transport is `effect/rpc`, end to end:
+
+- **Server.** `createRequestHandler(app, { serverFunctions })` serves
+  `POST /__sunfall-arc/rpc`: it builds an `RpcGroup` from the served
+  functions' Rpcs and answers with `RpcServer.toHttpEffect` and
+  `RpcSerialization.json`. Handlers run in the request runtime's fiber
+  context, so `RequestContext`, `ResponseContext` (status, headers, cookies),
+  and the server Layer's services are available, as in SSR.
+- **Browser.** `App.launch` provides `Server.Client` as an `RpcClient` over
+  the runtime's `HttpClient` (the client Layer's when it provides one, else
+  `FetchHttpClient`), compiled out of static-client builds. `HttpClient`
+  propagates the caller's span (`traceparent`), so the server's request span
+  continues the client's trace. Configure headers, retries, or a custom fetch
+  on that `HttpClient`.
+- **SSR.** During request preload and render, Start provides a request-local
+  `Server.localClient(...)`: calls run the registered implementation
+  in-process (no HTTP), passing the input, output, and typed failures through
+  the Rpc's JSON codecs, so SSR sees the values a browser would decode.
+
+Typed failures cross the wire Schema-encoded and decode as the error schema's
+values (a `Schema.TaggedError` arrives as an instance). Failures the schema
+cannot encode, handler defects, payloads that fail the input schema, and
+functions the server does not serve arrive as defects, as `effect/rpc`
+reports them; transport failures are `RpcClientError` in `Server.ClientError`.
+Start action clients and progressive forms post to `POST /__sunfall-arc/action`.
+Both paths are fixed: the request handler, the Vite dev middleware, and the
+clients share them. The resource/action/router code above does not change.
+
+Arc has no separate server-route API: arbitrary HTTP routes belong to
+`effect/http` (`HttpRouter`) in the host, next to the Start handler.
 
 The Vite plugin treats `*.server.ts` / `*.server.tsx` as server-only modules.
 Client transforms fail if one enters the browser graph. Use a shared contract
@@ -1366,11 +1401,11 @@ const value =
 ```
 
 `Server.mock(...)` does not register a global handler and does not import
-`.server.ts`. It still validates through the contract schemas, so test doubles
-catch bad inputs and outputs early. `Server.mockLayer(...)` is the one way to
-install mocks: provide it to a single Effect, or merge it into the runtime
-Layer for apps and integration tests that build a runtime with dependency
-injection.
+`.server.ts`. It still validates through the contract schemas (the same JSON
+codecs the wire uses), so test doubles catch bad inputs and outputs early.
+`Server.mockLayer(...)` is the one way to install mocks: provide it to a
+single Effect, or merge it into the runtime Layer for apps and integration
+tests that build a runtime with dependency injection.
 
 ## Signal And Stream Semantics
 
@@ -1437,8 +1472,9 @@ Effect-first APIs:
   reload resources as Effects.
 - `action.submit(input)` runs action workflows, optimistic patches,
   concurrency, and invalidation as an Effect.
-- `serverFunction.effect(input)` is the local Effect API;
-  `serverFunction.invoke(raw)` is the schema-validated wire API.
+- `serverFunction.effect(input)` calls through the provided `Server.Client`
+  (the `RpcClient` in the browser, the in-process client during SSR, mocks in
+  tests); `serverFunction.local(input)` runs the implementation directly.
 
 Resource retry policy is an Effect `Schedule`, not a framework-specific retry
 DSL:

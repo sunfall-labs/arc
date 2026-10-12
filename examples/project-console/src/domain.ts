@@ -84,8 +84,8 @@ export interface PresenceEvent {
 }
 
 export interface ProjectApi {
-  readonly list: () => Effect.Effect<ProjectSummary[], Server.ClientError>;
-  readonly listWorkItems: () => Effect.Effect<ProjectWorkItem[], Server.ClientError>;
+  readonly list: () => Effect.Effect<ReadonlyArray<ProjectSummary>, Server.ClientError>;
+  readonly listWorkItems: () => Effect.Effect<ReadonlyArray<ProjectWorkItem>, Server.ClientError>;
   readonly get: (id: ProjectIdType) => Effect.Effect<Project, ProjectRemoteError>;
   readonly submitName: (
     input: typeof SubmitProjectNameInput.Type,
@@ -102,8 +102,9 @@ export const ProjectApi = Context.Service<ProjectApi>(
   "@sunfall/arc-example-project-console/ProjectApi",
 );
 
+/** Rebuilds the `ActionResult` a submission returned from its wire shape. */
 export const normalizeProjectNameSubmissionResult = (
-  result: ProjectNameSubmissionResult,
+  result: typeof ProjectNameSubmissionResultSchema.Type,
 ): ProjectNameSubmissionResult => {
   switch (result._tag) {
     case "Success":

@@ -164,14 +164,14 @@ export const ProjectNameSubmissionResultSchema = Schema.TaggedUnion({
   },
   ValidationFailure: {
     fieldErrors: Schema.Struct({
-      name: Schema.optional(Schema.Array(Schema.String)),
+      name: Schema.optionalKey(Schema.Array(Schema.String)),
     }),
     formErrors: Schema.Array(Schema.String),
     cause: Schema.optional(Schema.Unknown),
   },
   Redirect: {
     location: Schema.String,
-    status: Schema.Number,
+    status: Schema.Literals([303, 307, 308]),
     replace: Schema.optional(Schema.Boolean),
   },
   Failure: {
@@ -179,59 +179,37 @@ export const ProjectNameSubmissionResultSchema = Schema.TaggedUnion({
   },
 });
 
-export const ListProjectsContract = Server.contract<"all", ProjectSummary[], never>(
-  "Project.list",
-  {
-    input: Schema.Literal("all"),
-    output: Schema.Array(ProjectSummarySchema),
-    error: Schema.Never,
-  },
-);
+export const ListProjectsContract = Server.contract("Project.list", {
+  input: Schema.Literal("all"),
+  output: Schema.Array(ProjectSummarySchema),
+  error: Schema.Never,
+});
 
-export const GetProjectContract = Server.contract<
-  { readonly id: ProjectId },
-  Project,
-  ProjectError
->("Project.get", {
+export const GetProjectContract = Server.contract("Project.get", {
   input: Schema.Struct({ id: ProjectId }),
   output: ProjectSchema,
   error: ProjectErrorSchema,
 });
 
-export const ListProjectWorkItemsContract = Server.contract<"all", ProjectWorkItem[], never>(
-  "Project.workItems.list",
-  {
-    input: Schema.Literal("all"),
-    output: Schema.Array(ProjectWorkItemSchema),
-    error: Schema.Never,
-  },
-);
+export const ListProjectWorkItemsContract = Server.contract("Project.workItems.list", {
+  input: Schema.Literal("all"),
+  output: Schema.Array(ProjectWorkItemSchema),
+  error: Schema.Never,
+});
 
-export const SubmitProjectNameContract = Server.contract<
-  SubmitProjectNameInput,
-  ProjectNameSubmissionResult,
-  never
->("Project.name.submit", {
+export const SubmitProjectNameContract = Server.contract("Project.name.submit", {
   input: SubmitProjectNameInput,
   output: ProjectNameSubmissionResultSchema,
   error: Schema.Never,
 });
 
-export const AdvanceProjectContract = Server.contract<
-  { readonly id: ProjectId },
-  Project,
-  ProjectError
->("Project.advance", {
+export const AdvanceProjectContract = Server.contract("Project.advance", {
   input: AdvanceProjectInput,
   output: ProjectSchema,
   error: ProjectErrorSchema,
 });
 
-export const UpdateWorkItemStatusContract = Server.contract<
-  typeof UpdateWorkItemStatusInput.Type,
-  ProjectWorkItem,
-  ProjectError
->("Project.workItem.status", {
+export const UpdateWorkItemStatusContract = Server.contract("Project.workItem.status", {
   input: UpdateWorkItemStatusInput,
   output: ProjectWorkItemSchema,
   error: ProjectErrorSchema,

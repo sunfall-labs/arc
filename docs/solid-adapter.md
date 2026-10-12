@@ -177,8 +177,34 @@ return () => (
 );
 ```
 
-Key lists by identity (`<For each={rows()} keyed={(row) => row.id}>`) so a
-refresh that hands back new row objects keeps the same rows mounted.
+**A refresh never disturbs what didn't change.** Every new value of an entry
+(a refresh, an invalidation, the refetch after hydration, an optimistic patch,
+its fold or rollback, a `rows.changes` batch) is structurally shared with the
+value it replaces, in the Resource Store itself: a part deep-equal to its
+previous version is the previous object, and an entirely equal value is the
+previous value (`Resource.read` hands Effect code the same object). Plain
+objects and arrays are compared field by field; Dates, Maps, Sets, and Schema
+or Data classes are kept when they have the same prototype and are `Equal`.
+The reader then hands render code a fine-grained view of that value, the same
+read-only projection `Component.state` uses: a binding re-runs only when the
+field it read changes, and objects keep their view identity, keyed by the
+family's `rows.key` (or `"id"`). The view reaches into plain objects and
+arrays; a class instance (a Date, a Schema class) is one value, re-notified
+only when a refresh replaces it with one that is not `Equal`. Timeline travel shows those same values, so
+a jump re-runs only the bindings whose fields differ.
+
+```tsx
+// Typing into this input survives any refresh that leaves `name` alone,
+// including one that changes a sibling field such as `updatedAt`.
+<input name="name" value={props.project.name} />
+```
+
+So bind fields directly; no `createMemo` around a field is needed to protect
+it from refreshes. Keyed lists (`<For each={rows()} keyed={(row) => row.id}>`)
+keep their rows mounted across reloads, inserts, and reorders, and
+`reader.get(input, key)` and `reader.index(input, name, value)` return the
+same view rows `reader(input)` renders. The view is read-only: change server
+data with an Action.
 
 ### Actions: one binding, local or remote
 
@@ -224,7 +250,7 @@ In a Start app, `App.launch(app)` provides it for the app's `actions` (the
 Actions the server serves); those submit over the network and their responses (hydrated Resources,
 Resource invalidations) apply to the submitting runtime. Every
 other Action runs its `run` locally. The handle, its result type, and its error
-type (the Action's own errors plus `Server.ClientError`) are the same either
+type (the Action's own errors plus `Action.ClientError`) are the same either
 way. The no-JS form path is unchanged: `StartAction.form(definition, ...)`
 renders the same Action as a progressive `<form method="post">`.
 

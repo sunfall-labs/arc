@@ -28,7 +28,7 @@ export type { Recipe, RecipeBlock, RecipeContentError, RecipeSummary } from "./c
 
 export interface DocsContentApi {
   readonly listRecipes: () => Effect.Effect<
-    RecipeSummary[],
+    ReadonlyArray<RecipeSummary>,
     RecipeContentError | Server.ClientError
   >;
   readonly getRecipe: (

@@ -8,7 +8,7 @@ import {
   ActionSubmissionExpired,
   ActionTransport,
   makeRuntime,
-  ServerTransportError,
+  ActionTransportError,
   Signal,
   State,
   Timeline,
@@ -78,7 +78,7 @@ const fakeServer = (values: ReadonlyMap<string, string>) => {
             stored: storedIds(values),
           });
           if (!state.online) {
-            return Effect.fail(new ServerTransportError({ reason: "Network", message: "offline" }));
+            return Effect.fail(new ActionTransportError({ reason: "Network", message: "offline" }));
           }
           return Effect.succeed({
             exit: state.respond(input),
@@ -449,7 +449,7 @@ describe("Action outbox (durable submissions)", () => {
         const error = yield* Effect.flip(
           Action.use(Plain, { runtime: withOutbox }).submit({ id: "atlas", by: 1 }),
         );
-        expect(error).toBeInstanceOf(ServerTransportError);
+        expect(error).toBeInstanceOf(ActionTransportError);
         expect(server.state.sent[0]!.id).toBeUndefined();
         expect(storedIds(values)).toEqual([]);
 
@@ -459,7 +459,7 @@ describe("Action outbox (durable submissions)", () => {
         const bareError = yield* Effect.flip(
           Action.use(AdvanceAction, { runtime: bare }).submit({ id: "atlas", by: 1 }),
         );
-        expect(bareError).toBeInstanceOf(ServerTransportError);
+        expect(bareError).toBeInstanceOf(ActionTransportError);
         expect(Signal.peek((yield* bare.provide(Action.outbox)).pending)).toEqual([]);
         yield* withOutbox.dispose;
         yield* bare.dispose;

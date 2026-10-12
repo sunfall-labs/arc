@@ -1,3 +1,4 @@
+import * as HttpClient from "effect/http/HttpClient";
 import {
   Cause,
   Context,
@@ -106,13 +107,12 @@ import {
   createRequestHandler,
   hydrateFromDocument,
   StartAction,
-  type StartFetch,
   type StartHydrationError,
   type StartRequestHandler,
   type StartRequestHandlerError,
 } from "@sunfall/arc-start";
 import { makeActionTransportLayer } from "../packages/start/src/start-action-transport.js";
-import { makeRpcClientLayer } from "../packages/start/src/start-rpc-client.js";
+import { rpcClientLayer } from "../packages/start/src/start-rpc-client.js";
 import { makeStartServerApp } from "../packages/start/src/start-server-app.js";
 import {
   createFileRouteDefinitionsModule,
@@ -996,10 +996,26 @@ const projectConsoleBadSearch: ProjectConsoleFileRouteSearchById["route_projects
   tab: "timeline",
 };
 
-const GetProject = Server.contract<{ readonly id: string }, Project, ProjectError>("Project.get", {
+const ProjectErrorSchema = Schema.Struct({
+  _tag: Schema.Literal("ProjectError"),
+  message: Schema.String,
+});
+
+const GetProject = Server.contract("Project.get", {
   input: Schema.Struct({ id: Schema.String }),
   output: ProjectSchema,
+  error: ProjectErrorSchema,
 });
+// Contract types come from the schemas.
+const getProjectContract: Server.Contract<{ readonly id: string }, Project, ProjectError> =
+  GetProject;
+void getProjectContract;
+
+// @ts-expect-error server functions require an output schema
+Server.contract("Project.missingOutput", { input: Schema.String });
+
+// @ts-expect-error server functions require an input schema
+Server.contract("Project.missingInput", { output: Schema.String });
 
 const getProject = Server.client(GetProject);
 
@@ -1042,7 +1058,10 @@ Server.implement(GetProject, ({ id }) => ({ id }));
 // @ts-expect-error server implementations must return Effect or a pure value, not Promise
 Server.implement(GetProject, () => promisedProject);
 
-const LooseServerContract = Server.contract("Loose.server");
+const LooseServerContract = Server.contract("Loose.server", {
+  input: Schema.Void,
+  output: Schema.Unknown,
+});
 Server.implement(LooseServerContract, () => "ok");
 Server.mock(LooseServerContract, () => "ok");
 
@@ -2443,7 +2462,7 @@ const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocu
   run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 });
 const RegistryReadDocumentRpc = Server.implement(
-  Server.contract<void, string, never>("RuntimeDocument.registryRpc"),
+  Server.contract("RuntimeDocument.registryRpc", { input: Schema.Void, output: Schema.String }),
   () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
 // The app's Actions and the handler's server functions add their services to
@@ -2570,7 +2589,7 @@ const PureServicefulInvalidationAction = Action.define({
 });
 const pureServicefulInvalidationSubmit: Effect.Effect<
   Project,
-  Server.ClientError | ActionInterrupted,
+  Action.ClientError | ActionInterrupted,
   ProjectApi
 > = Action.use(PureServicefulInvalidationAction, { runtime: emptyActionRuntime }).submit({
   id: "atlas",
@@ -2599,7 +2618,7 @@ const ResultServicefulInvalidationAction = Action.define({
 });
 const resultServicefulInvalidationSubmit: Effect.Effect<
   unknown,
-  Server.ClientError | ActionInterrupted,
+  Action.ClientError | ActionInterrupted,
   ProjectApi
 > = Action.use(ResultServicefulInvalidationAction, { runtime: emptyActionRuntime }).submit({
   id: "atlas",
@@ -2657,13 +2676,13 @@ const ReadDocumentAction = Action.define<void, string, never, RuntimeDocumentSer
 const readDocumentAction = Action.use(ReadDocumentAction, { runtime: emptyActionRuntime });
 const readDocumentActionSubmit: Effect.Effect<
   string,
-  Server.ClientError | ActionInterrupted,
+  Action.ClientError | ActionInterrupted,
   RuntimeDocumentService
 > = readDocumentAction.submit(undefined);
 const readDocumentRuntimeAction = Action.use(ReadDocumentAction, { runtime: typedRuntime });
 const readDocumentRuntimeActionSubmit: Effect.Effect<
   string,
-  Server.ClientError | ActionInterrupted
+  Action.ClientError | ActionInterrupted
 > = readDocumentRuntimeAction.submit(undefined);
 const readDocumentRuntimeActionDefinitionRun: EffectInput<string, never, RuntimeDocumentService> =
   readDocumentRuntimeAction.definition.run(undefined);
@@ -2686,7 +2705,7 @@ const readDocumentAndMissingRuntimeAction = Action.use(ReadDocumentAndMissingAct
 });
 const readDocumentAndMissingRuntimeActionSubmit: Effect.Effect<
   string,
-  Server.ClientError | ActionInterrupted,
+  Action.ClientError | ActionInterrupted,
   RuntimeMissingService
 > = readDocumentAndMissingRuntimeAction.submit(undefined);
 // @ts-expect-error runtime-bound actions still preserve services not supplied by the runtime
@@ -2704,7 +2723,7 @@ const readDocumentRuntimeErrorAction = Action.use(ReadDocumentAction, {
 });
 const readDocumentRuntimeErrorSubmit: Effect.Effect<
   string,
-  Server.ClientError | ActionInterrupted | RuntimeStartupError
+  Action.ClientError | ActionInterrupted | RuntimeStartupError
 > = readDocumentRuntimeErrorAction.submit(undefined);
 // Component bindings: the definition's services join the Component's R, and
 // submissions see the instance's context (no runtime errors: it has started).
@@ -2714,7 +2733,7 @@ const solidReadDocumentActionBinding: Effect.Effect<
   RuntimeDocumentService
 > = Component.action(ReadDocumentAction);
 const solidReadDocumentAction = bound(solidReadDocumentActionBinding);
-const solidReadDocumentActionSubmit: Effect.Effect<string, Server.ClientError | ActionInterrupted> =
+const solidReadDocumentActionSubmit: Effect.Effect<string, Action.ClientError | ActionInterrupted> =
   solidReadDocumentAction.submit(undefined);
 void readDocumentActionSubmit;
 void readDocumentRuntimeActionSubmit;
@@ -2727,7 +2746,7 @@ solidTouchProject.submit({ id: "atlas" }).pipe(Effect.map((project) => project.n
 solidTouchProject.submit({ slug: "atlas" });
 // Action handles report status with the Resource reader's names.
 const solidTouchWaiting: boolean = solidTouchProject.waiting();
-const solidTouchFailure: Cause.Cause<Server.ClientError> | undefined = solidTouchProject.failure();
+const solidTouchFailure: Cause.Cause<Action.ClientError> | undefined = solidTouchProject.failure();
 void solidTouchWaiting;
 void solidTouchFailure;
 // @ts-expect-error a callback that breaks its contract is a defect, not part of the handle's errors
@@ -2749,7 +2768,7 @@ const InferredTouchProject = Action.define({
 const inferredTouch = Action.use(InferredTouchProject, { runtime: emptyActionRuntime });
 const inferredTouchSubmit: Effect.Effect<
   Project,
-  ProjectError | Server.ClientError | Server.ClientError | ActionInterrupted,
+  ProjectError | Server.ClientError | Action.ClientError | ActionInterrupted,
   ProjectApi
 > = inferredTouch.submit({ id: "atlas", name: "Atlas" });
 void inferredTouchSubmit;
@@ -2788,31 +2807,20 @@ Effect.runSync(
   ),
 );
 
-interface StartTransportEnv {
-  readonly token: string;
-}
-declare const authenticatedStartFetch: StartFetch<never, StartTransportEnv>;
-declare const startTransportRuntime: SunfallArcRuntime<StartTransportEnv, never>;
-// Start provides the ActionTransport that routes served Actions to the server.
-const startActionTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+// Start's transports post through the runtime's `HttpClient` (`App.launch`
+// provides the client Layer's, else `FetchHttpClient`): the ActionTransport
+// routes served Actions to the server, and the server-function client is an
+// `effect/rpc` `RpcClient`.
+const startActionTransport: Layer.Layer<ActionTransport, never, HttpClient.HttpClient> =
+  makeActionTransportLayer({ actions: [TouchProject] });
+const startRpcClient: Layer.Layer<Server.Client, never, HttpClient.HttpClient> = rpcClientLayer;
+// @ts-expect-error the Start transports need an HttpClient
+const startActionTransportWithoutHttp: Layer.Layer<ActionTransport> = makeActionTransportLayer({
   actions: [TouchProject],
 });
-const startActionServicefulTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
-  actions: [TouchProject],
-  fetch: authenticatedStartFetch,
-  transportRuntime: startTransportRuntime,
-});
-// @ts-expect-error a serviceful fetch needs a transport runtime that provides its services
-makeActionTransportLayer({ actions: [TouchProject], fetch: authenticatedStartFetch });
-makeRpcClientLayer({
-  fetch: authenticatedStartFetch,
-  transportRuntime: startTransportRuntime,
-});
-// @ts-expect-error RPC ServerClient layers cannot hide a serviceful fetch without a transport runtime
-makeRpcClientLayer({ fetch: authenticatedStartFetch });
-makeRpcClientLayer({ fetch: authenticatedStartFetch, transportRuntime: startTransportRuntime });
 void startActionTransport;
-void startActionServicefulTransport;
+void startRpcClient;
+void startActionTransportWithoutHttp;
 
 // The same Action handle submits locally or through the transport: the result
 // and error types are the Action's own (plus transport failures).

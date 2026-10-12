@@ -5,6 +5,36 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Optional Server-Function Schemas
+
+Server functions now run on `effect/rpc`: every contract is an `Rpc`, so its
+`input` and `output` schemas are required (`error` defaults to
+`Schema.Never`), and the contract's types come from the schemas instead of
+explicit type arguments. Start serves them with `RpcServer` and calls them
+with `RpcClient` over `HttpClient`; there is no hand-written envelope and no
+schema-less wire path.
+
+| Before                                                                                                                                                             | After                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `Server.contract<I, A, E>(name, { input?, output?, error? })`                                                                                                      | `Server.contract(name, { input, output, error? })`: types inferred from the schemas                                              |
+| `Server.contract(name)` with no schemas                                                                                                                            | declare the schemas (`input: Schema.Void` for no input, `Schema.Unknown` only where the value is genuinely untyped)              |
+| output typed as a mutable array or as `ActionResult` without a matching schema                                                                                     | the schema's type (`ReadonlyArray<A>`; rebuild domain values such as `ActionResult` from the decoded wire shape)                 |
+| `fn.input` / `fn.output` / `fn.error`, `fn.invoke(raw)`                                                                                                            | `fn.rpc` (`payloadSchema`, `successSchema`, `errorSchema`); `fn.local(input)` runs the implementation                            |
+| `Server.manifest`, `Server.encodeInput` / `decodeInput` / `encodeOutput` / `decodeOutput` / `encodeError` / `decodeError`                                          | removed: the Rpc's schemas are the wire schemas                                                                                  |
+| `Server.decodeRpcRequest` / `decodeRpcResponse`, `Server.RpcRequest` / `RpcResponse`, `Server.serializeDefect` / `serializeServerError` / `deserializeServerError` | removed: `effect/rpc` owns the protocol (`RpcSerialization.json`)                                                                |
+| `Server.route(method, path, handler)`, `Server.handleRoute`, `Server.Route`, `ServerRouteHandlerError`                                                             | removed: mount HTTP routes with `effect/http` (`HttpRouter`) beside the Start handler                                            |
+| `ServerRpcProtocolError` / `ServerTransportError` from a server-function call                                                                                      | `RpcClientError` (transport); payload decode failures, unknown functions, and handler defects arrive as defects                  |
+| RPC response `{ _tag: "Success" \| "Failure" \| "ServerError" \| "Defect" }` with 400/404/500                                                                      | `effect/rpc` JSON messages, always `200` (`[{ _tag: "Exit", requestId, exit }]`)                                                 |
+| request failure kind `validation` for an RPC payload that fails its input schema                                                                                   | `protocol` (`RpcServer` rejects it before the handler runs)                                                                      |
+| `App.launch(app, { transport: { fetch, headers } })`, `StartFetch` / `StartFetchInit` / `StartFetchInput`                                                          | provide an `HttpClient` in the client Layer (`HttpClient.mapRequest(HttpClientRequest.setHeader(...))`, `FetchHttpClient.Fetch`) |
+| `makeActionTransportLayer({ fetch, headers, endpoint, transportRuntime, actions })`                                                                                | `makeActionTransportLayer({ actions })`, which requires `HttpClient`                                                             |
+| `Server.ClientError` on Action submissions                                                                                                                         | `Action.ClientError`                                                                                                             |
+| `ServerTransportError` / `ServerRpcProtocolError` / `ServerFunctionNotFound` from the action transport                                                             | `ActionTransportError` / `ActionProtocolError` / `ActionNotFound` (body `{ _tag: "ActionNotFound", actionName }`)                |
+
+Mocks keep their shape: `Server.mock(contract, handler)` provided through
+`Server.mockLayer(...)` still validates through the contract schemas (now the
+Rpc's JSON codecs, the wire's). SSR keeps calling implementations in-process.
+
 ## From Program And Writable Signals
 
 State is now the one way to hold writable client state. `Program` is renamed
@@ -296,7 +326,7 @@ Effect.runFork(App.launch(app));
 | `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                                            | Effect service `use(f)` / `useSync(f)` (see [From Capability](#from-capability))                                                              |
 | `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                               | `form.validate()`, `Form.validate`, `Form.decodeFormData`                                                                                     |
 | root `decodeFormDataEffect`, `formDataToObject`                                                                                           | `Form.decodeFormData`, `Form.data`                                                                                                            |
-| `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                                     | `Server.handleRoute`, `Signal.fromStream`                                                                                                     |
+| `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                                     | `effect/http` routes (see [From Optional Server-Function Schemas](#from-optional-server-function-schemas)), `Signal.fromStream`               |
 | `makeRequestContextEffect` / `applyResponseContextEffect` / `serializeResponseCookieEffect`                                               | `makeRequestContext` / `applyResponseContext` / `serializeResponseCookie`                                                                     |
 | `runtime.disposeEffect`, `disposeResourceStoreEffect`, `ResourceStoreModule.disposeEffect`                                                | `runtime.dispose`, `disposeResourceStore`, `ResourceStoreModule.dispose`                                                                      |
 | `ResourceStore` `eventBus.publishEffect` / `subscribeEffect` / `shutdownEffect` / `isShutdownEffect` + `isShutdownUnsafe()`               | `publish` / `subscribe` / `shutdown` / `isShutdown`                                                                                           |

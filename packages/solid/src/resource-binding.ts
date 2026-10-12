@@ -16,9 +16,10 @@ import {
 } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, Fiber, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { createMemo, createRenderEffect, onCleanup, type Accessor } from "solid-js";
+import { createMemo, createRenderEffect, onCleanup, untrack, type Accessor } from "solid-js";
 import { renderFailure } from "./render-failure.js";
 import { createRuntimeScope } from "./runtime-scope.js";
+import { projectView, type ViewKey } from "./view-projection.js";
 
 /** Internal: binds a Resource ref (or ref accessor) to Solid reactivity under the current owner. */
 const createResourceResult = <I, A, E, R = unknown, ER = never>(
@@ -46,9 +47,38 @@ const createResourceResult = <I, A, E, R = unknown, ER = never>(
 
 /** Internal: a suspending Resource read plus its value-free `AsyncResult`. */
 export interface ResourceSuspense<A, E> {
+  /**
+   * The value as a fine-grained view: a binding to one field re-runs only
+   * when that field changes, and unchanged objects keep their identity.
+   */
   readonly read: Accessor<A>;
+  /** The stored value itself; any change to it re-runs the reader. */
+  readonly raw: Accessor<A>;
   readonly result: Accessor<AsyncResult.AsyncResult<A, E>>;
 }
+
+/** The read's settled kind; a value-free stand-in, so a new value does not re-notify it. */
+const valueStatus = { _tag: "Value" } as const;
+
+/**
+ * Identity the value view reconciles plain objects by: the family's row key
+ * where it declares `rows` (an object it does not key is matched by
+ * position), else `"id"`.
+ */
+const resourceViewKey = (family: Resource.AnyFamily): ViewKey => {
+  const rows = family.options.rows;
+  if (rows === undefined) {
+    return "id";
+  }
+  return (item) => {
+    try {
+      const key: unknown = rows.key(item);
+      return typeof key === "string" || typeof key === "number" ? key : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+};
 
 type SuspenseOutcome<A> =
   | { readonly _tag: "Value"; readonly value: A }
@@ -132,8 +162,29 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
       );
     });
 
+    // Whether the read throws: it re-notifies on a tag or error change, never
+    // on a new value, so the value reaches readers only through the view.
+    const status = createMemo(() => {
+      const current = outcome();
+      return current._tag === "Failure" ? current : valueStatus;
+    });
+    const view = projectView(
+      () => {
+        const current = outcome();
+        return current._tag === "Value" ? { value: current.value } : undefined;
+      },
+      resourceViewKey(untrack(getRef).family as Resource.AnyFamily),
+    );
+
     return {
       read: () => {
+        const current = status();
+        if (current._tag === "Failure") {
+          throw renderFailure(current.error);
+        }
+        return view();
+      },
+      raw: () => {
         const current = outcome();
         if (current._tag === "Failure") {
           throw renderFailure(current.error);

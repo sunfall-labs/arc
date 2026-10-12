@@ -1,7 +1,6 @@
-import { ServerRpcProtocolError, ServerTransportError } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 
-/** Default POST endpoint for Start server function RPC. */
+/** POST endpoint where Start serves server functions (`effect/rpc`, JSON serialization). */
 export const serverRpcPath = "/__sunfall-arc/rpc";
 /** Default POST endpoint for Start actions. */
 export const serverActionPath = "/__sunfall-arc/action";
@@ -54,7 +53,8 @@ export interface StartTransportEndpointEnvelope {
 export class StartTransportRequestError extends Data.TaggedError("StartTransportRequestError")<{
   readonly kind: StartTransportKind;
   readonly status: 405 | 406 | 415;
-  readonly error: ServerRpcProtocolError;
+  readonly message: string;
+  readonly payload?: unknown;
   readonly allow?: string;
   readonly acceptedMediaTypes?: readonly string[];
   readonly supportedMediaTypes?: readonly string[];
@@ -257,12 +257,8 @@ export const validateStartTransportAccept = (
           kind,
           status: 406,
           acceptedMediaTypes: mediaTypes,
-          error: new ServerRpcProtocolError({
-            message: `Expected accept header to allow ${expectedMediaTypes(mediaTypes)}.`,
-            payload: {
-              accept: request.headers.get("accept"),
-            },
-          }),
+          message: `Expected accept header to allow ${expectedMediaTypes(mediaTypes)}.`,
+          payload: { accept: request.headers.get("accept") },
         }),
       );
 
@@ -279,12 +275,8 @@ export const validateStartTransportContentType = (
           kind,
           status: 415,
           supportedMediaTypes: mediaTypes,
-          error: new ServerRpcProtocolError({
-            message: `Expected content-type ${expectedMediaTypes(mediaTypes)}.`,
-            payload: {
-              contentType: request.headers.get("content-type"),
-            },
-          }),
+          message: `Expected content-type ${expectedMediaTypes(mediaTypes)}.`,
+          payload: { contentType: request.headers.get("content-type") },
         }),
       );
 
@@ -301,21 +293,18 @@ export const validateStartTransportMethod = (
           kind,
           status: 405,
           allow: method,
-          error: new ServerRpcProtocolError({
-            message: `${kind === "rpc" ? "Server functions" : "Actions"} require ${method} requests, received ${request.method}.`,
-          }),
+          message: `${kind === "rpc" ? "Server functions" : "Actions"} require ${method} requests, received ${request.method}.`,
         }),
       );
 
-/** Validates a server-function RPC request. */
+/**
+ * Validates a server-function request: POST only. `RpcServer` reads the body
+ * with `RpcSerialization.json` and answers malformed messages itself.
+ */
 export const validateStartRpcRequest = (
   request: Request,
 ): Effect.Effect<void, StartTransportRequestError> =>
-  Effect.gen(function* () {
-    yield* validateStartTransportMethod("rpc", request, "POST");
-    yield* validateStartTransportAccept("rpc", request, [startJsonMediaType]);
-    yield* validateStartTransportContentType("rpc", request, [startJsonMediaType]);
-  });
+  validateStartTransportMethod("rpc", request, "POST");
 
 /** Validates an action transport request, including progressive form media types. */
 export const validateStartActionRequest = (
@@ -334,37 +323,10 @@ export const validateStartActionRequest = (
     ]);
   });
 
-const validateStartJsonResponseEffect = (
-  response: Response,
-  message: string,
-): Effect.Effect<void, ServerTransportError> =>
-  hasContentType(response.headers, [startJsonMediaType])
-    ? Effect.void
-    : Effect.fail(
-        new ServerTransportError({
-          reason: "InvalidResponse",
-          status: response.status,
-          message,
-          payload: {
-            contentType: response.headers.get("content-type"),
-          },
-        }),
-      );
+/** True when a request targets the Start server-function RPC endpoint. */
+export const isServerRpcRequest = (request: Request): boolean =>
+  new URL(request.url).pathname === serverRpcPath;
 
-/** Validates that an RPC response uses the JSON transport media type. */
-export const validateStartRpcResponse = (
-  response: Response,
-): Effect.Effect<void, ServerTransportError> =>
-  validateStartJsonResponseEffect(
-    response,
-    "Server function response content-type was not application/json.",
-  );
-
-/** Validates that a Start action response uses the JSON transport media type. */
-export const validateStartActionResponse = (
-  response: Response,
-): Effect.Effect<void, ServerTransportError> =>
-  validateStartJsonResponseEffect(
-    response,
-    "Start action response content-type was not application/json.",
-  );
+/** True when a request targets the Start action endpoint. */
+export const isServerActionRequest = (request: Request): boolean =>
+  new URL(request.url).pathname === serverActionPath;

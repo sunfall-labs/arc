@@ -1,4 +1,4 @@
-import { Cause, Context, Effect, Layer } from "effect";
+import { Cause, Context, Effect, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
@@ -41,8 +41,9 @@ describe("Sunfall Arc runtime", () => {
 
   it("uses the current runtime for server function Effect boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
-    const getNumber = Server.implement(Server.contract<string, number, never>("Number.get"), (id) =>
-      Numbers.use((numbers) => numbers.get(id)),
+    const getNumber = Server.implement(
+      Server.contract("Number.get", { input: Schema.String, output: Schema.Number }),
+      (id) => Numbers.use((numbers) => numbers.get(id)),
     );
 
     return Effect.runPromise(
@@ -57,8 +58,9 @@ describe("Sunfall Arc runtime", () => {
   });
 
   it("routes server function effects through ServerClient when one is provided", () => {
-    const getNumber = Server.implement(Server.contract<string, string>("Number.remote"), (id) =>
-      Effect.succeed(`local:${id}`),
+    const getNumber = Server.implement(
+      Server.contract("Number.remote", { input: Schema.String, output: Schema.String }),
+      (id) => Effect.succeed(`local:${id}`),
     );
     const runtime = makeRuntime(
       Layer.succeed(Server.Client)({
@@ -84,7 +86,10 @@ describe("Sunfall Arc runtime", () => {
   });
 
   it("dispatches shared server function stubs to local registered handlers", () => {
-    const GetNumber = Server.contract<string, number, never>("Number.local-stub");
+    const GetNumber = Server.contract("Number.local-stub", {
+      input: Schema.String,
+      output: Schema.Number,
+    });
     const getNumber = Server.client(GetNumber);
     Server.implement(GetNumber, (id) => Effect.succeed(id.length));
     const runtime = makeRuntime(Layer.succeed(Server.Client)(Server.localClient()));

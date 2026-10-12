@@ -259,7 +259,7 @@ type _renameBinding = Assert<
 declare const renameHandle: Effect.Success<typeof renameBinding>;
 const renameSubmit: Effect.Effect<
   string,
-  ProjectNotFound | Forbidden | EffectInputCallbackError | Server.ClientError | ActionInterrupted,
+  ProjectNotFound | Forbidden | EffectInputCallbackError | Action.ClientError | ActionInterrupted,
   never
 > = renameHandle.submit({ id: "atlas", name: "Atlas" });
 void renameSubmit;

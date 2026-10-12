@@ -13,7 +13,10 @@ import {
   RoutePreloadFailureCodecError,
   RoutePreloadUntypedFailure,
   Server,
-  ServerRouteHandlerError,
+  applyResponseContext,
+  makeResponseContext,
+  provideRequest,
+  provideResponse,
 } from "../src/index.js";
 import {
   buildRoutePath,
@@ -512,8 +515,9 @@ describe("route", () => {
 
 describe("Server", () => {
   it("runs Effect-backed server functions", () => {
-    const getNumber = Server.implement(Server.contract<void, number>("Number.get"), (_input) =>
-      Effect.succeed(42),
+    const getNumber = Server.implement(
+      Server.contract("Number.get", { input: Schema.Void, output: Schema.Number }),
+      (_input) => Effect.succeed(42),
     );
 
     return Effect.runPromise(
@@ -524,56 +528,40 @@ describe("Server", () => {
         yield* Effect.sync(() => {
           expect(callableValue).toBe(42);
           expect(effectValue).toBe(42);
-          expect(Server.manifest([getNumber])).toEqual([
-            {
-              name: "Number.get",
-              inputSchema: false,
-              outputSchema: false,
-              errorSchema: false,
-            },
-          ]);
+          expect(getNumber.rpc._tag).toBe("Number.get");
         });
       }),
     );
   });
+});
 
-  it("invokes schema-backed server functions across the wire", () => {
-    const echo = Server.implement(
-      Server.contract<{ readonly value: string }, { readonly value: string }>("Echo", {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      }),
-      ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
-    );
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const success = yield* echo.invoke({ value: "ada" });
-        const invalid = yield* Effect.exit(echo.invoke({ value: 1 }));
-
-        yield* Effect.sync(() => {
-          expect(success).toEqual({ value: "ADA" });
-          expect(Exit.isFailure(invalid)).toBe(true);
-        });
-      }),
+/** Runs `handler` the way a host does: request and response context provided, then applied. */
+const handleWithContext = <E>(
+  request: Request,
+  handler: () => Effect.Effect<Response, E, RequestContext | ResponseContext>,
+): Effect.Effect<Response, E | EffectInputCallbackError> =>
+  Effect.suspend(() => {
+    const responseContext = makeResponseContext();
+    return provideRequest(request)(provideResponse(responseContext)(handler())).pipe(
+      Effect.flatMap((response) => applyResponseContext(responseContext, response)),
     );
   });
 
-  it("provides request context to server routes", () => {
-    const serverRoute = Server.route("GET", "/hello", () =>
-      RequestContext.use(({ url }) => Effect.succeed(new Response(url.pathname))),
-    );
+describe("Request and response context", () => {
+  it("provides request context to handlers", () => {
+    const handler = () =>
+      RequestContext.use(({ url }) => Effect.succeed(new Response(url.pathname)));
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(
-          serverRoute,
+        const response = yield* handleWithContext(
           new Request("https://example.com/hello"),
+          handler,
         );
         const responseText = yield* Effect.promise(() => response.text());
-        const effectResponse = yield* Server.handleRoute(
-          serverRoute,
+        const effectResponse = yield* handleWithContext(
           new Request("https://example.com/effect"),
+          handler,
         );
         const effectResponseText = yield* Effect.promise(() => effectResponse.text());
 
@@ -585,39 +573,8 @@ describe("Server", () => {
     );
   });
 
-  it("suspends server route handlers until the returned Effect runs", () => {
-    let called = 0;
-    const serverRoute = Server.route("GET", "/hello", () => {
-      called++;
-      throw "handler-failed";
-    });
-
-    let effect: Effect.Effect<Response, ServerRouteHandlerError> | undefined;
-    expect(() => {
-      effect = Server.handleRoute(serverRoute, new Request("https://example.com/hello"));
-    }).not.toThrow();
-    expect(called).toBe(0);
-
-    return Effect.runPromise(
-      Effect.flip(effect!).pipe(
-        Effect.tap((error) =>
-          Effect.sync(() => {
-            expect(called).toBe(1);
-            expect(error).toBeInstanceOf(ServerRouteHandlerError);
-            expect(error.cause).toBeInstanceOf(EffectInputCallbackError);
-            expect(error.cause).toMatchObject({
-              operation: "Server.route(GET /hello).handler",
-              cause: "handler-failed",
-            });
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    );
-  });
-
-  it("applies response context mutations from server routes", () => {
-    const serverRoute = Server.route("GET", "/login", () =>
+  it("applies response context mutations", () => {
+    const handler = () =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
           yield* response.setStatus(202, "Accepted");
@@ -629,14 +586,13 @@ describe("Server", () => {
           });
           return new Response("ok");
         }),
-      ),
-    );
+      );
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(
-          serverRoute,
+        const response = yield* handleWithContext(
           new Request("https://example.com/login"),
+          handler,
         );
         const body = yield* Effect.promise(() => response.text());
 
@@ -656,18 +612,17 @@ describe("Server", () => {
   it("rejects invalid SameSite response cookie attributes at runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const serverRoute = Server.route("GET", "/bad-cookie", () =>
-          ResponseContext.use((response) =>
-            Effect.gen(function* () {
-              yield* response.setCookie("session", "abc123", {
-                sameSite: "Loose" as never,
-              });
-              return new Response("ok");
-            }),
-          ),
-        );
         const failure = yield* Effect.flip(
-          Server.handleRoute(serverRoute, new Request("https://example.com/bad-cookie")),
+          handleWithContext(new Request("https://example.com/bad-cookie"), () =>
+            ResponseContext.use((response) =>
+              Effect.gen(function* () {
+                yield* response.setCookie("session", "abc123", {
+                  sameSite: "Loose" as never,
+                });
+                return new Response("ok");
+              }),
+            ),
+          ),
         );
 
         expect(failure).toBeInstanceOf(ResponseCookieSerializationError);
@@ -679,21 +634,18 @@ describe("Server", () => {
     ));
 
   it("keeps malformed percent-encoded request cookies as their raw value", () => {
-    const serverRoute = Server.route("GET", "/cookies", () =>
-      RequestContext.use(({ cookies }) =>
-        Effect.succeed(new Response(cookies.get("session") ?? "missing")),
-      ),
-    );
-
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(
-          serverRoute,
+        const response = yield* handleWithContext(
           new Request("https://example.com/cookies", {
             headers: {
               cookie: "session=%E0%A4%A",
             },
           }),
+          () =>
+            RequestContext.use(({ cookies }) =>
+              Effect.succeed(new Response(cookies.get("session") ?? "missing")),
+            ),
         );
         const body = yield* Effect.promise(() => response.text());
         expect(body).toBe("%E0%A4%A");
@@ -702,7 +654,7 @@ describe("Server", () => {
   });
 
   it("reports invalid response cookie attributes as typed Effect errors", () => {
-    const serverRoute = Server.route("GET", "/cookies", () =>
+    const handler = () =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
           yield* response.setCookie("session", "abc123", {
@@ -711,11 +663,10 @@ describe("Server", () => {
           });
           return new Response("ok");
         }),
-      ),
-    );
+      );
 
     return Effect.runPromise(
-      Effect.flip(Server.handleRoute(serverRoute, new Request("https://example.com/cookies"))).pipe(
+      Effect.flip(handleWithContext(new Request("https://example.com/cookies"), handler)).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ResponseCookieSerializationError);
@@ -730,22 +681,20 @@ describe("Server", () => {
     );
   });
 
-  it("reports invalid response headers through ServerRouteHandlerError", () => {
-    const serverRoute = Server.route("GET", "/headers", () =>
+  it("reports invalid response headers as callback errors", () => {
+    const handler = () =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
           yield* response.setHeader("bad header", "value");
           return new Response("ok");
         }),
-      ),
-    );
+      );
 
     return Effect.runPromise(
-      Effect.flip(Server.handleRoute(serverRoute, new Request("https://example.com/headers"))).pipe(
+      Effect.flip(handleWithContext(new Request("https://example.com/headers"), handler)).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
-            expect(error).toBeInstanceOf(ServerRouteHandlerError);
-            expect(error.cause).toMatchObject({
+            expect(error).toMatchObject({
               _tag: "EffectInputCallbackError",
               operation: "ResponseContext.setHeader",
             });
@@ -756,22 +705,20 @@ describe("Server", () => {
     );
   });
 
-  it("reports invalid response status application through ServerRouteHandlerError", () => {
-    const serverRoute = Server.route("GET", "/status", () =>
+  it("reports invalid response status application as callback errors", () => {
+    const handler = () =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
           yield* response.setStatus(99);
           return new Response("ok");
         }),
-      ),
-    );
+      );
 
     return Effect.runPromise(
-      Effect.flip(Server.handleRoute(serverRoute, new Request("https://example.com/status"))).pipe(
+      Effect.flip(handleWithContext(new Request("https://example.com/status"), handler)).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
-            expect(error).toBeInstanceOf(ServerRouteHandlerError);
-            expect(error.cause).toMatchObject({
+            expect(error).toMatchObject({
               _tag: "EffectInputCallbackError",
               operation: "ResponseContext.apply",
             });

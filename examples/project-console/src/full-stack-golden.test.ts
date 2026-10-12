@@ -125,10 +125,7 @@ describe("project console full-stack golden path", () => {
   });
 
   it("runs request-runtime server functions during preload and applies ResponseContext with route-touched rows", async () => {
-    const BoundaryProject = Server.contract<
-      { readonly id: string },
-      { readonly id: string; readonly name: string; readonly requestPath: string }
-    >("ProjectConsoleGolden.boundary.project", {
+    const BoundaryProject = Server.contract("ProjectConsoleGolden.boundary.project", {
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({
         id: Schema.String,

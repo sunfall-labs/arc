@@ -872,7 +872,7 @@ const coreActionTransport: ActionTransport = {
   submit: (_definition, _input) => Option.none(),
 };
 declare const coreActionTransportResponse: Action.TransportResponse<string, "rejected">;
-const coreActionTransportApply: Effect.Effect<void, Server.ClientError> =
+const coreActionTransportApply: Effect.Effect<void, Action.ClientError> =
   coreActionTransportResponse.apply(true);
 const coreActionTransportService: Context.Service<ActionTransport, ActionTransport> =
   ActionTransport;
@@ -960,7 +960,7 @@ declare const durableRuntime: SunfallArcRuntime<never>;
 const durableInstance = Action.use(DurableAdvance, { runtime: durableRuntime });
 const durableSubmit: Effect.Effect<
   number,
-  "Rejected" | ActionQueued | Server.ClientError | ActionInterruptedError
+  "Rejected" | ActionQueued | Action.ClientError | ActionInterruptedError
 > = durableInstance.submit({ id: "atlas" });
 type ActionInterruptedError =
   Effect.Error<ReturnType<typeof durableInstance.submit>> extends infer E

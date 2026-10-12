@@ -7,7 +7,12 @@ export {
 } from "./action-outbox.js";
 export { ActionResult, ActionResultTypeId } from "./action-result.js";
 export { ActionInterrupted } from "./action-submission.js";
-export { ActionTransport } from "./action-transport.js";
+export {
+  ActionNotFound,
+  ActionProtocolError,
+  ActionTransport,
+  ActionTransportError,
+} from "./action-transport.js";
 export { Action, ActionTypeId, isActionDefinition } from "./action.js";
 export {
   makeMemoryBrowserHistoryAdapter,
@@ -110,9 +115,6 @@ export {
   ServerFunctionMockTypeId,
   ServerFunctionNotFound,
   ServerFunctionTypeId,
-  ServerRouteHandlerError,
-  ServerRpcProtocolError,
-  ServerTransportError,
 } from "./server.js";
 export { isSignal, Signal, SignalTypeId, trackDependency } from "./signal.js";
 export {
