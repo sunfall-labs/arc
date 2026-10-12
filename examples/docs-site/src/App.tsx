@@ -89,7 +89,9 @@ const pageRailIdsByBlockIndex = (items: ReadonlyArray<PageRailItem>): ReadonlyMa
 const docsPageRailItems = (blocks: ReadonlyArray<DocsBlock>): readonly PageRailItem[] =>
   createPageRailItems(
     blocks.flatMap((block, blockIndex): readonly HeadingSource[] =>
-      block._tag === "Heading" ? [{ blockIndex, level: 2, text: block.text ?? "Section" }] : [],
+      block._tag === "Heading"
+        ? [{ blockIndex, level: block.level ?? 2, text: block.text ?? "Section" }]
+        : [],
     ),
   );
 
@@ -258,11 +260,15 @@ const HomeView = Component.define("HomeView", function* () {
           This site is a small Arc app: recipes load through server functions, pass through a
           Capability-backed Resource, preload from file routes, and hydrate before the UI mounts.
         </p>
-        <RouterLink route={CookbookUiRoute} class="primaryLink">
-          Browse cookbook
+        <RouterLink
+          route={DocsPageUiRoute}
+          options={{ params: { slug: "golden-path" } }}
+          class="primaryLink"
+        >
+          Start with the golden path
         </RouterLink>
-        <RouterLink route={DocsOverviewUiRoute} class="secondaryLink">
-          Read the docs
+        <RouterLink route={CookbookUiRoute} class="secondaryLink">
+          Browse cookbook
         </RouterLink>
       </header>
 
@@ -368,9 +374,17 @@ function DocsBlockView(props: {
 }) {
   switch (props.block._tag) {
     case "Heading":
-      return <h2 id={props.headingId}>{props.block.text ?? "Section"}</h2>;
+      return props.block.level === 3 ? (
+        <h3 id={props.headingId}>{props.block.text ?? "Section"}</h3>
+      ) : (
+        <h2 id={props.headingId}>{props.block.text ?? "Section"}</h2>
+      );
     case "Paragraph":
-      return <p>{props.block.text}</p>;
+      return (
+        <p>
+          <InlineText text={props.block.text ?? ""} />
+        </p>
+      );
     case "List":
       return (
         <ul>
@@ -381,13 +395,71 @@ function DocsBlockView(props: {
       );
     case "Code":
       return <CodeBlock code={props.block.code ?? ""} language={props.block.language} />;
+    case "Table": {
+      const [header = [], ...rows] = props.block.rows ?? [];
+      return (
+        <table>
+          <thead>
+            <tr>
+              {header.map((cell) => (
+                <th>
+                  <InlineText text={cell} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr>
+                {row.map((cell) => (
+                  <td>
+                    <InlineText text={cell} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
   }
+}
+
+const inlinePattern = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/gu;
+
+/** Renders the inline Markdown docs text uses: `code`, **strong**, and [links](href). */
+function InlineText(props: { readonly text: string }) {
+  return (
+    <>
+      {props.text.split(inlinePattern).map((part) => {
+        if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
+          return <code class="inlineCode">{part.slice(1, -1)}</code>;
+        }
+        if (part.startsWith("**") && part.endsWith("**") && part.length > 3) {
+          return <strong>{part.slice(2, -2)}</strong>;
+        }
+        const link = /^\[([^\]]+)\]\(([^)]+)\)$/u.exec(part);
+        if (link) {
+          return (
+            <a href={link[2]}>
+              <InlineText text={link[1] ?? ""} />
+            </a>
+          );
+        }
+        return part;
+      })}
+    </>
+  );
 }
 
 function DocsListItem(props: { readonly item: string }) {
   const match = packageListItemPattern.exec(props.item);
   if (!match) {
-    return <li>{props.item}</li>;
+    return (
+      <li>
+        <InlineText text={props.item} />
+      </li>
+    );
   }
 
   const packageNames = match[1]?.split(" and ") ?? [];

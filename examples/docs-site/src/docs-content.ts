@@ -1,29 +1,18 @@
-import { Schema } from "effect";
+import { goldenPathBlocks } from "./golden-path.js";
 
-export const DocsPageSlug = Schema.Literals([
-  "getting-started",
-  "core-concepts",
-  "guided-tour",
-  "reference",
-  "deployment",
-  "troubleshooting",
-  "examples",
-]);
-
-export type DocsPageSlug = typeof DocsPageSlug.Type;
-
-export const DocsRouteParams = Schema.Struct({
-  slug: DocsPageSlug,
-});
-
-export type DocsRouteParams = typeof DocsRouteParams.Type;
+export { DocsPageSlug, DocsRouteParams } from "./docs-slugs.js";
+import type { DocsPageSlug } from "./docs-slugs.js";
 
 export type DocsSection = "Start here" | "Learn" | "Ship" | "Reference";
 
 export interface DocsBlock {
-  readonly _tag: "Heading" | "Paragraph" | "List" | "Code";
+  readonly _tag: "Heading" | "Paragraph" | "List" | "Code" | "Table";
   readonly text?: string;
+  /** Heading level; defaults to 2. */
+  readonly level?: 2 | 3;
   readonly items?: readonly string[];
+  /** Table rows; the first row is the header. */
+  readonly rows?: readonly (readonly string[])[];
   readonly code?: string;
   readonly language?: string;
 }
@@ -38,6 +27,14 @@ export interface DocsPage {
 
 export const docsPages = [
   {
+    slug: "golden-path",
+    section: "Start here",
+    title: "The golden path",
+    summary:
+      "Which Arc tool to use for each job, then one feature built end to end: Resource, Component, Route, Action, Collection, SSR, and Timeline.",
+    blocks: goldenPathBlocks,
+  },
+  {
     slug: "getting-started",
     section: "Start here",
     title: "Getting started",
@@ -46,7 +43,7 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. Start with a checked starter, then use the guided tour and cookbook to see the same contracts in small slices.",
+        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. Install the packages and run a checked starter here; read The golden path to learn which tool to use for each job, then use the cookbook for small slices.",
       },
       {
         _tag: "Heading",
@@ -117,118 +114,6 @@ export const docsPages = [
       {
         _tag: "Paragraph",
         text: "If state or behavior matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code. That gives humans and agents one stable place to inspect, edit, and verify the behavior.",
-      },
-    ],
-  },
-  {
-    slug: "guided-tour",
-    section: "Learn",
-    title: "Guided tour",
-    summary:
-      "Build the smallest useful correctness slice: server contract, Capability, Resource, route preload, UI, Action, and graph impact.",
-    blocks: [
-      {
-        _tag: "Paragraph",
-        text: "A typical Arc feature starts with a domain contract and ends with definitions that can explain what the route loads, what the action mutates, and what an agent should verify before shipping.",
-      },
-      {
-        _tag: "Heading",
-        text: "1. Define the browser-safe contract",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const GetProject = Server.contract<
-  { readonly id: ProjectId },
-  Project,
-  ProjectError
->("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
-  output: ProjectSchema,
-  error: ProjectErrorSchema,
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "2. Expose it through a Capability-backed Resource",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
-
-export const ProjectById = Resource.define({
-  name: "Project.byId",
-  input: ProjectId,
-  output: ProjectSchema,
-  load: (id) => ProjectApi.use((api) => api.get(id)),
-  provides: (project) => [ProjectTag({ id: project.id })],
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "3. Declare the route-owned data",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const Route = FileRoute.define("/projects/:id")({
-  params: ProjectRouteParams,
-  preloadResources: [ProjectById],
-  preload: ({ params }) => Resource.preload(ProjectById(params.id)),
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "4. Read the same Resource in the UI",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `import { Component } from "@sunfall/arc-solid";
-import { Loading } from "solid-js";
-
-const ProjectPage = Component.define("ProjectPage", function* (
-  props: Route.Props<typeof ProjectRoute>,
-) {
-  // The family's load error joins E and its services join R.
-  const project = yield* Component.resource(ProjectById);
-
-  // Preloaded and hydrated values read synchronously; refreshes keep the view
-  // mounted while waiting() drives the chrome.
-  return () => (
-    <Loading fallback={<Skeleton />}>
-      <ProjectView
-        project={project(props.params.id)}
-        refreshing={project.waiting(props.params.id)}
-      />
-    </Loading>
-  );
-}).pipe(Component.catchAll((error) => <ProjectError error={error} />));`,
-      },
-      {
-        _tag: "Heading",
-        text: "5. Keep mutations attached to domain meaning",
-      },
-      {
-        _tag: "Code",
-        language: "tsx",
-        code: `export const RenameProject = Action.define({
-  name: "Project.rename",
-  input: RenameProjectInput,
-  output: ProjectSchema,
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
-});`,
-      },
-      {
-        _tag: "Heading",
-        text: "6. Inspect the graph before changing code",
-      },
-      {
-        _tag: "Code",
-        language: "shellscript",
-        code: "sunfall-arc-start graph route /projects/:id\nsunfall-arc-start impact action Project.rename --json",
       },
     ],
   },

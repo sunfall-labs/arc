@@ -5,7 +5,8 @@ ownership in renderer-independent core packages. The Solid 2 adapter bridges
 that core model into Solid's fine-grained reactivity and ownership rules through
 one app model: **typed Components**.
 
-Use `@sunfall/arc-solid` with `@sunfall/arc-solid-db` for Solid apps.
+Use `@sunfall/arc-solid` with `@sunfall/arc-solid-db` for Solid apps. This page
+is the reference; [The Golden Path](golden-path.md) is the walkthrough.
 
 ## One App Model
 

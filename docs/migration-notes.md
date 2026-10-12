@@ -1,6 +1,7 @@
 # Migration Notes
 
-These notes map common full-stack app patterns onto the Sunfall Arc golden path.
+These notes map common full-stack app patterns onto
+[the Sunfall Arc golden path](golden-path.md).
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 

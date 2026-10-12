@@ -4,37 +4,12 @@ Sunfall Arc is an experimental, Effect-native TypeScript framework for
 correctness by construction in full-stack apps. It treats application behavior
 as typed definitions that humans, tests, devtools, and agents can all inspect.
 
-The front door is small: a model, typed messages, exhaustive message handlers,
-and Effect commands.
-
-```ts
-type CounterModel = { readonly count: number; readonly loading: boolean };
-type CounterMessage =
-  | { readonly _tag: "Increment" }
-  | { readonly _tag: "Load" }
-  | { readonly _tag: "Loaded"; readonly amount: number };
-
-const Counter = Program.define<CounterModel, CounterMessage>({
-  initial: { count: 0, loading: false },
-  on: {
-    Increment: (model) => ({ ...model, count: model.count + 1 }),
-    Load: (model) =>
-      Program.next(
-        { ...model, loading: true },
-        Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
-      ),
-    Loaded: (model, message) => ({
-      count: model.count + message.amount,
-      loading: false,
-    }),
-  },
-});
-```
-
-That same loop can grow into typed Capabilities, Resources, Actions, Routes,
-server contracts, request-scoped runtimes, a Solid 2 adapter,
-local-first Collections, and deterministic app graph diagnostics without
-leaving the Effect runtime model.
+**Start with [The Golden Path](docs/golden-path.md).** It tells you which tool
+to use for each job (Resource for reads, Action for writes, Signal or Program
+for client state, Collection for normalized rows, Component for screens, Route
+for pages) and builds one feature end to end, from a Resource to SSR,
+hydration, and Timeline debugging. Its snippets are type-checked by
+`pnpm typecheck`.
 
 The project is still pre-release. Framework packages are MIT-licensed and
 configured for public alpha publication; the workspace root and copyable
@@ -43,9 +18,9 @@ while examples, diagnostics, and release gates are hardened.
 
 ## What This Repo Proves
 
-- A small `Program.define({ initial, on })` loop can be the first stateful unit,
-  while serviceful work, subscriptions, timelines, and devtools facts stay
-  Effect-owned.
+- One typed UI model: `Component.define` setups bind Resources, Actions,
+  Programs, Collections, and the router, and their services and typed failures
+  accumulate into the component type that `Component.launch` checks.
 - Humans and agents can co-develop against explicit app structure: typed
   definitions, generated route artifacts, app graph diagnostics, and verification
   gates.
@@ -69,11 +44,13 @@ while examples, diagnostics, and release gates are hardened.
 
 Read in this order when you are new to the repo:
 
-1. [Basic and project-console starters](docs/starter.md)
-2. [Architecture](docs/architecture.md)
-3. [Effect style guide](docs/effect-style.md)
-4. [Deployment](docs/deployment.md)
-5. [Solid adapter](docs/solid-adapter.md)
+1. [The Golden Path](docs/golden-path.md): which tool for which job, and one
+   feature built end to end
+2. [Basic and project-console starters](docs/starter.md)
+3. [Solid adapter](docs/solid-adapter.md)
+4. [Architecture](docs/architecture.md)
+5. [Effect style guide](docs/effect-style.md)
+6. [Deployment](docs/deployment.md)
 
 Useful deeper references:
 
@@ -109,7 +86,7 @@ Useful focused commands:
 
 ```sh
 pnpm build
-pnpm typecheck
+pnpm typecheck        # includes docs:snippets (golden-path snippets match their fixtures)
 pnpm test
 pnpm benchmark
 pnpm devtools-panel:verify
