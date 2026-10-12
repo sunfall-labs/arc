@@ -21,6 +21,7 @@ describe("Form", () => {
 
   it("initializes schema-backed form state", () => {
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
     });
@@ -38,6 +39,7 @@ describe("Form", () => {
 
   it("updates known fields and tracks dirty and touched state", () => {
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
     });
@@ -68,6 +70,7 @@ describe("Form", () => {
       }),
     });
     const form = Form.make({
+      name: "projectForm",
       schema: NestedInput,
       initial: {
         id: "atlas",
@@ -101,6 +104,7 @@ describe("Form", () => {
 
   it("touches fields without changing values", () => {
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
     });
@@ -116,6 +120,7 @@ describe("Form", () => {
 
   it("validates successfully with Effect Schema and resets errors", () => {
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
     });
@@ -146,6 +151,7 @@ describe("Form", () => {
 
   it("maps schema failures to field errors", () => {
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
     });
@@ -174,6 +180,7 @@ describe("Form", () => {
     }> {}
 
     const form = Form.make<typeof RenameInput, ProjectNameTooShort>({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "At" },
       validate: (values, validation) =>
@@ -203,6 +210,7 @@ describe("Form", () => {
     for (const makeForm of [
       () =>
         Form.make<typeof RenameInput, string>({
+          name: "projectForm",
           schema: RenameInput,
           initial: { id: "atlas", name: "Atlas Billing" },
           validate: (_values, validation) =>
@@ -210,6 +218,7 @@ describe("Form", () => {
         }),
       () =>
         Form.make<typeof RenameInput, string>({
+          name: "projectForm",
           schema: RenameInput,
           initial: { id: "atlas", name: "Atlas Billing" },
           validate: (_values, validation) =>
@@ -230,6 +239,7 @@ describe("Form", () => {
   it("captures synchronous validator throws in the Effect error channel", async () => {
     const thrown = new Error("validator failed");
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
       validate: () => {
@@ -259,6 +269,7 @@ describe("Form", () => {
     }> {}
 
     const form = Form.make<typeof RenameInput, ProjectNameReserved, ReservedNames>({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Admin" },
       validate: (values, validation) =>
@@ -340,6 +351,7 @@ describe("Form", () => {
 
   it("resets values and validation state", () => {
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
     });
@@ -367,6 +379,7 @@ describe("Form", () => {
     });
     const initial = { id: "atlas", details: { name: "Atlas Billing" } };
     const form = Form.make({
+      name: "projectForm",
       schema: NestedInput,
       initial,
     });
@@ -419,6 +432,7 @@ describe("Form", () => {
       owner,
     };
     const form = Form.make<typeof FlexibleInput, never, never, FlexibleValues>({
+      name: "projectForm",
       schema: FlexibleInput,
       initial,
     });
@@ -468,6 +482,7 @@ describe("Form", () => {
     let validatedName: string | undefined;
     const initial = { id: "atlas", details: { name: "Atlas Billing" } };
     const form = Form.make({
+      name: "projectForm",
       schema: NestedInput,
       initial,
       validate: (values) =>
@@ -505,6 +520,7 @@ describe("Form", () => {
     const started = Effect.runSync(Deferred.make<void>());
     const release = Effect.runSync(Deferred.make<void>());
     const form = Form.make<typeof RenameInput, ProjectNameTooShort>({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "At" },
       validate: (values, validation) =>
@@ -541,6 +557,7 @@ describe("Form", () => {
     const started = Effect.runSync(Deferred.make<void>());
     const release = Effect.runSync(Deferred.make<void>());
     const form = Form.make({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" },
       validate: () =>

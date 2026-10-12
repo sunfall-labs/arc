@@ -6,6 +6,31 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Every State Change Has A Name
+
+- Signals change only inside named transitions, so the Timeline reads like a
+  message log. `Component.callback(name, f)` takes a required name and runs
+  each call as the transition `<Component>.<name>` (started immediately, so
+  synchronous writes land within the DOM event); Actions, Programs, Resource
+  loads, Collection syncs, Forms, and router navigation label their own
+  commits, and keep doing so when started from a callback.
+- A write outside every named transition (a bare DOM handler, a Solid effect,
+  an unnamed `Signal.batch`) dies with `SignalWriteOutsideTransition`, which
+  names the Signal and the fixes. The check is always on, in SSR and tests
+  too.
+- `Signal.make(initial, { name })`, `Signal.fromStream(stream, initial, {
+name })`, `Component.stream(name, stream, initial)`, and `Form.make({ name,
+... })` require names; the `signal#N` fallback is gone.
+  `Signal.batch`/`Signal.transaction` take `{ name }` (unnamed ones take the
+  caller's transition) instead of `{ cause }`.
+- `TimelineUserCause` is replaced by `TimelineTransitionCause`
+  (`{ _tag: "Transition", name }`), `TimelineEntry.cause` (and Devtools'
+  `DevtoolsTimelineCommit.cause`) is always present, and
+  `Timeline.describe(cause)` takes a `TimelineCause`.
+- Optimistic Action patches commit under the submission's Action cause, and
+  router outlet nodes (derived from recorded router state) are no longer
+  recorded.
+
 ## Durable Submissions And Tracing Papercuts
 
 - `Action.restoreOutbox` is a function: `Action.restoreOutbox(options?)` takes

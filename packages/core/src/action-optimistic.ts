@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { EffectInputCallbackError, type RejectPromiseLikeValue } from "./effect-like.js";
 import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import { Signal, type WritableSignal } from "./signal.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Settles one optimistic transaction: commit or rollback. */
 export type ActionOptimisticSettle = Effect.Effect<void>;
@@ -283,6 +284,7 @@ export const makeActionOptimisticTransactionRuntime = (
       patch: SignalPatch<A>,
     ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
     settleRows: (layer: ActionOptimisticRowsLayer) => Effect.Effect<void>,
+    event: "success" | "failure",
   ): ActionOptimisticSettle =>
     Effect.gen(function* () {
       // Row layers settle first: they cannot fail, so a failing signal
@@ -299,9 +301,14 @@ export const makeActionOptimisticTransactionRuntime = (
           plans.push(plan);
         }
       }
-      for (const plan of plans) {
-        applySignalPatchPlan(plan);
-      }
+      batchSignalWrites(
+        () => {
+          for (const plan of plans) {
+            applySignalPatchPlan(plan);
+          }
+        },
+        { _tag: "Action", action: actionName, event },
+      );
       touched.clear();
     }).pipe(Effect.orDie);
 
@@ -314,10 +321,12 @@ export const makeActionOptimisticTransactionRuntime = (
           base: nextBase,
         })),
       (layer) => layer.commit,
+      "success",
     ),
     rollback: finish(
       () => Effect.succeed({ _tag: "Rollback" }),
       (layer) => layer.rollback,
+      "failure",
     ),
   };
 };

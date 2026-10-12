@@ -17,6 +17,7 @@ import {
   validateProgramMessageEffect,
 } from "./program-primitives.js";
 import { Signal } from "./signal.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Creates an Effect-first story harness for deterministic Program tests. */
 export const makeProgramStory = <Model, Message, E = never, R = never>(
@@ -27,8 +28,11 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
     "Program.story.initial",
     "initial" in options ? options.initial : definition.initial,
   );
-  const model = Signal.make(initial as Model);
-  const history = Signal.make<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>([]);
+  const label = definition.name ?? "Program";
+  const model = Signal.make(initial as Model, { name: `${label}.story.model` });
+  const history = Signal.make<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>([], {
+    name: `${label}.story.history`,
+  });
 
   const send = (
     message: ProgramMessageValue<Message>,
@@ -54,10 +58,15 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
         after: step.model as Model,
         commands: step.commands,
       };
-      yield* Effect.sync(() => {
-        model.set(step.model as Model);
-        history.update((current) => [...current, entry]);
-      });
+      yield* Effect.sync(() =>
+        batchSignalWrites(
+          () => {
+            model.set(step.model as Model);
+            history.update((current) => [...current, entry]);
+          },
+          { _tag: "Program", program: definition.name, event: "message", message: validMessage },
+        ),
+      );
       return entry;
     });
 
@@ -100,8 +109,13 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
       }),
     reset: (next: ProgramModelValue<Model> = definition.initial) => {
       const validNext = validateProgramModelSync("Program.story.reset", next);
-      model.set(validNext as Model);
-      history.set([]);
+      batchSignalWrites(
+        () => {
+          model.set(validNext as Model);
+          history.set([]);
+        },
+        { _tag: "Transition", name: `${label}.story.reset` },
+      );
     },
   };
 };

@@ -1,5 +1,23 @@
-import { Context, Effect, Exit, Fiber } from "effect";
+import { Context, Data, Effect, Exit, Fiber } from "effect";
 import type { TimelineCause } from "./timeline.js";
+
+/**
+ * A signal was written outside every named transition, so its commit would
+ * have no name on the `Timeline`. Raised as a defect at the write.
+ */
+export class SignalWriteOutsideTransition extends Data.TaggedError("SignalWriteOutsideTransition")<{
+  /** The written signal's `Signal.make` name. */
+  readonly signal: string;
+}> {
+  override get message(): string {
+    return (
+      `Signal "${this.signal}" was written outside a named transition. ` +
+      "Every state change needs a name: write it inside a named " +
+      '`Component.callback("name", ...)`, an Action, or a Program update, ' +
+      "or wrap it in `Signal.batch(f, { name })` / `Signal.transaction(effect, { name })`."
+    );
+  }
+}
 
 /**
  * A staged signal write. Commit applies every write to committed state before
@@ -22,7 +40,10 @@ export interface SignalTransactionState {
   /** Bumped on every staged write, so derived reads can cache per write set. */
   version: number;
   open: boolean;
-  /** Why this transaction commits, reported to an installed commit recorder. */
+  /**
+   * Why this transaction commits, reported to an installed commit recorder.
+   * Writes into a transaction without one fail with `SignalWriteOutsideTransition`.
+   */
   cause: TimelineCause | undefined;
 }
 
@@ -41,6 +62,7 @@ export interface SignalCommitChange {
  * commit that caused it.
  */
 export interface SignalCommitRecorder {
+  /** `cause` is `undefined` only for framework bookkeeping writes (`writeUntracedSignals`). */
   commit(changes: ReadonlyArray<SignalCommitChange>, cause: TimelineCause | undefined): void;
 }
 
@@ -52,7 +74,62 @@ class SignalTransaction extends Context.Service<SignalTransaction, SignalTransac
   "@sunfall/arc-core/SignalTransaction",
 ) {}
 
+/**
+ * Internal Effect service carrying the named transition a fiber runs in
+ * (`Component.callback`). Writes outside a transaction commit under it, and
+ * transactions opened without a cause inherit it; forked fibers inherit it too.
+ */
+class SignalTransition extends Context.Service<SignalTransition, TimelineCause>()(
+  "@sunfall/arc-core/SignalTransition",
+) {}
+
 let currentBatch: SignalTransactionState | undefined;
+
+/** Depth of `writeUntracedSignals`: framework bookkeeping writes that need no cause. */
+let untracedWrites = 0;
+
+/**
+ * The named transition the running fiber belongs to, if any: its
+ * `withSignalTransition` cause, else the cause of a transaction it outlived
+ * (a fiber forked inside a transaction commits its later writes under it).
+ */
+const currentSignalTransition = (): TimelineCause | undefined => {
+  const fiber = Fiber.getCurrent();
+  return fiber === undefined
+    ? undefined
+    : (Context.getOrUndefined(fiber.context, SignalTransition) ??
+        Context.getOrUndefined(fiber.context, SignalTransaction)?.cause);
+};
+
+const unnamedWrite = (signal: SignalTransactionWritable): never => {
+  throw new SignalWriteOutsideTransition({ signal: signal.timelineName() });
+};
+
+/**
+ * Runs `effect` as a named transition: writes outside a transaction commit
+ * under `cause`, and transactions opened without a cause inherit it. Unlike a
+ * transaction it stages nothing, so each write (and any Action or Program it
+ * starts, which keep their own causes) commits as it happens.
+ */
+export const withSignalTransition = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  cause: TimelineCause,
+): Effect.Effect<A, E, R> => Effect.provideService(effect, SignalTransition, cause);
+
+/**
+ * Runs framework bookkeeping writes that are not application state changes
+ * and so carry no cause: a recording's own state, or a router outlet's node
+ * (derived from recorded router state). Their commits are not recorded. Never
+ * for application signals.
+ */
+export const writeUntracedSignals = <A>(f: () => A): A => {
+  untracedWrites++;
+  try {
+    return f();
+  } finally {
+    untracedWrites--;
+  }
+};
 
 /**
  * Open transactions plus active travelled-view evaluations. Zero lets reads and
@@ -180,20 +257,29 @@ export const readSignalTransactionValue = (signal: SignalTransactionWritable): u
   return transaction?.writes.has(signal) ? transaction.writes.get(signal) : signal.readCommitted();
 };
 
-/** Stages a write in the caller's transaction, or commits it alone. */
+/**
+ * Stages a write in the caller's transaction, or commits it alone under the
+ * caller's named transition. A write with no cause to commit under fails with
+ * `SignalWriteOutsideTransition`.
+ */
 export const writeSignalTransactionValue = (
   signal: SignalTransactionWritable,
   value: unknown,
 ): void => {
   const transaction = currentSignalTransaction();
   if (transaction) {
+    if (transaction.cause === undefined && untracedWrites === 0) {
+      unnamedWrite(signal);
+    }
     transaction.writes.set(signal, value);
     transaction.version++;
     return;
   }
 
+  const cause =
+    untracedWrites === 0 ? (currentSignalTransition() ?? unnamedWrite(signal)) : undefined;
   if (recorder !== undefined) {
-    commitRecordedSignalWrites(recorder, [[signal, value]], undefined);
+    commitRecordedSignalWrites(recorder, [[signal, value]], cause);
     return;
   }
 
@@ -257,9 +343,11 @@ const commitSignalWrites = (
   }
 };
 
+/** Opens a transaction named by `cause`, else by the caller's named transition. */
 const openSignalTransaction = (cause: TimelineCause | undefined): SignalTransactionState => {
+  const named = cause ?? currentSignalTransition();
   guardedAccess++;
-  return { writes: new Map(), version: 0, open: true, cause };
+  return { writes: new Map(), version: 0, open: true, cause: named };
 };
 
 const closeSignalTransaction = (transaction: SignalTransactionState, commit: boolean): void => {
@@ -271,39 +359,32 @@ const closeSignalTransaction = (transaction: SignalTransactionState, commit: boo
   transaction.writes.clear();
 };
 
-/** Options shared by `Signal.transaction` and `Signal.batch`. */
-export interface SignalTransactionOptions {
-  /**
-   * Why the transaction commits, shown on its `Timeline` entry. A nested
-   * transaction names the commit only when the outer one has no cause.
-   */
-  readonly cause?: TimelineCause;
-}
-
+/** A nested transaction names the commit only when the outer one has no cause. */
 const joinSignalTransaction = (
   transaction: SignalTransactionState,
-  options: SignalTransactionOptions | undefined,
+  cause: TimelineCause | undefined,
 ): void => {
-  if (transaction.cause === undefined && options?.cause !== undefined) {
-    transaction.cause = options.cause;
+  if (transaction.cause === undefined && cause !== undefined) {
+    transaction.cause = cause;
   }
 };
 
 /**
- * Runs synchronous work as one atomic signal transaction.
+ * Runs synchronous work as one atomic signal transaction committed under
+ * `cause` (else the caller's named transition).
  *
  * Reads inside `f` see its own writes; subscribers run once after `f` returns.
  * If `f` throws, nothing is committed. Nested batches and transactions join the
  * outer one.
  */
-export const batchSignalWrites = <A>(f: () => A, options?: SignalTransactionOptions): A => {
+export const batchSignalWrites = <A>(f: () => A, cause?: TimelineCause): A => {
   const current = currentSignalTransaction();
   if (current) {
-    joinSignalTransaction(current, options);
+    joinSignalTransaction(current, cause);
     return f();
   }
 
-  const transaction = openSignalTransaction(options?.cause);
+  const transaction = openSignalTransaction(cause);
   currentBatch = transaction;
   let committed = false;
   try {
@@ -317,25 +398,26 @@ export const batchSignalWrites = <A>(f: () => A, options?: SignalTransactionOpti
 };
 
 /**
- * Runs an Effect as one atomic signal transaction, including fibers it forks.
+ * Runs an Effect as one atomic signal transaction, including fibers it forks,
+ * committed under `cause` (else the caller's named transition).
  *
  * Reads see the transaction's own writes. Success commits every write at once;
  * failure or interruption commits nothing. Nested transactions join the outer one.
  */
 export const signalTransaction = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
-  options?: SignalTransactionOptions,
+  cause?: TimelineCause,
 ): Effect.Effect<A, E, R> =>
   Effect.suspend(() => {
     const current = currentSignalTransaction();
     if (current) {
-      joinSignalTransaction(current, options);
+      joinSignalTransaction(current, cause);
       return effect;
     }
 
     // Acquire and release are uninterruptible, so the open count never leaks.
     return Effect.acquireUseRelease(
-      Effect.sync(() => openSignalTransaction(options?.cause)),
+      Effect.sync(() => openSignalTransaction(cause)),
       (transaction) => Effect.provideService(effect, SignalTransaction, transaction),
       (transaction, exit) =>
         Effect.sync(() => closeSignalTransaction(transaction, Exit.isSuccess(exit))),

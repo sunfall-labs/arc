@@ -10,8 +10,18 @@ import {
   Resource,
   Signal,
 } from "../src/index.js";
-import { makeActionSubmissionController, defaultRuntime } from "../src/internal.js";
+import {
+  makeActionSubmissionController,
+  defaultRuntime,
+  withSignalTransition,
+} from "../src/internal.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
+
+/** Runs optimistic patches as an Action submission does: labelled with the Action. */
+const asSubmission =
+  (action: string) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    withSignalTransition(effect, { _tag: "Action", action, event: "submit" });
 
 describe("Action", () => {
   it("tracks status transitions", async () => {
@@ -199,7 +209,7 @@ describe("Action", () => {
 
   it("captures optimistic signal updater throws as defects", async () => {
     const cause = new Error("optimistic signal failed");
-    const title = Signal.make("Draft");
+    const title = Signal.make("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-sync-throw",
       optimistic: (_next, transaction) =>
@@ -231,7 +241,7 @@ describe("Action", () => {
   });
 
   it("captures erased Promise-shaped optimistic signal values as defects", async () => {
-    const title = Signal.make<unknown>("Draft");
+    const title = Signal.make<unknown>("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-promise-value",
       optimistic: (_next, transaction) =>
@@ -261,7 +271,7 @@ describe("Action", () => {
   });
 
   it("captures erased Promise-shaped optimistic signal updater returns as defects", async () => {
-    const title = Signal.make<unknown>("Draft");
+    const title = Signal.make<unknown>("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-promise-updater",
       optimistic: (_next, transaction) =>
@@ -294,7 +304,7 @@ describe("Action", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const cause = new Error("optimistic rebase failed");
-        const title = Signal.make("Draft");
+        const title = Signal.make("Draft", { name: "title" });
         const first = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
         const second = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
 
@@ -323,15 +333,15 @@ describe("Action", () => {
           });
           expect(title.get()).toBe("First:Second");
         });
-      }),
+      }).pipe(asSubmission("rename.optimistic-rebase")),
     ));
 
   it("keeps optimistic transaction finish atomic across multiple signals", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const cause = new Error("optimistic multi-signal rebase failed");
-        const left = Signal.make("left:base");
-        const right = Signal.make("right:base");
+        const left = Signal.make("left:base", { name: "left" });
+        const right = Signal.make("right:base", { name: "right" });
         const first = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
         const second = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
 
@@ -368,7 +378,7 @@ describe("Action", () => {
           expect(left.get()).toBe("left:base:second");
           expect(right.get()).toBe("right:base:second");
         });
-      }),
+      }).pipe(asSubmission("rename.optimistic-atomic")),
     ));
 
   it("captures synchronous invalidation callback throws as defects", async () => {
@@ -871,7 +881,7 @@ describe("Action", () => {
   });
 
   it("commits optimistic signal patches on success", async () => {
-    const title = Signal.make("Draft");
+    const title = Signal.make("Draft", { name: "title" });
     const Rename = Action.define<string, string>({
       name: "rename.optimistic.success",
       optimistic: (next, transaction) =>
@@ -892,7 +902,7 @@ describe("Action", () => {
   });
 
   it("commits optimistic patches whose value is undefined", async () => {
-    const selected = Signal.make<string | undefined>("Draft");
+    const selected = Signal.make<string | undefined>("Draft", { name: "selected" });
     const Clear = Action.define<void, void>({
       name: "clear.optimistic.undefined",
       optimistic: (_, transaction) =>
@@ -908,7 +918,7 @@ describe("Action", () => {
   });
 
   it("does not invalidate resources when optimistic commit fails", async () => {
-    const title = Signal.make("Draft");
+    const title = Signal.make("Draft", { name: "title" });
     let shouldFailCommit = false;
     let value = 0;
     const load = vi.fn(() => Effect.succeed(value));
@@ -952,7 +962,7 @@ describe("Action", () => {
   });
 
   it("rolls back optimistic patches on failure", async () => {
-    const title = Signal.make("Draft");
+    const title = Signal.make("Draft", { name: "title" });
     const Rename = Action.define<string, string, string>({
       name: "rename.optimistic.failure",
       optimistic: (next, transaction) => transaction.signal(title, next),
@@ -971,7 +981,7 @@ describe("Action", () => {
   });
 
   it("rolls back interrupted latest optimism before applying the next patch", async () => {
-    const title = Signal.make("Draft");
+    const title = Signal.make("Draft", { name: "title" });
     const secondOptimisticApplied = Effect.runSync(Deferred.make<void>());
     const Rename = Action.define<string, string>({
       name: "rename.optimistic.latest",
@@ -1000,7 +1010,7 @@ describe("Action", () => {
   });
 
   it("rolls back optimistic patches when interrupted inside optimistic work", () => {
-    const title = Signal.make("Draft");
+    const title = Signal.make("Draft", { name: "title" });
     const firstOptimisticApplied = Effect.runSync(Deferred.make<void>());
     const holdFirstOptimistic = Effect.runSync(Deferred.make<void>());
     const Rename = Action.define<string, string>({

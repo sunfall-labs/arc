@@ -96,6 +96,7 @@
         "route-match",
         "runtime",
         "scope",
+        "signal-transaction",
         "signal-watch",
         "stable-stringify"
       ],

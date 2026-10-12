@@ -24,6 +24,7 @@ import {
   makeActionInstance,
   resourceRenderCause,
   startProgramOnRuntime,
+  withSignalTransition,
 } from "@sunfall/arc-core/internal";
 import { Cause, Context, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -115,6 +116,8 @@ interface Environment {
 }
 
 interface InstanceState {
+  /** The component's name; prefixes its named callbacks and streams. */
+  readonly name: string;
   readonly runtime: AnySunfallArcRuntime<unknown>;
   readonly owner: Owner | null;
   readonly scope: Scope.Scope;
@@ -159,7 +162,7 @@ const renderInstance = <P>(
   const { runtime } = environment;
   const owner = getOwner();
   const scope = Scope.makeUnsafe();
-  const state: InstanceState = { runtime, owner, scope };
+  const state: InstanceState = { name: component.name, runtime, owner, scope };
   const setup = impl(component)
     .setup(props)
     .pipe(
@@ -591,6 +594,8 @@ export namespace Component {
    * context, including `Component.provide` services), Solid owner, and Scope.
    */
   export interface Instance {
+    /** The component's name, which prefixes its named transitions (`<name>.<callback>`). */
+    readonly name: string;
     /**
      * Runtime whose effects see the setup's context. It has already started
      * (mounts start it before rendering), so it adds no startup failures.
@@ -762,6 +767,7 @@ export namespace Component {
     const context = yield* Effect.context<never>();
     const runtime = withSetupContext(state.runtime, context) as AnySunfallArcRuntime<never>;
     return {
+      name: state.name,
       runtime,
       owner: state.owner,
       scope: state.scope,
@@ -865,37 +871,67 @@ export namespace Component {
 
   /**
    * Runs a Stream for this instance and returns its latest value as an
-   * accessor (`initial` until the first element). The stream's services join
-   * the component's `R`; it is interrupted when the instance is disposed.
+   * accessor (`initial` until the first element). Each element commits under
+   * the transition `<Component>.<name>`. The stream's services join the
+   * component's `R`; it is interrupted when the instance is disposed.
    */
   export const stream = <A, R>(
+    name: string,
     source: Stream.Stream<A, never, R>,
     initial: A,
   ): Effect.Effect<Accessor<A>, never, R> =>
     Effect.gen(function* () {
       const current = yield* instance;
-      const latest = Signal.make(initial);
-      current.fork(source.pipe(Stream.runForEach((value) => Effect.sync(() => latest.set(value)))));
+      const transition = `${current.name}.${name}`;
+      const latest = Signal.make(initial, { name: transition });
+      current.fork(
+        withSignalTransition(
+          source.pipe(Stream.runForEach((value) => Effect.sync(() => latest.set(value)))),
+          { _tag: "Transition", name: transition },
+        ),
+      );
       return () => latest.get();
     });
 
   /**
-   * Turns an Effect-returning function into a plain callback for DOM event
-   * handlers. Each call forks the Effect in the instance's Scope with the
-   * setup's context (interrupted on unmount). Its services join the
-   * component's `R`; it must handle its own failures (`E = never`).
+   * Turns an Effect-returning function into a named callback for DOM event
+   * handlers: the one way component code changes Signals it owns.
+   *
+   * Each call forks the Effect in the instance's Scope with the setup's
+   * context (interrupted on unmount), starting it right away so synchronous
+   * work lands within the DOM event, as the named transition
+   * `<Component>.<name>`: Signal writes it makes commit under that name on the
+   * `Timeline`, while Actions and Programs it runs keep their own causes. Its
+   * services join the component's `R`; it must handle its own failures
+   * (`E = never`).
    *
    * @example
    * ```tsx
-   * const refresh = yield* Component.callback(() => Resource.invalidate(ProjectsRef));
+   * const refresh = yield* Component.callback("refresh", () => Resource.invalidate(ProjectsRef));
    * return () => <button onClick={refresh}>Refresh</button>;
    * ```
    */
   export const callback = <Args extends ReadonlyArray<unknown>, A, R>(
+    name: string,
     f: (...args: Args) => Effect.Effect<A, never, R>,
   ): Effect.Effect<(...args: Args) => void, never, R> =>
-    Effect.map(instance, (current) => (...args: Args) => {
-      current.fork(Effect.suspend(() => f(...args)));
+    Effect.map(instance, (current) => {
+      const cause = { _tag: "Transition", name: `${current.name}.${name}` } as const;
+      return (...args: Args) => {
+        // Started immediately, so synchronous writes land within the DOM event.
+        current.runtime.runSync(
+          Effect.forkIn(
+            withSignalTransition(
+              Effect.suspend(() => f(...args)),
+              cause,
+            ),
+            current.scope,
+            {
+              startImmediately: true,
+            },
+          ),
+        );
+      };
     });
 
   /** Services a router needs: its routes' preloads and route Components' services. */

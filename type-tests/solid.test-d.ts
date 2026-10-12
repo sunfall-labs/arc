@@ -82,11 +82,11 @@ const solidProviderRoutesProps: RouterProviderProps<typeof solidRoutes> = {
   // @ts-expect-error RouterProvider renders a router from `Component.router(...)`, not routes.
   routes: solidRoutes,
 };
-const solidCountSignal = Signal.make(0);
+const solidCountSignal = Signal.make(0, { name: "solidCountSignal" });
 const solidReadSignalValue: number = solidCountSignal.get();
 const solidEffectRuntime = makeRuntime();
 const solidSignalValue = (): number => solidCountSignal.get();
-const solidStreamValue = Component.stream(Stream.succeed("ready"), "idle");
+const solidStreamValue = Component.stream("status", Stream.succeed("ready"), "idle");
 const SolidProgram = Program.define<number, "tick">({
   initial: 0,
   update: (model) => Program.next(model + 1),
@@ -218,9 +218,9 @@ const solidActionStateTag: "Initial" | "Success" | "Failure" = solidAction.resul
 const solidActionInput: Option.Option<{ readonly id: string }> = solidAction.input();
 // Event handlers bridge the Effect through `Component.callback`, which requires
 // the failures to be handled.
-void Component.callback((id: string) => solidAction.submit({ id }).pipe(Effect.ignore));
+void Component.callback("submit", (id: string) => solidAction.submit({ id }).pipe(Effect.ignore));
 // @ts-expect-error -- `Component.callback` rejects unhandled submission failures.
-void Component.callback((id: string) => solidAction.submit({ id }));
+void Component.callback("submit", (id: string) => solidAction.submit({ id }));
 const solidExports: Array<unknown> = [
   RouterContextMissing,
   RouterLink,

@@ -171,7 +171,7 @@ export type DevtoolsCollectionStoreEvent =
 
 /** One signal change inside a detached Timeline commit. */
 export interface DevtoolsTimelineChange {
-  /** The signal's `Signal.make` name or stable `signal#N` id. */
+  /** The signal's `Signal.make` name. */
   readonly signal: string;
   readonly previous: unknown;
   readonly next: unknown;
@@ -181,9 +181,10 @@ export interface DevtoolsTimelineChange {
 export interface DevtoolsTimelineCommit {
   /** Sequence within the Timeline recording. */
   readonly sequence: number;
-  /** `Timeline.describe(cause)`. */
+  /** `Timeline.describe(cause)`, e.g. `ProjectPage.rename`. */
   readonly label: string;
-  readonly cause?: TimelineCause;
+  /** The named transition or framework event that made the commit. */
+  readonly cause: TimelineCause;
   readonly changes: ReadonlyArray<DevtoolsTimelineChange>;
 }
 

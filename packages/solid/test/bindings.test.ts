@@ -324,7 +324,7 @@ describe("Component bindings", () => {
               runtime,
               Effect.gen(function* () {
                 const action = yield* Component.action(Save);
-                return yield* Component.callback((id: string) =>
+                return yield* Component.callback("save", (id: string) =>
                   action.submit(id).pipe(Effect.ignore),
                 );
               }),
@@ -404,6 +404,7 @@ describe("Component bindings", () => {
             return bindInInstance(
               runtime,
               Component.stream(
+                "projectName",
                 Stream.fromEffect(
                   ProjectApi.use((api) => api.get("atlas")).pipe(
                     Effect.map((project) => project.name),
@@ -434,7 +435,7 @@ describe("Component bindings", () => {
             dispose = rootDispose;
             return bindInInstance(
               runtime,
-              Component.callback((id: string) =>
+              Component.callback("open", (id: string) =>
                 ProjectApi.use((api) => api.get(id)).pipe(
                   Effect.tap((project) => Deferred.succeed(started, project.name)),
                   Effect.andThen(Effect.never),

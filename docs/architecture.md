@@ -771,16 +771,18 @@ through `RouterOutlet` additionally get a route UI scope. Closing a scope runs
 its finalizers and interrupts its fibers: streams from `Component.stream`,
 fibers forked by `Component.callback`, Programs, and in-flight Action
 submissions all stop with the instance. Plain Solid components stay unscoped.
+Callbacks and streams are named transitions: their Signal writes commit as
+`<Component>.<name>` on the Timeline.
 
 ```tsx
 const Presence = Component.define("Presence", function* () {
   // Stream-backed values stop with the instance.
-  const presence = yield* Component.stream(presenceStream, initialPresence);
+  const presence = yield* Component.stream("presence", presenceStream, initialPresence);
   // Background Effect work forked from handlers is interrupted on unmount.
-  const ping = yield* Component.callback(() =>
+  const ping = yield* Component.callback("ping", () =>
     Effect.sleep("1 second").pipe(Effect.andThen(Effect.log("still mounted"))),
   );
-  const title = Signal.make("Sunfall Arc");
+  const title = Signal.make("Sunfall Arc", { name: "Presence.title" });
 
   // Imperative DOM sinks use Solid effects; Arc signals track natively.
   createEffect(
@@ -794,8 +796,10 @@ const Presence = Component.define("Presence", function* () {
 });
 ```
 
-Use Solid effects only for imperative sinks. Use `Signal.derive`, `Resource`,
-`Action`, and `Stream` for application state.
+Use Solid effects only for imperative sinks: they read Arc signals but never
+write them (a write there is outside every named transition and dies). Use
+`Signal.derive`, `Resource`, `Action`, `Program`, and named callbacks for
+application state.
 
 Resource families keep a synchronous signal for UI reads, but their backing
 cache is Effect `Cache` stored in the current Resource Store. `preload`
@@ -1416,7 +1420,7 @@ runtime with dependency injection.
 The render model is latest-value reactive:
 
 ```ts
-const count = Signal.make(0);
+const count = Signal.make(0, { name: "Counter.count" });
 const doubled = Signal.derive(() => count.get() * 2);
 ```
 
@@ -1431,28 +1435,32 @@ become render dependencies.
 
 Signals separate committed state from rendered state:
 
-1. Every write is transactional. It joins the caller's open transaction or
-   commits on its own, so a write is never half-applied.
+1. Every write is transactional and named. It joins the caller's open
+   transaction or commits on its own under the caller's named transition
+   (a `Component.callback`), so a write is never half-applied and never
+   anonymous. A write with neither dies with `SignalWriteOutsideTransition`.
 2. Effect and synchronous code read committed state, including their own
    transaction's writes. Solid computations read rendered state, which Solid
    tracks natively and catches up atomically at its next flush.
 3. A transaction that fails or is interrupted commits nothing.
 
 ```ts
-const next = yield * Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
-
 yield *
   Signal.transaction(
     Effect.gen(function* () {
-      const saved = yield* Signal.updateAndGet(count, (n) => n + 1);
+      const saved = yield* Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
       yield* api.save(saved); // if this fails, the write above never happened
     }),
+    { name: "Counter.save" },
   );
 
-Signal.batch(() => {
-  plan.set(undefined);
-  state.set(idle); // subscribers run once, after both writes
-});
+Signal.batch(
+  () => {
+    plan.set(undefined);
+    state.set(idle); // subscribers run once, after both writes
+  },
+  { name: "Submission.reset" },
+);
 ```
 
 Inside a transaction, reads (including `Signal.derive`) see the transaction's own
@@ -1460,7 +1468,9 @@ writes; other fibers, subscribers, and the UI see none of them until commit.
 Nested transactions and batches join the outer one. A transaction covers its
 whole Effect, including fibers it forks, so concurrent branches
 (`Effect.all(..., { concurrency })`) commit atomically with it. A fiber still
-running after the transaction ends sees it closed and commits its own writes.
+running after the transaction ends sees it closed and commits its own writes,
+under the transaction's name. A transaction without a `name` takes the
+caller's named transition; inside none, its writes die.
 
 The temporal model is still available through Effect streams:
 
@@ -1472,12 +1482,13 @@ Signal.changes(count); // updates only
 Streams can also drive signals when the stream cannot fail:
 
 ```ts
-const online = yield * Signal.fromStream(presenceStream, false);
+const online = yield * Signal.fromStream(presenceStream, false, { name: "presence.online" });
 ```
 
-In Solid Components, `Component.stream(stream, initial)` is the
-component-boundary binding; its stream fiber is interrupted when the instance is
-disposed.
+Each element commits under a transition of the signal's name. In Solid
+Components, `Component.stream(name, stream, initial)` is the component-boundary
+binding (committing as `<Component>.<name>`); its stream fiber is interrupted
+when the instance is disposed.
 
 Fallible streams should first be turned into typed data or represented as `Resource`
 state, because a plain `Signal<A>` always has a current `A` and has no error channel.
@@ -1532,15 +1543,18 @@ passes through one seam in `signal-transaction.ts`: the solo-write path or the
 transaction/batch commit. `Timeline.record(...)` installs a recorder on that
 seam for the life of a Scope, so one recording covers user Signals, Resource
 entries, Action state, Program models and failures, router state, and
-collection load state and versions:
+collection load state and versions. Every write happens inside a named
+transition, so every entry reads like a message (Foldkit-style
+predictability: no state changes without a name):
 
 ```ts
 const recording = yield * Timeline.record({ limit: 1000 });
 
-Signal.batch(() => title.set("Apollo"), { cause: { _tag: "User", label: "Rename" } });
+// What `Component.callback("rename", ...)` in `ProjectPage` commits as:
+Signal.batch(() => title.set("Apollo"), { name: "ProjectPage.rename" });
 
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
-// ['Program "Board" message Relabel', 'Resource "Project.get" success atlas', "Rename"]
+// ['Program "Board" message Relabel', 'Resource "Project.get" success atlas', "ProjectPage.rename"]
 
 yield * recording.travel(entry.sequence); // render the app as it was after `entry`
 yield * recording.resume(); // render the live head again
@@ -1550,19 +1564,36 @@ Entries are `{ sequence, at, cause, changes: [{ signal, name, previous, next }] 
 `at` comes from the recording fiber's `Clock`, so `TestClock` makes timestamps
 deterministic.
 
-- **Causes** ride on the transaction. `Signal.transaction(effect, { cause })`
-  and `Signal.batch(f, { cause })` label their commit; a nested transaction
-  names the commit only when the outer one has none, and a solo write is
-  unlabelled. Framework primitives label their own commit points with the
-  same option: Action submissions (`submit`, `success`, `failure`, `interrupt`,
-  `reset`), Program messages and failures, Resource entry loads, settles,
-  hydration, and resets, router navigation, and collection syncs and row
-  changes. `TimelineCause` is a closed tagged union, and
-  `Timeline.describe(cause)` renders it.
-- **Names** come from `Signal.make(initial, { name })`. Framework signals name
-  themselves (`Board.model`, `Project.rename.state`, `Project.get(<key>)`,
-  `Router.state`, `ProjectSummaries.loadState`); an unnamed signal gets a
-  stable `signal#N` id the first time it is recorded.
+- **Every commit has a cause; there are no anonymous writes.** A write joins
+  the caller's transaction, whose cause names the commit, or commits alone
+  under the fiber's named transition. Application code names transitions with
+  `Component.callback("name", f)` (cause `Transition` named
+  `<Component>.<name>`), `Component.stream(name, ...)`,
+  `Signal.fromStream(..., { name })`, or `Signal.transaction(effect, { name })` /
+  `Signal.batch(f, { name })`. A transaction without a name takes the caller's
+  transition, and a nested transaction names the commit only when the outer
+  one has none. Framework primitives label their own commit points: Action
+  submissions (`submit`, `success`, `failure`, `interrupt`, `reset`, and the
+  outbox's `queue`, `restore`, `replay`, `dismiss`; optimistic patches carry
+  the submission's event), Program messages and failures, Resource entry
+  loads, settles, hydration, and resets, router navigation, and collection
+  syncs and row changes. An explicit cause wins over the ambient transition,
+  so an Action submitted from a callback still reads
+  `Action "Project.rename" submit`.
+- **A write outside every named transition dies** with
+  `SignalWriteOutsideTransition` (naming the Signal and the fixes). The check
+  is always on: SSR, tests, and production behave the same, and its cost is a
+  context lookup on the solo-write path only. Solid effects and bare DOM
+  handlers therefore call a named callback; tests write through a named
+  `Signal.batch`. `TimelineCause` is a closed tagged union,
+  `TimelineEntry.cause` is always present, and `Timeline.describe(cause)`
+  renders it.
+- **Names** come from `Signal.make(initial, { name })`, where `name` is
+  required. Framework signals name themselves (`Board.model`,
+  `Project.rename.state`, `Project.get(<key>)`, `Router.state`,
+  `ProjectSummaries.loadState`). A router outlet's rendered node is derived
+  from recorded router state, so it is bookkeeping, not recorded: travel
+  re-renders the travelled route.
 - **Travel renders the past; it does not rewrite state.** Committed state stays
   at the live head, so Effects, Actions, Programs, and watchers keep computing
   from it and their commits keep being recorded: nothing is lost and nothing

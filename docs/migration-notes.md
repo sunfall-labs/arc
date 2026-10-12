@@ -5,6 +5,28 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Anonymous Signal Writes
+
+Every state change now has a name, so the Timeline reads like a message log.
+A Signal changes only inside a named transition; a write anywhere else dies
+with `SignalWriteOutsideTransition`, naming the Signal.
+
+| Before                                                    | After                                                                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Signal.make(initial)` / `Signal.make(initial, { name })` | `Signal.make(initial, { name })`: the name is required                                           |
+| `onInput={(event) => draft.set(event.target.value)}`      | `const edit = yield* Component.callback("edit", (v: string) => Effect.sync(() => draft.set(v)))` |
+| `Component.callback(f)`                                   | `Component.callback("name", f)`: commits as `<Component>.<name>`                                 |
+| `Component.stream(stream, initial)`                       | `Component.stream("name", stream, initial)`                                                      |
+| `Signal.fromStream(stream, initial)`                      | `Signal.fromStream(stream, initial, { name })`                                                   |
+| `Signal.batch(f, { cause: { _tag: "User", label } })`     | `Signal.batch(f, { name })` (likewise `Signal.transaction`)                                      |
+| `TimelineUserCause` (`{ _tag: "User", label }`)           | `TimelineTransitionCause` (`{ _tag: "Transition", name }`)                                       |
+| `TimelineEntry.cause: TimelineCause \| undefined`         | `TimelineEntry.cause: TimelineCause`                                                             |
+| `Form.make({ schema, initial })`                          | `Form.make({ name, schema, initial })`                                                           |
+
+Solid effects that wrote Signals call a named callback (or become a
+`Signal.derive`); tests that wrote Signals directly wrap the write in
+`Signal.batch(() => signal.set(value), { name: "test" })`.
+
 ## From Offline Mutation Queues
 
 Collections no longer keep a pending-mutation queue. A change that must
@@ -71,7 +93,9 @@ through `Component.callback`, which requires failures to be handled:
 const rename = yield * Component.action(RenameProject);
 const save =
   yield *
-  Component.callback((name: string) => rename.submit({ id: props.id, name }).pipe(Effect.ignore));
+  Component.callback("save", (name: string) =>
+    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
+  );
 return () => <RenameForm onRename={save} />;
 ```
 

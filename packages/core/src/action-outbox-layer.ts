@@ -35,6 +35,7 @@ import {
 import { getActionDefinition } from "./definition-registry.js";
 import { Signal } from "./signal.js";
 import type { TimelineActionCause } from "./timeline.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /**
  * The outbox's namespace in the runtime's `KeyValueStore`: the version lives
@@ -141,14 +142,14 @@ export const makeActionOutboxLayer = (
         event: TimelineActionCause["event"],
         nextFailure?: ActionOutboxFailure,
       ): void => {
-        Signal.batch(
+        batchSignalWrites(
           () => {
             pending.set(queue.map(toEntry));
             if (nextFailure !== undefined) {
               failures.set([...failures.get(), nextFailure]);
             }
           },
-          { cause: { _tag: "Action", action, event } },
+          { _tag: "Action", action, event },
         );
       };
 
@@ -380,7 +381,7 @@ export const makeActionOutboxLayer = (
           // fully pending (patch applied, record stored) or not at all.
           yield* Effect.uninterruptible(
             Effect.gen(function* () {
-              yield* applyActionOptimisticEffect(definition, input, live.transaction);
+              yield* applyActionOptimisticEffect(definition, input, live.transaction, "queue");
               yield* mutateStored((submissions) => [...submissions, record]).pipe(
                 Effect.catch((error) =>
                   Effect.andThen(live.transaction.rollback, Effect.die(error)),
@@ -486,7 +487,7 @@ export const makeActionOutboxLayer = (
             const patched = yield* Effect.exit(
               settled.has(record.id)
                 ? Effect.void
-                : applyActionOptimisticEffect(definition, input, transaction),
+                : applyActionOptimisticEffect(definition, input, transaction, "restore"),
             );
             if (Exit.isFailure(patched)) {
               yield* transaction.rollback;
@@ -504,7 +505,7 @@ export const makeActionOutboxLayer = (
               submissions.filter((record) => !droppedIds.has(record.id)),
             );
           }
-          Signal.batch(
+          batchSignalWrites(
             () => {
               pending.set(queue.map(toEntry));
               if (dropped.length > 0) {
@@ -512,11 +513,9 @@ export const makeActionOutboxLayer = (
               }
             },
             {
-              cause: {
-                _tag: "Action",
-                action: restoredLive[0]?.record.action ?? dropped[0]?.action ?? "ActionOutbox",
-                event: "restore",
-              },
+              _tag: "Action",
+              action: restoredLive[0]?.record.action ?? dropped[0]?.action ?? "ActionOutbox",
+              event: "restore",
             },
           );
           if (queue.length > 0) {
@@ -532,8 +531,10 @@ export const makeActionOutboxLayer = (
           if (failure === undefined) {
             return;
           }
-          Signal.batch(() => failures.set(current.filter((entry) => entry.id !== id)), {
-            cause: { _tag: "Action", action: failure.action, event: "dismiss" },
+          batchSignalWrites(() => failures.set(current.filter((entry) => entry.id !== id)), {
+            _tag: "Action",
+            action: failure.action,
+            event: "dismiss",
           });
         });
 

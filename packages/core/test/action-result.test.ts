@@ -22,6 +22,7 @@ describe("ActionResult", () => {
     }> {}
 
     const form = Form.make<typeof RenameInput, ProjectNameTooShort>({
+      name: "projectForm",
       schema: RenameInput,
       initial: { id: "atlas", name: "At" },
       validate: (values, validation) =>

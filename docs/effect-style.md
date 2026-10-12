@@ -310,6 +310,7 @@ const RenameProjectInput = Schema.Struct({
 });
 
 const form = Form.make<typeof RenameProjectInput, ProjectNameTooShort>({
+  name: "renameForm",
   schema: RenameProjectInput,
   initial: { id: makeProjectId("atlas"), name: "" },
   validate: (values, validation) =>
@@ -434,26 +435,24 @@ const fetchEffect = toFetchHandler(handler); // fetch-shaped Effect adapter
 ```
 
 ```ts
-const count = Signal.make(0);
+const count = Signal.make(0, { name: "Counter.count" });
 
 yield * Signal.values(count).pipe(Stream.runForEach((value) => Effect.log(`count: ${value}`)));
 ```
 
 ```ts
 const presence =
-  yield *
-  Signal.fromStream(presenceStream, {
-    status: "offline",
-  });
+  yield * Signal.fromStream(presenceStream, { status: "offline" }, { name: "Presence.status" });
 
 presence.get();
 ```
 
 ```tsx
 const Title = Component.define("Title", function* () {
-  const title = Signal.make("Sunfall Arc");
-  // Each call forks in the instance Scope: interrupted when it unmounts.
-  const keepAlive = yield* Component.callback(() => Effect.never);
+  const title = Signal.make("Sunfall Arc", { name: "Title.title" });
+  // Each call forks in the instance Scope (interrupted when it unmounts) as
+  // the named transition `Title.keepAlive`.
+  const keepAlive = yield* Component.callback("keepAlive", () => Effect.never);
 
   createEffect(
     () => title.get(),

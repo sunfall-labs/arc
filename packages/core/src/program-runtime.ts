@@ -23,6 +23,7 @@ import { makeProgramRuntimeScheduler } from "./program-runtime-scheduler.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal } from "./signal.js";
 import type { TimelineProgramCause } from "./timeline.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 interface QueuedMessage<Message, E> {
   readonly message: ProgramMessageValue<Message>;
@@ -90,9 +91,10 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   });
 
   const recordFailure = (failure: ProgramFailure<Message, ProgramRuntimeError<E, ER>>): void =>
-    Signal.batch(() => failures.update((current) => [...current, failure]), {
-      cause: cause("failure", failure.message),
-    });
+    batchSignalWrites(
+      () => failures.update((current) => [...current, failure]),
+      cause("failure", failure.message),
+    );
 
   const disposedFailure = (
     message: ProgramMessageValue<Message>,
@@ -228,12 +230,12 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                     if (disposed) {
                       return false;
                     }
-                    Signal.batch(
+                    batchSignalWrites(
                       () => {
                         committedDispatches.add(queued);
                         model.set(step.model as Model);
                       },
-                      { cause: cause("message", queued.message as Message) },
+                      cause("message", queued.message as Message),
                     );
                     if (!Object.is(before, step.model)) {
                       restartSubscriptions(step.model as Model);
@@ -407,7 +409,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     failures,
     dispatch: instanceDispatchEffect,
     clearFailures: () =>
-      Signal.batch(() => failures.set([]), { cause: cause("clearFailures", undefined) }),
+      batchSignalWrites(() => failures.set([]), cause("clearFailures", undefined)),
     dispose: disposeEffect,
   };
 

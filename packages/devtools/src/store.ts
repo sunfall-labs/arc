@@ -399,7 +399,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       commit: {
         sequence: entry.sequence,
         label: Timeline.describe(entry.cause),
-        ...(entry.cause === undefined ? {} : { cause: entry.cause }),
+        cause: entry.cause,
         changes: entry.changes.map((change) => ({
           signal: change.name,
           previous: change.previous,
