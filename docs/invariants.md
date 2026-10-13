@@ -57,29 +57,28 @@ documented as outside the current release bar.
 - State is the one writable client state. Public Signals are read-only;
   writable signals are internal to the framework, so every change is a State
   message, an Action, or a framework event, and every commit is named.
-- State definitions are named model/message loops (`name` is required); UI
+- State definitions are named machines (`name` is required); UI
   adapters read the public signals and send messages instead of owning hidden
   reducer state.
-- State models and messages are plain values. Promise-shaped values,
-  Effect-shaped values, and `undefined`/`void` messages are rejected because
-  command Effects reserve `undefined`/`void` as the no-message sentinel.
-- State definitions are `State.define({ name, initial, on })`: messages are a
-  tagged union inferred from (or, with `State.define<Model, Message>()`,
-  declared for) the `on` map keyed by each message `_tag`, and handlers are
-  pure and synchronous, so `State.step(definition, model, message)` tests a
-  transition with no runtime. There is no `update` callback.
-- `State.emit(...)` is the one command constructor: an immediate message,
-  the message an Effect produces, or nothing when the Effect completes with
-  `void`. `State.commands(...)` only batches.
-- Update, command, and subscription failures are reported as typed
-  `State.Failure` values without replacing the current model.
+- State models and messages are schema-typed data: `Model({...})` variants
+  and `Message({...})` messages are Effect Schemas, and a message the schema
+  rejects is a `State.Failure`, not a transition.
+- State definitions are `State.define({ name, machine })` around an
+  effect-machine `Machine`. Transitions are keyed by (variant, message) and
+  return a model variant; a message the current variant does not handle is
+  ignored and recorded as such. `Machine.replay(definition.machine, messages)`
+  tests transitions with no runtime.
+- Async work is owned by a variant (`task`, `spawn`): it starts on entry, is
+  interrupted on exit, and has a `never` error channel, so expected outcomes
+  come back as messages.
+- Rejected messages, transition and work defects, and rejected hydration
+  snapshots are reported as typed `State.Failure` values without replacing
+  the current model.
 - An Action's optimistic patch on a State is a layer over its model: messages
   apply to the base and the patch re-applies over it.
-- Subscriptions are tied to committed model generations; stale generations
-  cannot emit follow-up messages or timeline facts after a restart.
-- `dispatch(message)` is an Effect that acknowledges only updates that commit. Disposal before
-  commit fails the acknowledgement with `State.Disposed`; disposal after commit
-  preserves the committed model.
+- `dispatch(message)` is an Effect that completes once the machine has
+  processed the message (applied or ignored). Disposal first fails it with
+  `State.Disposed`; disposal after processing preserves the committed model.
 
 ## Resource Store
 

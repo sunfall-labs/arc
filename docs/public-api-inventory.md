@@ -378,63 +378,55 @@ Release decisions:
   facade keeps runtime binding and requirement subtraction local, so LSP hovers
   still show the action requirements after any explicit Runtime Spine is
   applied.
-- `State` is the one writable client state: a named model/message loop.
-  `State.define({ name, scope?, initial, on, subscriptions? })` infers the message
-  union from `on` (each key a `_tag`; a handler's second parameter types that
-  message's fields); `State.define<Model, Message>()({ ... })` names the union
-  up front, which commands that emit the State's own messages need (the
-  inferred form's commands may only emit nothing). `name` is required.
-  Messages are always tagged; there is no `update` callback. Handlers are
-  pure and synchronous: they return the next model or `State.next(model,
-commands)`, never an Effect. `State.emit(...)`
-  is the one command constructor: it emits an immediate message, or runs an
-  Effect after the model commits and emits the message it produces; an Effect
-  that completes with `void` emits nothing, so background work is
-  `State.emit(effect)` too. `State.commands(...)` batches commands for
-  `State.next(model, ...)`, and `State.subscription(stream)` attaches
-  model-dependent Streams.
+- `State` is the one writable client state: a named effect-machine machine.
+  `Model`, `Message`, and `Machine` are re-exported from effect-machine;
+  `State.define({ name, machine, scope?, persist? })` names a
+  `Machine.make({ state, event, initial })` built from schema-first
+  `Model({...})` variants and `Message({...})` messages. `name` is required.
+  Transitions are `.on(variant, message, handler)`, keyed by (variant,
+  message) and returning a model variant; a message the current variant does
+  not handle is ignored and recorded as such. Work is state-owned
+  (`.task(variant, run, { onSuccess, onFailure })`, `spawn`): it starts on
+  entering the variant, is interrupted on leaving it, and has a `never` error
+  channel, so expected failures come back as messages. `State.Model<D>`,
+  `State.Message<D>`, `State.Machine`, and `State.MessageFields` name a
+  definition's types.
   `State.start(definition, { runtime })` always takes an explicit runtime
   (there is no default-runtime fallback); it adds runtime startup/provision
   errors to the failure channel and rejects runtimes that do not provide the
-  State's command and subscription requirements; it always starts a new
-  instance. UI code binds a State with Solid's `Component.state(...)`: per
-  Component instance by default, or the runtime's one instance when the
-  definition says `scope: "app"` (`State.Scope`: `"component" | "app"`),
-  started by the first binding, shared by every binding, and stopped when the
-  runtime is disposed (a Start request runtime has its own, so a server render
-  gets one per request).
-  State models and messages are plain data: Promise-shaped values,
-  Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
-  that intentionally emit nothing reserve `undefined`/`void` as the no-message
-  sentinel; host Promise work belongs inside `State.emit(...)`, mapped to a
-  message or completing with `void`.
-  A running State (`State.Instance`) reports typed update/command/subscription
-  failures (`State.Failure`, tagged `StateFailure`) through a signal.
-  `dispatch(message)` is an Effect that queues the message and completes once
-  its update commits. States keep no history of their own: message and failure
-  commits are `Timeline.StateCause` entries on the app `Timeline`. The model
-  signal is named by the State's `name` and its failures `<name>.failures`.
-  When disposal drops a queued update before it commits, `dispatch(...)` fails
-  with a `State.Failure` whose error is `State.Disposed` (tagged
-  `StateDisposed`); updates that already committed still acknowledge
-  successfully. Committed model changes own subscription restarts, and stale
-  subscription generations cannot emit follow-up messages or timeline facts.
-  Every running State is a `State.Ref<Model>` (carrying `StateRefTypeId`), the
-  target of an Action's `transaction.set`.
-  Internally, State Contract, State Primitives, and State Runtime
-  Coordinator Modules separate public data Interfaces, pure
-  constructors/normalizers/`State.step`, and live Queue/Fiber/Scope execution
-  while the public export surface stays anchored at `state.ts`.
-  `State.RuntimeError<E, ER = never>` separates State-domain failures from
-  Runtime Spine startup/provision failures. `State.DispatchError<E, ER>` adds
-  `State.Disposed` for live `dispatch(...)` acknowledgement drops. The
-  Solid `Component.state(...)` binding runs on its instance's already-started
-  runtime, so its handle carries no `ER`.
-  `State.step(definition, model, message)` is the one test surface: a pure,
-  synchronous call returning `{ model, commands }` with the commands unrun.
-  A command is a description whose `effect` a test runs (with test services)
-  to get the message it emits. The runtime applies messages through the same
-  function.
+  machine's requirements (including the `KeyValueStore` a persisted State
+  needs); it always starts a new instance. UI code binds a State with Solid's
+  `Component.state(...)`: per Component instance by default, or the runtime's
+  one instance when the definition says `scope: "app"` (`State.Scope`:
+  `"component" | "app"`), started by the first binding, shared by every
+  binding, and stopped when the runtime is disposed (a Start request runtime
+  has its own, so a server render gets one per request, and the browser starts
+  from the server's model). `persist` (`State.PersistOptions`: `key`,
+  `version?`) restores the model from the runtime's `KeyValueStore`.
+  A running State (`State.Instance`) exposes `model`, `failures` (`State.Failure`,
+  tagged `StateFailure`, with a `State.Phase` of `Update`, `Work`, or
+  `Hydrate`), `can(message)`, `clearFailures()`, and `dispose`.
+  `dispatch(message)` is an Effect that completes once the machine has
+  processed the message, applied or ignored; if disposal happens first it
+  fails with a `State.Failure` whose error is `State.Disposed` (tagged
+  `StateDisposed`). `State.Error<ER>` covers rejected messages, `State.Defect`
+  (a defect in a transition or work), rejected hydration snapshots, and
+  runtime startup failures (`ER`); `State.DispatchError<ER>` adds
+  `State.Disposed`. The Solid `Component.state(...)` binding runs on its
+  instance's already-started runtime, so its handle carries no `ER`.
+  States keep no history of their own: each processed message is a
+  `Timeline.StateCause` entry on the app `Timeline`, under the model signal
+  named by the State's `name`. `State.history(entries)` reads each instance's
+  starting model and messages back out (`State.History`). Every running State
+  is a `State.Ref<Model>` (carrying `StateRefTypeId`), the target of an
+  Action's `transaction.set`.
+  Internally, State Contract, State Primitives, and State Runtime Coordinator
+  Modules separate public data Interfaces, definition/message/history
+  helpers, and the effect-machine actor Arc owns the commits of, while the
+  public export surface stays anchored at `state.ts`.
+  `Machine.replay(definition.machine, messages, { from? })` is the test
+  surface: it re-applies messages and returns the model they reach, with no
+  runtime, DOM, or timers.
 - `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
   It reads the posted strings as the schema's encoded shape first: a

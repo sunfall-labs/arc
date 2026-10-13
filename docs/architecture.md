@@ -64,10 +64,10 @@ Sunfall Arc should stay unusually strict in these places:
 - request work gets a fresh runtime and store;
 - route preload is typed, interruptible, and declares the resources it loads;
 - resources live in the active runtime/store, never global process state;
-- State is the one writable client state, and its handlers are pure: they
-  return plain model data or `State.next(...)`; async work leaves the handler
-  through Effect commands and Stream subscriptions, so `State.step` tests a
-  transition with no runtime;
+- State is the one writable client state: a schema-first machine whose
+  transitions are typed by (variant, message) and whose async work belongs to
+  the variant that owns it, so `Machine.replay` tests transitions with no
+  runtime;
 - actions are the one mutation path: they own mutation policy, optimistic
   State, Resource entry, and Resource row patches, invalidation, and result
   shape;
@@ -196,125 +196,116 @@ export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync
 
 ## State
 
-A State is the one way to hold writable client state: a named model that
-changes only through its messages. Messages are tagged, and `on` holds one pure
-handler per `_tag`. The smallest State infers its messages from `on`:
+A State is the one way to hold writable client state: a named
+[effect-machine](https://github.com/cevr/effect-machine) machine that changes
+only through its messages. `Model`, `Message`, and `Machine` are re-exported
+from `@sunfall/arc-core`, and `State.define({ name, machine })` names the
+machine Arc runs:
 
 ```ts
-const MenuOpen = State.define({
-  name: "Menu.open",
-  initial: false,
-  on: { Toggle: (open) => !open },
+import { Machine, Message, Model, Resource, State } from "@sunfall/arc-core";
+
+export const LoaderModel = Model({
+  Idle: {},
+  Loading: {},
+  Ready: { projects: Schema.Array(Project) },
+});
+export const LoaderMessage = Message({
+  ClickedLoad: {},
+  ReceivedProjects: { projects: Schema.Array(Project) },
 });
 
-const Search = State.define({
-  name: "AppShell.search",
-  initial: "",
-  // The second parameter types the message's fields: { _tag: "Search"; query: string }.
-  on: { Search: (_query, message: { readonly query: string }) => message.query },
+export const ProjectLoader = State.define({
+  name: "ProjectLoader",
+  machine: Machine.make({ state: LoaderModel, event: LoaderMessage, initial: LoaderModel.Idle })
+    .on(LoaderModel.Idle, LoaderMessage.ClickedLoad, () => LoaderModel.Loading)
+    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef).pipe(Effect.orDie), {
+      onSuccess: (projects) => LoaderMessage.ReceivedProjects({ projects }),
+    })
+    .on(LoaderModel.Loading, LoaderMessage.ReceivedProjects, ({ event }) =>
+      LoaderModel.Ready({ projects: event.projects }),
+    ),
 });
 ```
 
-Each key of `on` is a message `_tag`, and a handler's second parameter types
-that message's fields. Commands in the inferred form may only emit nothing
-(`State.emit(Effect.log(...))`): a command that emits the State's own
-messages would make the union circular, so such a State names the union up
-front with the explicit form:
-
-```ts
-type CounterModel = { readonly count: number; readonly loading: boolean };
-type CounterMessage =
-  | { readonly _tag: "Increment" }
-  | { readonly _tag: "Load" }
-  | { readonly _tag: "Loaded"; readonly amount: number };
-
-export const Counter = State.define<CounterModel, CounterMessage>()({
-  name: "Counter",
-  initial: { count: 0, loading: false },
-  on: {
-    Increment: (model) => ({ ...model, count: model.count + 1 }),
-    Load: (model) =>
-      State.next(
-        { ...model, loading: true },
-        State.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
-      ),
-    Loaded: (model, message) => ({
-      count: model.count + message.amount,
-      loading: false,
-    }),
-  },
-});
-```
-
+The machine is schema-first: `Model({...})` lists the model's variants and
+`Message({...})` its messages, each an Effect Schema, so a model is validated,
+serializable data and a message the schema rejects is a State failure.
 `name` is required: it names the model signal and every commit the State
-makes. `on` is exhaustive by message `_tag` and is the one way to write a
-transition: there is no lower-level `update` callback, and messages are always
-tagged (`{ _tag: "Tick" }`, not `"tick"`). Tags are PascalCase, Effect's
-`_tag` convention, and are spelled the same in `on`, `send.Tag`,
-`dispatch({ _tag })`, `State.step`, and Timeline labels.
+makes.
 
-A handler is pure and synchronous: it returns a plain model value or
-`State.next(model, commandInput)`, and never an Effect.
-Commands are Effects that may emit one follow-up message, and `State.emit(...)`
-is their one constructor: `State.emit(message)` emits immediately,
-`State.emit(effect)` emits the message the Effect produces, and an Effect that
-completes with `void` emits nothing (background work). `State.commands(...)`
-batches several for `State.next(model, ...)`.
-`State.subscription(stream)` connects model-dependent Streams to the same
-message loop. Promise-shaped host work belongs inside `Effect.tryPromise(...)`
-before the command or subscription emits a plain message.
+- **Typed transitions.** `.on(variant, message, handler)` is keyed by the
+  current variant and the message, and the handler returns a variant of the
+  model; returning a variant the model does not have, or handling a message
+  the machine does not declare, is a type error. A message the current
+  variant does not handle changes nothing and is recorded as ignored, so
+  "not valid right now" needs no guard code.
+- **State-owned work.** Async work belongs to the variant that needs it:
+  `.task(variant, ...)` (and `spawn`) starts on entry and is interrupted when
+  the State leaves the variant, so a superseded load or an elapsed timer
+  cannot land in the wrong state. Work's error channel is `never`: an expected
+  outcome comes back as a message (`onSuccess`, `onFailure`), and anything
+  else is a defect. Promise-shaped host work belongs
+  inside `Effect.tryPromise(...)` before it becomes a message.
+- **Names.** Messages are named for what happened (`ClickedLoad`,
+  `ReceivedProjects`, `TypedQuery`), PascalCase like Effect's `_tag`, and are
+  spelled the same in `send.Tag`, `dispatch`, and Timeline labels.
 
-Because handlers are pure, a transition is tested as a function call.
-`State.step(definition, model, message)` returns `{ model, commands }` without
-running anything; a command is a description whose `effect` a test runs (with
-test services) to get the message it emits:
+Because transitions are data on the machine, they are tested by replay, with
+no runtime, DOM, or timers. `Machine.replay(definition.machine, messages)`
+re-applies messages from the initial model and returns the model they reach;
+the machine's services are provided as layers:
 
 ```ts
-const loading = State.step(Counter, Counter.initial, { _tag: "Load" });
-expect(loading.model.loading).toBe(true);
-expect(loading.commands).toHaveLength(1);
-expect(Effect.runSync(loading.commands[0]!.effect)).toEqual({ _tag: "Loaded", amount: 2 });
-expect(State.step(Counter, loading.model, { _tag: "Loaded", amount: 2 }).model).toEqual({
-  count: 2,
-  loading: false,
-});
+const replay = (messages) =>
+  Effect.runSync(
+    Machine.replay(ProjectLoader.machine, messages).pipe(Effect.provide(ProjectsServerMemory)),
+  );
+expect(replay([LoaderMessage.ClickedLoad])._tag).toBe("Loading");
+expect(replay([LoaderMessage.ReceivedProjects({ projects: [atlas] })])._tag).toBe("Idle");
 ```
 
-The runtime uses the same `State.step`: it commits the model, then runs the
-commands on the Runtime Spine.
+The runtime runs the same machine as an effect-machine actor on the Runtime
+Spine, and Arc owns what it commits: each processed message lands on the
+model signal in one Timeline entry, so Timeline travel, Action optimistic
+overlays, the Solid projection, and devtools read one cell.
 
 A running State exposes a readable model signal, a typed `dispatch(message)`
-Effect that completes once the update commits, failures, and disposal. UI code
-binds a State per Component instance with Solid's `Component.state(Counter)`,
-whose services join the component's `R` and whose handle adds one DOM-ready
-sender per tag (`onClick={menu.send.Toggle}`). A definition's `scope` says who
-owns the bound instance: each Component instance (the default), or, with
+Effect that completes once the message commits, failures, and disposal. UI
+code binds a State with Solid's `Component.state(ProjectLoader)`, whose
+services join the component's `R` and whose handle adds one DOM-ready sender
+per message (`onClick={loader.send.ClickedLoad}`). A definition's `scope` says
+who owns the bound instance: each Component instance (the default), or, with
 `scope: "app"`, the runtime. An app State (an undo toast, a cart) is one
 instance per runtime, registered on the runtime's Resource Store: the first
 `Component.state` binding starts it with that binding's services, every later
 binding shares its model, unmounting a binder never stops it, and disposing
 the runtime does. A Start server render's request runtime has its own store,
-so each request gets its own app States, never a module-global one; both
-sides start from `initial`, like Component States, so there is no model to
-hydrate. Its commits are `Timeline.StateCause` entries under its `name`, and
-every handle on it is the same `State.Ref`, so an Action's optimistic patch
-through any of them is seen by all. Headless code starts a new instance (of
-either scope) on an explicit typed runtime (there is no default runtime):
+so each request gets its own app States, never a module-global one; the page
+carries each app State model that moved away from `initial`, and the browser
+starts from it (a snapshot the model schema rejects is a `Hydrate` failure,
+and the State starts from `initial`). A hydrating client starts bound
+machines once hydration settles. `persist` keeps the model in the runtime's
+`KeyValueStore` and restores it when the State starts. Every handle on an
+instance is the same `State.Ref`, so an Action's optimistic patch through any
+of them is seen by all. Headless code starts a new instance (of either scope)
+on an explicit typed runtime (there is no default runtime):
 
 ```ts
-const counter = State.start(Counter, { runtime });
+const loader = State.start(ProjectLoader, { runtime });
 ```
 
 That keeps service requirements visible to TypeScript. A State keeps no
 history of its own: each committed message is one entry on the app
-[Timeline](#timeline-and-replay), a `Timeline.StateCause`
-(`{ _tag: "State", state, event, message }`) labelled `State "Counter" Load`,
-so devtools and tests inspect State history the same way as every other state
-change.
+[Timeline](#timeline-and-replay), a `Timeline.StateCause` labelled
+`State "ProjectLoader" ClickedLoad`, so devtools and tests inspect State
+history the same way as every other state change. `State.history(entries)`
+reads each instance's starting model and messages back out of the Timeline,
+and `Machine.replay(definition.machine, messages, { from })` re-applies them.
 
 Every running State (a `State.Instance` or a `Component.state` handle) is a
 `State.Ref`, the target an Action's `optimistic` patch takes:
-`transaction.set(counter, (model) => ...)`. The patch layers over the model
+`transaction.set(loader, (model) => ...)`. The patch layers over the model
 with the same machinery as a Resource entry patch: a message that arrives while
 the patch is in flight applies to the base model and the patch re-applies over
 it, success folds the patch in, and a failure drops the patch and keeps the
@@ -325,9 +316,8 @@ immutable model. Renderers must not turn that single value into coarse
 re-renders, so the Solid adapter's `Component.state(...)` reconciles each
 commit of an object model into a fine-grained read-only projection: unchanged
 subtrees keep their identity, arrays reconcile by key (`"id"` by default), and
-a reader re-runs only when the part of the model it read changes. A State
-whose initial model is a primitive (a toggle, a search string) skips the
-projection and reads the signal directly. Foldkit-style centralized state,
+a reader re-runs only when the part of the model it read changes.
+Foldkit-style centralized state,
 Solid-style granular updates.
 
 Resource values take the same path. The Resource Store shares every new value

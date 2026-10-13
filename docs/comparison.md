@@ -18,7 +18,7 @@ That is the core difference.
 | What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                     |
 | ----------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                        |
-| Foldkit                 | Model/message/update program loop      | Match the loop with `State.define`, `State.step`, and `State.emit`, then run commands through the Arc runtime graph.  |
+| Foldkit                 | Model/message/update program loop      | Match the loop with State machines (effect-machine), whose state-owned work runs through the Arc runtime graph.       |
 | Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.           |
 | TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, declared preload resources, and stricter build gates.       |
 | TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.    |
@@ -243,9 +243,10 @@ mental model from server state and mutation state.
 
 Foldkit's strongest product idea is the frontend program loop: one model, typed
 messages, an update function, subscriptions, and a view that can stay boring.
-Sunfall Arc meets that surface directly with `State.define({ name, initial, on })`:
-one pure handler per message `_tag`, with `State.emit(...)` for immediate or
-Effect-produced follow-up messages. State is also Arc's one writable client
+Sunfall Arc meets that surface with State machines: `State.define({ name, machine })`
+names an [effect-machine](https://github.com/cevr/effect-machine) `Machine`
+whose model variants and messages are Effect Schemas and whose transitions
+are keyed by (variant, message). State is also Arc's one writable client
 state, so the loop is not a second state model next to atoms or signals.
 
 The bet is not to out-Foldkit Foldkit's renderer. It is to make that same loop
@@ -253,22 +254,28 @@ the front door to Arc's Effect runtime, resources, actions, SSR, tests, and
 devtools:
 
 ```ts
-const ProjectState = State.define<ProjectModel, ProjectMessage>()({
+const ProjectModel = Model({ Idle: {}, Loading: { id: ProjectId }, Ready: { project: Project } });
+const ProjectMessage = Message({
+  ClickedOpen: { id: ProjectId },
+  ReceivedProject: { project: Project },
+});
+
+const ProjectState = State.define({
   name: "Project",
-  initial: { selected: undefined, loading: false },
-  on: {
-    Load: (model, message) =>
-      State.next(
-        { ...model, loading: true },
-        State.emit(
-          ProjectApi.use((api) =>
-            Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project })),
-          ),
-        ),
-      ),
-    Loaded: (_model, message) => ({ selected: message.project, loading: false }),
-  },
-  subscriptions: (model) => (model.selected ? ProjectEvents.changes(model.selected.id) : undefined),
+  machine: Machine.make({ state: ProjectModel, event: ProjectMessage, initial: ProjectModel.Idle })
+    .on(ProjectModel.Idle, ProjectMessage.ClickedOpen, ({ event }) =>
+      ProjectModel.Loading({ id: event.id }),
+    )
+    .task(
+      ProjectModel.Loading,
+      ({ state }) => ProjectApi.use((api) => api.get(state.id)).pipe(Effect.orDie),
+      {
+        onSuccess: (project) => ProjectMessage.ReceivedProject({ project }),
+      },
+    )
+    .on(ProjectModel.Loading, ProjectMessage.ReceivedProject, ({ event }) =>
+      ProjectModel.Ready({ project: event.project }),
+    ),
 });
 ```
 
@@ -279,31 +286,32 @@ const OpenProject = Component.define("OpenProject", function* (props: { readonly
   const project = yield* Component.state(ProjectState); // R += the State's services
   // `send` is DOM-ready; failures land in `project.failures()`.
   return () => (
-    <button onClick={() => project.send.Load({ id: props.id })}>
-      {project.model().loading ? "Loading" : "Open"}
+    <button onClick={() => project.send.ClickedOpen({ id: props.id })}>
+      {project.model()._tag === "Loading" ? "Loading" : "Open"}
     </button>
   );
 });
 ```
 
-So the public shape is Foldkit-compact, but commands can require app services,
-subscriptions are Effect streams, failures are typed state, and cleanup follows
-the active UI scope/runtime rather than becoming a separate frontend runtime.
+So the public shape is Foldkit-compact, but work can require app services,
+belongs to the variant that started it (leaving `Loading` interrupts the
+load), comes back as typed messages, and follows the active UI scope/runtime
+rather than becoming a separate frontend runtime.
 
-The test shape now follows the same model:
+The test shape follows the same model:
 
 ```ts
-const load = State.step(ProjectState, ProjectState.initial, { _tag: "Load", id: "atlas" });
-expect(load.model.loading).toBe(true);
-expect(load.commands).toHaveLength(1);
-
-const loaded = Effect.runSync(load.commands[0]!.effect.pipe(Effect.provide(ProjectApiTest)));
-expect(loaded).toMatchObject({ _tag: "Loaded" });
+const replay = (messages) =>
+  Effect.runSync(
+    Machine.replay(ProjectState.machine, messages).pipe(Effect.provide(ProjectApiTest)),
+  );
+expect(replay([ProjectMessage.ClickedOpen({ id: atlas.id })])._tag).toBe("Loading");
+expect(replay([ProjectMessage.ReceivedProject({ project: atlas })])._tag).toBe("Idle"); // ignored while Idle
 ```
 
-Handlers are pure, so a transition is a function call: no runtime, DOM, or
-timers. Commands stay inspectable descriptions whose Effects a test runs with
-its own services, instead of a separate frontend-only test runtime.
+Transitions replay without a runtime, DOM, or timers, and a message the
+current variant does not handle changes nothing, instead of needing a
+separate frontend-only test runtime.
 
 At runtime, every State commit is an entry on the whole-app Timeline, next to
 Resource, Action, and router commits:
@@ -312,7 +320,7 @@ Resource, Action, and router commits:
 ```ts
 const recording = yield* Timeline.record();
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
-// ['State "Project" Load', 'Resource "Project.get" success atlas', ...]
+// ['State "Project" ClickedOpen', 'Resource "Project.get" success atlas', ...]
 yield* recording.travel(1); // the UI renders that commit; Effects keep running
 ```
 

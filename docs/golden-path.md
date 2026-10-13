@@ -46,7 +46,7 @@ Four defaults settle most arguments:
   is a State message, an Action, or a framework event (Resource load,
   navigation, a callback or stream transition). Signals are read-only in the
   public API, so there is no unnamed write to make, and the Timeline reads
-  like a message log: `State "ProjectSidebar.status" Filter`,
+  like a message log: `State "ProjectSidebar.status" ChoseStatus`,
   `Action "Projects.rename" submit`.
 
 ## How The Pieces Fit
@@ -536,7 +536,7 @@ same load, cache, tags, and hydration.
 
 The reader of a Resource with `rows` adds `get(input, key)` and
 `index(input, name, value)`. `src/project-list.tsx` reads the status index
-and keeps the filter in a State, changed only by its `Filter` message:
+and keeps the filter in a State, changed only by its `ChoseStatus` message:
 
 <!-- snippet: type-tests/golden-path/project-list.step-3.tsx -> type-tests/golden-path/project-list.tsx -->
 
@@ -590,9 +590,9 @@ and keeps the filter in a State, changed only by its `Filter` message:
              <RouterLink route={ProjectRoute} options={{ params: { id: project().id } }}>
 ```
 
-- `projects.index("all", "status", status.model())` suspends like
+- `projects.index("all", "status", status.model().status)` suspends like
   `projects("all")` on the first load, then follows the rows: a reload, a
-  patch, and a `Filter` message all re-run it. Index names and values are
+  patch, and a `ChoseStatus` message all re-run it. Index names and values are
   checked against `rows.indexes`.
 - The routes did not change: their `preload` already loads (and server
   renders) the rows.
@@ -731,7 +731,7 @@ Effect.runFork(App.launch(app));
 `Timeline.record` records every committed change, whatever owns it: State
 models, Resource entries, Action state, and the router. Every entry has a
 name by construction: a State commit names its State and message
-(`State "ProjectSidebar.status" Filter`), Actions, Resources, and the router
+(`State "ProjectSidebar.status" ChoseStatus`), Actions, Resources, and the router
 label their own commits, and work a Component's callback starts commits as
 `<Component>.<name>`. `travel`
 re-renders the UI as it was after any entry while Effects keep running against
@@ -787,7 +787,7 @@ Mount it beside the app in development with
 `Effect.runFork(launchTimelinePanel(panelElement))`. Rename a project and the
 panel reads like a message log: `RenameForm.save`, the Action's submit and
 success, and the Resource reloads that follow; changing the sidebar filter
-shows `State "ProjectSidebar.status" Filter` changing `ProjectSidebar.status`. In tests,
+shows `State "ProjectSidebar.status" ChoseStatus` changing `ProjectSidebar.status`. In tests,
 record inside the test's Scope and assert on the DOM after `travel`
 ([example](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
 
@@ -795,12 +795,11 @@ record inside the test's Scope and assert on the DOM after `travel`
 
 UI logic is tested as plain functions: no runtime, DOM, or timers.
 
-A State's handlers are pure, so `State.step(definition, model, message)` is
-the whole test harness. It returns `{ model, commands }` without running the
-commands; each command is a description whose `effect` you run, with test
-services, to get the message it emits. Here is a State that loads the
-project list (its commands emit its own messages, so it names the message
-union up front with `State.define<Model, Message>()`):
+A State's transitions are data on its machine, so
+`Machine.replay(definition.machine, messages)` is the whole test harness: it
+re-applies the messages from the initial model and returns the model they
+reach, with the machine's services provided as layers. Here is a State that
+loads the project list; the load is a task its `Loading` variant owns:
 
 <!-- snippet: type-tests/golden-path/project-loader.ts -->
 
@@ -957,7 +956,7 @@ implementations })`. Declare `output` and `error` schemas: they type the
   by `rows.key`.
 - **Hold client state in a State.** It is the one writable client state:
   `State.define` names it and its messages, and Signals are its read side.
-  Test transitions with `State.step`.
+  Test transitions with `Machine.replay`.
 - **Bind a State per instance.** `Component.state(Definition)` starts one
   State per Component instance and stops it on unmount; key the Component on
   an entity to get a fresh State per entity.
