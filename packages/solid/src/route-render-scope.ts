@@ -13,6 +13,7 @@ import {
 import { Effect, Fiber } from "effect";
 import { createComponent, createMemo, createRoot, runWithOwner, type Owner } from "solid-js";
 import type { JSX } from "@solidjs/web";
+import { failureBoundary } from "./failure-boundary.js";
 import { renderFailure } from "./render-failure.js";
 
 type AnyRoute = AnyBrowserRoute;
@@ -87,7 +88,8 @@ const defaultFailure = <ER>(
   throw renderFailure(state.cause);
 };
 
-const defaultNotFound = (): JSX.Element => undefined;
+/** Overridden by `RouterOutlet`'s `notFound`. */
+const defaultNotFound = (): JSX.Element => "Not found";
 
 const routeRenderDefaults = {
   pending: defaultPending,
@@ -158,7 +160,6 @@ const renderInRouteScope = <ER>(
 ): { readonly node: JSX.Element; readonly dispose: Effect.Effect<void, never, never> } => {
   const frame = makeRuntimeUiScopeFrame(runtime);
   let disposeSolid: (() => void) | undefined;
-  let renderFailure: { readonly error: unknown } | undefined;
   const dispose = Effect.andThen(
     Effect.sync(() => {
       try {
@@ -176,21 +177,13 @@ const renderInRouteScope = <ER>(
     node = runWithOwner(owner, () =>
       createRoot((disposeRoot) => {
         disposeSolid = disposeRoot;
-        return frame.run(() => {
-          try {
-            return render();
-          } catch (error) {
-            renderFailure = { error };
-            return undefined;
-          }
-        });
+        // Each route renders in a boundary of its own (which a render failure
+        // reaches), so a navigation starts it fresh.
+        return failureBoundary(undefined, () => frame.run(render));
       }),
     );
   } catch (error) {
     throw new SolidRouteRenderFailure(error, dispose);
-  }
-  if (renderFailure !== undefined) {
-    throw new SolidRouteRenderFailure(renderFailure.error, dispose);
   }
 
   return { node, dispose };

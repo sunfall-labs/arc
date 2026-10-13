@@ -6,6 +6,7 @@ import {
   type ActionInterrupted,
   type AnySunfallArcRuntime,
   Resource,
+  ResourceFailure,
   type Route,
   type RouteViewTypeId,
   type SunfallArcRuntime,
@@ -39,7 +40,6 @@ import {
   createComponent,
   createMemo,
   createRoot,
-  Errored,
   getOwner,
   isHydrating,
   Loading,
@@ -51,6 +51,7 @@ import {
   type Owner,
 } from "solid-js";
 import { hydrate as hydrateSolid, isServer, render as renderSolid, type JSX } from "@solidjs/web";
+import { defectCause, failureBoundary, logRenderDefect } from "./failure-boundary.js";
 import { setupRenderFailure, typedRenderFailure } from "./render-failure.js";
 import { projectView } from "./view-projection.js";
 import { createResourceSuspense, type ResourceSuspense } from "./resource-binding.js";
@@ -1184,7 +1185,8 @@ export namespace Component {
    * member of `E` plus Solid's boundary `reset`. At runtime the instance is
    * wrapped in a Solid `<Errored>`; a `ResourceFailure` is matched by the
    * `_tag` of `AsyncResult.error(failure.result)`. Unmatched failures
-   * (including defects) rethrow to the next outer boundary.
+   * (including defects) render through the next boundary out: an enclosing
+   * `catchTags`/`catchAll`/`catchDefect`, else the root's defect view.
    */
   export const catchTags =
     <
@@ -1197,10 +1199,9 @@ export namespace Component {
     ) =>
     <P, R>(self: Component<P, E, R>): Component<P, Exclude<E, { readonly _tag: keyof H }>, R> =>
       wrapRender(self, (Inner, props) =>
-        createComponent(Errored, {
-          fallback: (error, reset) => {
-            const thrown = error();
-            // Only typed failures match; defects and interruptions rethrow.
+        failureBoundary(
+          (thrown, reset, next) => {
+            // Only typed failures match; defects and interruptions go on.
             const target = Option.getOrUndefined(typedRenderFailure(thrown));
             const tag = tagOf(target);
             const handler =
@@ -1209,47 +1210,77 @@ export namespace Component {
                     tag
                   ]
                 : undefined;
-            if (handler === undefined) {
-              throw thrown;
-            }
-            return handler(target, reset);
+            return handler === undefined ? next(thrown, reset) : handler(target, reset);
           },
-          get children() {
-            return createComponent(
-              Inner as Solid<Record<string, any>>,
-              props as Record<string, any>,
-            );
-          },
-        }),
+          () => createComponent(Inner as Solid<Record<string, any>>, props as Record<string, any>),
+        ),
       ) as Component<P, any, R>;
 
   /**
    * Handles every typed render failure with one handler, removing `E`
    * entirely. Like `catchTags`, it wraps the instance in a Solid `<Errored>`;
    * a `ResourceFailure` is handled with its typed load error. Defects (and a
-   * throwing load callback) carry no typed failure and rethrow outward.
+   * throwing load callback) carry no typed failure and render through the
+   * next boundary out.
    */
   export const catchAll =
     <E>(handler: (error: E, reset: () => void) => JSX.Element) =>
     <P, R>(self: Component<P, E, R>): Component<P, never, R> =>
       wrapRender(self, (Inner, props) =>
-        createComponent(Errored, {
-          fallback: (error, reset) => {
-            const thrown = error();
+        failureBoundary(
+          (thrown, reset, next) => {
             const typed = typedRenderFailure(thrown);
-            if (Option.isNone(typed)) {
-              throw thrown;
-            }
-            return handler(typed.value as E, reset);
+            return Option.isNone(typed) ? next(thrown, reset) : handler(typed.value as E, reset);
           },
-          get children() {
-            return createComponent(
-              Inner as Solid<Record<string, any>>,
-              props as Record<string, any>,
-            );
-          },
-        }),
+          () => createComponent(Inner as Solid<Record<string, any>>, props as Record<string, any>),
+        ),
       ) as Component<P, never, R>;
+
+  /**
+   * Renders `fallback` for a defect inside the instance: a failure with no
+   * typed error (a bug, a dying load, a throwing render). Type-neutral: typed
+   * failures go on to `catchTags`/`catchAll` outside it. The defect is logged;
+   * `retry` reloads the Resource read that failed, if one did, then re-renders
+   * the instance. A server render shows `fallback` with an opaque cause (the
+   * original is logged on the server, never sent to the page).
+   *
+   * Without one, the root boundary `launch` installs logs the defect and
+   * renders an opaque message, and each route `RouterOutlet` renders starts
+   * fresh on navigation.
+   */
+  export const catchDefect =
+    (fallback: (cause: Cause.Cause<unknown>, retry: () => void) => JSX.Element) =>
+    <P, E, R>(self: Component<P, E, R>): Component<P, E, R> =>
+      makeComponent(self.name, (props: P) =>
+        Effect.gen(function* () {
+          const Inner = yield* childOf(self);
+          const current = yield* currentInstance("Component.catchDefect(...)");
+          const runtime = withSetupContext(current.runtime, yield* Effect.context<never>());
+          return () =>
+            failureBoundary(
+              (thrown, reset, next) => {
+                if (Option.isSome(typedRenderFailure(thrown))) {
+                  return next(thrown, reset);
+                }
+                const cause = defectCause(thrown);
+                logRenderDefect(cause);
+                // A failed read stays failed until it reloads: reload, then re-render.
+                const retry = () =>
+                  thrown instanceof ResourceFailure
+                    ? void runtime.runFork(
+                        Resource.refresh(thrown.ref).pipe(
+                          Effect.exit,
+                          Effect.andThen(Effect.sync(reset)),
+                        ) as Effect.Effect<void>,
+                      )
+                    : reset();
+                return fallback(cause, retry);
+              },
+              () =>
+                createComponent(Inner as Solid<Record<string, any>>, props as Record<string, any>),
+            );
+        }),
+      );
 
   /** Shows `fallback` while the instance is pending (a Solid `<Loading>`). Type-neutral. */
   export const loading =
@@ -1297,7 +1328,7 @@ export namespace Component {
    * tree (and an owned runtime) stay mounted while the caller's `Scope` is open
    * and are disposed, tree first, when it closes. The runtime starts before
    * the first render; an asynchronous root setup suspends like any other. If
-   * the mount fails (runtime startup or a render that throws), everything it
+   * the runtime fails to start, everything it
    * acquired is released immediately rather than when the caller's Scope
    * closes.
    *
@@ -1322,7 +1353,13 @@ export namespace Component {
       const attach = options?.hydrate === true ? hydrateSolid : renderSolid;
       yield* Effect.acquireRelease(
         Effect.sync(() =>
-          attach(() => renderInstance(component, rootEnvironment(runtime), props), container),
+          attach(
+            () =>
+              failureBoundary(undefined, () =>
+                renderInstance(component, rootEnvironment(runtime), props),
+              ),
+            container,
+          ),
         ),
         (dispose) => Effect.sync(dispose),
       );
@@ -1361,6 +1398,7 @@ export namespace Component {
     runtime: SunfallArcRuntime<RuntimeServices, ER> | AnySunfallArcRuntime<ER>,
   ): Solid<P> => {
     const environment = rootEnvironment(eraseRuntime(runtime));
-    return (props) => renderInstance(component, environment, props);
+    return (props) =>
+      failureBoundary(undefined, () => renderInstance(component, environment, props));
   };
 }

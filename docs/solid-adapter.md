@@ -438,9 +438,24 @@ loaded throws its failed load to `<Errored>`. See [Rows and Queries](db.md).
   failure's `_tag` (a failed Resource read matches by its render failure); only
   tags in `E` are accepted, each handler receives exactly that member of `E` plus
   Solid's `reset`, and handled tags leave `E`. Unmatched failures, including
-  defects, reach outer boundaries.
+  defects, render through the next Arc boundary out, in this boundary's place.
 - `Component.catchAll(handler)`: one handler for every typed failure; removes
-  `E`. Defects still rethrow outward.
+  `E`. Defects go on to the next boundary out.
+- `Component.catchDefect((cause, retry) => fallback)`: the one defect
+  fallback: a failure with no typed error (a bug, a load that dies, a throwing
+  render). Type-neutral; typed failures pass it to `catchTags`/`catchAll`
+  outside. The defect is logged; `cause` is the failed read's own `Cause`, or
+  the thrown value as a defect; `retry` reloads the Resource read that failed,
+  if one did, then re-renders (a plain boundary reset would read the same
+  failure again). During a server render the cause is opaque: the original is
+  logged on the server and nothing of it reaches the page.
+- Without a `catchDefect`, the root boundary that `mount`/`launch` (and
+  `embed`, for the server render) install logs the defect and renders an
+  opaque "Something went wrong.", and each route `RouterOutlet` renders has a
+  boundary of its own, so a defect replaces only that route's region and the
+  next navigation starts it fresh. Arc boundaries hand failures to each other
+  through context, never by rethrowing, so a server render shows the same view
+  as the client instead of a blank region.
 - `Component.loading(fallback)`: a Solid `<Loading>` around the instance;
   type-neutral.
 - `Component.provide(layer)`: provides services to the component's setup and
@@ -567,7 +582,7 @@ redirect). Neither reaches the `failure` view; see
 
 ### Route failure views
 
-`RouterOutlet`'s `pending`, `failure`, and `notFound` renderers are typed from
+`RouterOutlet`'s `pending`, `failure`, and `notFound` renderers (without `notFound`, it renders a plain "Not found"; without `failure`, the failure renders as a defect in the route's boundary) are typed from
 its `router`, so no type arguments are needed. `failure` receives the router's
 `Failure` state, including `Cause<BrowserRouterError<Routes> | ER>`. A route's
 preload failure arrives as `RoutePreloadError<E>`: `E` is the route's `error`

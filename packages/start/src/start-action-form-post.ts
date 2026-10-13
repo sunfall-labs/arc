@@ -183,14 +183,14 @@ export const postedActionSubmission = (posted: StartPostedAction): PostedActionS
   values: posted.values,
   state: <I, A, E, R>(definition: Action.Definition<I, A, E, R>) =>
     Effect.gen(function* () {
+      // A posted input that no longer decodes (a tampered page) starts the
+      // binding without one, as an undecodable outcome does.
       const input =
         posted.input === undefined || !Schema.isSchema(definition.input)
           ? Option.none<I>()
-          : Option.some(
-              (yield* Schema.decodeUnknownEffect(definition.input as Schema.Decoder<I>)(
-                posted.input,
-              ).pipe(Effect.orDie)) as I,
-            );
+          : yield* Schema.decodeUnknownEffect(definition.input as Schema.Decoder<I>)(
+              posted.input,
+            ).pipe(Effect.option);
       const outcome = yield* decodeStartActionOutcome(definition, posted.outcome).pipe(
         Effect.orElseSucceed(() => ({
           _tag: "Value" as const,

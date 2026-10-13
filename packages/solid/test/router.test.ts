@@ -18,7 +18,7 @@ import type { JSX } from "@solidjs/web";
 import type { AnySunfallArcRuntime, BrowserHistoryAdapter } from "@sunfall/arc-core";
 import type { BrowserRouter, RouterOutletProps, RouterProviderProps } from "../src/index.js";
 
-const { Errored, Loading, Show, children, createRoot, createSignal, flush, getOwner, onCleanup } =
+const { Loading, Show, children, createRoot, createSignal, flush, getOwner, onCleanup } =
   await import("solid-js");
 
 /** Reads rendered output the way DOM insertion would; Solid 2 evaluates children lazily. */
@@ -1673,7 +1673,7 @@ describe("createBrowserRouter", () => {
               node: currentNode,
               renderError,
             });
-            node = () => currentNode.get();
+            node = () => resolveRendered(currentNode.get()) as JSX.Element;
             update = (pending) =>
               controller.update({
                 state,
@@ -1743,7 +1743,7 @@ describe("createBrowserRouter", () => {
               renderError,
             });
             disposeController = controller.dispose;
-            node = () => currentNode.get();
+            node = () => resolveRendered(currentNode.get()) as JSX.Element;
             update = (pending) =>
               controller.update({
                 state,
@@ -1771,192 +1771,6 @@ describe("createBrowserRouter", () => {
               "pending-one:setup",
               "pending-one:cleanup-start",
               "pending-one:cleanup-done",
-              "pending-two:setup:true",
-            ]);
-          });
-        }),
-      ),
-    ));
-
-  it("waits for failed renderer cleanup before rendering a replacement", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
-
-          const ProjectRoute = Route.withComponent(
-            Route.define("/renderer-failed-cleanup/:id"),
-            () => "project",
-          );
-          const routes = [ProjectRoute] as const;
-          const match = Route.match(routes, "/renderer-failed-cleanup/atlas");
-          expect(match).toBeDefined();
-          const state: Extract<BrowserRouterState<typeof routes>, { readonly _tag: "Pending" }> = {
-            _tag: "Pending",
-            href: "/renderer-failed-cleanup/atlas",
-            match: match!,
-          };
-          const renderError = new Error("pending renderer failed");
-          const events: Array<string> = [];
-          const cleanupStarted = yield* Deferred.make<void>();
-          const releaseCleanup = yield* Deferred.make<void>();
-
-          let node: (() => JSX.Element) | undefined;
-          let update: ((renderer: () => JSX.Element) => void) | undefined;
-          let dispose: () => void = () => undefined;
-          let disposeController: () => Effect.Effect<void> = () => Effect.void;
-          createRoot((rootDispose) => {
-            dispose = rootDispose;
-            const currentNode = SignalWrites.make<JSX.Element>(undefined, { name: "currentNode" });
-            const renderErrorSignal = SignalWrites.make<unknown>(undefined, {
-              name: "renderErrorSignal",
-            });
-            const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
-              owner: getOwner(),
-              initialInput: {
-                state,
-                renderers: { pending: () => "pending-one" },
-              },
-              runtime: eraseRuntime(runtime),
-              node: currentNode,
-              renderError: renderErrorSignal,
-            });
-            disposeController = controller.dispose;
-            node = () => currentNode.get();
-            update = (pending) =>
-              controller.update({
-                state,
-                renderers: { pending },
-              });
-          });
-          yield* Effect.addFinalizer(() => disposeController());
-          yield* Effect.addFinalizer(() => Effect.sync(dispose));
-          expect(node?.()).toBe("pending-one");
-          update?.(() => {
-            events.push("pending-failed:setup");
-            onDispose(() =>
-              Effect.gen(function* () {
-                events.push("pending-failed:cleanup-start");
-                yield* Deferred.succeed(cleanupStarted, undefined);
-                yield* Deferred.await(releaseCleanup);
-                events.push("pending-failed:cleanup-done");
-              }),
-            );
-            throw renderError;
-          });
-
-          yield* Deferred.await(cleanupStarted);
-          update?.(() => {
-            events.push(`pending-two:setup:${events.includes("pending-failed:cleanup-done")}`);
-            return "pending-two";
-          });
-          yield* Effect.sleep("20 millis");
-          yield* Effect.sync(() => {
-            expect(node?.()).toBeUndefined();
-            expect(events).toEqual(["pending-failed:setup", "pending-failed:cleanup-start"]);
-          });
-
-          yield* Deferred.succeed(releaseCleanup, undefined);
-          yield* Effect.promise(() => vi.waitFor(() => expect(node?.()).toBe("pending-two")));
-          yield* Effect.sync(() => {
-            expect(events).toEqual([
-              "pending-failed:setup",
-              "pending-failed:cleanup-start",
-              "pending-failed:cleanup-done",
-              "pending-two:setup:true",
-            ]);
-          });
-        }),
-      ),
-    ));
-
-  it("waits for initial failed renderer cleanup before rendering a replacement", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
-
-          const ProjectRoute = Route.withComponent(
-            Route.define("/renderer-initial-failed-cleanup/:id"),
-            () => "project",
-          );
-          const routes = [ProjectRoute] as const;
-          const match = Route.match(routes, "/renderer-initial-failed-cleanup/atlas");
-          expect(match).toBeDefined();
-          const state: Extract<BrowserRouterState<typeof routes>, { readonly _tag: "Pending" }> = {
-            _tag: "Pending",
-            href: "/renderer-initial-failed-cleanup/atlas",
-            match: match!,
-          };
-          const renderError = new Error("initial pending renderer failed");
-          const events: Array<string> = [];
-          const cleanupStarted = yield* Deferred.make<void>();
-          const releaseCleanup = yield* Deferred.make<void>();
-
-          let node: (() => JSX.Element) | undefined;
-          let update: ((renderer: () => JSX.Element) => void) | undefined;
-          let dispose: () => void = () => undefined;
-          let disposeController: () => Effect.Effect<void> = () => Effect.void;
-          createRoot((rootDispose) => {
-            dispose = rootDispose;
-            const currentNode = SignalWrites.make<JSX.Element>(undefined, { name: "currentNode" });
-            const renderErrorSignal = SignalWrites.make<unknown>(undefined, {
-              name: "renderErrorSignal",
-            });
-            const controller = makeSolidRouteRenderScopeController<typeof routes, "offline">({
-              owner: getOwner(),
-              initialInput: {
-                state,
-                renderers: {
-                  pending: () => {
-                    events.push("initial-failed:setup");
-                    onDispose(() =>
-                      Effect.gen(function* () {
-                        events.push("initial-failed:cleanup-start");
-                        yield* Deferred.succeed(cleanupStarted, undefined);
-                        yield* Deferred.await(releaseCleanup);
-                        events.push("initial-failed:cleanup-done");
-                      }),
-                    );
-                    throw renderError;
-                  },
-                },
-              },
-              runtime: eraseRuntime(runtime),
-              node: currentNode,
-              renderError: renderErrorSignal,
-            });
-            disposeController = controller.dispose;
-            node = () => currentNode.get();
-            update = (pending) =>
-              controller.update({
-                state,
-                renderers: { pending },
-              });
-          });
-          yield* Effect.addFinalizer(() => disposeController());
-          yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
-          yield* Deferred.await(cleanupStarted);
-          update?.(() => {
-            events.push(`pending-two:setup:${events.includes("initial-failed:cleanup-done")}`);
-            return "pending-two";
-          });
-          yield* Effect.sleep("20 millis");
-          yield* Effect.sync(() => {
-            expect(node?.()).toBeUndefined();
-            expect(events).toEqual(["initial-failed:setup", "initial-failed:cleanup-start"]);
-          });
-
-          yield* Deferred.succeed(releaseCleanup, undefined);
-          yield* Effect.promise(() => vi.waitFor(() => expect(node?.()).toBe("pending-two")));
-          yield* Effect.sync(() => {
-            expect(events).toEqual([
-              "initial-failed:setup",
-              "initial-failed:cleanup-start",
-              "initial-failed:cleanup-done",
               "pending-two:setup:true",
             ]);
           });
@@ -2286,33 +2100,29 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
-  it("surfaces route render errors after navigation to the host ErrorBoundary", () =>
+  it("renders a route's render defect in its own boundary, reset by navigation", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const spies = (["log", "error", "warn"] as const).map((method) =>
+            vi.spyOn(console, method).mockImplementation(() => undefined),
+          );
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => spies.forEach((spy) => spy.mockRestore())),
+          );
 
-          const renderError = new Error("route render failed");
           const GoodRoute = Route.withComponent(Route.define("/render-good"), () => "good");
           const ThrowingRoute = Route.withComponent(Route.define("/render-throw"), () => {
-            throw renderError;
+            throw new Error("route render failed");
           });
           const routes = [GoodRoute, ThrowingRoute] as const;
 
           let router: BrowserRouter<typeof routes> | undefined;
-          let caught: unknown;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(Errored, {
-              fallback: (error) => {
-                caught = error();
-                return "caught";
-              },
-              get children() {
-                return createComponent(RouterOutlet, { router: useRouter() });
-              },
-            });
+            return ["shell|", createComponent(RouterOutlet, { router: useRouter() })];
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2333,28 +2143,34 @@ describe("createBrowserRouter", () => {
           );
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
-          yield* Effect.promise(() => vi.waitFor(() => expect(container.textContent).toBe("good")));
-          router!.navigateHref("/render-throw");
-
           yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(router!.state()).toMatchObject({
-                _tag: "Ready",
-                href: "/render-throw",
-              });
-              expect(caught).toBe(renderError);
-            }),
+            vi.waitFor(() => expect(container.textContent).toBe("shell|good")),
+          );
+          router!.navigateHref("/render-throw");
+          // The shell stays; only the route's region shows the defect view.
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("shell|Something went wrong.")),
+          );
+          router!.navigateHref("/render-good");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("shell|good")),
           );
         }),
       ),
     ));
 
-  it("surfaces failed preload navigation without a failure renderer to the host ErrorBoundary", () =>
+  it("renders failed preload navigation without a failure renderer as a defect", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const spies = (["log", "error", "warn"] as const).map((method) =>
+            vi.spyOn(console, method).mockImplementation(() => undefined),
+          );
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => spies.forEach((spy) => spy.mockRestore())),
+          );
 
           const preloadFailure = "missing-project" as const;
           const GoodRoute = Route.withComponent(Route.define("/preload-good"), () => "good");
@@ -2367,18 +2183,9 @@ describe("createBrowserRouter", () => {
           const routes = [GoodRoute, FailingRoute] as const;
 
           let router: BrowserRouter<typeof routes, RoutePreloadError> | undefined;
-          let caught: unknown;
           const CaptureRouter = () => {
             router = useRouter<typeof routes, RoutePreloadError>();
-            return createComponent(Errored, {
-              fallback: (error) => {
-                caught = error();
-                return "failed";
-              },
-              get children() {
-                return createComponent(RouterOutlet, { router: useRouter() });
-              },
-            });
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2412,8 +2219,8 @@ describe("createBrowserRouter", () => {
               expect(state._tag === "Failure" ? state.error : undefined).toBeInstanceOf(
                 RoutePreloadError,
               );
-              // Solid 2's Errored passes the thrown value through: the router's typed Cause.
-              expect(caught).toBe(state._tag === "Failure" ? state.cause : undefined);
+              // No `failure` renderer: the route's boundary renders the defect view.
+              expect(container.textContent).toBe("Something went wrong.");
             }),
           );
         }),
@@ -2462,7 +2269,7 @@ describe("createBrowserRouter", () => {
               node: currentNode,
               renderError,
             });
-            node = () => currentNode.get();
+            node = () => resolveRendered(currentNode.get()) as JSX.Element;
             update = (failure) =>
               controller.update({
                 state,

@@ -96,6 +96,7 @@ export interface RouterOutletProps<Routes extends readonly AnyRoute[], ER = neve
   readonly failure?: (
     state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>,
   ) => JSX.Element;
+  /** Defaults to a plain "Not found". */
   readonly notFound?: (
     state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>,
   ) => JSX.Element;

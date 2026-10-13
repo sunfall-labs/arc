@@ -1,10 +1,4 @@
-import {
-  Action,
-  makeRuntime,
-  Resource,
-  ResourceFailure,
-  type AnySunfallArcRuntime,
-} from "@sunfall/arc-core";
+import { Action, makeRuntime, Resource, type AnySunfallArcRuntime } from "@sunfall/arc-core";
 import { type ResourceUiInput } from "@sunfall/arc-core/internal";
 import {
   Cause,
@@ -14,14 +8,12 @@ import {
   Exit,
   Fiber,
   Layer,
-  Option,
   Schema,
   Scope,
   Stream,
 } from "effect";
-import { AsyncResult } from "effect/reactivity";
-import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";
-import { createSignal, resetErrorHalt, type Accessor } from "solid-js";
+import { createComponent, Loading, render, Show } from "@solidjs/web";
+import { createSignal, type Accessor } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { Component } from "../src/index.js";
 import { reactive, ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
@@ -374,7 +366,8 @@ describe("Component", () => {
 
           const container = document.createElement("div");
           yield* Component.mount(App, container);
-          yield* waitForText(container, "outer forbidden");
+          // The outer handler renders in place of the inner boundary.
+          yield* waitForText(container, "page:outer forbidden");
         }),
       ),
     ));
@@ -503,21 +496,12 @@ describe("Component", () => {
             const Safe = yield* Card.pipe(
               Component.catchTags({ ProjectNotFound: () => "gone" }),
               Component.loading(() => "loading"),
+              // The failed read's own cause: a defect, with no typed error.
+              Component.catchDefect((cause) =>
+                Cause.hasDies(cause) && !Cause.hasFails(cause) ? "defect" : "typed",
+              ),
             );
-            return () =>
-              createComponent(Errored, {
-                fallback: (error) => {
-                  const thrown = error();
-                  return thrown instanceof ResourceFailure &&
-                    Option.isNone(AsyncResult.error(thrown.result)) &&
-                    Cause.findDefect(thrown.result.cause) !== undefined
-                    ? "defect"
-                    : "typed";
-                },
-                get children() {
-                  return Safe({});
-                },
-              });
+            return () => Safe({});
           });
 
           const container = document.createElement("div");
@@ -695,26 +679,60 @@ describe("Component", () => {
       ),
     ));
 
-  it("releases a partial mount and its owned runtime when render throws", () =>
+  it("renders and logs the root defect view when nothing handles a render defect", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          // An uncaught render error halts Solid's reactive system; restore it for later tests.
-          yield* Effect.addFinalizer(() => Effect.sync(resetErrorHalt));
-          const events: Array<string> = [];
+          const logged: Array<string> = [];
+          const spies = (["log", "error", "warn"] as const).map((method) =>
+            vi.spyOn(console, method).mockImplementation((...args: Array<unknown>) => {
+              logged.push(args.map(String).join(" "));
+            }),
+          );
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => spies.forEach((spy) => spy.mockRestore())),
+          );
           const Throws = Component.define("Throws", function* () {
-            yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
+            yield* Effect.void;
             return (): string => {
               throw new Error("render bug");
             };
           });
           const container = document.createElement("div");
+          yield* Component.mount(Throws, container);
+          expect(container.textContent).toBe("Something went wrong.");
+          expect(logged.join("\n")).toContain("render bug");
+        }),
+      ),
+    ));
 
-          // The caller's Scope stays open: the failed mount must not hold resources until it closes.
-          const exit = yield* Effect.exit(Component.mount(Throws, container));
-          expect(Exit.hasDies(exit)).toBe(true);
-          expect(container.textContent).toBe("");
-          expect(events).toEqual(["setup finalized"]);
+  it("catchDefect's retry reloads the failed read before re-rendering", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          let loads = 0;
+          const Flaky = Resource.define({
+            name: `SolidComponent.Flaky.${familyId++}`,
+            load: (id: string) =>
+              ++loads === 1 ? Effect.die(new Error("first load dies")) : Effect.succeed(id),
+          });
+          let retry: (() => void) | undefined;
+          const App = Component.define("App", function* () {
+            const project = yield* Component.resource(Flaky);
+            return () => reactive(() => `loaded ${project("atlas")}`);
+          }).pipe(
+            Component.loading(() => "loading"),
+            Component.catchDefect((_cause, again) => {
+              retry = again;
+              return "broken";
+            }),
+          );
+          const container = document.createElement("div");
+          yield* Component.mount(App, container);
+          yield* waitForText(container, "broken");
+          retry?.();
+          yield* waitForText(container, "loaded atlas");
+          expect(loads).toBe(2);
         }),
       ),
     ));

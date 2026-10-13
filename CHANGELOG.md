@@ -48,6 +48,19 @@ its replacement.
   `Component.instance` as the seam for writing more. `Component.launch`,
   `mount`, and `embed` check `R` against their runtime. There are no hooks
   and no runtime context.
+- Defects render; they never blank or freeze the UI.
+  `Component.catchDefect((cause, retry) => fallback)` is the one defect
+  fallback (`retry` reloads the failed Resource read, then re-renders). Arc
+  boundaries hand a failure they do not handle to the next boundary out
+  through context instead of rethrowing from their fallback, so a defect
+  under `catchTags`/`catchAll` renders the same view on the server as on the
+  client instead of a blank region. Without a `catchDefect`, the root boundary
+  `launch`/`mount`/`embed` install logs the defect and renders an opaque
+  "Something went wrong.". A server render logs the original cause of a
+  failure it sends to the page opaque.
+- A State whose transition throws or whose work dies stops: the defect is
+  recorded once, `dispatch` fails with `StateDefect { phase: "stopped" }`,
+  and `can()` answers false.
 - `State` is the one writable client state: a named
   [effect-machine](https://github.com/cevr/effect-machine) machine.
   `State.define({ name, machine })` takes a `Machine.make({ state, event,
@@ -220,7 +233,10 @@ props?)` or load as their own chunk with `Route.lazyComponent(importer)`;
 - `Component.router(routes)` creates an instance's router; `RouterOutlet`
   takes the `router` it renders. A navigation to the page already on screen
   (same route and params) keeps its component instance, States, and DOM and
-  updates its props in place.
+  updates its props in place. Each route renders in a boundary of its own, so
+  a defect replaces only that route's region and the next navigation starts
+  it fresh. Without a `notFound` renderer the outlet renders a plain
+  "Not found".
 - `RouterLink` renders a plain anchor on the server, holds no preloader until
   the first hover or focus, and preloads on focus as well as hover.
 
@@ -280,6 +296,11 @@ props?)` or load as their own chunk with `Route.lazyComponent(importer)`;
   errors no longer include stacks. The Node adapter's default error handler
   and `createFetchHandler` log the cause behind an opaque
   `500 Internal Server Error`.
+- `App.launch` logs the failure that stops it (a missing root, a client
+  Layer failure, a hydration payload that does not decode), since
+  `Effect.runFork(App.launch(app))` observes nothing. A no-JavaScript form
+  post whose hydrated input no longer decodes starts its binding without an
+  input instead of dying.
 - File-route manifests are plain validated data from one generator,
   `generateFileRouteManifest`. Failed Vite dev SSR requests name the
   operation and the wrapped failure.

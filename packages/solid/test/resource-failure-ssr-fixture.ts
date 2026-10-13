@@ -27,10 +27,8 @@ export const failureMarkup = "missing atlas<!--!$-->|untyped DatabaseDown";
  */
 export const serializedBoundaries =
   '(self.$R=self.$R||{})[""]=[];' +
-  '_$HY.r["000"]=($R=>$R[0]={"~@sunfall/arc-solid/RenderFailure":$R[1]={_tag:"Resource",snapshot:$R[2]={resource:"ResourceFailureSsr.ProjectById",failure:$R[3]={_tag:"Encoded",value:$R[4]={_tag:"ProjectNotFound",id:"atlas"}}}},name:"RenderFailure",message:"Resource \\"ResourceFailureSsr.ProjectById\\" failed to load"})($R[""]);' +
-  '_$HY.r["000"]=($R=>$R[0])($R[""]);' +
-  '_$HY.r["010"]=($R=>$R[5]={"~@sunfall/arc-solid/RenderFailure":$R[6]={_tag:"Resource",snapshot:$R[7]={resource:"ResourceFailureSsr.Stats",failure:$R[8]={_tag:"Untyped",tag:"DatabaseDown"}}},name:"RenderFailure",message:"Resource \\"ResourceFailureSsr.Stats\\" failed to load"})($R[""]);' +
-  '_$HY.r["010"]=($R=>$R[5])($R[""]);';
+  '_$HY.r["00000"]=($R=>$R[0]={"~@sunfall/arc-solid/RenderFailure":$R[1]={_tag:"Resource",snapshot:$R[2]={resource:"ResourceFailureSsr.ProjectById",failure:$R[3]={_tag:"Encoded",value:$R[4]={_tag:"ProjectNotFound",id:"atlas"}}}},name:"RenderFailure",message:"Resource \\"ResourceFailureSsr.ProjectById\\" failed to load"})($R[""]);' +
+  '_$HY.r["00010"]=($R=>$R[5]={"~@sunfall/arc-solid/RenderFailure":$R[6]={_tag:"Resource",snapshot:$R[7]={resource:"ResourceFailureSsr.Stats",failure:$R[8]={_tag:"Untyped",tag:"DatabaseDown"}}},name:"RenderFailure",message:"Resource \\"ResourceFailureSsr.Stats\\" failed to load"})($R[""]);';
 
 /** A reactive text child, as JSX compiles `{read()}`. */
 const reactive = (read: () => string): JSX.Element => read as unknown as JSX.Element;

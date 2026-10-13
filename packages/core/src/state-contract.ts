@@ -46,10 +46,11 @@ export interface StateFailure<Message, E> {
 /**
  * A defect in a transition or in state-owned work, as the machine's
  * inspector reported it. Expected failures are messages (`task`'s
- * `onFailure`), so this is always a bug.
+ * `onFailure`), so this is always a bug. The defect stops the State:
+ * later `dispatch`es fail with `phase: "stopped"` and `can()` answers false.
  */
 export class StateDefect extends Data.TaggedError("StateDefect")<{
-  readonly phase: "transition" | "spawn";
+  readonly phase: "transition" | "spawn" | "stopped";
   readonly description: string;
 }> {}
 

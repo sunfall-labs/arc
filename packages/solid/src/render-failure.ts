@@ -47,7 +47,11 @@ const makeWire = (body: RenderFailureBody, message: string): RenderFailureWire =
   return wire;
 };
 
-const toWire = (value: unknown): RenderFailureWire => {
+/** Only called during a server render. */
+const toWire = (
+  value: unknown,
+  cause: Cause.Cause<unknown> = Cause.die(value),
+): RenderFailureWire => {
   if (isRenderFailureWire(value)) {
     return value;
   }
@@ -65,6 +69,9 @@ const toWire = (value: unknown): RenderFailureWire => {
       `Resource "${snapshot.resource}" failed to load`,
     );
   }
+  // Nothing about it reaches the page, so the server log is the only record of
+  // what failed: log the original cause here.
+  Effect.runSync(Effect.logError("Render failed on the server", cause));
   return makeWire({ _tag: "Opaque" }, "Render failed on the server");
 };
 
@@ -88,7 +95,7 @@ export const setupRenderFailure = (cause: Cause.Cause<unknown>): unknown => {
   if (!isServer && Cause.hasFails(cause) && typeof error === "object" && error !== null) {
     typedSetupFailures.add(error);
   }
-  return renderFailure(error);
+  return isServer ? toWire(error, cause) : error;
 };
 
 /**

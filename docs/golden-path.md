@@ -911,6 +911,14 @@ To test what the screen shows, render the Component (see
   the Component; `catchTags` or `catchAll` removes them;
   `launch` refuses what is left. Work you start (`submit`, `dispatch`,
   `preload`) returns its failures, and callbacks must handle them.
+- **Catch defects with `catchDefect`.** A defect (a bug, a load that dies)
+  has no typed error, so `catchTags`/`catchAll` pass it on.
+  `Component.catchDefect((cause, retry) => fallback)` renders it; `retry`
+  reloads the failed read before re-rendering. Without one, `launch`'s root
+  boundary logs it and renders an opaque message, and a route's defect
+  replaces only that route until the next navigation. A State whose
+  transition or work dies stops: `dispatch` fails with
+  `StateDefect { phase: "stopped" }` and `can()` answers false.
 - **Never `orDie` an expected failure.** `Effect.orDie` turns a failure you
   could handle into a crash. In a State, a task's `onFailure` turns the typed
   error into a message (and a state such as `Missing`); in a server
