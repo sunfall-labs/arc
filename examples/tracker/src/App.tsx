@@ -1,7 +1,7 @@
-import { Action, Route, State } from "@sunfall/arc-core";
+import { Action, Machine, Message, Model, Route, State } from "@sunfall/arc-core";
 import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
 import { StartAction } from "@sunfall/arc-start";
-import { Cause, Effect } from "effect";
+import { Cause, Effect, Schema } from "effect";
 import { For, Show, onSettled } from "solid-js";
 import { RestoreIssue, SignOut } from "./actions.js";
 import { boardHref, issueListHref, newIssueHref } from "./hrefs.js";
@@ -13,7 +13,7 @@ import { route as BoardRoute } from "./routes/projects/$key/index.js";
 import { route as IssueListRoute } from "./routes/projects/$key/issues.js";
 import { route as NewIssueRoute } from "./routes/projects/$key/new.js";
 import { route as HomeRoute } from "./routes/index.js";
-import { UndoToast } from "./shell.js";
+import { ToastMessage, UndoToast } from "./shell.js";
 import { TimelinePanel } from "./timeline-panel.js";
 import { Avatar } from "./ui.js";
 
@@ -31,18 +31,25 @@ const currentProject = (
       ? (match.params.id.slice(0, match.params.id.lastIndexOf("-")) as ProjectKey)
       : undefined;
 
-type ShortcutModel = {
-  readonly help: boolean;
-  readonly leader: boolean;
-  readonly timeline: boolean;
-};
-type ShortcutMessage =
-  | { readonly _tag: "ToggleHelp" }
-  | { readonly _tag: "CloseHelp" }
-  | { readonly _tag: "ToggleTimeline" }
-  | { readonly _tag: "Leader" }
-  | { readonly _tag: "LeaderTimeout" }
-  | { readonly _tag: "Go"; readonly href: string };
+/**
+ * The shell's keyboard state: whether the help and the Timeline are open,
+ * and whether a `g` is waiting for its second key. Waiting is its own
+ * variant, so the one second it waits belongs to it: a second key or the
+ * timeout leaves it, and leaving it cancels the timeout.
+ */
+const ShortcutModel = Model({
+  Ready: { help: Schema.Boolean, timeline: Schema.Boolean },
+  Leading: { help: Schema.Boolean, timeline: Schema.Boolean },
+});
+
+const ShortcutMessage = Message({
+  PressedHelpKey: {},
+  PressedEscape: {},
+  ClickedTimeline: {},
+  PressedLeaderKey: {},
+  LeaderTimedOut: {},
+  ChoseDestination: { href: Schema.String },
+});
 
 const isTyping = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
@@ -62,37 +69,51 @@ const AppShell = Component.define("AppShell", function* () {
   const Timeline = yield* TimelinePanel;
   const router = useRouter<AppRoutes>();
   const shortcuts = yield* Component.state(
-    State.define<ShortcutModel, ShortcutMessage>()({
+    State.define({
       name: "Shell.shortcuts",
-      initial: { help: false, leader: false, timeline: false },
-      on: {
-        ToggleHelp: (model) => ({ ...model, help: !model.help }),
-        CloseHelp: (model) => ({ ...model, help: false }),
-        ToggleTimeline: (model) => ({ ...model, timeline: !model.timeline }),
+      machine: Machine.make({
+        state: ShortcutModel,
+        event: ShortcutMessage,
+        initial: ShortcutModel.Ready({ help: false, timeline: false }),
+      })
+        .on(
+          [ShortcutModel.Ready, ShortcutModel.Leading],
+          ShortcutMessage.PressedHelpKey,
+          ({ state }) => ShortcutModel.with(state, { help: !state.help }),
+        )
+        .onAny(ShortcutMessage.PressedEscape, ({ state }) =>
+          ShortcutModel.Ready.with(state, { help: false }),
+        )
+        .on(
+          [ShortcutModel.Ready, ShortcutModel.Leading],
+          ShortcutMessage.ClickedTimeline,
+          ({ state }) => ShortcutModel.with(state, { timeline: !state.timeline }),
+        )
         // `g` then a letter: the second key must come within a second.
-        Leader: (model) =>
-          State.next(
-            { ...model, leader: true },
-            State.emit(
-              Effect.sleep("1 second").pipe(Effect.as({ _tag: "LeaderTimeout" } as const)),
-            ),
+        .on(ShortcutModel.Ready, ShortcutMessage.PressedLeaderKey, ({ state }) =>
+          ShortcutModel.Leading.with(state),
+        )
+        .on(ShortcutModel.Leading, ShortcutMessage.LeaderTimedOut, ({ state }) =>
+          ShortcutModel.Ready.with(state),
+        )
+        .timeout(ShortcutModel.Leading, {
+          duration: "1 second",
+          event: ShortcutMessage.LeaderTimedOut,
+        })
+        .onAny(ShortcutMessage.ChoseDestination, ({ state, event }) =>
+          Effect.sync(() => router.navigateHref(event.href)).pipe(
+            Effect.as(ShortcutModel.Ready.with(state, { help: false })),
           ),
-        LeaderTimeout: (model) => ({ ...model, leader: false }),
-        Go: (model, message) =>
-          State.next(
-            { ...model, leader: false, help: false },
-            State.emit(Effect.sync(() => router.navigateHref(message.href))),
-          ),
-      },
+        ),
     }),
   );
   const undo = yield* Component.callback("undo", () => {
-    const deleted = toast.committed.get().deleted;
-    return deleted === null
+    const current = toast.committed.get();
+    return current._tag !== "Showing"
       ? Effect.void
       : restore
-          .submit({ id: deleted.id })
-          .pipe(Effect.andThen(toast.dispatch({ _tag: "Dismiss" })), Effect.ignore);
+          .submit({ id: current.issue.id })
+          .pipe(Effect.andThen(toast.dispatch(ToastMessage.RestoredIssue)), Effect.ignore);
   });
   const leave = yield* Component.callback("signOut", () =>
     signOut.submit({}).pipe(
@@ -108,6 +129,11 @@ const AppShell = Component.define("AppShell", function* () {
   );
   const signOutForm = StartAction.form(SignOut, { input: {} });
   const project = () => currentProject(router.match());
+  /** The issue the undo toast offers back, while it shows. */
+  const deletedIssue = () => {
+    const current = toast.model();
+    return current._tag === "Showing" ? current.issue : undefined;
+  };
 
   // Keyboard shortcuts: an imperative sink that sends State messages.
   onSettled(() => {
@@ -116,7 +142,7 @@ const AppShell = Component.define("AppShell", function* () {
         return;
       }
       const key = project() ?? projects("all")[0]?.key;
-      if (shortcuts.model().leader && key !== undefined) {
+      if (shortcuts.model()._tag === "Leading" && key !== undefined) {
         const target =
           event.key === "b"
             ? boardHref(key)
@@ -127,24 +153,24 @@ const AppShell = Component.define("AppShell", function* () {
                 : undefined;
         if (target !== undefined) {
           event.preventDefault();
-          shortcuts.send.Go({ href: target });
+          shortcuts.send.ChoseDestination({ href: target });
           return;
         }
       }
       switch (event.key) {
         case "?":
-          shortcuts.send.ToggleHelp();
+          shortcuts.send.PressedHelpKey();
           break;
         case "Escape":
-          shortcuts.send.CloseHelp();
+          shortcuts.send.PressedEscape();
           break;
         case "g":
-          shortcuts.send.Leader();
+          shortcuts.send.PressedLeaderKey();
           break;
         case "c":
           if (key !== undefined) {
             event.preventDefault();
-            shortcuts.send.Go({ href: newIssueHref(key) });
+            shortcuts.send.ChoseDestination({ href: newIssueHref(key) });
           }
           break;
         case "/": {
@@ -154,7 +180,7 @@ const AppShell = Component.define("AppShell", function* () {
             search.focus();
             search.select();
           } else if (key !== undefined) {
-            shortcuts.send.Go({ href: issueListHref(key) });
+            shortcuts.send.ChoseDestination({ href: issueListHref(key) });
           }
           break;
         }
@@ -206,7 +232,7 @@ const AppShell = Component.define("AppShell", function* () {
                   type="button"
                   class="ghostButton small"
                   aria-pressed={shortcuts.model().timeline ? "true" : "false"}
-                  onClick={shortcuts.send.ToggleTimeline}
+                  onClick={shortcuts.send.ClickedTimeline}
                 >
                   Timeline
                 </button>
@@ -215,7 +241,7 @@ const AppShell = Component.define("AppShell", function* () {
                 type="button"
                 class="ghostButton small keyHint"
                 title="Keyboard shortcuts"
-                onClick={shortcuts.send.ToggleHelp}
+                onClick={shortcuts.send.PressedHelpKey}
               >
                 ?
               </button>
@@ -260,7 +286,7 @@ const AppShell = Component.define("AppShell", function* () {
             />
           </main>
 
-          <Show when={toast.model().deleted}>
+          <Show when={deletedIssue()}>
             {(deleted) => (
               <div class="toast" role="status">
                 <span>
@@ -273,7 +299,7 @@ const AppShell = Component.define("AppShell", function* () {
                   type="button"
                   class="iconButton"
                   aria-label="Dismiss"
-                  onClick={toast.send.Dismiss}
+                  onClick={toast.send.ClickedDismiss}
                 >
                   ×
                 </button>
@@ -289,7 +315,7 @@ const AppShell = Component.define("AppShell", function* () {
           </Show>
 
           <Show when={shortcuts.model().help}>
-            <ShortcutHelp onClose={shortcuts.send.CloseHelp} />
+            <ShortcutHelp onClose={shortcuts.send.PressedEscape} />
           </Show>
           <Show when={shortcuts.model().timeline}>
             <Timeline />

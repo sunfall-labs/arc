@@ -7,6 +7,7 @@ import {
   type StateTagged,
 } from "./state-contract.js";
 import { makeStateRuntimeInstance, type StateStartModel } from "./state-runtime.js";
+export { beginState } from "./state-runtime.js";
 import type { ResourceStoreModule } from "./resource-store.js";
 import { activeResourceStore } from "./resource-runtime.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
@@ -28,12 +29,20 @@ export const startStateOnRuntime = <
 >(
   definition: StateDefinition<Model, Message, R>,
   runtime: AnySunfallArcRuntime<ER>,
+  options: StateStartOnRuntimeOptions = {},
 ): StateInstance<Model, Message, ER> =>
   makeStateRuntimeInstance<Model, Message, R, ER>({
     definition,
     runtime,
     scope: getCurrentScope(),
+    ...(options.deferred === true ? { deferred: true } : {}),
   });
+
+/** Internal options for renderer adapters starting a State. */
+export interface StateStartOnRuntimeOptions {
+  /** Leave the machine unstarted until `beginState(instance)` (a hydrating client). */
+  readonly deferred?: boolean;
+}
 
 const AppStatesKey: unique symbol = Symbol.for("@sunfall/arc-core/AppStates");
 
@@ -100,6 +109,7 @@ export const appStateOnRuntime = <
 >(
   definition: StateDefinition<Model, Message, R>,
   runtime: AnySunfallArcRuntime<ER>,
+  options: StateStartOnRuntimeOptions = {},
 ): StateInstance<Model, Message, ER> => {
   const module = appStatesOf(runtime.resourceStore);
   const existing = module.instances.get(definition);
@@ -111,6 +121,7 @@ export const appStateOnRuntime = <
     runtime,
     scope: undefined,
     start: startModel(definition, module.snapshots),
+    ...(options.deferred === true ? { deferred: true } : {}),
   });
   module.instances.set(definition, started);
   return started;

@@ -42,7 +42,23 @@ export interface StateRuntimeInstanceOptions<Model, Message, R, ER> {
       }
     | undefined;
   readonly start?: StateStartModel<Model>;
+  /**
+   * Leave the machine unstarted until `beginState(instance)`: a hydrating
+   * renderer starts it once hydration settles, so a restored model or work
+   * that sends at once cannot change the model under the server's markup.
+   * Messages sent before then wait for it.
+   */
+  readonly deferred?: boolean;
 }
+
+const pendingStarts = new WeakMap<object, () => void>();
+
+/** Starts a State created with `deferred` (once); a started State is left alone. */
+export const beginState = (instance: object): void => {
+  const begin = pendingStarts.get(instance);
+  pendingStarts.delete(instance);
+  begin?.();
+};
 
 let instanceSequence = 0;
 
@@ -230,7 +246,10 @@ export const makeStateRuntimeInstance = <
     startupFailure("Update", spawned.cause);
   }
 
-  if (actor !== undefined) {
+  const begin = (): void => {
+    if (actor === undefined || disposed) {
+      return;
+    }
     Effect.runFork(
       actor.start.pipe(
         Effect.andThen(
@@ -248,7 +267,7 @@ export const makeStateRuntimeInstance = <
         Effect.catchCause((failure) => Effect.sync(() => startupFailure("Update", failure))),
       ),
     );
-  }
+  };
 
   const disposedFailure = (message: Message): StateFailure<Message, DispatchFailure> =>
     makeStateFailure(
@@ -311,7 +330,7 @@ export const makeStateRuntimeInstance = <
 
   scope?.addFinalizer(() => dispose);
 
-  return {
+  const instanceHandle: StateInstance<Model, Message, ER> = {
     [StateRefTypeId]: model,
     model,
     failures,
@@ -324,4 +343,10 @@ export const makeStateRuntimeInstance = <
     clearFailures: () => batchSignalWrites(() => failures.set([]), cause("clearFailures")),
     dispose,
   };
+  if (options.deferred === true) {
+    pendingStarts.set(instanceHandle, begin);
+  } else {
+    begin();
+  }
+  return instanceHandle;
 };

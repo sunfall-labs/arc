@@ -23,6 +23,7 @@ import {
   resourceRowsIndex,
   SignalWrites,
   appStateOnRuntime,
+  beginState,
   makeStateMessage,
   stateMessageTags,
   startStateOnRuntime,
@@ -40,14 +41,16 @@ import {
   createRoot,
   Errored,
   getOwner,
+  isHydrating,
   Loading,
   onCleanup,
+  onSettled,
   runWithOwner,
   untrack,
   type Accessor,
   type Owner,
 } from "solid-js";
-import { hydrate as hydrateSolid, render as renderSolid, type JSX } from "@solidjs/web";
+import { hydrate as hydrateSolid, isServer, render as renderSolid, type JSX } from "@solidjs/web";
 import { setupRenderFailure, typedRenderFailure } from "./render-failure.js";
 import { projectView } from "./view-projection.js";
 import { createResourceSuspense, type ResourceSuspense } from "./resource-binding.js";
@@ -997,12 +1000,22 @@ export namespace Component {
   ): Effect.Effect<StateHandle<Model, Message>, never, R> =>
     Effect.gen(function* () {
       const current = yield* instance;
+      // A hydrating client starts the machine once hydration settles, so a
+      // restored model or work that sends at once lands after the server's
+      // markup is adopted, not under it.
+      const deferred = !isServer && current.run(() => isHydrating());
       const started =
         definition.scope === "app"
-          ? appStateOnRuntime<Model, Message, R, never>(definition, yield* appStateRuntime)
+          ? appStateOnRuntime<Model, Message, R, never>(definition, yield* appStateRuntime, {
+              deferred,
+            })
           : current.run(() =>
-              startStateOnRuntime<Model, Message, R, never>(definition, current.runtime),
+              startStateOnRuntime<Model, Message, R, never>(definition, current.runtime, {
+                deferred,
+              }),
             );
+      // Registered on every side, so the server and client create the same owner tree.
+      current.run(() => onSettled(() => beginState(started)));
       if (definition.scope !== "app") {
         yield* Effect.addFinalizer(() => started.dispose);
       }

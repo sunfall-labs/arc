@@ -1,6 +1,6 @@
-import { State, type Route } from "@sunfall/arc-core";
+import { Machine, Message, Model, State, type Route } from "@sunfall/arc-core";
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { For, Show, untrack } from "solid-js";
 import { IssueRowView } from "../../../issue-row.js";
 import { issueListHref } from "../../../hrefs.js";
@@ -27,10 +27,26 @@ const sortLabel: Record<(typeof issueSorts)[number], string> = {
   title: "Title",
 };
 
-type SearchBoxModel = { readonly draft: string };
-type SearchBoxMessage =
-  | { readonly _tag: "Type"; readonly text: string }
-  | { readonly _tag: "Settle"; readonly text: string };
+/**
+ * The search box: Typing owns the 250ms pause, so each keystroke re-enters
+ * it (restarting the pause) and only a pause that runs out moves the URL.
+ */
+const SearchBoxModel = Model({
+  Idle: { draft: Schema.String },
+  Typing: { draft: Schema.String },
+});
+const SearchBoxMessage = Message({ TypedQuery: { text: Schema.String }, PausedTyping: {} });
+
+/** The filters drawer, open or closed. */
+const DrawerModel = Model({ Closed: {}, Open: {} });
+const DrawerMessage = Message({ ClickedFilters: {} });
+
+const FiltersDrawer = State.define({
+  name: "IssueList.filters",
+  machine: Machine.make({ state: DrawerModel, event: DrawerMessage, initial: DrawerModel.Closed })
+    .on(DrawerModel.Closed, DrawerMessage.ClickedFilters, () => DrawerModel.Open)
+    .on(DrawerModel.Open, DrawerMessage.ClickedFilters, () => DrawerModel.Closed),
+});
 
 /**
  * The list view. Everything that shapes the list (search, filters, sort, and
@@ -58,45 +74,33 @@ export default Component.define("IssueListPage", function* (props: Route.Props<t
   };
 
   // The search box: keystrokes update the draft at once, and the URL once
-  // typing pauses for 250ms (a `Settle` that no longer matches the draft is stale).
+  // typing pauses for 250ms.
   const searchBox = yield* Component.state(
-    State.define<SearchBoxModel, SearchBoxMessage>()({
-      name: "IssueList.search",
-      initial: { draft: untrack(() => props.search.q ?? "") },
-      on: {
-        Type: (_model, message) =>
-          State.next(
-            { draft: message.text },
-            State.emit(
-              Effect.sleep("250 millis").pipe(
-                Effect.as({ _tag: "Settle", text: message.text } as const),
-              ),
-            ),
-          ),
-        Settle: (model, message) =>
-          model.draft !== message.text
-            ? model
-            : State.next(
-                model,
-                State.emit(
-                  Effect.sync(() =>
-                    go(
-                      { q: message.text.trim() === "" ? undefined : message.text },
-                      { replace: true },
-                    ),
-                  ),
-                ),
-              ),
-      },
-    }),
-  );
-  const drawer = yield* Component.state(
     State.define({
-      name: "IssueList.filters",
-      initial: false,
-      on: { Toggle: (open) => !open, Close: () => false },
+      name: "IssueList.search",
+      machine: Machine.make({
+        state: SearchBoxModel,
+        event: SearchBoxMessage,
+        initial: SearchBoxModel.Idle({ draft: untrack(() => props.search.q ?? "") }),
+      })
+        .reenter(
+          [SearchBoxModel.Idle, SearchBoxModel.Typing],
+          SearchBoxMessage.TypedQuery,
+          ({ event }) => SearchBoxModel.Typing({ draft: event.text }),
+        )
+        .on(SearchBoxModel.Typing, SearchBoxMessage.PausedTyping, ({ state }) =>
+          Effect.sync(() =>
+            go({ q: state.draft.trim() === "" ? undefined : state.draft }, { replace: true }),
+          ).pipe(Effect.as(SearchBoxModel.Idle.with(state))),
+        )
+        .timeout(SearchBoxModel.Typing, {
+          duration: "250 millis",
+          event: SearchBoxMessage.PausedTyping,
+        }),
     }),
   );
+  const drawer = yield* Component.state(FiltersDrawer);
+  const drawerOpen = () => drawer.model()._tag === "Open";
 
   const people = () => new Map<string, User>(team("all").map((member) => [member.id, member]));
   const page = () => issues(query());
@@ -122,15 +126,15 @@ export default Component.define("IssueListPage", function* (props: Route.Props<t
             placeholder="Search issues  /"
             aria-label="Search issues"
             value={searchBox.model().draft}
-            onInput={(event) => searchBox.send.Type({ text: event.currentTarget.value })}
+            onInput={(event) => searchBox.send.TypedQuery({ text: event.currentTarget.value })}
           />
         </label>
         <button
           type="button"
-          class={["ghostButton", { active: drawer.model() || activeFilters() > 0 }]}
-          aria-expanded={drawer.model() ? "true" : "false"}
+          class={["ghostButton", { active: drawerOpen() || activeFilters() > 0 }]}
+          aria-expanded={drawerOpen() ? "true" : "false"}
           aria-controls="filters"
-          onClick={drawer.send.Toggle}
+          onClick={drawer.send.ClickedFilters}
         >
           <Icon.filter />
           Filters
@@ -152,7 +156,7 @@ export default Component.define("IssueListPage", function* (props: Route.Props<t
         </label>
       </div>
 
-      <Show when={drawer.model()}>
+      <Show when={drawerOpen()}>
         <div class="filterDrawer" id="filters" role="group" aria-label="Filters">
           <label class="field">
             <span>Status</span>

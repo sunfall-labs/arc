@@ -1,12 +1,13 @@
-import { Action, Resource, Server, State } from "@sunfall/arc-core";
+import { Action, Machine, Resource, Server } from "@sunfall/arc-core";
 import { Effect } from "effect";
+import { TestClock } from "effect/testing";
 import { describe, expect, it } from "vitest";
 import { StartAction } from "@sunfall/arc-start";
 import { CreateIssue, DeleteIssue, MoveIssue, UpdateIssue } from "./actions.js";
 import { parseBlocks, parseInline } from "./markdown.js";
 import { type Issue, type IssueId, type IssueRow, type ProjectKey, type UserId } from "./model.js";
 import { Board, IssueById } from "./resources.js";
-import { UndoToast } from "./shell.js";
+import { ToastMessage, UndoToast } from "./shell.js";
 
 /*
  * Client-side logic with the served Resources' loads mocked: optimistic
@@ -125,25 +126,38 @@ describe("CreateIssue", () => {
 });
 
 describe("undo toast", () => {
-  it("expires only the delete it was scheduled for", () => {
-    const first = State.step(UndoToast, UndoToast.initial, {
-      _tag: "Deleted",
-      issue: { id: "TRK-1" as IssueId, title: "One" },
+  const deleted = (id: string, title: string) =>
+    ToastMessage.DeletedIssue({ issue: { id: id as IssueId, title } });
+
+  it("shows the latest delete and hides on undo, dismiss, or expiry", () => {
+    const replay = (messages: ReadonlyArray<typeof ToastMessage.Type>) =>
+      Effect.runSync(Machine.replay(UndoToast.machine, messages));
+    expect(replay([deleted("TRK-1", "One"), deleted("TRK-2", "Two")])).toMatchObject({
+      _tag: "Showing",
+      issue: { id: "TRK-2" },
     });
-    expect(first.commands).toHaveLength(1);
-    const second = State.step(UndoToast, first.model, {
-      _tag: "Deleted",
-      issue: { id: "TRK-2" as IssueId, title: "Two" },
-    });
-    const staleExpiry = State.step(UndoToast, second.model, {
-      _tag: "Expire",
-      id: "TRK-1" as IssueId,
-    });
-    expect(staleExpiry.model.deleted?.id).toBe("TRK-2");
-    expect(
-      State.step(UndoToast, second.model, { _tag: "Expire", id: "TRK-2" as IssueId }).model,
-    ).toEqual({ deleted: null });
+    expect(replay([deleted("TRK-1", "One"), ToastMessage.RestoredIssue])._tag).toBe("Hidden");
+    expect(replay([deleted("TRK-1", "One"), ToastMessage.ToastExpired])._tag).toBe("Hidden");
+    // Nothing to dismiss while hidden: the message changes nothing.
+    expect(replay([ToastMessage.ClickedDismiss])._tag).toBe("Hidden");
   });
+
+  it("gives a newer delete its own eight seconds", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const toast = yield* Machine.spawn(UndoToast.machine);
+        yield* toast.start;
+        yield* toast.call(deleted("TRK-1", "One"));
+        yield* TestClock.adjust("5 seconds");
+        yield* toast.call(deleted("TRK-2", "Two"));
+        // TRK-1's eight seconds are up, but they left with its toast.
+        yield* TestClock.adjust("5 seconds");
+        expect(yield* toast.snapshot).toMatchObject({ _tag: "Showing", issue: { id: "TRK-2" } });
+        yield* TestClock.adjust("3 seconds");
+        expect((yield* toast.snapshot)._tag).toBe("Hidden");
+        yield* toast.stop;
+      }).pipe(Effect.provide(TestClock.layer())),
+    ));
 });
 
 describe("markdown", () => {

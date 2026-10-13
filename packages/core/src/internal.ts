@@ -132,6 +132,7 @@ export { decodeFormValuesEffect, formValuesForSchema } from "./form.js";
 export { SignalWrites, type WritableSignal } from "./signal.js";
 export {
   appStateOnRuntime,
+  beginState,
   dehydrateAppStates,
   hydrateAppStates,
   isStateSnapshots,

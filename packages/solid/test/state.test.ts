@@ -9,9 +9,11 @@ import {
   Signal,
 } from "@sunfall/arc-core";
 import { Deferred, Effect, Exit, Fiber, Schema } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { createEffect, createRoot, flush, mapArray } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { Component } from "../src/index.js";
+import { reactive } from "./component-ssr-fixture.js";
 import { bindInInstance } from "./instance-harness.js";
 
 const Item = Schema.Struct({ id: Schema.Finite, label: Schema.String });
@@ -439,6 +441,96 @@ describe("Component.state with an app State", () => {
     expect(second.handle.model()._tag).toBe("Hidden");
     first.dispose();
     second.dispose();
+    await Effect.runPromise(runtime.dispose);
+  });
+});
+
+describe("Component.state with a persisted State", () => {
+  it("restores the model from the runtime's KeyValueStore and saves each change", async () => {
+    const DraftModel = Model({ Drafting: { text: Schema.String } });
+    const DraftMessage = Message({ TypedDraft: { text: Schema.String } });
+    const Draft = State.define({
+      name: "Draft",
+      persist: { key: "draft" },
+      machine: Machine.make({
+        state: DraftModel,
+        event: DraftMessage,
+        initial: DraftModel.Drafting({ text: "" }),
+      }).onAny(DraftMessage.TypedDraft, ({ event }) => DraftModel.Drafting({ text: event.text })),
+    });
+    const runtime = makeRuntime(KeyValueStore.layerMemory);
+    const store = await Effect.runPromise(
+      runtime.provide(
+        Effect.gen(function* () {
+          return yield* KeyValueStore.KeyValueStore;
+        }),
+      ),
+    );
+    await Effect.runPromise(
+      store.set("arc/states/v1/draft", JSON.stringify({ _tag: "Drafting", text: "kept" })),
+    );
+    let dispose: () => void = () => {};
+    const handle = createRoot((disposeRoot) => {
+      dispose = disposeRoot;
+      return bindInInstance(runtime, Component.state(Draft));
+    });
+    await settle();
+    expect(handle.model().text).toBe("kept");
+    handle.send.TypedDraft({ text: "kept and more" });
+    await settle();
+    const saved = await Effect.runPromise(store.get("arc/states/v1/draft"));
+    expect(JSON.parse(saved as string)).toEqual({ _tag: "Drafting", text: "kept and more" });
+    dispose();
+    await Effect.runPromise(runtime.dispose);
+  });
+
+  it("restores after hydration settles, so the hydrated markup updates", async () => {
+    const DraftModel = Model({ Drafting: { text: Schema.String } });
+    const DraftMessage = Message({ TypedDraft: { text: Schema.String } });
+    const Draft = State.define({
+      name: "HydratedDraft",
+      persist: { key: "hydrated-draft" },
+      machine: Machine.make({
+        state: DraftModel,
+        event: DraftMessage,
+        initial: DraftModel.Drafting({ text: "" }),
+      }),
+    });
+    const View = Component.define("DraftView", function* () {
+      const draft = yield* Component.state(Draft);
+      return () => reactive(() => `draft:${draft.model().text}`);
+    });
+    const runtime = makeRuntime(KeyValueStore.layerMemory);
+    await Effect.runPromise(
+      runtime.provide(
+        Effect.gen(function* () {
+          const store = yield* KeyValueStore.KeyValueStore;
+          yield* store.set(
+            "arc/states/v1/hydrated-draft",
+            JSON.stringify({ _tag: "Drafting", text: "kept" }),
+          );
+        }),
+      ),
+    );
+    const hydrationGlobal = globalThis as { _$HY?: unknown };
+    hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
+    const container = document.createElement("div");
+    // What the server rendered: the initial model.
+    container.innerHTML = "draft:";
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* Component.mount(View as Component<{}, never, never>, container, {
+            runtime: runtime as never,
+            hydrate: true,
+          });
+          yield* Effect.sleep("20 millis");
+          flush();
+          expect(container.textContent).toBe("draft:kept");
+        }),
+      ),
+    );
+    delete hydrationGlobal._$HY;
     await Effect.runPromise(runtime.dispose);
   });
 });
