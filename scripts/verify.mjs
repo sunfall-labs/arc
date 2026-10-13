@@ -141,38 +141,49 @@ const packageStarters = Effect.gen(function* () {
   yield* run("package dry runs", ["example:pack-dry-run"]);
 });
 
-const verifyEffect = (laneConcurrency) =>
+const verifyParts = ["static", "packages", "starters"];
+
+const verifyEffect = (laneConcurrency, part) =>
   Effect.gen(function* () {
-    console.log(`Sunfall Arc verify running with lane concurrency ${laneConcurrency}.`);
+    console.log(
+      `Sunfall Arc verify running with lane concurrency ${laneConcurrency}` +
+        (part === undefined ? "." : `, part ${part}.`),
+    );
+    const runs = (name) => part === undefined || part === name;
 
     yield* run("package builds", ["build"]);
 
-    yield* runAll(
-      "source static gates",
-      [
-        run("workspace format check", ["format:check"]),
-        run("workspace lint", ["lint"]),
-        run("workspace typecheck", ["typecheck"]),
-        run("public API audit", ["audit:public-api"]),
-        run("Effect command runner policy", ["verify:command-runner"]),
-        run("package payload policy", ["verify:package-payload-policy"]),
-        run("Effect-first audit", ["audit:effect-first"]),
-      ],
-      laneConcurrency,
-    );
+    if (runs("static"))
+      yield* runAll(
+        "source static gates",
+        [
+          run("workspace format check", ["format:check"]),
+          run("workspace lint", ["lint"]),
+          run("workspace typecheck", ["typecheck"]),
+          run("public API audit", ["audit:public-api"]),
+          run("Effect command runner policy", ["verify:command-runner"]),
+          run("package payload policy", ["verify:package-payload-policy"]),
+          run("Effect-first audit", ["audit:effect-first"]),
+        ],
+        laneConcurrency,
+      );
 
-    yield* run("workspace tests", ["test"]);
-    // One iteration of every bench, so benches cannot rot between measured runs.
-    yield* run("benchmark smoke", ["benchmark"], { env: { ARC_BENCH_SMOKE: "1" } });
+    if (runs("static")) {
+      yield* run("workspace tests", ["test"]);
+      // One iteration of every bench, so benches cannot rot between measured runs.
+      yield* run("benchmark smoke", ["benchmark"], { env: { ARC_BENCH_SMOKE: "1" } });
+    }
 
-    const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
-    yield* runAll(
-      "package verifies",
-      verifyPackageTargets.map(verifyWorkspacePackage),
-      laneConcurrency,
-    );
+    if (runs("packages")) {
+      const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
+      yield* runAll(
+        "package verifies",
+        verifyPackageTargets.map(verifyWorkspacePackage),
+        laneConcurrency,
+      );
+    }
 
-    yield* packageStarters;
+    if (runs("starters")) yield* packageStarters;
   });
 
 const makeVerifyCommand = (env = process.env) =>
@@ -187,11 +198,20 @@ const makeVerifyCommand = (env = process.env) =>
         Flag.withDescription("Number of package/example lanes to run in parallel. Defaults to 4."),
         Flag.optional,
       ),
+      part: Flag.Literals("part", verifyParts).pipe(
+        Flag.withDescription(
+          "Run one part of the plan (static, packages, or starters), as CI's parallel jobs do. Defaults to all.",
+        ),
+        Flag.optional,
+      ),
     },
     (config) =>
       Effect.gen(function* () {
         const laneConcurrency = yield* laneConcurrencyFromCliEffect(config.concurrency, env);
-        yield* verifyEffect(laneConcurrency);
+        yield* verifyEffect(
+          laneConcurrency,
+          config.part._tag === "Some" ? config.part.value : undefined,
+        );
       }),
   ).pipe(
     Command.withDescription("Run the full Sunfall Arc verification plan."),

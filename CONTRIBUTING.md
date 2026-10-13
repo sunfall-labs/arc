@@ -7,7 +7,7 @@ pnpm install
 pnpm verify
 ```
 
-`pnpm verify` is the gate for every change and for every release. It builds the
+`pnpm verify` is the gate for every change and for every release. CI runs it as three parallel jobs (`pnpm verify --part static`, `--part packages`, `--part starters`); locally, `pnpm verify` runs all three. It builds the
 packages, checks formatting and lint, typechecks the workspace and the public
 type tests, runs the public API audit, the Effect command runner and package
 payload policies, the Effect-first audit, the workspace tests, one iteration
