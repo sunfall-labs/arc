@@ -80,7 +80,7 @@ function startState<
 
 /**
  * Arc's binding for client state machines. A State is a named
- * effect-machine `Machine` (re-exported as `Machine`, `Model`, and `Event`):
+ * effect-machine `Machine` (re-exported as `Machine`, `Model`, and `Message`):
  * Arc runs it as an actor on the runtime, commits each message it processes
  * on the Timeline, hydrates app States from the server render, persists
  * models, lets Actions overlay them optimistically, and binds them to
