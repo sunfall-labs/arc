@@ -3,6 +3,7 @@ import { type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { defaultRuntime, toEffect } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, Fiber, Scope } from "effect";
 import type { StartRequestHandlerError } from "./start-request-handler-error.js";
+import { logStartDefect } from "./start-defect.js";
 import {
   invokeStartRequestHandler,
   type StartRequestHandlerInput,
@@ -203,7 +204,21 @@ export function createNodeServerHandler<
         effectHandler(request, response).pipe(
           Effect.asVoid,
           Effect.catchCause((cause) =>
-            reportNodeServerErrorEffect(Cause.squash(cause), request, response, options.onError),
+            // Without an `onError`, the default answers an opaque 500, so the
+            // cause is logged here: the server log is the only place it shows.
+            (options.onError === undefined
+              ? logStartDefect(`${request.method} ${request.url}`, cause)
+              : Effect.void
+            ).pipe(
+              Effect.andThen(
+                reportNodeServerErrorEffect(
+                  Cause.squash(cause),
+                  request,
+                  response,
+                  options.onError,
+                ),
+              ),
+            ),
           ),
         ),
         options,

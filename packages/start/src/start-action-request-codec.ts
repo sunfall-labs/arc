@@ -12,11 +12,12 @@ import {
   type CoreDefinitionRegistry,
 } from "@sunfall/arc-core/internal";
 
-/** Serializes thrown defects into JSON-safe diagnostic data when possible. */
+/**
+ * Serializes an `Error` into JSON-safe data: its name and message. The stack
+ * stays on the server (it names server files and frames).
+ */
 export const serializeDefect = (defect: unknown): unknown =>
-  defect instanceof Error
-    ? { _tag: defect.name, message: defect.message, stack: defect.stack }
-    : defect;
+  defect instanceof Error ? { _tag: defect.name, message: defect.message } : defect;
 
 const protocolBodyReadError = (message: string, cause: unknown): ActionProtocolError =>
   new ActionProtocolError({ message, payload: serializeDefect(cause) });

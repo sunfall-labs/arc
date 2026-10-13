@@ -25,10 +25,14 @@ import {
 import { mediaTypeOf, startJsonMediaType, type StartTransportRequestError } from "./rpc.js";
 import type { StartRequestFailureKind } from "./request-trace.js";
 import { serializeDefect, type StartActionDefinition } from "./start-action-request-codec.js";
+import { logStartDefect, startServerDefectBody } from "./start-defect.js";
 
 const refFields = { key: Schema.String, family: Schema.String };
 const Ref = Schema.Struct({ ...refFields, input: Schema.Unknown });
-const Tag = Schema.TaggedStruct("Tag", { key: Schema.String, name: Schema.String });
+const Tag = Schema.TaggedStruct("Tag", {
+  key: Schema.String,
+  name: Schema.String,
+});
 
 const InvalidationPlan = Schema.Struct({
   targets: Schema.Array(Schema.Union([Schema.TaggedStruct("Ref", Ref.fields), Tag])),
@@ -99,15 +103,24 @@ const actionJson = (body: StartActionResponseBody, status = 200): Response => {
   try {
     return new Response(JSON.stringify(body), { status, headers });
   } catch (cause) {
-    return new Response(JSON.stringify({ _tag: "Defect", defect: serializeDefect(cause) }), {
+    Effect.runSync(logStartDefect("Start action response encoding", Cause.die(cause)));
+    return new Response(JSON.stringify({ _tag: "Defect", defect: startServerDefectBody }), {
       status: 500,
       headers,
     });
   }
 };
 
-const defectJson = (defect: unknown, status = 500): Response =>
-  actionJson({ _tag: "Defect", defect: serializeDefect(defect) }, status);
+/** The opaque defect response: the detail stays in the server log. */
+const defectJson = (): Response =>
+  actionJson({ _tag: "Defect", defect: startServerDefectBody }, 500);
+
+/** Logs a defect of `action` with its full cause and answers with the opaque defect response. */
+const logDefectJson = (
+  action: StartActionDefinition,
+  cause: Cause.Cause<unknown>,
+): Effect.Effect<Response> =>
+  Effect.as(logStartDefect(`Start action "${action.name}"`, cause), defectJson());
 
 const serverErrorJson = (error: ActionProtocolError | ActionNotFound, status: number): Response =>
   actionJson(
@@ -116,7 +129,11 @@ const serverErrorJson = (error: ActionProtocolError | ActionNotFound, status: nu
       error:
         error._tag === "ActionNotFound"
           ? { _tag: error._tag, actionName: error.actionName }
-          : { _tag: error._tag, message: error.message, payload: error.payload },
+          : {
+              _tag: error._tag,
+              message: error.message,
+              payload: error.payload,
+            },
     },
     status,
   );
@@ -131,13 +148,17 @@ const deserializeServerError = (error: unknown): ActionProtocolError | ActionNot
     : isRecordValue(error) &&
         error._tag === "ActionProtocolError" &&
         typeof error.message === "string"
-      ? new ActionProtocolError({ message: error.message, payload: error.payload })
+      ? new ActionProtocolError({
+          message: error.message,
+          payload: error.payload,
+        })
       : new ActionProtocolError({
           message: "The server returned an unknown action protocol error.",
           payload: error,
         });
 
-export const actionRuntimeFailureResponse = (error: unknown): Response => defectJson(error);
+/** The opaque defect response; the caller logs the defect. */
+export const actionRuntimeFailureResponse = (): Response => defectJson();
 
 export const actionProtocolFailureResponse = (error: ActionProtocolError, status = 400): Response =>
   serverErrorJson(error, status);
@@ -180,10 +201,18 @@ export const describeStartActionInvalidationPlan = (
         : [],
   ),
   entries: plan.entries.map((entry) => ({
-    ref: { key: entry.ref.key, family: entry.ref.family.options.name, input: entry.ref.input },
+    ref: {
+      key: entry.ref.key,
+      family: entry.ref.family.options.name,
+      input: entry.ref.input,
+    },
     causes: entry.causes.map((cause) =>
       cause._tag === "Ref"
-        ? { _tag: "Ref" as const, key: cause.ref.key, family: cause.ref.family.options.name }
+        ? {
+            _tag: "Ref" as const,
+            key: cause.ref.key,
+            family: cause.ref.family.options.name,
+          }
         : { _tag: "Tag" as const, key: cause.tag.key, name: cause.tag.name },
     ),
   })),
@@ -230,7 +259,7 @@ const actionValueResponse = (
     if (actionResult === undefined) {
       return Exit.isSuccess(whole)
         ? actionJson({ _tag: "Success", value: whole.value, ...meta })
-        : defectJson(Cause.pretty(whole.cause));
+        : yield* logDefectJson(action, whole.cause);
     }
     // The encoded whole result, when the output schema describes `ActionResult` values.
     const encoded =
@@ -264,7 +293,7 @@ const actionValueResponse = (
           );
     return Exit.isSuccess(value)
       ? actionJson({ _tag: "Success", value: value.value, ...meta })
-      : defectJson(Cause.pretty(value.cause));
+      : yield* logDefectJson(action, value.cause);
   });
 
 /** Encodes an action submission's Exit as the action transport response. */
@@ -289,10 +318,11 @@ export const actionExitResponse = <ActionError>(
         ),
       );
     }
-    return Effect.map(Effect.exit(encodeActionWire(action.error, failure.error)), (encoded) =>
+    // A failure the `error` schema does not encode is undeclared: a defect.
+    return Effect.flatMap(Effect.exit(encodeActionWire(action.error, failure.error)), (encoded) =>
       Exit.isSuccess(encoded)
-        ? actionJson({ _tag: "Failure", error: encoded.value, ...meta })
-        : defectJson(Cause.pretty(encoded.cause)),
+        ? Effect.succeed(actionJson({ _tag: "Failure", error: encoded.value, ...meta }))
+        : logDefectJson(action, exit.cause),
     );
   }
 
@@ -301,16 +331,17 @@ export const actionExitResponse = <ActionError>(
       actionJson(
         {
           _tag: "Defect",
-          defect: { _tag: "Interrupted", message: "The action fiber was interrupted." },
+          defect: {
+            _tag: "Interrupted",
+            message: "The action fiber was interrupted.",
+          },
         },
         499,
       ),
     );
   }
 
-  return Effect.succeed(
-    defectJson(exit.cause.reasons.find(Cause.isDieReason)?.defect ?? Cause.pretty(exit.cause)),
-  );
+  return logDefectJson(action, exit.cause);
 };
 
 const isStartActionResponseBody = Schema.is(StartActionResponseBody);

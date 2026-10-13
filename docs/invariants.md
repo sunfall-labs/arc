@@ -177,6 +177,9 @@ documented as outside the current release bar.
   with required input and output schemas; there is no schema-less wire path.
 - RPC separates typed (Schema-encoded) failures, transport errors
   (`RpcClientError`), defects, and interruption, as `effect/rpc` does.
+- A server defect crosses the RPC and action wires as an opaque
+  `StartServerDefect` with a fixed message; its message, stack, and `Cause`
+  stay in the server log, keyed by the request id.
 - Tests can replace server behavior through mocks and service Layers without
   importing server-only modules.
 

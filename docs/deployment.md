@@ -162,6 +162,16 @@ them), so proxies should not rewrite or cache that path. The browser reaches
 both through the client Layer's `HttpClient` (else `FetchHttpClient`) on the
 page's origin.
 
+A defect on either path (a throw, `Effect.die`, a failure outside the
+declared `error` schema, an output that does not encode) never reaches the
+browser: the response carries an opaque `StartServerDefect` ("The server
+failed to handle the request."), and the server logs the full `Cause` at
+Error level, annotated with `sunfall-arc.request.id`. The response's
+`x-sunfall-arc-request-id` header carries the same id, so a browser report
+correlates with the log line and the request span. The Node adapter answers
+a failed request with a plain `500 Internal Server Error` and, unless the
+host passes its own `onError`, logs the cause.
+
 Static hosts can prerender routes during the production Vite build:
 
 ```ts
