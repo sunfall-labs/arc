@@ -281,10 +281,9 @@ export const makeActionOutboxLayer = (
             yield* settleSuccess(live, exit.value.value);
             continue;
           }
-          if (Cause.hasInterruptsOnly(exit.cause)) {
-            return yield* Effect.interrupt;
-          }
-          if (retryableCause(exit.cause)) {
+          // An interrupt-only transport exit (an aborted request) is retryable:
+          // the submission stays queued for the next pass.
+          if (Cause.hasInterruptsOnly(exit.cause) || retryableCause(exit.cause)) {
             // Everyone still waiting learns their submission is queued.
             for (const queued of queue) {
               const waiter = queued.waiter;
@@ -328,13 +327,28 @@ export const makeActionOutboxLayer = (
               step = yield* Schedule.toStepWithSleep(replaySchedule);
             }
           }
-        }),
+        }).pipe(
+          // One failed pass must not end replay: log it and wait for the next trigger.
+          Effect.catchCause((cause) =>
+            Effect.logError("Arc Action outbox replay pass failed", cause),
+          ),
+        ),
       );
 
       /** Starts the replay loop (with the caller's runtime context) and wakes it. */
       const trigger: Effect.Effect<void> = Effect.gen(function* () {
         if (worker === undefined) {
-          worker = yield* Effect.forkIn(replayLoop, scope, { startImmediately: true });
+          worker = yield* Effect.forkIn(
+            replayLoop.pipe(
+              Effect.onExit(() =>
+                Effect.sync(() => {
+                  worker = undefined;
+                }),
+              ),
+            ),
+            scope,
+            { startImmediately: true },
+          );
         }
         yield* Queue.offer(wake, undefined);
       });

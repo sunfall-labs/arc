@@ -1,5 +1,5 @@
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import { Effect, Scope } from "effect";
+import { Cause, Effect, Scope } from "effect";
 import type { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
   invokeStartRequestHandler,
@@ -12,6 +12,31 @@ import {
 } from "./start-host-runtime-runner.js";
 import { responseWithScopeLifetime } from "./response-lifetime.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
+import { startRequestIdHeader } from "./rpc.js";
+import { logStartDefect } from "./start-defect.js";
+
+/**
+ * Answers a request the handler failed with an opaque 500, logging the full
+ * cause (with the request id when the request carries one) on the server.
+ * An interrupted request (the host aborted it) stays interrupted.
+ */
+const opaqueFetchFailure = (request: Request) => (cause: Cause.Cause<unknown>) => {
+  if (Cause.hasInterruptsOnly(cause)) {
+    return Effect.failCause(cause);
+  }
+  const requestId = request.headers.get(startRequestIdHeader)?.trim();
+  const logged = logStartDefect(`${request.method} ${request.url}`, cause);
+  return (
+    requestId ? logged.pipe(Effect.annotateLogs("sunfall-arc.request.id", requestId)) : logged
+  ).pipe(
+    Effect.as(
+      new Response("Internal Server Error", {
+        status: 500,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      }),
+    ),
+  );
+};
 
 type StartFetchRuntimeRequirements<Requirements> = unknown extends Requirements
   ? never
@@ -113,7 +138,8 @@ export function toFetchHandler(
  *
  * The canonical adapter is `toFetchHandler(...)`. This facade is kept for
  * deployment compatibility with workers, edge runtimes, Bun, and similar hosts
- * whose public contract is Promise-shaped.
+ * whose public contract is Promise-shaped. A failed request answers a plain
+ * `500 Internal Server Error`; its cause goes to the server log only.
  */
 export function createFetchHandler<
   Handler extends StartRequestHandlerInput<any, any>,
@@ -134,7 +160,7 @@ export function createFetchHandler<
         abortSignal: merged.abortSignal,
         abortTeardownReason: "request-abort",
         onCleanup: merged.cleanup,
-      }),
+      }).pipe(Effect.catchCause(opaqueFetchFailure(request))),
       {
         ...options,
         runOptions: merged.runOptions,

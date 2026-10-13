@@ -8,6 +8,7 @@ import {
   Fiber,
   Option,
   PubSub,
+  Schedule,
   Scope,
   Stream,
 } from "effect";
@@ -185,10 +186,19 @@ const resourceLoadEffect = <I, A, E, R>(
     );
   });
 
+/** Restarts a failed `rows.changes` feed: 500ms doubling to 30s, eight times. */
+const rowChangesRetry = Schedule.exponential("500 millis").pipe(
+  Schedule.modifyDelay(({ duration }) =>
+    Effect.succeed(Duration.min(duration, Duration.seconds(30))),
+  ),
+  Schedule.upTo({ times: 8 }),
+);
+
 /**
  * Starts the entry's `rows.changes` feed once it has a value. Each batch
  * applies to the synced rows (optimistic patches stay on top) and commits as
- * a `change`; a failure stops the feed and is published.
+ * a `change`. A failure is logged and the feed restarts with backoff; a
+ * defect, or a failure past the retries, stops it and is published.
  */
 const startResourceRowChanges = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
@@ -203,12 +213,15 @@ const startResourceRowChanges = <I, A, E, R>(
     }
     const name = ref.family.options.name;
     const rows = ref.family.options.rows!;
-    const started = syncedResourceState(entry);
-    const startRows = (started._tag === "Success" ? started.value : []) as ReadonlyArray<unknown>;
     const feed = Stream.runForEach(
-      Stream.suspend(
-        () => changes(ref.input, startRows) as Stream.Stream<ReadonlyArray<any>, unknown, R>,
-      ),
+      // Each (re)start resumes from the rows the entry holds now.
+      Stream.suspend(() => {
+        const started = syncedResourceState(entry);
+        const startRows = (
+          started._tag === "Success" ? started.value : []
+        ) as ReadonlyArray<unknown>;
+        return changes(ref.input, startRows) as Stream.Stream<ReadonlyArray<any>, unknown, R>;
+      }),
       (batch) =>
         Effect.gen(function* () {
           const current = syncedResourceState(entry);
@@ -237,15 +250,26 @@ const startResourceRowChanges = <I, A, E, R>(
           });
         }),
     ).pipe(
+      Effect.tapCause((cause) =>
+        Cause.hasInterruptsOnly(cause)
+          ? Effect.void
+          : Effect.logWarning(`Resource ${name} rows.changes feed failed`, cause),
+      ),
+      // A typed failure restarts the feed with backoff; a defect, or failures
+      // past the schedule, stop it.
+      Effect.retry({ schedule: rowChangesRetry }),
       Effect.catchCause((cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.void
-          : publishResourceStoreEvent(store, {
-              _tag: "ResourceRowsChangesFailure",
-              name,
-              key: ref.key,
-              cause,
-            }),
+          : Effect.andThen(
+              Effect.logError(`Resource ${name} rows.changes feed stopped`, cause),
+              publishResourceStoreEvent(store, {
+                _tag: "ResourceRowsChangesFailure",
+                name,
+                key: ref.key,
+                cause,
+              }),
+            ),
       ),
     );
     entry.changesFiber = yield* store.fiberRegistry.run(feed);

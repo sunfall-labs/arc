@@ -170,7 +170,9 @@ Error level, annotated with `sunfall-arc.request.id`. The response's
 `x-sunfall-arc-request-id` header carries the same id, so a browser report
 correlates with the log line and the request span. The Node adapter answers
 a failed request with a plain `500 Internal Server Error` and, unless the
-host passes its own `onError`, logs the cause.
+host passes its own `onError`, logs the cause. `createFetchHandler` does the
+same: it never rejects with the cause, and logs it (with the request's
+`x-sunfall-arc-request-id`, when it carries one).
 
 Static hosts can prerender routes during the production Vite build:
 

@@ -217,7 +217,10 @@ describe("Start deployment adapters", () => {
       },
       cause,
     });
-    await expect(promiseHandler(request)).rejects.toBeInstanceOf(StartRequestHandlerError);
+    // The Promise facade answers an opaque 500 instead of rejecting with the cause.
+    const response = await promiseHandler(request);
+    expect(response.status).toBe(500);
+    await expect(response.text()).resolves.toBe("Internal Server Error");
   });
 
   it("normalizes invalid handler return shapes in fetch adapters", async () => {
@@ -233,9 +236,37 @@ describe("Start deployment adapters", () => {
     expect(error.cause).toMatchObject({
       message: expect.stringContaining("Effect.tryPromise"),
     });
-    await expect(promiseHandler(request)).rejects.toMatchObject({
-      cause: expect.any(StartRequestHandlerInvalidReturn),
-    });
+    expect((await promiseHandler(request)).status).toBe(500);
+  });
+
+  it("answers Promise-shaped fetch handler failures with an opaque 500 and logs the cause", async () => {
+    const lines: unknown[] = [];
+    const spies = (["log", "error", "warn"] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        lines.push(...args);
+      }),
+    );
+    try {
+      const promiseHandler = createFetchHandler(() =>
+        Effect.die(new Error("password=hunter2 in /srv/app/db.ts")),
+      );
+      const response = await promiseHandler(
+        new Request("https://example.com/defect", {
+          headers: { "x-sunfall-arc-request-id": "req-fetch-1" },
+        }),
+      );
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).toBe("Internal Server Error");
+      expect(body).not.toContain("hunter2");
+      const logged = lines.map(String).join("\n");
+      expect(logged).toContain("password=hunter2");
+      expect(lines).toContainEqual({ "sunfall-arc.request.id": "req-fetch-1" });
+    } finally {
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
+    }
   });
 
   it("preserves StartRequestHandlerError values through the shared host normalizer", async () => {

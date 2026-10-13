@@ -1,4 +1,15 @@
-import { Deferred, Effect, Exit, Fiber, Option, Queue, Schema, Stream } from "effect";
+import {
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  PubSub,
+  Queue,
+  Schema,
+  Stream,
+} from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Resource, Signal, Timeline } from "../src/index.js";
@@ -28,7 +39,7 @@ const makeFixture = (
   changes?: (
     input: "all",
     rows: ReadonlyArray<Project>,
-  ) => Stream.Stream<ReadonlyArray<Resource.RowChange<Project, string>>>,
+  ) => Stream.Stream<ReadonlyArray<Resource.RowChange<Project, string>>, string>,
 ) => {
   const suffix = `${++families}`;
   const server = { rows: [atlas, orion] as ReadonlyArray<Project>, loads: 0 };
@@ -273,6 +284,60 @@ describe("Resource rows", () => {
         yield* runtime.provide(Resource.preload(fixture.ref));
         yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
         expect(started).toEqual([["atlas", "orion"]]);
+        yield* runtime.dispose;
+      }),
+    ));
+
+  it("restarts a failed change feed from the rows it holds, with backoff", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<ReadonlyArray<Resource.RowChange<Project, string>>>();
+        const started: Array<ReadonlyArray<string>> = [];
+        const fixture = makeFixture((_input, rows) => {
+          started.push(rows.map((row) => row.id));
+          return started.length === 1
+            ? Stream.make([{ _tag: "Delete", key: "orion" } as const]).pipe(
+                Stream.concat(Stream.fail("connection lost")),
+              )
+            : Stream.fromQueue(queue);
+        });
+        const runtime = makeRuntime();
+        yield* runtime.provide(Resource.preload(fixture.ref));
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 700)));
+        // The restart resumes from the rows the first run left.
+        expect(started).toEqual([["atlas", "orion"], ["atlas"]]);
+        yield* Queue.offer(queue, [{ _tag: "Delete", key: "atlas" }]);
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        expect(runtime.runSync(Resource.read(fixture.ref))).toEqual([]);
+        yield* runtime.dispose;
+      }),
+    ));
+
+  it("stops a change feed on a defect and publishes the failure", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let starts = 0;
+        const fixture = makeFixture(() => {
+          starts++;
+          return Stream.die(new Error("bug"));
+        });
+        const runtime = makeRuntime();
+        const failure = yield* runtime.provide(
+          Effect.gen(function* () {
+            const subscription = yield* Resource.subscribeEvents();
+            yield* Resource.preload(fixture.ref);
+            while (true) {
+              const event = yield* PubSub.take(subscription);
+              if (event._tag === "ResourceRowsChangesFailure") {
+                return event;
+              }
+            }
+          }).pipe(Effect.scoped),
+        );
+        expect(failure.key).toBe(fixture.ref.key);
+        expect(Cause.hasDies(failure.cause)).toBe(true);
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 600)));
+        expect(starts).toBe(1);
         yield* runtime.dispose;
       }),
     ));

@@ -2,8 +2,47 @@ import { Server } from "@sunfall/arc-core";
 import { Effect, Layer, Scope } from "effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
-import { RpcClient, RpcGroup, RpcSerialization, type Rpc } from "effect/rpc";
+import { RpcClient, RpcClientError, RpcGroup, RpcSerialization, type Rpc } from "effect/rpc";
 import { serverRpcPath } from "./rpc.js";
+
+/**
+ * Settles every call its HTTP response leaves unanswered. `effect/rpc` routes
+ * each response message by request id and ignores ids it does not know, so a
+ * response that completes without an `Exit` for the request (a proxy or server
+ * answering another id) would leave the call pending forever: the request's
+ * send fails with an `RpcClientError` instead.
+ */
+const settlingUnansweredCalls = (
+  protocol: RpcClient.Protocol["Service"],
+): RpcClient.Protocol["Service"] => {
+  const answered = new Set<string>();
+  return {
+    ...protocol,
+    run: (clientId, write) =>
+      protocol.run(clientId, (message) => {
+        if (message._tag === "Exit") {
+          answered.add(`${clientId}:${message.requestId}`);
+        }
+        return write(message);
+      }),
+    send: (clientId, request, transferables) =>
+      protocol.send(clientId, request, transferables).pipe(
+        Effect.flatMap(() => {
+          if (request._tag !== "Request" || answered.delete(`${clientId}:${request.id}`)) {
+            return Effect.void;
+          }
+          return Effect.fail(
+            new RpcClientError.RpcClientError({
+              reason: new RpcClientError.RpcClientDefect({
+                message: "HTTP response ended without an answer for the RPC request",
+                cause: { requestId: request.id, tag: request.tag },
+              }),
+            }),
+          );
+        }),
+      ),
+  };
+};
 
 type FlatClient = (tag: string, payload: unknown) => Effect.Effect<unknown, unknown, never>;
 
@@ -24,8 +63,10 @@ export const rpcClientLayer: Layer.Layer<Server.Client, never, HttpClient.HttpCl
       const httpClient = (yield* HttpClient.HttpClient).pipe(
         HttpClient.mapRequest(HttpClientRequest.setUrl(serverRpcPath)),
       );
-      const protocol = yield* RpcClient.makeProtocolHttp(httpClient).pipe(
-        Effect.provideService(RpcSerialization.RpcSerialization, RpcSerialization.json),
+      const protocol = settlingUnansweredCalls(
+        yield* RpcClient.makeProtocolHttp(httpClient).pipe(
+          Effect.provideService(RpcSerialization.RpcSerialization, RpcSerialization.json),
+        ),
       );
       const clients = new Map<string, Effect.Effect<FlatClient>>();
       const clientFor = (rpc: Rpc.Any): Effect.Effect<FlatClient> =>

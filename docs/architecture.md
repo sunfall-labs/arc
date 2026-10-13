@@ -625,8 +625,11 @@ the entry is hydrated, on the runtime's Resource Store. `rows` are the synced
 rows it starts from (the loaded or hydrated value), so a feed resumes from
 what they hold, such as the newest version among them. Each batch of
 `Upsert`/`Update`/`Delete` changes applies to the synced rows under the
-Timeline cause `Resource ... change` and publishes `ResourceRowsChanged`; a
-failed feed publishes `ResourceRowsChangesFailure` and stops. Disposing the
+Timeline cause `Resource ... change` and publishes `ResourceRowsChanged`. A
+failed feed is logged (Warning) and restarts from the synced rows it holds,
+backing off from 500ms to 30s, up to eight times; a defect, or a failure past
+the retries, is logged (Error), publishes `ResourceRowsChangesFailure`, and
+stops the feed. Disposing the
 runtime or evicting the entry interrupts it. A Start request runtime's store
 renders one response and never starts a feed (no wasted work, no server-side
 effects of a feed); the browser runtime starts it when it hydrates the entry.
@@ -674,15 +677,16 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   the patch stays applied. Retryable means a transport failure that says
   nothing about the Action (`isRetryableActionFailure`: `ActionTransportError`
   with reason `Network`/`Interrupted`, or a 408, 429, or 5xx status that is
-  not a Start defect). Typed domain failures, protocol failures, and defects
-  are final.
+  not a Start defect), or an interrupt-only exit (an aborted request). Typed
+  domain failures, protocol failures, and defects are final.
 - **Global FIFO replay.** One replay loop sends pending submissions in
   submission order, across Actions, because later submissions may depend on
   earlier ones and a retryable failure (connectivity) blocks them all alike.
   It runs on new durable submissions, on the window `online` event, and on
   launch, backing off with the outbox's `retry` schedule (exponential from 1
   second, 10 retries) while the head keeps failing retryably. Every attempt
-  sends the submission id.
+  sends the submission id. A pass that fails unexpectedly is logged and the
+  loop waits for the next trigger; it never stops replay.
 - **Settling.** Success removes the entry, folds the patch in, and applies the
   response (hydration and invalidations) as any submission does. A final
   failure removes the entry and rolls the patch back. A waiting caller gets

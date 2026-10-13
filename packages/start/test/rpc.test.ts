@@ -172,6 +172,37 @@ describe("Start server functions over effect/rpc", () => {
     );
   });
 
+  it("settles a call whose response answers a different request id", () => {
+    // A response that completes, but for an id the client never sent.
+    const wrongId: TestFetch = (input, init) =>
+      Effect.gen(function* () {
+        const response = yield* rpcFetch(input, init);
+        const body = (yield* Effect.promise(() => response.json())) as Array<object>;
+        return new Response(
+          JSON.stringify(body.map((message) => ({ ...message, requestId: "999999" }))),
+          { status: response.status, headers: response.headers },
+        );
+      });
+
+    return Effect.runPromise(
+      Effect.exit(
+        overHttp(
+          echo({ value: "atlas", at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at) }),
+          wrongId,
+        ).pipe(Effect.timeout("2 seconds")),
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            expect(Exit.isFailure(exit) ? Cause.pretty(exit.cause) : "").toContain(
+              "without an answer for the RPC request",
+            );
+          }),
+        ),
+      ),
+    );
+  });
+
   it("propagates the caller's span to the server as traceparent", () => {
     let traceparent: string | null = null;
     const spans: Array<Tracer.NativeSpan> = [];
@@ -571,7 +602,13 @@ describe("server defects stay on the server", () => {
               ? (Effect.succeed({
                   detail: secret,
                 }) as unknown as Effect.Effect<string>)
-              : Effect.fail(new EchoRejected({ value: mode })),
+              : mode === "schema"
+                ? // The Action's own decoding fails (a row it read): not a validation answer.
+                  (Schema.decodeUnknownEffect(Schema.Number)(secret) as unknown as Effect.Effect<
+                    string,
+                    EchoRejected
+                  >)
+                : Effect.fail(new EchoRejected({ value: mode })),
   });
   const leakyApp = makeStartServerApp({
     routes: [Route.define("/", {})] as const,
@@ -632,7 +669,7 @@ describe("server defects stay on the server", () => {
     expect(logs).toEqual([]);
   });
 
-  it.each(["die", "throw", "undeclared", "output"])(
+  it.each(["die", "throw", "undeclared", "output", "schema"])(
     "answers an action %s with an opaque defect and logs the cause",
     async (mode) => {
       const { logs, layer } = capturedLogs();
@@ -648,16 +685,30 @@ describe("server defects stay on the server", () => {
           message: "The server failed to handle the request.",
         },
       });
-      // An output that does not encode logs the schema issue; the others log the secret.
+      // A schema failure (an output that does not encode, the Action's own decoding)
+      // logs the schema issue; the others log the secret.
       expect(
         logs.some(
           (log) =>
             log.cause.reasons.length > 0 &&
-            (mode === "output" || Cause.pretty(log.cause).includes("password")),
+            Cause.pretty(log.cause).includes(
+              mode === "output" || mode === "schema" ? "SchemaError" : "password",
+            ),
         ),
       ).toBe(true);
     },
   );
+
+  it("still answers an action input that does not decode as a protocol failure", async () => {
+    const { logs, layer } = capturedLogs();
+    const { status, text } = await send(
+      post(serverActionPath, JSON.stringify({ name: LeakyAction.name, input: { mode: 1 } })),
+      layer,
+    );
+    expect(status).toBe(400);
+    expect(text).toContain("ActionProtocolError");
+    expect(logs).toEqual([]);
+  });
 
   it("sends no stack with action protocol errors", async () => {
     const { layer } = capturedLogs();

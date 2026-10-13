@@ -206,8 +206,10 @@ const LiveProjectList = Resource.define({
 - Each batch applies to the synced rows and commits as a Timeline `change`
   under the Resource's name; optimistic layers stay on top. The services the
   stream needs join the family's `R`.
-- A failed feed stops and publishes `ResourceRowsChangesFailure`; the rows
-  keep their last value, and the next reload still works.
+- A failed feed is logged and restarts from the rows it holds, with backoff
+  (500ms doubling to 30s, eight times). A defect, or a failure past the
+  retries, stops it and publishes `ResourceRowsChangesFailure`; the rows keep
+  their last value, and the next reload still works.
 
 ## Live Queries
 
