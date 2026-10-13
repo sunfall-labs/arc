@@ -22,7 +22,12 @@ import {
   hydrateStartPayload,
   type StartHydrationPayload,
 } from "./hydration.js";
-import { mediaTypeOf, startJsonMediaType, type StartTransportRequestError } from "./rpc.js";
+import {
+  mediaTypeOf,
+  startJsonMediaType,
+  startRequestIdHeader,
+  type StartTransportRequestError,
+} from "./rpc.js";
 import type { StartRequestFailureKind } from "./request-trace.js";
 import { serializeDefect, type StartActionDefinition } from "./start-action-request-codec.js";
 import { logStartDefect, startServerDefectBody } from "./start-defect.js";
@@ -352,6 +357,7 @@ export const parseStartActionResponse = (
 > =>
   Effect.gen(function* () {
     const status = response.status;
+    const requestId = response.headers[startRequestIdHeader];
     if (mediaTypeOf(response.headers["content-type"]) !== startJsonMediaType) {
       return yield* new ActionTransportError({
         reason: "InvalidResponse",
@@ -399,6 +405,7 @@ export const parseStartActionResponse = (
           status,
           message: "Start action failed with a defect.",
           payload: payload.defect,
+          ...(requestId === undefined ? {} : { requestId }),
         });
       default:
         return status >= 200 && status < 300

@@ -37,10 +37,37 @@ export const logRenderDefect = (cause: Cause.Cause<unknown>): void => {
   }
 };
 
-/** What the root renders for a failure nothing handled: nothing about it. */
+/**
+ * The server request id a failure carries, if any: an Action transport error's
+ * `requestId`, or the `(reference <id>)` an opaque server defect's message ends
+ * with. It is the one detail safe to show: it links the user's report to the
+ * server log.
+ */
+export const defectReference = (cause: Cause.Cause<unknown>): string | undefined => {
+  for (const reason of cause.reasons) {
+    const value: unknown = Cause.isFailReason(reason)
+      ? reason.error
+      : Cause.isDieReason(reason)
+        ? reason.defect
+        : undefined;
+    if (typeof value !== "object" || value === null) continue;
+    const requestId = (value as { readonly requestId?: unknown }).requestId;
+    if (typeof requestId === "string") return requestId;
+    const message = (value as { readonly message?: unknown }).message;
+    const match = typeof message === "string" ? /\(reference ([\w.-]+)\)$/.exec(message) : null;
+    if (match !== null) return match[1];
+  }
+  return undefined;
+};
+
+/** What the root renders for a failure nothing handled: nothing about it but its reference. */
 const rootHandler: FailureHandler = (thrown) => {
-  logRenderDefect(defectCause(thrown));
-  return "Something went wrong.";
+  const cause = defectCause(thrown);
+  logRenderDefect(cause);
+  const reference = defectReference(cause);
+  return reference === undefined
+    ? "Something went wrong."
+    : `Something went wrong. Reference: ${reference}`;
 };
 
 const FailureContext = createContext<FailureHandler>(rootHandler);

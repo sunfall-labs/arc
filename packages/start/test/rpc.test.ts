@@ -658,6 +658,8 @@ describe("server defects stay on the server", () => {
       expect(text).not.toContain("password");
       expect(text).not.toContain("/srv/");
       expect(text).toContain("StartServerDefect");
+      // The request id is the one detail that crosses: it links the report to the log.
+      expect(text).toMatch(/\(reference [\w.-]+\)/);
       expect(logs.some((log) => Cause.pretty(log.cause).includes("password"))).toBe(true);
     },
   );
@@ -682,7 +684,10 @@ describe("server defects stay on the server", () => {
         _tag: "Defect",
         defect: {
           _tag: "StartServerDefect",
-          message: "The server failed to handle the request.",
+          type: "about:blank",
+          title: "Internal Server Error",
+          status: 500,
+          detail: "The server failed to handle the request.",
         },
       });
       // A schema failure (an output that does not encode, the Action's own decoding)

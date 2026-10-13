@@ -14,23 +14,38 @@ export const startServerDefectMessage = "The server failed to handle the request
 /** Tag of the opaque defect the browser receives for a server defect. */
 export const startServerDefectTag = "StartServerDefect";
 
-/** The JSON-safe opaque defect sent in place of a server defect. */
+/**
+ * The JSON-safe opaque defect sent in place of a server defect, shaped as RFC
+ * 9457 Problem Details (`type`, `title`, `status`, `detail`). The request id
+ * travels in the `x-sunfall-arc-request-id` response header.
+ */
 export interface StartServerDefectBody {
   readonly _tag: typeof startServerDefectTag;
-  readonly message: typeof startServerDefectMessage;
+  readonly type: "about:blank";
+  readonly title: "Internal Server Error";
+  readonly status: 500;
+  readonly detail: typeof startServerDefectMessage;
 }
 
 export const startServerDefectBody: StartServerDefectBody = {
   _tag: startServerDefectTag,
-  message: startServerDefectMessage,
+  type: "about:blank",
+  title: "Internal Server Error",
+  status: 500,
+  detail: startServerDefectMessage,
 };
 
 /**
  * The value an RPC handler dies with in place of a server defect. `effect/rpc`
- * encodes a defect `Error` as its `name` and `message` only.
+ * encodes a defect `Error` as its `name` and `message` only, so the request id
+ * rides in the message as `(reference <id>)`.
  */
-export const makeStartServerDefect = (): Error => {
-  const error = new Error(startServerDefectMessage);
+export const makeStartServerDefect = (requestId?: string): Error => {
+  const error = new Error(
+    requestId === undefined
+      ? startServerDefectMessage
+      : `${startServerDefectMessage} (reference ${requestId})`,
+  );
   error.name = startServerDefectTag;
   return error;
 };

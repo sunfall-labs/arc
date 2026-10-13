@@ -924,6 +924,10 @@ To test what the screen shows, render the Component (see
   error into a message (and a state such as `Missing`); in a server
   implementation, declare the failure in the definition's `error`. Reserve
   defects for bugs.
+- **Messages users read belong in declared errors.** Give a declared error
+  the fields its view needs (`ProjectNotFound { id }`) and write the copy in
+  the view. A defect shows users only "Something went wrong" and its
+  reference, which links their report to the server log.
 - **Declare `error` where failures render.** A Resource read or route preload
   that fails during SSR crosses to the page only as its `error` schema encodes
   it. Without a schema it renders as `ResourceUntypedFailure` /
