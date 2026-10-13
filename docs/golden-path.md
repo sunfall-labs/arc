@@ -541,21 +541,25 @@ and keeps the filter in a State, changed only by its `Filter` message:
 <!-- snippet: type-tests/golden-path/project-list.step-3.tsx -> type-tests/golden-path/project-list.tsx -->
 
 ```diff
-@@ -1,2 +1,3 @@
-+import { State } from "@sunfall/arc-core";
+@@ -1,14 +1,44 @@
++import { Machine, Message, Model, State } from "@sunfall/arc-core";
  import { Component, RouterLink } from "@sunfall/arc-solid";
  import { For, Loading } from "solid-js";
-@@ -4,11 +5,30 @@
+-import { ProjectList } from "./projects.js";
++import { Project, ProjectList } from "./projects.js";
  import { ProjectRoute } from "./routes.js";
 
-+type Status = "active" | "archived";
-+
 +// Client-only UI state: a State, changed only by its named messages. The
-+// Timeline reads each change as `State "ProjectSidebar.status" Filter`.
++// Timeline reads each change as `State "ProjectSidebar.status" ChoseStatus`.
++const StatusModel = Model({ Showing: { status: Project.fields.status } });
++const StatusMessage = Message({ ChoseStatus: { status: Project.fields.status } });
 +const SidebarStatus = State.define({
 +  name: "ProjectSidebar.status",
-+  initial: "active" as Status,
-+  on: { Filter: (_status, message: { readonly status: Status }) => message.status },
++  machine: Machine.make({
++    state: StatusModel,
++    event: StatusMessage,
++    initial: StatusModel.Showing({ status: "active" }),
++  }).onAny(StatusMessage.ChoseStatus, ({ event }) => StatusModel.Showing({ status: event.status })),
 +});
 +
  export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
@@ -568,13 +572,20 @@ and keeps the filter in a State, changed only by its `Filter` message:
        <nav class={{ refreshing: projects.waiting("all") }}>
 -        <For each={projects("all")} keyed={(project) => project.id}>
 +        <select
-+          value={status.model()}
-+          onChange={(event) => status.send.Filter({ status: event.currentTarget.value as Status })}
++          value={status.model().status}
++          onChange={(event) =>
++            status.send.ChoseStatus({
++              status: event.currentTarget.value === "archived" ? "archived" : "active",
++            })
++          }
 +        >
 +          <option value="active">Active</option>
 +          <option value="archived">Archived</option>
 +        </select>
-+        <For each={projects.index("all", "status", status.model())} keyed={(project) => project.id}>
++        <For
++          each={projects.index("all", "status", status.model().status)}
++          keyed={(project) => project.id}
++        >
            {(project) => (
              <RouterLink route={ProjectRoute} options={{ params: { id: project().id } }}>
 ```
@@ -794,35 +805,32 @@ union up front with `State.define<Model, Message>()`):
 <!-- snippet: type-tests/golden-path/project-loader.ts -->
 
 ```ts
-import { Resource, State } from "@sunfall/arc-core";
-import { Effect } from "effect";
-import { ProjectsRef, type Project } from "./projects.js";
+import { Machine, Message, Model, Resource, State } from "@sunfall/arc-core";
+import { Effect, Schema } from "effect";
+import { Project, ProjectsRef } from "./projects.js";
 
-type Model = {
-  readonly status: "idle" | "loading" | "ready";
-  readonly projects: ReadonlyArray<Project>;
-};
-type Message =
-  | { readonly _tag: "Load" }
-  | { readonly _tag: "Loaded"; readonly projects: ReadonlyArray<Project> };
+export const LoaderModel = Model({
+  Idle: {},
+  Loading: {},
+  Ready: { projects: Schema.Array(Project) },
+});
+export const LoaderMessage = Message({
+  ClickedLoad: {},
+  ReceivedProjects: { projects: Schema.Array(Project) },
+});
 
-// Handlers are pure: they return the next model, and Effect work leaves them
-// as commands that run after the model commits.
-export const ProjectLoader = State.define<Model, Message>()({
+// The load is work the Loading state owns: it starts on entry, stops if the
+// state is left, and its outcome comes back as a message.
+export const ProjectLoader = State.define({
   name: "ProjectLoader",
-  initial: { status: "idle", projects: [] },
-  on: {
-    Load: (model) =>
-      State.next(
-        { ...model, status: "loading" },
-        State.emit(
-          Resource.preload(ProjectsRef).pipe(
-            Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
-          ),
-        ),
-      ),
-    Loaded: (_model, message) => ({ status: "ready", projects: message.projects }),
-  },
+  machine: Machine.make({ state: LoaderModel, event: LoaderMessage, initial: LoaderModel.Idle })
+    .on(LoaderModel.Idle, LoaderMessage.ClickedLoad, () => LoaderModel.Loading)
+    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef).pipe(Effect.orDie), {
+      onSuccess: (projects) => LoaderMessage.ReceivedProjects({ projects }),
+    })
+    .on(LoaderModel.Loading, LoaderMessage.ReceivedProjects, ({ event }) =>
+      LoaderModel.Ready({ projects: event.projects }),
+    ),
 });
 ```
 
@@ -831,34 +839,27 @@ and its tests:
 <!-- snippet: type-tests/golden-path/project-loader.test.ts -->
 
 ```ts
-import { State } from "@sunfall/arc-core";
+import { Machine } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
-import { ProjectLoader } from "./project-loader.js";
+import { LoaderMessage, ProjectLoader } from "./project-loader.js";
 import { ProjectId, type Project } from "./projects.js";
 import { ProjectsServerMemory } from "./projects.memory.js";
 
 const atlas: Project = { id: ProjectId.make("atlas"), name: "Atlas", status: "active" };
 
-test("Load starts loading and fetches the projects", () => {
-  // One transition is one function call: no runtime, DOM, or timers.
-  const loading = State.step(ProjectLoader, ProjectLoader.initial, { _tag: "Load" });
-  expect(loading.model.status).toBe("loading");
-  expect(loading.commands).toHaveLength(1);
-
-  // A command is a description: run its Effect with test services to get the
-  // message it emits.
-  const emitted = Effect.runSync(
-    loading.commands[0]!.effect.pipe(Effect.provide(ProjectsServerMemory)),
-  );
-  expect(emitted).toMatchObject({ _tag: "Loaded", projects: [atlas, expect.anything()] });
-});
-
-test("Loaded shows the projects", () => {
-  const loading = { status: "loading", projects: [] } as const;
-  const ready = State.step(ProjectLoader, loading, { _tag: "Loaded", projects: [atlas] });
-  expect(ready.model).toEqual({ status: "ready", projects: [atlas] });
-  expect(ready.commands).toEqual([]);
+test("ClickedLoad enters Loading, and the received projects show", () => {
+  // Transitions replay without a runtime, DOM, or timers.
+  const replay = (messages: Parameters<typeof Machine.replay<any, any, any>>[1]) =>
+    Effect.runSync(
+      Machine.replay(ProjectLoader.machine, messages).pipe(Effect.provide(ProjectsServerMemory)),
+    );
+  expect(replay([LoaderMessage.ClickedLoad])._tag).toBe("Loading");
+  expect(
+    replay([LoaderMessage.ClickedLoad, LoaderMessage.ReceivedProjects({ projects: [atlas] })]),
+  ).toMatchObject({ _tag: "Ready", projects: [atlas] });
+  // Not valid while idle: the message changes nothing.
+  expect(replay([LoaderMessage.ReceivedProjects({ projects: [atlas] })])._tag).toBe("Idle");
 });
 ```
 

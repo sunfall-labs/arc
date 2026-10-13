@@ -8,6 +8,9 @@ import {
   ActionTypeId,
   ActionResult,
   Form,
+  Machine,
+  Message,
+  Model,
   State,
   RequestContext,
   Resource,
@@ -565,93 +568,112 @@ const profileForm: Form.Instance<{ readonly name: string }, "required"> = Form.m
 const profileValidationEffect = profileForm.validate();
 const profileFormData = Form.data(new FormData());
 
-type CounterMessage = { readonly _tag: "Increment" } | { readonly _tag: "Decrement" };
-const counterState = State.define<number, CounterMessage>()({
-  name: "counterState",
-  initial: 0,
-  on: {
-    Increment: (model) => model + 1,
-    Decrement: (model) => State.next(model - 1),
-  },
-});
-const counterStep = State.next(
-  1,
-  State.commands(State.emit<CounterMessage>({ _tag: "Increment" })),
+// States are effect-machine machines: schema-first variants and messages,
+// transitions keyed by (variant, message).
+const CounterModel = Model({ Counting: { count: Schema.Finite } });
+const CounterMessage = Message({ Incremented: {}, Decremented: {} });
+const counterMachine = Machine.make({
+  state: CounterModel,
+  event: CounterMessage,
+  initial: CounterModel.Counting({ count: 0 }),
+})
+  .onAny(CounterMessage.Incremented, ({ state }) =>
+    CounterModel.Counting({ count: state.count + 1 }),
+  )
+  .onAny(CounterMessage.Decremented, ({ state }) =>
+    CounterModel.Counting({ count: state.count - 1 }),
+  );
+const counterState = State.define({ name: "counterState", machine: counterMachine });
+type CounterModelType = State.Model<typeof counterState>;
+type CounterMessageType = State.Message<typeof counterState>;
+const counterModelCount: number = (null as unknown as CounterModelType).count;
+const counterMessageTag: "Incremented" | "Decremented" = (null as unknown as CounterMessageType)
+  ._tag;
+// Pure transitions without a runtime: the machine replays messages.
+const counterReplay: Effect.Effect<CounterModelType> = Machine.replay(counterMachine, [
+  CounterMessage.Incremented,
+]);
+const counterInstance: State.Instance<CounterModelType, CounterMessageType> = State.start(
+  counterState,
+  { runtime },
 );
-const counterCommand: State.Command<CounterMessage> = State.emit(Effect.void);
-const counterCommands = State.commands(
-  State.emit<CounterMessage>({ _tag: "Increment" }),
-  State.emit(Effect.void),
-);
-const counterSubscription = State.subscription(Stream.empty as Stream.Stream<CounterMessage>);
-// `State.step` is pure: it returns the next model and the unrun commands.
-const counterPureStep: State.Step<number, CounterMessage> = State.step(counterState, 0, {
-  _tag: "Increment",
+const counterDispatch: Effect.Effect<
+  void,
+  State.Failure<CounterMessageType, State.DispatchError>
+> = counterInstance.dispatch(CounterMessage.Incremented);
+// @ts-expect-error A State only takes its own messages.
+counterInstance.dispatch({ _tag: "Reset" });
+const counterCan: boolean = counterInstance.can(CounterMessage.Decremented);
+const counterFailures: ReadonlyArray<State.Failure<CounterMessageType, State.Error>> =
+  counterInstance.failures.get();
+const counterHistory: ReadonlyArray<State.History<CounterModelType, CounterMessageType>> =
+  State.history(counterState, []);
+
+const DownloadModel = Model({ Idle: {}, Downloading: { url: Schema.String } });
+const DownloadMessage = Message({
+  ClickedDownload: { url: Schema.String },
+  FinishedDownload: {},
 });
-const counterPureStepModel: number = counterPureStep.model;
-const counterPureStepCommands: ReadonlyArray<State.Command<CounterMessage>> =
-  counterPureStep.commands;
-// @ts-expect-error State.step only accepts the State's messages.
-State.step(counterState, 0, { _tag: "Reset" });
-const counterRuntimeError: State.RuntimeError<never> = null as unknown as State.RuntimeError<never>;
-const counterDispatchError: State.DispatchError<never> =
-  null as unknown as State.DispatchError<never>;
-const counterInstance: State.Instance<
-  number,
-  CounterMessage,
-  State.RuntimeError<never>,
-  State.DispatchError<never>
-> = State.start(counterState, { runtime });
-type TaggedCounterModel = { readonly count: number; readonly loading: boolean };
-type TaggedCounterMessage =
-  | { readonly _tag: "Increment" }
-  | { readonly _tag: "Load" }
-  | { readonly _tag: "Loaded"; readonly amount: number };
-const taggedCounterHandlers: State.HandlerMap<TaggedCounterModel, TaggedCounterMessage> = {
-  Increment: (model) => ({ ...model, count: model.count + 1 }),
-  Load: (model) =>
-    State.next(
-      { ...model, loading: true },
-      State.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
-    ),
-  Loaded: (model, message) => ({
-    count: model.count + message.amount,
-    loading: false,
-  }),
-};
-const taggedCounterState = State.define<TaggedCounterModel, TaggedCounterMessage>()({
-  name: "taggedCounterState",
-  initial: { count: 0, loading: false },
-  on: taggedCounterHandlers,
+interface Downloader {
+  readonly fetch: (url: string) => Effect.Effect<number, "Offline">;
+}
+const Downloader = Context.Service<Downloader>("@sunfall/arc-core/type-tests/Downloader");
+// Work a variant owns: its failure must become a message (E = never), and its
+// services join the State's `R`.
+const downloadState = State.define({
+  name: "download",
+  machine: Machine.make({
+    state: DownloadModel,
+    event: DownloadMessage,
+    initial: DownloadModel.Idle,
+  })
+    .on(DownloadModel.Idle, DownloadMessage.ClickedDownload, ({ event }) =>
+      DownloadModel.Downloading({ url: event.url }),
+    )
+    .on(DownloadModel.Downloading, DownloadMessage.FinishedDownload, () => DownloadModel.Idle)
+    .task(DownloadModel.Downloading, ({ state }) => Downloader.use((api) => api.fetch(state.url)), {
+      onSuccess: () => DownloadMessage.FinishedDownload,
+      onFailure: () => DownloadMessage.FinishedDownload,
+    }),
 });
-const taggedCounterLoadCommand: Effect.Effect<TaggedCounterMessage | void> = State.step(
-  taggedCounterState,
-  taggedCounterState.initial,
-  { _tag: "Load" },
-).commands[0]!.effect;
-const taggedCounterImmediateCommand = State.emit({ _tag: "Increment" } as const);
-const taggedCounterImmediateStep: State.Step<TaggedCounterModel, TaggedCounterMessage> = State.next(
-  { count: 0, loading: false },
-  State.emit({ _tag: "Increment" } as const),
-);
-const effectfulTaggedCounterHandlers: State.HandlerMap<TaggedCounterModel, TaggedCounterMessage> = {
-  // @ts-expect-error State handlers are pure: Effect work goes in commands.
-  Increment: (model) => Effect.succeed(model),
-  Load: (model) => model,
-  Loaded: (model) => model,
-};
-// @ts-expect-error State handler maps must cover every tagged message.
-const incompleteTaggedCounterHandlers: State.HandlerMap<TaggedCounterModel, TaggedCounterMessage> =
-  {
-    Increment: (model) => model,
-    Load: (model) => model,
-  };
-void taggedCounterState;
-void taggedCounterImmediateCommand;
-void taggedCounterImmediateStep;
-void taggedCounterLoadCommand;
-void effectfulTaggedCounterHandlers;
-void incompleteTaggedCounterHandlers;
+const downloadRequirements: State.Definition<
+  State.Model<typeof downloadState>,
+  State.Message<typeof downloadState>,
+  Downloader
+> = downloadState;
+// @ts-expect-error A State that needs Downloader cannot start on a runtime without it.
+State.start(downloadState, { runtime });
+Machine.make({ state: DownloadModel, event: DownloadMessage, initial: DownloadModel.Idle })
+  // @ts-expect-error A transition handler cannot fail: expected failures become messages.
+  .on(DownloadModel.Idle, DownloadMessage.ClickedDownload, () => Effect.fail("Offline"));
+Machine.make({ state: DownloadModel, event: DownloadMessage, initial: DownloadModel.Idle })
+  // @ts-expect-error A transition returns one of the model's variants.
+  .on(DownloadModel.Idle, DownloadMessage.ClickedDownload, () => ({ _tag: "Exploded" }));
+Machine.make({ state: DownloadModel, event: DownloadMessage, initial: DownloadModel.Idle })
+  // @ts-expect-error A transition handles a message of the machine.
+  .on(DownloadModel.Idle, CounterMessage.Incremented, () => DownloadModel.Idle);
+// A persisted State needs the runtime's KeyValueStore.
+const persistedCounter = State.define({
+  name: "persistedCounter",
+  machine: counterMachine,
+  persist: { key: "counter" },
+});
+// @ts-expect-error A persisted State cannot start on a runtime without a KeyValueStore.
+State.start(persistedCounter, { runtime });
+type IncrementedFields = State.MessageFields<
+  State.Message<typeof downloadState>,
+  "ClickedDownload"
+>;
+const clickedDownloadFields: IncrementedFields = { url: "/report.pdf" };
+void counterModelCount;
+void counterMessageTag;
+void counterReplay;
+void counterDispatch;
+void counterCan;
+void counterFailures;
+void counterHistory;
+void downloadRequirements;
+void clickedDownloadFields;
 
 const uiScope = new UiScope();
 const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);
@@ -812,14 +834,6 @@ void actionBoundary;
 void actionResultLabel;
 void profileValidationEffect;
 void profileFormData;
-void counterStep;
-void counterCommand;
-void counterCommands;
-void counterSubscription;
-void counterPureStepModel;
-void counterPureStepCommands;
-void counterRuntimeError;
-void counterDispatchError;
 void counterInstance;
 void uiScope;
 void runtimeUiScope;
@@ -897,14 +911,7 @@ const coreInternalAction = makeActionInstance(
   Action.define({ name: "core.internal.action", run: (input: string) => input }),
   coreErasedRuntime,
 );
-const coreInternalState = startStateOnRuntime(
-  State.define<number, { readonly _tag: "Tick" }>()({
-    name: "Test",
-    initial: 0,
-    on: { Tick: (model) => model + 1 },
-  }),
-  coreErasedRuntime,
-);
+const coreInternalState = startStateOnRuntime(counterState, coreErasedRuntime);
 void coreInternalAction;
 void coreInternalState;
 

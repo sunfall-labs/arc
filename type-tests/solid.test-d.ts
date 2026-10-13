@@ -13,8 +13,11 @@ import {
   type BrowserRouterError,
   type BrowserRouterState,
   type EffectInputCallbackError,
+  Machine,
+  Message,
+  Model,
 } from "@sunfall/arc-core";
-import { Cause, Effect, Option, Stream } from "effect";
+import { Cause, Effect, Option, Schema, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import {
   Component,
@@ -86,46 +89,62 @@ const solidReadSignalValue: number = solidCountSignal.get();
 const solidEffectRuntime = makeRuntime();
 const solidSignalValue = (): number => solidCountSignal.get();
 const solidStreamValue = Component.stream("status", Stream.succeed("ready"), "idle");
-type SolidTick = { readonly _tag: "Tick" };
-const SolidState = State.define<number, SolidTick>()({
+const SolidCounter = Model({ Counting: { count: Schema.Finite } });
+const SolidTickMessage = Message({ Ticked: {} });
+const SolidState = State.define({
   name: "SolidState",
-  initial: 0,
-  on: { Tick: (model) => State.next(model + 1) },
+  machine: Machine.make({
+    state: SolidCounter,
+    event: SolidTickMessage,
+    initial: SolidCounter.Counting({ count: 0 }),
+  }).onAny(SolidTickMessage.Ticked, ({ state }) =>
+    SolidCounter.Counting({ count: state.count + 1 }),
+  ),
 });
-declare const solidStateHandle: Component.StateHandle<number, SolidTick, never>;
-const solidStateBinding: Effect.Effect<Component.StateHandle<number, SolidTick, never>> =
+type SolidModel = State.Model<typeof SolidState>;
+type SolidTick = State.Message<typeof SolidState>;
+declare const solidStateHandle: Component.StateHandle<SolidModel, SolidTick>;
+const solidStateBinding: Effect.Effect<Component.StateHandle<SolidModel, SolidTick>> =
   Component.state(SolidState);
 // @ts-expect-error State history lives on the app Timeline, not on the State handle.
 solidStateHandle.clearTimeline();
 const solidStateDispatch: Effect.Effect<
   void,
-  State.Failure<SolidTick, EffectInputCallbackError | State.Disposed>
-> = solidStateHandle.dispatch({ _tag: "Tick" });
-const solidStateCount: number = solidStateHandle.model();
+  State.Failure<SolidTick, State.DispatchError>
+> = solidStateHandle.dispatch(SolidTickMessage.Ticked);
+const solidStateCount: number = solidStateHandle.model().count;
+const solidStateCan: boolean = solidStateHandle.can.Ticked();
 void solidStateCount;
+void solidStateCan;
 
 // `send` has one DOM-ready sender per tag: a message without fields binds to an
 // event as-is, and a message with fields takes them.
+const SolidMenuModel = Model({ Closed: {}, Open: {} });
+const SolidMenuMessage = Message({ ClickedMenu: {}, ChoseOpen: { open: Schema.Boolean } });
 const SolidMenu = State.define({
   name: "Menu.open",
-  initial: false,
-  on: {
-    Toggle: (open) => !open,
-    Set: (_open, message: { readonly open: boolean }) => message.open,
-  },
+  machine: Machine.make({
+    state: SolidMenuModel,
+    event: SolidMenuMessage,
+    initial: SolidMenuModel.Closed,
+  })
+    .on(SolidMenuModel.Closed, SolidMenuMessage.ClickedMenu, () => SolidMenuModel.Open)
+    .on(SolidMenuModel.Open, SolidMenuMessage.ClickedMenu, () => SolidMenuModel.Closed)
+    .onAny(SolidMenuMessage.ChoseOpen, ({ event }) =>
+      event.open ? SolidMenuModel.Open : SolidMenuModel.Closed,
+    ),
 });
 declare const solidMenu: Component.StateHandle<
-  boolean,
-  { readonly _tag: "Toggle" } | { readonly _tag: "Set"; readonly open: boolean },
-  never
+  State.Model<typeof SolidMenu>,
+  State.Message<typeof SolidMenu>
 >;
 const solidMenuBinding: Effect.Effect<typeof solidMenu> = Component.state(SolidMenu);
-const solidToggleHandler: (event: MouseEvent) => void = solidMenu.send.Toggle;
-solidMenu.send.Set({ open: true });
+const solidToggleHandler: (event: MouseEvent) => void = solidMenu.send.ClickedMenu;
+solidMenu.send.ChoseOpen({ open: true });
 // @ts-expect-error a message with fields needs them
-solidMenu.send.Set();
-// @ts-expect-error fields are typed by the handler's message parameter
-solidMenu.send.Set({ open: "yes" });
+solidMenu.send.ChoseOpen();
+// @ts-expect-error fields are typed by the message schema
+solidMenu.send.ChoseOpen({ open: "yes" });
 // @ts-expect-error only declared tags have senders
 solidMenu.send.Close();
 void solidMenuBinding;
@@ -167,15 +186,17 @@ solidTypeEquals<Component.StateView<number>, number>(true);
 solidTypeEquals<Component.StateView<"idle" | "busy">, "idle" | "busy">(true);
 solidTypeEquals<Component.StateView<string | undefined>, string | undefined>(true);
 solidTypeEquals<Component.StateView<unknown>, unknown>(true);
-declare const solidBoardState: State.Definition<SolidBoardModel, { readonly _tag: "Noop" }>;
+declare const solidBoardState: State.Definition<
+  SolidBoardModel & { readonly _tag: "Board" },
+  { readonly _tag: "Noop" }
+>;
 const solidBoardOptions: Component.StateOptions = {
   key: (row) => ("id" in row ? row.id : undefined),
 };
 void Component.state(solidBoardState, solidBoardOptions);
 declare const solidBoardHandle: Component.StateHandle<
-  SolidBoardModel,
-  { readonly _tag: "Noop" },
-  never
+  SolidBoardModel & { readonly _tag: "Board" },
+  { readonly _tag: "Noop" }
 >;
 const solidBoardView: SolidBoardView = solidBoardHandle.model();
 const solidBoardLabel: string = solidBoardView.rows[0]!.label;

@@ -22,6 +22,9 @@ import {
   type ActionTransport,
   EffectInputCallbackError,
   Form,
+  Machine,
+  Message,
+  Model,
   State,
   Resource,
   ResourceFailure,
@@ -305,49 +308,8 @@ toEffect<Effect.Effect<number>>(effectNumberValue);
 const wrappedEffectValue = toEffect<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
 const wrappedEffectValueCheck: Effect.Effect<Effect.Effect<number>> = wrappedEffectValue;
 void wrappedEffectValueCheck;
-// @ts-expect-error State.next models cannot be Effect-shaped values; wrap domain Effects in Effect.succeed(...)
-State.next(effectNumberValue);
-// @ts-expect-error State commands cannot emit Effect-shaped messages
-State.emit<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
-// @ts-expect-error State subscriptions cannot emit Effect-shaped messages
-State.subscription(Stream.succeed(effectNumberValue));
-// @ts-expect-error State initial models cannot be Effect-shaped values
-State.define<Effect.Effect<number>, { readonly _tag: "Noop" }>()({
-  name: "Test",
-  initial: effectNumberValue,
-  on: { Noop: (model: Effect.Effect<number>) => model },
-});
-// @ts-expect-error State.next models cannot be Promise-shaped values
-State.next(promisedProject);
-// @ts-expect-error State.next models cannot hide Promise-shaped values behind explicit unknown
-State.next<unknown, { readonly _tag: "Bad" }>(promisedProject);
-// @ts-expect-error Effects cannot hide State.next Promise-shaped model values
-Effect.succeed(State.next(promisedProject));
-// @ts-expect-error State commands cannot emit Promise-shaped messages
-State.emit<unknown>(Effect.succeed(promisedProject));
-// @ts-expect-error State commands cannot emit Promise-shaped messages
-State.emit(promisedProject);
-// @ts-expect-error State subscriptions cannot emit Promise-shaped messages
-State.subscription(Stream.succeed(promisedProject));
-// @ts-expect-error State messages are tagged values, never Promise-shaped
-State.define<number, typeof promisedNumber>()({ name: "Test", initial: 0, on: {} });
-// @ts-expect-error State messages are tagged values, never undefined (the command no-message sentinel)
-State.define<number, undefined>()({ name: "Test", initial: 0, on: {} });
-// @ts-expect-error State messages are tagged values, never void (the command no-message sentinel)
-State.define<number, void>()({ name: "Test", initial: 0, on: {} });
-// @ts-expect-error State messages are tagged values, not bare strings
-State.define<number, "tick">()({ name: "Test", initial: 0, on: {} });
-// @ts-expect-error State dispatch commands cannot accept undefined messages
-State.emit<undefined>(undefined);
-// An Effect that completes with `void` is a command that emits nothing.
-const stateBackgroundCommand: State.Command<{ readonly _tag: "Done" }> = State.emit(Effect.void);
-void stateBackgroundCommand;
-// @ts-expect-error State initial models cannot be Promise-shaped
-State.define<typeof promisedNumber, { readonly _tag: "Noop" }>()({
-  name: "Test",
-  initial: promisedNumber,
-  on: { Noop: (model: typeof promisedNumber) => model },
-});
+// @ts-expect-error A State runs a machine with a fixed initial state, not plain handlers
+State.define({ name: "Test", initial: 0, on: { Noop: (model: number) => model } });
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
@@ -2061,37 +2023,42 @@ const uiCallback: Effect.Effect<(id: string) => void, never, ProjectApi> = Compo
 );
 void uiCallback;
 
-type ProjectStateModel = { readonly selected: Project | undefined; readonly loading: boolean };
-type ProjectStateMessage =
-  | { readonly _tag: "Load"; readonly id: string }
-  | { readonly _tag: "Loaded"; readonly project: Project }
-  | { readonly _tag: "Refresh" };
-
-const ProjectState = State.define<ProjectStateModel, ProjectStateMessage>()({
-  name: "ProjectState",
-  initial: { selected: undefined, loading: false },
-  on: {
-    Load: (model, message) =>
-      State.next(
-        { ...model, loading: true },
-        State.emit<ProjectStateMessage, ProjectError | Server.ClientError, ProjectApi>(
-          ProjectApi.use((api) =>
-            Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }) as const),
-          ),
-        ),
-      ),
-    Loaded: (_model, message) => ({ selected: message.project, loading: false }),
-    Refresh: (model) =>
-      model.selected
-        ? State.next(
-            model,
-            State.emit<ProjectStateMessage>({ _tag: "Load", id: model.selected.id }),
-          )
-        : model,
-  },
-  subscriptions: (model) =>
-    model.selected ? Stream.succeed<ProjectStateMessage>({ _tag: "Refresh" }) : undefined,
+const ProjectStateModel = Model({
+  Idle: { selected: Schema.NullOr(ProjectSchema) },
+  Loading: { id: Schema.String, selected: Schema.NullOr(ProjectSchema) },
 });
+const ProjectStateMessage = Message({
+  ClickedProject: { id: Schema.String },
+  ReceivedProject: { project: ProjectSchema },
+  FailedToLoad: {},
+});
+// A statechart whose Loading variant owns the load: its services join the
+// State's `R`, and its failure is a message, so the State cannot fail with it.
+const ProjectState = State.define({
+  name: "ProjectState",
+  machine: Machine.make({
+    state: ProjectStateModel,
+    event: ProjectStateMessage,
+    initial: ProjectStateModel.Idle({ selected: null }),
+  })
+    .reenter(
+      [ProjectStateModel.Idle, ProjectStateModel.Loading],
+      ProjectStateMessage.ClickedProject,
+      ({ state, event }) => ProjectStateModel.Loading({ id: event.id, selected: state.selected }),
+    )
+    .task(ProjectStateModel.Loading, ({ state }) => ProjectApi.use((api) => api.get(state.id)), {
+      onSuccess: (project) => ProjectStateMessage.ReceivedProject({ project }),
+      onFailure: () => ProjectStateMessage.FailedToLoad,
+    })
+    .on(ProjectStateModel.Loading, ProjectStateMessage.ReceivedProject, ({ event }) =>
+      ProjectStateModel.Idle({ selected: event.project }),
+    )
+    .on(ProjectStateModel.Loading, ProjectStateMessage.FailedToLoad, ({ state }) =>
+      ProjectStateModel.Idle({ selected: state.selected }),
+    ),
+});
+type ProjectStateModelType = State.Model<typeof ProjectState>;
+type ProjectStateMessageType = State.Message<typeof ProjectState>;
 
 // @ts-expect-error serviceful State.start requires an explicit runtime carrying State services
 State.start(ProjectState, { runtime: makeRuntime() });
@@ -2104,21 +2071,32 @@ type ProjectStateRemainingRuntimeRequirements = State.RuntimeRemainingRequiremen
 >;
 const missingStateRuntimeRequirement = null as unknown as ProjectStateRemainingRuntimeRequirements;
 const projectState = State.start(ProjectState, { runtime: projectStateRuntime });
-projectState.model.get().selected?.name.toUpperCase();
+const projectStateModel = projectState.model.get();
+if (projectStateModel._tag === "Loading") {
+  projectStateModel.id.toUpperCase();
+}
+projectStateModel.selected?.name.toUpperCase();
 const projectTimelineRecord: Effect.Effect<
   Timeline.Recording,
   TimelineAlreadyRecording,
   Scope.Scope
 > = Timeline.record({ limit: 50 });
 declare const projectTimeline: Timeline.Recording;
-// A State's history is the app Timeline filtered to its model signal.
-const projectStateHistory: ReadonlyArray<Timeline.Entry> = projectTimeline.entries
-  .get()
-  .filter((entry) => entry.changes.some((change) => change.signal === projectState.model));
-projectStateHistory.map((entry) => entry.sequence.toFixed());
-const projectTimelineLabel: string = Timeline.describe(projectStateHistory[0]!.cause);
+// A State's history is its entries on the app Timeline: every message it
+// processed, as data, with the model it started from; the machine replays them.
+const projectStateHistory: ReadonlyArray<
+  State.History<ProjectStateModelType, ProjectStateMessageType>
+> = State.history(ProjectState, projectTimeline.entries.get());
+const projectReplayed: Effect.Effect<ProjectStateModelType, never, ProjectApi> = Machine.replay(
+  ProjectState.machine,
+  projectStateHistory[0]!.messages.map((entry) => entry.message),
+  { from: projectStateHistory[0]!.from },
+);
+const projectEntries: ReadonlyArray<Timeline.Entry> = projectTimeline.entries.get();
+projectEntries.map((entry) => entry.sequence.toFixed());
+const projectTimelineLabel: string = Timeline.describe(projectEntries[0]!.cause);
 // Every entry has a cause: writes outside a named transition never commit.
-const projectTimelineCause: Timeline.Cause = projectStateHistory[0]!.cause;
+const projectTimelineCause: Timeline.Cause = projectEntries[0]!.cause;
 void projectTimelineCause;
 const projectTimelinePosition: number | undefined = projectTimeline.position.get();
 const projectTimelineTravel: Effect.Effect<void, TimelineEntryUnavailable> =
@@ -2128,11 +2106,14 @@ const projectTimelineResume: Effect.Effect<void> = projectTimeline.resume();
 projectTimeline.travel("1");
 // @ts-expect-error Timeline entries are read-only
 projectTimeline.entries.set([]);
-const projectStateCause: Timeline.Cause | undefined = projectStateHistory[0]?.cause;
+const projectStateCause: Timeline.Cause | undefined = projectEntries[0]?.cause;
 if (projectStateCause?._tag === "State") {
   const state: string = projectStateCause.state;
-  const event: "message" | "failure" | "clearFailures" = projectStateCause.event;
+  const instance: number = projectStateCause.instance;
+  const event: "start" | "restore" | "message" | "ignored" | "failure" | "clearFailures" =
+    projectStateCause.event;
   void state;
+  void instance;
   void event;
 }
 const renameCause: Timeline.Cause = { _tag: "Transition", name: "ProjectPage.rename" };
@@ -2151,43 +2132,33 @@ Signal.updateAndGet;
 void customCause;
 // @ts-expect-error State history lives on the app Timeline, not on the State instance
 projectState.clearTimeline();
-State.define<number, { readonly _tag: "Tick" }>()({
-  name: "Test",
-  initial: 0,
-  on: { Tick: (model) => model },
-  // @ts-expect-error State definitions no longer carry per-program timeline retention
-  timeline: false,
-});
 void projectTimelineRecord;
 void projectTimelineLabel;
 void projectTimelinePosition;
 void projectTimelineTravel;
 void projectTimelineResume;
+void projectReplayed;
+// The State cannot fail with the load's error: it became a message.
 const projectStateDispatchEffect: Effect.Effect<
   void,
-  State.Failure<
-    ProjectStateMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError | State.Disposed
-  >
-> = projectState.dispatch({ _tag: "Load", id: "atlas" });
+  State.Failure<ProjectStateMessageType, State.DispatchError>
+> = projectState.dispatch(ProjectStateMessage.ClickedProject({ id: "atlas" }));
 void projectStateDispatchEffect;
-void projectState.dispatch({ _tag: "Refresh" });
 // @ts-expect-error State dispatch messages keep payloads typed
-void projectState.dispatch({ _tag: "Load" });
-const ProjectStateWithMissingService = State.define<ProjectStateModel, ProjectStateMessage>()({
+void projectState.dispatch({ _tag: "ClickedProject" });
+const MissingServiceModel = Model({ Ready: {} });
+const MissingServiceMessage = Message({ ClickedLoad: {} });
+const ProjectStateWithMissingService = State.define({
   name: "ProjectStateWithMissingService",
-  initial: { selected: undefined, loading: false },
-  on: {
-    Load: (model) =>
-      State.next(
-        model,
-        State.emit(
-          RuntimeMissingService.useSync((service) => service.readMissing()).pipe(Effect.asVoid),
-        ),
-      ),
-    Loaded: (model) => model,
-    Refresh: (model) => model,
-  },
+  machine: Machine.make({
+    state: MissingServiceModel,
+    event: MissingServiceMessage,
+    initial: MissingServiceModel.Ready,
+  }).onAny(MissingServiceMessage.ClickedLoad, () =>
+    RuntimeMissingService.useSync((service) => service.readMissing()).pipe(
+      Effect.as(MissingServiceModel.Ready),
+    ),
+  ),
 });
 State.start(ProjectStateWithMissingService, {
   // @ts-expect-error runtime-bound State start cannot erase services the runtime does not provide
@@ -2205,99 +2176,28 @@ const projectStateWithRuntimeError = State.start(ProjectState, {
 });
 const projectStateRuntimeErrorDispatch: Effect.Effect<
   void,
-  State.Failure<
-    ProjectStateMessage,
-    | ProjectError
-    | Server.ClientError
-    | EffectInputCallbackError
-    | State.Disposed
-    | StateRuntimeStartupError
-  >
-> = projectStateWithRuntimeError.dispatch({ _tag: "Load", id: "atlas" });
-// `State.step` is pure and synchronous: no runtime, services, or errors.
-const projectStateStep: State.Step<
-  ProjectStateModel,
-  ProjectStateMessage,
-  ProjectError | Server.ClientError,
-  ProjectApi
-> = State.step(
-  ProjectState,
-  { selected: undefined, loading: false },
-  { _tag: "Load", id: "atlas" },
-);
-// A command is an inspectable Effect description; running it needs its services.
-const projectStateLoadCommand: Effect.Effect<
-  ProjectStateMessage | void,
-  ProjectError | Server.ClientError,
-  ProjectApi
-> = projectStateStep.commands[0]!.effect;
-// @ts-expect-error State.step keeps message payloads typed
-State.step(ProjectState, { selected: undefined, loading: false }, { _tag: "Load" });
-void projectStateStep;
-void projectStateLoadCommand;
+  State.Failure<ProjectStateMessageType, State.DispatchError<StateRuntimeStartupError>>
+> = projectStateWithRuntimeError.dispatch(ProjectStateMessage.ClickedProject({ id: "atlas" }));
 void projectStateRuntimeErrorDispatch;
 void projectStateStartOptions;
 void missingStateRuntimeRequirement;
 const solidProjectStateBinding: Effect.Effect<
-  Component.StateHandle<ProjectStateModel, ProjectStateMessage, ProjectError | Server.ClientError>,
+  Component.StateHandle<ProjectStateModelType, ProjectStateMessageType>,
   never,
   ProjectApi
 > = Component.state(ProjectState);
 const solidProjectState = bound(solidProjectStateBinding);
 solidProjectState.model().selected?.id.toUpperCase();
 solidProjectState.failures().map((failure) => failure.phase);
-// @ts-expect-error Solid State dispatch messages keep payloads typed
-void solidProjectState.dispatch({ _tag: "Loaded" });
+const solidProjectCan: boolean = solidProjectState.can.ClickedProject({ id: "atlas" });
+void solidProjectCan;
+// @ts-expect-error Solid State senders keep payloads typed
+solidProjectState.send.ClickedProject();
 const solidProjectStateDispatch: Effect.Effect<
   void,
-  State.Failure<
-    ProjectStateMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError | State.Disposed
-  >
-> = solidProjectState.dispatch({ _tag: "Load", id: "atlas" });
+  State.Failure<ProjectStateMessageType, State.DispatchError>
+> = solidProjectState.dispatch(ProjectStateMessage.ClickedProject({ id: "atlas" }));
 void solidProjectStateDispatch;
-
-type BadMessage = { readonly _tag: "Bad" };
-
-State.define<number, BadMessage>()({
-  name: "Test",
-  initial: 0,
-  // @ts-expect-error State handlers return a model or State.next(...), not a Promise
-  on: { Bad: () => promisedNumber },
-});
-
-State.define<unknown, BadMessage>()({
-  name: "Test",
-  initial: {},
-  // @ts-expect-error State handlers cannot hide Promise-shaped values behind explicit unknown
-  on: { Bad: () => promisedProject },
-});
-
-State.define<number, BadMessage>()({
-  name: "Test",
-  initial: 0,
-  // @ts-expect-error State handlers are pure: Effect work goes in commands
-  on: { Bad: (model) => Effect.succeed(model + 1) },
-});
-
-State.define<number, BadMessage>()({
-  name: "Test",
-  initial: 0,
-  on: { Bad: (model) => model + 1 },
-  // @ts-expect-error State subscriptions cannot hide Promise-shaped values behind explicit unknown
-  subscriptions: () => promisedProject,
-});
-
-State.define<number, BadMessage>()({
-  name: "Test",
-  initial: 0,
-  on: { Bad: (model) => model + 1 },
-  // @ts-expect-error State subscriptions cannot hide Effect Promise successes behind explicit unknown
-  subscriptions: () => Effect.succeed(promisedProject),
-});
-
-// @ts-expect-error State handlers must use the `on` handler map
-State.define<number, BadMessage>()({ name: "Test", initial: 0, update: (model: number) => model });
 
 // @ts-expect-error service method input remains typed
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
@@ -3024,7 +2924,7 @@ const devtoolsTimelineCommit: Devtools.TimelineCommit = {
   cause: renameCause,
   changes: [{ signal: "Project.title", previous: "Atlas", next: "Apollo" }],
 };
-Effect.runSync(devtoolsStore.recordTimelineEntry(projectStateHistory[0]!));
+Effect.runSync(devtoolsStore.recordTimelineEntry(projectEntries[0]!));
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackTimeline(projectTimeline);
 const devtoolsResourceRuntimeEvent: Devtools.RuntimeEvent = {
