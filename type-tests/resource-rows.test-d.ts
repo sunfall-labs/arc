@@ -46,6 +46,7 @@ type TodosRows = Resource.Rows<typeof Todos>;
 type _rowsRow = Assert<Eq<TodosRows["row"], Todo>>;
 type _rowsKey = Assert<Eq<TodosRows["key"], number>>;
 type _rowsIndexes = Assert<Eq<keyof TodosRows["indexes"], "done" | "label">>;
+type _rowsFeed = Assert<Eq<TodosRows["feed"], true>>;
 
 // The ref carries the rows spec, and R covers both the load and the feed.
 type TodosRef = ReturnType<typeof Todos>;
@@ -73,6 +74,32 @@ const Recent = Resource.define({
   load: (_: void) => Effect.succeed([] as ReadonlyArray<Todo>),
 });
 type _recentKey = Assert<Eq<Resource.Rows<typeof Recent>["key"], string>>;
+// Without `rows.changes` the family records no feed.
+type _recentFeed = Assert<Eq<Resource.Rows<typeof Recent>["feed"], false>>;
+
+// A feed that needs no services still records one, and adds nothing to R.
+const Pushed = Resource.define({
+  name: "type-tests/rows/pushed",
+  output: Schema.Array(Todo),
+  rows: {
+    key: (todo) => todo.id,
+    changes: () => Stream.empty as Stream.Stream<ReadonlyArray<Resource.RowChange<Todo, number>>>,
+  },
+  load: (_: void) => Effect.succeed([] as ReadonlyArray<Todo>),
+});
+type _pushedFeed = Assert<Eq<Resource.Rows<typeof Pushed>["feed"], true>>;
+type _pushedR = Assert<
+  Eq<ReturnType<typeof Pushed> extends Resource.Ref<any, any, any, infer R> ? R : never, never>
+>;
+type _recentR = Assert<
+  Eq<ReturnType<typeof Recent> extends Resource.Ref<any, any, any, infer R> ? R : never, never>
+>;
+// Typed failures retry until the feed recovers: only a defect stops it.
+type _stoppedReason = Assert<
+  Eq<Extract<Resource.FeedStatus, { readonly _tag: "Stopped" }>["reason"], "Defect">
+>;
+const pushedFeed: ReturnType<typeof Resource.feed> = Resource.feed(Pushed());
+void pushedFeed;
 
 // Reader lookups: keys and index values come from `rows`.
 Component.define("TodoRows", function* () {
@@ -85,7 +112,19 @@ Component.define("TodoRows", function* () {
     todos.get("me", "1");
     // @ts-expect-error "done" holds booleans
     todos.index("me", "done", "yes");
-    return [first?.title, done.length, urgent.length].join();
+    // The feed status joins the reader only for a family with `rows.changes`.
+    const feed: Resource.FeedStatus = todos.feed("me");
+    const paused = feed._tag === "Retrying" ? feed.attempt : feed._tag === "Stopped";
+    return [first?.title, done.length, urgent.length, paused].join();
+  };
+});
+
+Component.define("RecentRows", function* () {
+  const recent = yield* Component.resource(Recent);
+  return () => {
+    // @ts-expect-error a family without `rows.changes` has no feed status
+    recent.feed();
+    return recent().length;
   };
 });
 

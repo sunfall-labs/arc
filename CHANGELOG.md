@@ -114,8 +114,13 @@ initial })` built from schema-first `Model({...})` variants and
   `rows.changes(input, rows)` streaming `Upsert` / `Update` / `Delete`
   batches into the synced rows. The browser starts a feed when it loads or
   hydrates the entry; server renders never start feeds. A feed that fails is
-  logged and restarts from the rows it holds, with backoff; a defect, or
-  failures past the retries, stop it and publish `ResourceRowsChangesFailure`.
+  logged and restarts from the rows it holds, with jittered backoff capped at
+  30s, until it recovers; only a defect stops it and publishes
+  `ResourceRowsChangesFailure`.
+  `Resource.feed(ref)` and `reader.feed(input)` (typed only when the family
+  declares `rows.changes`) report it as `Idle` / `Following` / `Retrying` /
+  `Stopped` (defect only), recorded on the Timeline as
+  `Resource "<name>" feed retrying` and `feed stopped`.
 - `policy.persist: { key, version }` persists settled values in the runtime's
   `effect/persistence` `KeyValueStore`; a never-loaded entry shows the
   persisted value at once and reloads in the background. Start provides a

@@ -17,6 +17,7 @@ import {
   Option,
   Schema,
   Scope,
+  Stream,
 } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";
@@ -242,6 +243,45 @@ describe("Component", () => {
 
           runtime.runFork(Action.use(Close, { runtime }).submit("a"));
           yield* waitForText(container, "|done");
+        }),
+      ),
+    ));
+
+  it("reads a rows Resource's feed status", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Row = Schema.Struct({ id: Schema.String });
+          let starts = 0;
+          const Rows = Resource.define({
+            name: `Component.rows.feed.${++familyId}`,
+            input: Schema.Literal("all"),
+            output: Schema.Array(Row),
+            rows: {
+              key: (row) => row.id,
+              changes: () =>
+                ++starts === 1
+                  ? Stream.fail("offline")
+                  : (Stream.never as Stream.Stream<
+                      ReadonlyArray<Resource.RowChange<typeof Row.Type, string>>
+                    >),
+            },
+            load: () => Effect.succeed([{ id: "a" }]),
+          });
+          const Status = Component.define("FeedStatus", function* () {
+            const rows = yield* Component.resource(Rows);
+            return () => [
+              (() => `${rows("all").length}:`) as never,
+              (() => {
+                const feed = rows.feed("all");
+                return feed._tag === "Retrying" ? `Retrying ${feed.attempt}` : feed._tag;
+              }) as never,
+            ];
+          });
+          const container = document.createElement("div");
+          yield* Component.mount(Status, container, { runtime: makeRuntime() });
+          yield* waitForText(container, "1:Retrying 1");
+          yield* waitForText(container, "1:Following");
         }),
       ),
     ));

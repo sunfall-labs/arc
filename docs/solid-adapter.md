@@ -421,7 +421,10 @@ A Solid `createEffect` that only mirrors state into other state is a
 
 A Resource with `rows` gives its reader `get(input, key)` and
 `index(input, name, value)`; both suspend and follow reloads like
-`reader(input)`, and Actions patch the rows with
+`reader(input)`. When it declares `rows.changes`, the reader also has
+`feed(input)`, the feed's `Resource.FeedStatus` (`Idle`, `Following`,
+`Retrying`, `Stopped`), which never suspends or loads: status chrome reads it
+to say live updates are paused. Actions patch the rows with
 `transaction.insert/update/delete(ref, key, ...)`. `LiveQuery.bind(query)`
 binds a live query over the rows of Resources (`Query` from `@sunfall/arc-db`):
 its factory runs tracked, so a signal or prop it reads (`props.projectId`)

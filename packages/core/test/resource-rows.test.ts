@@ -12,7 +12,7 @@ import {
 } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, Resource, Signal, Timeline } from "../src/index.js";
+import { Action, makeRuntime, Resource, runWithRuntime, Signal, Timeline } from "../src/index.js";
 import {
   defaultRuntime,
   makeRequestResourceStore,
@@ -342,6 +342,66 @@ describe("Resource rows", () => {
       }),
     ));
 
+  it("reports feed status: following, retrying after a failure, following again", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let starts = 0;
+        const fixture = makeFixture(() =>
+          ++starts === 1 ? Stream.fail("connection lost") : Stream.never,
+        );
+        const runtime = makeRuntime();
+        const feed = runWithRuntime(runtime, () => Resource.feed(fixture.ref));
+        expect(Signal.peek(feed)).toEqual({ _tag: "Idle" });
+        const recording = yield* Timeline.record();
+        yield* runtime.provide(Resource.preload(fixture.ref));
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        expect(Signal.peek(feed)).toEqual({ _tag: "Retrying", attempt: 1 });
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 700)));
+        expect(Signal.peek(feed)).toEqual({ _tag: "Following" });
+
+        const feedEntries = Signal.peek(recording.entries)
+          .map((entry) => Timeline.describe(entry.cause))
+          .filter((label) => label.includes(" feed "));
+        const name = fixture.ProjectList.family.options.name;
+        expect(feedEntries).toEqual([
+          `Resource "${name}" feed following ${fixture.ref.key}`,
+          `Resource "${name}" feed retrying ${fixture.ref.key}`,
+          `Resource "${name}" feed following ${fixture.ref.key}`,
+        ]);
+
+        // Evicting the entry resets the feed status with it.
+        yield* runtime.provide(Resource.evict(fixture.ref));
+        expect(Signal.peek(feed)).toEqual({ _tag: "Idle" });
+        yield* runtime.dispose;
+      }).pipe(Effect.scoped),
+    ));
+
+  it("reports a feed stopped by a defect", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const fixture = makeFixture(() => Stream.die(new Error("bug")));
+        const runtime = makeRuntime();
+        const recording = yield* Timeline.record();
+        yield* runtime.provide(Resource.preload(fixture.ref));
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        expect(runWithRuntime(runtime, () => Signal.peek(Resource.feed(fixture.ref)))).toEqual({
+          _tag: "Stopped",
+          reason: "Defect",
+        });
+        const stopped = Signal.peek(recording.entries).find(
+          (entry) => entry.cause._tag === "Resource" && entry.cause.event === "feedStopped",
+        );
+        expect(stopped && Timeline.describe(stopped.cause)).toBe(
+          `Resource "${fixture.ProjectList.family.options.name}" feed stopped ${fixture.ref.key}`,
+        );
+        // The entry records the status change, not the defect.
+        expect(stopped?.changes.map((change) => change.next)).toEqual([
+          { _tag: "Stopped", reason: "Defect" },
+        ]);
+        yield* runtime.dispose;
+      }).pipe(Effect.scoped),
+    ));
+
   it("starts a hydrated entry's change feed from the hydrated rows, without loading", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -357,6 +417,9 @@ describe("Resource rows", () => {
         const payload = yield* server.provide(Resource.hydrationPayload([fixture.ref]));
         yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
         expect(started).toEqual([]);
+        expect(runWithRuntime(server, () => Signal.peek(Resource.feed(fixture.ref)))).toEqual({
+          _tag: "Idle",
+        });
         yield* server.dispose;
 
         const browser = makeRuntime();
@@ -364,6 +427,9 @@ describe("Resource rows", () => {
         yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
         // Only the hydrated browser entry follows the feed.
         expect(started).toEqual([["atlas", "orion"]]);
+        expect(runWithRuntime(browser, () => Signal.peek(Resource.feed(fixture.ref)))).toEqual({
+          _tag: "Following",
+        });
         yield* Queue.offer(queue, [{ _tag: "Delete", key: "orion" }]);
         yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
         expect(browser.runSync(Resource.read(fixture.ref)).map((row) => row.id)).toEqual(["atlas"]);

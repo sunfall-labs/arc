@@ -1,5 +1,5 @@
 import { Resource, Server } from "@sunfall/arc-core";
-import { Duration, Effect, Option, Schedule, Schema, Stream } from "effect";
+import { Duration, Effect, Option, Schema, Stream } from "effect";
 import {
   Activity,
   Comment,
@@ -86,7 +86,9 @@ const issueChanges = Server.client(IssueChangesContract);
  * The board: every live issue of a project, keyed by id and indexed by
  * status (the columns). Its change feed polls the server's change log from
  * the newest `seq` the rows already hold, so another tab's moves, edits,
- * creates, and deletes land here without a reload.
+ * creates, and deletes land here without a reload. A failed poll (offline, a
+ * server restart) fails the feed: Arc restarts it with backoff from the rows
+ * it holds, and the board shows the paused feed (`board.feed`).
  */
 export const Board = Resource.define({
   name: "Tracker.board",
@@ -105,8 +107,6 @@ export const Board = Resource.define({
         (cursor) =>
           Effect.sleep(boardPollInterval).pipe(
             Effect.andThen(issueChanges.effect({ projectKey, cursor })),
-            // A failed poll (offline, a restart) waits and asks again from the same cursor.
-            Effect.retry(Schedule.spaced(boardPollInterval)),
             Effect.map(
               (batch) =>
                 [

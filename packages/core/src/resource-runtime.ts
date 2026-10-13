@@ -36,7 +36,7 @@ import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
-import { applyResourceRowChanges } from "./resource-rows.js";
+import { applyResourceRowChanges, type ResourceFeedStatus } from "./resource-rows.js";
 import { resourceValueSharing } from "./resource-value-sharing.js";
 import { persistResourceState, restoreResourceState } from "./resource-persistence.js";
 import {
@@ -59,6 +59,7 @@ import {
   resetResourceEntry,
   showResourceState,
   scheduleResourceGc,
+  setResourceFeedStatus,
   setResourcePending,
   shouldShowResourcePending,
   syncedResourceState,
@@ -186,19 +187,25 @@ const resourceLoadEffect = <I, A, E, R>(
     );
   });
 
-/** Restarts a failed `rows.changes` feed: 500ms doubling to 30s, eight times. */
+/** Restarts a failed `rows.changes` feed until it recovers: 500ms doubling, jittered, capped at 30s. */
 const rowChangesRetry = Schedule.exponential("500 millis").pipe(
+  Schedule.jittered,
   Schedule.modifyDelay(({ duration }) =>
     Effect.succeed(Duration.min(duration, Duration.seconds(30))),
   ),
-  Schedule.upTo({ times: 8 }),
 );
+
+/** Whether `Effect.retry` retries this cause: typed failures only. */
+const isRetryableCause = (cause: Cause.Cause<unknown>): boolean =>
+  Cause.hasFails(cause) && !Cause.hasDies(cause) && !Cause.hasInterrupts(cause);
 
 /**
  * Starts the entry's `rows.changes` feed once it has a value. Each batch
  * applies to the synced rows (optimistic patches stay on top) and commits as
- * a `change`. A failure is logged and the feed restarts with backoff; a
- * defect, or a failure past the retries, stops it and is published.
+ * a `change`. A typed failure is logged and the feed restarts with backoff,
+ * however many times it takes; a defect stops it and is published. Each step
+ * writes the entry's feed status: `Following` on every (re)start, `Retrying`
+ * while a restart waits, `Stopped` after a defect.
  */
 const startResourceRowChanges = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
@@ -213,9 +220,11 @@ const startResourceRowChanges = <I, A, E, R>(
     }
     const name = ref.family.options.name;
     const rows = ref.family.options.rows!;
+    let failures = 0;
     const feed = Stream.runForEach(
       // Each (re)start resumes from the rows the entry holds now.
       Stream.suspend(() => {
+        setResourceFeedStatus(entry, { _tag: "Following" });
         const started = syncedResourceState(entry);
         const startRows = (
           started._tag === "Success" ? started.value : []
@@ -253,22 +262,35 @@ const startResourceRowChanges = <I, A, E, R>(
       Effect.tapCause((cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.void
-          : Effect.logWarning(`Resource ${name} rows.changes feed failed`, cause),
+          : Effect.andThen(
+              Effect.sync(() => {
+                // Only a failure the schedule retries waits as `Retrying`.
+                if (isRetryableCause(cause)) {
+                  failures++;
+                  setResourceFeedStatus(entry, { _tag: "Retrying", attempt: failures });
+                }
+              }),
+              Effect.logWarning(`Resource ${name} rows.changes feed failed`, cause),
+            ),
       ),
-      // A typed failure restarts the feed with backoff; a defect, or failures
-      // past the schedule, stop it.
+      // A typed failure restarts the feed with backoff; only a defect stops it.
       Effect.retry({ schedule: rowChangesRetry }),
       Effect.catchCause((cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.void
           : Effect.andThen(
-              Effect.logError(`Resource ${name} rows.changes feed stopped`, cause),
-              publishResourceStoreEvent(store, {
-                _tag: "ResourceRowsChangesFailure",
-                name,
-                key: ref.key,
-                cause,
-              }),
+              Effect.sync(() =>
+                setResourceFeedStatus(entry, { _tag: "Stopped", reason: "Defect" }),
+              ),
+              Effect.andThen(
+                Effect.logError(`Resource ${name} rows.changes feed stopped`, cause),
+                publishResourceStoreEvent(store, {
+                  _tag: "ResourceRowsChangesFailure",
+                  name,
+                  key: ref.key,
+                  cause,
+                }),
+              ),
             ),
       ),
     );
@@ -455,6 +477,10 @@ export const resourceResult = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
 ): ReadableSignal<AsyncResult.AsyncResult<A, E>> =>
   resourceEntry(ref, currentResourceStore()).state;
+
+export const resourceFeed = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+): ReadableSignal<ResourceFeedStatus> => resourceEntry(ref, currentResourceStore()).feed;
 
 export const resourceStatus = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,

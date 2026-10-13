@@ -79,6 +79,15 @@ const BoardView = Component.define(
         .slice()
         .sort((left, right) => left.position - right.position);
     };
+    // A quiet note while the change feed is down: the board stays usable.
+    const feedNotice = (): string | undefined => {
+      const feed = board.feed(props.projectKey);
+      return feed._tag === "Retrying"
+        ? "Live updates paused — retrying"
+        : feed._tag === "Stopped"
+          ? "Live updates stopped — reload to resume"
+          : undefined;
+    };
     // A moved card goes to the bottom of its new column.
     const lastPosition = () =>
       board(props.projectKey).reduce((max, issue) => Math.max(max, issue.position), 0);
@@ -105,6 +114,13 @@ const BoardView = Component.define(
           project={projects("all").find((project) => project.key === props.projectKey)}
           view="board"
         >
+          <Show when={feedNotice()}>
+            {(notice) => (
+              <span class="feedStatus muted small" role="status" data-testid="feed-status">
+                {notice()}
+              </span>
+            )}
+          </Show>
           <button
             type="button"
             class={["ghostButton", { active: ui.model().onlyMine }]}

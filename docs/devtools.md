@@ -186,7 +186,9 @@ Effect-native event streams:
   before invalidated refs refresh.
 - Row change feeds (`rows.changes`) publish `ResourceRowsChanged` and
   `ResourceRowsChangesFailure` on the same stream; devtools records them as
-  ordinary resource runtime facts.
+  ordinary resource runtime facts. The feed status (`Resource.feed`) is a
+  signal, so a recorded Timeline shows each change as a `feed following`,
+  `feed retrying`, or `feed stopped` commit targeting the Resource.
 - `store.trackAction(action)` exposes action state and invalidation plan
   facts without reading private action internals.
 - `store.recordActionState(..., { serializedInvalidationPlan })` exposes

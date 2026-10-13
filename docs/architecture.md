@@ -627,9 +627,9 @@ what they hold, such as the newest version among them. Each batch of
 `Upsert`/`Update`/`Delete` changes applies to the synced rows under the
 Timeline cause `Resource ... change` and publishes `ResourceRowsChanged`. A
 failed feed is logged (Warning) and restarts from the synced rows it holds,
-backing off from 500ms to 30s, up to eight times; a defect, or a failure past
-the retries, is logged (Error), publishes `ResourceRowsChangesFailure`, and
-stops the feed. Disposing the
+backing off from 500ms (doubling, jittered, capped at 30s) until it recovers;
+a defect is logged (Error), publishes `ResourceRowsChangesFailure`, and stops
+the feed. Each step writes the entry's feed status (`Resource.feed`). Disposing the
 runtime or evicting the entry interrupts it. A Start request runtime's store
 renders one response and never starts a feed (no wasted work, no server-side
 effects of a feed); the browser runtime starts it when it hydrates the entry.

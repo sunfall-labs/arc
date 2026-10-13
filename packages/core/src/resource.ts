@@ -51,6 +51,7 @@ import type {
   ResourceRowsNeedArrayOutput,
   ResourceRowsOptions,
   ResourceRowsSpec,
+  ResourceFeedStatus,
 } from "./resource-rows.js";
 import type { ResourceCollected } from "./resource-collector.js";
 import {
@@ -78,6 +79,7 @@ import {
   resourceHydrationPayload,
   resourceChangesStream,
   resourceResult,
+  resourceFeed,
   resourceStatus,
   runResourceInvalidationPlan,
   subscribeResourceEvents,
@@ -190,10 +192,27 @@ type ResourceRowsCheck<Output, Key> = [Key] extends [never]
     ? unknown
     : { readonly rows: ResourceRowsNeedArrayOutput<Output> };
 
-/** The rows spec a family records: `never` without `rows`. */
-type ResourceRowsSpecFor<Row, Key extends ResourceRowKey, Indexes> = [Key] extends [never]
+/**
+ * What `define` infers for the feed's services when `rows.changes` is absent,
+ * so a family records whether it declares a feed (a feed that needs no
+ * services infers `never`).
+ */
+export interface ResourceNoRowsFeed {
+  readonly "~resource-no-rows-feed": true;
+}
+
+/** Whether a family declares `rows.changes`, from its inferred feed services. */
+type ResourceHasRowsFeed<ChangesR> = [ResourceNoRowsFeed] extends [ChangesR] ? false : true;
+
+/** The feed's services as family requirements: none without a feed. */
+type ResourceRowsFeedRequirements<ChangesR> = [ResourceNoRowsFeed] extends [ChangesR]
   ? never
-  : ResourceRowsSpec<Row, Key, Indexes>;
+  : ChangesR;
+
+/** The rows spec a family records: `never` without `rows`. */
+type ResourceRowsSpecFor<Row, Key extends ResourceRowKey, Indexes, ChangesR> = [Key] extends [never]
+  ? never
+  : ResourceRowsSpec<Row, Key, Indexes, ResourceHasRowsFeed<ChangesR>>;
 
 /** The `rows` option of the overloads with an `output` schema. */
 type ResourceRowsOption<I, Output, Key extends ResourceRowKey, Indexes, ChangesR> = {
@@ -803,15 +822,18 @@ export namespace Resource {
     ChangesR = never,
   > = ResourceRowsOptions<I, Row, Key, Indexes, ChangesR>;
   /** Type-level record of a family's rows: row, key, and indexes. */
-  export type RowsSpec<Row, Key extends ResourceRowKey, Indexes> = ResourceRowsSpec<
+  export type RowsSpec<
     Row,
-    Key,
-    Indexes
-  >;
+    Key extends ResourceRowKey,
+    Indexes,
+    Feed extends boolean = boolean,
+  > = ResourceRowsSpec<Row, Key, Indexes, Feed>;
   /** A ref whose family declares `rows`: what `transaction.insert/update/delete` take. */
   export type RowsRef<Row = any, Key extends ResourceRowKey = any> = ResourceRowsRef<Row, Key>;
   /** Stable identity of one row: what `rows.key` returns. */
   export type RowKey = ResourceRowKey;
+  /** Where one entry's `rows.changes` feed is: `Idle`, `Following`, `Retrying`, or `Stopped`. */
+  export type FeedStatus = ResourceFeedStatus;
   /** One remote row change streamed by `rows.changes`. */
   export type RowChange<Row, Key extends ResourceRowKey = ResourceRowKey> = ResourceRowChange<
     Row,
@@ -865,7 +887,7 @@ export namespace Resource {
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
     Key extends ResourceRowKey = never,
     Indexes = {},
-    ChangesR = never,
+    ChangesR = ResourceNoRowsFeed,
     Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
@@ -895,9 +917,9 @@ export namespace Resource {
     Schema.Schema.Type<Input>,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, never>,
-    ChangesR | ResourcePersistRequirements<Persist>,
+    ResourceRowsFeedRequirements<ChangesR> | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, never>,
-    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
+    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes, ChangesR>
   >;
   export function define<
     I,
@@ -924,7 +946,7 @@ export namespace Resource {
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
     Key extends ResourceRowKey = never,
     Indexes = {},
-    ChangesR = never,
+    ChangesR = ResourceNoRowsFeed,
     Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
@@ -950,9 +972,11 @@ export namespace Resource {
     Schema.Schema.Type<Input>,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
-    EffectInputRequirements<Out> | ChangesR | ResourcePersistRequirements<Persist>,
+    | EffectInputRequirements<Out>
+    | ResourceRowsFeedRequirements<ChangesR>
+    | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>,
-    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
+    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes, ChangesR>
   >;
   export function define<
     const Input extends Schema.Top,
@@ -987,7 +1011,7 @@ export namespace Resource {
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
     Key extends ResourceRowKey = never,
     Indexes = {},
-    ChangesR = never,
+    ChangesR = ResourceNoRowsFeed,
     Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
@@ -1007,9 +1031,11 @@ export namespace Resource {
     I,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
-    EffectInputRequirements<Out> | ChangesR | ResourcePersistRequirements<Persist>,
+    | EffectInputRequirements<Out>
+    | ResourceRowsFeedRequirements<ChangesR>
+    | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>,
-    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
+    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes, ChangesR>
   >;
   export function define<
     I,
@@ -1215,6 +1241,18 @@ export namespace Resource {
   export const result = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
   ): ReadableSignal<AsyncResult.AsyncResult<A, E>> => resourceResult(ref);
+
+  /**
+   * Reactive status of a ref's `rows.changes` feed. It is `Idle` until the
+   * entry's first value starts the feed (and always during a server render,
+   * which never follows feeds), `Following` while it runs, `Retrying` while a
+   * typed failure waits out its backoff (it retries until it recovers), and
+   * `Stopped` after a defect. Every change is a `Timeline` entry (`Resource "Board"
+   * feed retrying <key>`).
+   */
+  export const feed = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>,
+  ): ReadableSignal<ResourceFeedStatus> => resourceFeed(ref);
 
   /**
    * Effect-first status inspection that reads the ResourceStore and Clock from

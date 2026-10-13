@@ -5,7 +5,7 @@ import {
   Signal,
   type ActionInterrupted,
   type AnySunfallArcRuntime,
-  type Resource,
+  Resource,
   type Route,
   type RouteViewTypeId,
   type SunfallArcRuntime,
@@ -461,6 +461,10 @@ const makeResourceReader = <I, A, E, R>(
         ? resourceRenderCause(family(input).family, current.cause)
         : undefined;
     },
+    // Present on every reader; the types offer it only when the family
+    // declares `rows.changes`. It reads the entry without loading it.
+    feed: (input: I): Resource.FeedStatus =>
+      runWithRuntime(runtime, () => Resource.feed(family(input))).get(),
     // Present on every reader; the types offer them only when the family
     // declares `rows`. Each reads the rows of the current value.
     get: (input: I, key: Resource.RowKey): unknown => {
@@ -708,12 +712,27 @@ export namespace Component {
     ) => ReadonlyArray<Row>;
   }
 
-  /** The reader `Component.resource` returns: row lookups join when the family has `rows`. */
+  /**
+   * The feed status a reader adds when its family declares `rows.changes`.
+   * It reads the entry without loading it: `Idle` until the first value
+   * starts the feed, and during a server render.
+   */
+  export interface ResourceFeedReader<I> {
+    /** Where the `rows.changes` feed of `input` is (`Resource.feed`). */
+    readonly feed: (input: I) => Resource.FeedStatus;
+  }
+
+  /**
+   * The reader `Component.resource` returns: row lookups join when the family
+   * has `rows`, and the feed status when it declares `rows.changes`.
+   */
   export type Reader<I, A, E, Rows> = [Rows] extends [never]
     ? ResourceReader<I, A, E>
-    : Rows extends Resource.RowsSpec<infer Row, infer Key, infer Indexes>
-      ? ResourceReader<I, A, E> & ResourceRowsReader<I, Row, Key, Indexes>
-      : ResourceReader<I, A, E>;
+    : Rows extends Resource.RowsSpec<infer Row, infer Key, infer Indexes, true>
+      ? ResourceReader<I, A, E> & ResourceRowsReader<I, Row, Key, Indexes> & ResourceFeedReader<I>
+      : Rows extends Resource.RowsSpec<infer Row, infer Key, infer Indexes>
+        ? ResourceReader<I, A, E> & ResourceRowsReader<I, Row, Key, Indexes>
+        : ResourceReader<I, A, E>;
 
   /**
    * Failures an Action submission reports: its own and transport failures. A
