@@ -74,8 +74,22 @@ export interface TimelineResourceCause {
   readonly _tag: "Resource";
   readonly resource: string;
   readonly key: string;
-  /** `change` applies a `rows.changes` batch to the synced rows. */
-  readonly event: "load" | "success" | "failure" | "interrupt" | "hydrate" | "reset" | "change";
+  /**
+   * `change` applies a `rows.changes` batch to the synced rows.
+   * `feedFollowing`, `feedRetrying`, and `feedStopped` change the entry's
+   * feed status (`Resource.feed`).
+   */
+  readonly event:
+    | "load"
+    | "success"
+    | "failure"
+    | "interrupt"
+    | "hydrate"
+    | "reset"
+    | "change"
+    | "feedFollowing"
+    | "feedRetrying"
+    | "feedStopped";
 }
 
 /** Commit made by the browser router kernel while navigating. */
@@ -161,6 +175,19 @@ const messageLabel = (message: unknown): string => {
     }
   }
   return typeof message === "string" ? message : typeof message;
+};
+
+const resourceEventLabel: Record<TimelineResourceCause["event"], string> = {
+  load: "load",
+  success: "success",
+  failure: "failure",
+  interrupt: "interrupt",
+  hydrate: "hydrate",
+  reset: "reset",
+  change: "change",
+  feedFollowing: "feed following",
+  feedRetrying: "feed retrying",
+  feedStopped: "feed stopped",
 };
 
 const makeRecording = (clock: Clock.Clock, limit: number) => {
@@ -353,7 +380,7 @@ export namespace Timeline {
             ? `State "${cause.state}" ${messageLabel(cause.message)} (ignored)`
             : `State "${cause.state}" ${cause.event}`;
       case "Resource":
-        return `Resource "${cause.resource}" ${cause.event} ${cause.key}`;
+        return `Resource "${cause.resource}" ${resourceEventLabel[cause.event]} ${cause.key}`;
       case "Router":
         return `Router navigate ${cause.href} (${cause.status})`;
     }

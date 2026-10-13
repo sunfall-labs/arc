@@ -206,10 +206,18 @@ const LiveProjectList = Resource.define({
 - Each batch applies to the synced rows and commits as a Timeline `change`
   under the Resource's name; optimistic layers stay on top. The services the
   stream needs join the family's `R`.
-- A failed feed is logged and restarts from the rows it holds, with backoff
-  (500ms doubling to 30s, eight times). A defect, or a failure past the
-  retries, stops it and publishes `ResourceRowsChangesFailure`; the rows keep
-  their last value, and the next reload still works.
+- A failed feed is logged and restarts from the rows it holds, with jittered
+  backoff (500ms doubling, capped at 30s), until it recovers. Only a defect
+  stops it and publishes `ResourceRowsChangesFailure`; the rows keep their
+  last value, and the next reload still works.
+- `Resource.feed(ref)` is the entry's feed status signal, and a reader whose
+  family declares `rows.changes` adds `reader.feed(input)` (neither loads the
+  entry): `Idle` until the feed starts (and always during a server render),
+  `Following` while it runs, `Retrying` with the restart `attempt` while a
+  failure waits out its backoff, and `Stopped` (`reason: "Defect"`). Each change is a Timeline entry
+  (`Resource "Tracker.board" feed retrying <key>`); evicting the entry resets
+  it to `Idle`. `examples/tracker`'s board shows "Live updates paused —
+  retrying" from it.
 
 ## Live Queries
 

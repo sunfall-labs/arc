@@ -368,7 +368,8 @@ Release decisions:
   index buckets the row changed.
 - `Resource.define({ ..., rows })` (array `output` only) adds keyed rows:
   `Resource.RowsOptions` (`key`, `indexes`, `changes`), `Resource.RowsRef`,
-  `Resource.RowChange`, `Resource.Rows<F>`. `policy.persist`
+  `Resource.RowChange`, `Resource.Rows<F>`. `Resource.feed(ref)` reads a
+  `rows.changes` feed's `Resource.FeedStatus`. `policy.persist`
   (`Resource.PersistOptions`) stores settled values in the runtime's
   `KeyValueStore`.
 - The internal Action Execution Workflow Module owns callback normalization,
@@ -842,7 +843,8 @@ Release decisions:
   content stays mounted), and `waiting(input)` / `failure(input)` are the
   value-free status accessors. For a family with `rows` it is a
   `Component.Reader` that adds `get(input, key)` and `index(input, name,
-value)` (`Component.ResourceRowsReader`), typed by `rows`.
+value)` (`Component.ResourceRowsReader`), typed by `rows`, and `feed(input)`
+  (`Component.ResourceFeedReader`) when it declares `rows.changes`.
 - `LiveQuery.bind(query, options?)` binds a `Query` over rows Resources
   (`@sunfall/arc-db`) and returns a `LiveQuery.Handle` (`rows`,
   `waiting`, `failure`, `preload`, `refresh`); the sources' declared errors

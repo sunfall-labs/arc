@@ -3,6 +3,7 @@ import { AsyncResult } from "effect/reactivity";
 import { parseDuration } from "./resource-duration.js";
 import { publishResourceStoreEvent } from "./resource-events.js";
 import type { ResourceRef, ResourceStatus } from "./resource.js";
+import type { ResourceFeedStatus } from "./resource-rows.js";
 import type { MutableResourceStore as ResourceStoreState } from "./resource-store.js";
 import { SignalWrites, type WritableSignal } from "./signal.js";
 import type { TimelineResourceCause } from "./timeline.js";
@@ -45,11 +46,15 @@ export interface ResourceLifetimeEntry<A, E> {
   gcFiber: Fiber.Fiber<void, never> | undefined;
   /** The running `rows.changes` feed, started by the entry's first success. */
   changesFiber: Fiber.Fiber<void, never> | undefined;
+  /** Where the `rows.changes` feed is; written only by the feed and the entry's reset. */
+  readonly feed: WritableSignal<ResourceFeedStatus>;
   /** True once a persisted value was looked up for this entry (`policy.persist`). */
   persistRestored: boolean;
   /** The family's structural sharing: how a new value reuses the one it replaces. */
   readonly share: ResourceValueSharing;
 }
+
+const idleResourceFeed: ResourceFeedStatus = { _tag: "Idle" };
 
 export const makeResourceEntry = <A, E>(
   resource: string,
@@ -65,6 +70,9 @@ export const makeResourceEntry = <A, E>(
   inFlight: undefined,
   gcFiber: undefined,
   changesFiber: undefined,
+  feed: SignalWrites.make<ResourceFeedStatus>(idleResourceFeed, {
+    name: `${resource}(${key}).feed`,
+  }),
   persistRestored: false,
   share,
 });
@@ -307,8 +315,28 @@ export const setResourcePending = <A, E>(entry: ResourceLifetimeEntry<A, E>): vo
   commitResourceState(entry, AsyncResult.waiting(syncedResourceState(entry)), "load");
 };
 
+/** Resets the entry to `Initial`, and its feed status to `Idle`, as one `reset` commit. */
 export const resetResourceEntry = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {
-  commitResourceState(entry, AsyncResult.initial(), "reset");
+  batchSignalWrites(
+    () => {
+      commitResourceState(entry, AsyncResult.initial(), "reset");
+      entry.feed.set(idleResourceFeed);
+    },
+    { _tag: "Resource", resource: entry.resource, key: entry.key, event: "reset" },
+  );
+};
+
+/** A running feed's status write, as a `feedFollowing`/`feedRetrying`/`feedStopped` commit. */
+export const setResourceFeedStatus = <A, E>(
+  entry: ResourceLifetimeEntry<A, E>,
+  status: Exclude<ResourceFeedStatus, { readonly _tag: "Idle" }>,
+): void => {
+  batchSignalWrites(() => entry.feed.set(status), {
+    _tag: "Resource",
+    resource: entry.resource,
+    key: entry.key,
+    event: `feed${status._tag}`,
+  });
 };
 
 export const shouldShowResourcePending = <A, E, RefError>(

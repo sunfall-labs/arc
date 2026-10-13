@@ -46,8 +46,10 @@ export interface ResourceRowsOptions<
   /**
    * Remote change feed for one input. The first successful load of an entry
    * starts it on the runtime's Resource Store, and each batch applies to the
-   * synced rows (optimistic patches stay on top). A failure stops the feed;
-   * the rows keep their last value.
+   * synced rows (optimistic patches stay on top). A typed failure restarts
+   * the feed with backoff from the rows the entry holds, until it recovers; a
+   * defect stops it, and the rows keep their last value. The entry's
+   * `ResourceFeedStatus` reports which.
    *
    * `rows` are the synced rows the feed starts from (the loaded or hydrated
    * value), so a feed can resume from what they already hold: a cursor such
@@ -59,12 +61,35 @@ export interface ResourceRowsOptions<
   ) => Stream.Stream<ReadonlyArray<ResourceRowChange<Row, Key>>, unknown, ChangesR>;
 }
 
-/** Type-level record of a family's rows: row type, key type, and indexes. */
-export interface ResourceRowsSpec<Row, Key extends ResourceRowKey, Indexes> {
+/**
+ * Type-level record of a family's rows: row type, key type, indexes, and
+ * whether it declares a `rows.changes` feed.
+ */
+export interface ResourceRowsSpec<
+  Row,
+  Key extends ResourceRowKey,
+  Indexes,
+  Feed extends boolean = boolean,
+> {
   readonly row: Row;
   readonly key: Key;
   readonly indexes: Indexes;
+  readonly feed: Feed;
 }
+
+/**
+ * Where one entry's `rows.changes` feed is. `Idle`: not running (no value
+ * yet, or a server render, which never follows feeds). `Following`: running.
+ * `Retrying`: failed with a typed failure and restarts after a backoff, until
+ * it recovers; `attempt` counts restarts from 1. `Stopped`: a defect ended
+ * it; the rows keep their last value until the entry is evicted and loaded
+ * again.
+ */
+export type ResourceFeedStatus =
+  | { readonly _tag: "Idle" }
+  | { readonly _tag: "Following" }
+  | { readonly _tag: "Retrying"; readonly attempt: number }
+  | { readonly _tag: "Stopped"; readonly reason: "Defect" };
 
 /** Type-only brand carrying a ref's `ResourceRowsSpec`. */
 export declare const ResourceRowsTypeId: unique symbol;
