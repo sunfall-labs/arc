@@ -16,6 +16,7 @@ import {
   SignalWrites,
   SignalWriteOutsideTransition,
 } from "../src/internal.js";
+import { counterState, Incremented } from "./state-cell.js";
 
 /** Renders `read` in a Solid root and returns the latest rendered value after each flush. */
 const render = <A>(read: () => A) => {
@@ -145,14 +146,7 @@ describe("Timeline recording", () => {
           }),
           { runtime: defaultRuntime },
         );
-        const instance = State.start(
-          State.define<number, { readonly _tag: "Renamed" }>()({
-            name: "Board",
-            initial: 0,
-            on: { Renamed: (model) => model + 1 },
-          }),
-          { runtime: defaultRuntime },
-        );
+        const instance = State.start(counterState("Board"), { runtime: defaultRuntime });
 
         // What `Component.callback("rename", ...)` runs for a `ProjectPage` instance.
         yield* withSignalTransition(
@@ -166,7 +160,7 @@ describe("Timeline recording", () => {
               },
             );
             yield* action.submit("Atlas 2");
-            yield* instance.dispatch({ _tag: "Renamed" });
+            yield* instance.dispatch(Incremented);
             // An unnamed transaction inside it takes its name.
             yield* SignalWrites.transaction(Effect.sync(() => draft.set("")));
           }),
@@ -175,11 +169,12 @@ describe("Timeline recording", () => {
         yield* instance.dispose;
 
         expect(entriesOf(recording).map((entry) => entry.cause)).toEqual([
+          'State "Board" start',
           "ProjectPage.rename",
           "ProjectPage.rename",
           'Action "Project.rename" submit',
           'Action "Project.rename" success',
-          'State "Board" Renamed',
+          'State "Board" Incremented',
           "ProjectPage.rename",
         ]);
       }).pipe(Effect.scoped),
@@ -213,15 +208,8 @@ describe("Timeline recording", () => {
         );
         yield* action.submit("Atlas");
 
-        const instance = State.start(
-          State.define<number, { readonly _tag: "Increment" }>()({
-            name: "Board",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-          }),
-          { runtime: defaultRuntime },
-        );
-        yield* instance.dispatch({ _tag: "Increment" });
+        const instance = State.start(counterState("Board"), { runtime: defaultRuntime });
+        yield* instance.dispatch(Incremented);
         yield* instance.dispose;
 
         const Project = Resource.define({
@@ -237,8 +225,16 @@ describe("Timeline recording", () => {
           {
             _tag: "State",
             state: "Board",
+            instance: expect.any(Number),
+            event: "start",
+            model: { _tag: "Counting", count: 0 },
+          },
+          {
+            _tag: "State",
+            state: "Board",
+            instance: expect.any(Number),
             event: "message",
-            message: { _tag: "Increment" },
+            message: Incremented,
           },
           { _tag: "Resource", resource: "Project.get", key: ref.key, event: "load" },
           { _tag: "Resource", resource: "Project.get", key: ref.key, event: "success" },
@@ -248,15 +244,16 @@ describe("Timeline recording", () => {
         ).toEqual([
           'Action "Project.rename" submit',
           'Action "Project.rename" success',
-          'State "Board" Increment',
+          'State "Board" start',
+          'State "Board" Incremented',
           `Resource "Project.get" load ${ref.key}`,
           `Resource "Project.get" success ${ref.key}`,
         ]);
         expect(Signal.peek(recording.entries)[0]?.changes.map((change) => change.name)).toEqual([
           "Project.rename.state",
         ]);
-        expect(Signal.peek(recording.entries)[2]?.changes[0]?.name).toBe("Board");
-        expect(Signal.peek(recording.entries)[3]?.changes[0]?.name).toBe(`Project.get(${ref.key})`);
+        expect(Signal.peek(recording.entries)[3]?.changes[0]?.name).toBe("Board");
+        expect(Signal.peek(recording.entries)[4]?.changes[0]?.name).toBe(`Project.get(${ref.key})`);
       }).pipe(Effect.scoped),
     ));
 

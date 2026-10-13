@@ -1,429 +1,327 @@
-import { Deferred, Effect, Fiber, Queue, Scope, Stream } from "effect";
-import { invokeEffectInput } from "./effect-like.js";
+import { Cause, Deferred, Effect, Exit, Option, Schema } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import {
-  type StateCommand,
-  type StateDefinition,
-  type StateDispatchError,
-  type StateFailure,
-  type StateInstance,
-  type StateMessageValue,
+  Machine,
+  type ActorRef,
+  type Durability,
+  type Inspector,
+  type Recovery,
+} from "effect-machine";
+import { EffectInputCallbackError } from "./effect-like.js";
+import {
+  StateDefect,
   StateDisposed,
   StateRefTypeId,
-  type StateRuntimeError,
-  type StateTaggedMessage,
+  type StateDefinition,
+  type StateDispatchError,
+  type StateError,
+  type StateFailure,
+  type StateInstance,
+  type StatePhase,
+  type StateTagged,
 } from "./state-contract.js";
-import {
-  makeStateFailure,
-  normalizeStateSubscriptions,
-  stateStep,
-  validateStateModelSync,
-  validateStateMessage,
-} from "./state-primitives.js";
-import { makeStateRuntimeScheduler } from "./state-runtime-scheduler.js";
+import { makeStateFailure, validateStateMessage } from "./state-primitives.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
-import { Signal, SignalWrites } from "./signal.js";
+import { SignalWrites } from "./signal.js";
 import { readSignalOptimisticBase, writeSignalOptimisticBase } from "./signal-optimistic-layer.js";
 import type { TimelineStateCause } from "./timeline.js";
-import { batchSignalWrites } from "./signal-transaction.js";
+import { batchSignalWrites, recordSignalEvent } from "./signal-transaction.js";
 
-interface QueuedMessage<Message, E> {
-  readonly message: StateMessageValue<Message>;
-  readonly ack?: Deferred.Deferred<void, StateFailure<Message, E>>;
-}
+/** How an instance starts: its machine's initial state, or a model hydrated from a server render. */
+export type StateStartModel<Model> =
+  | { readonly _tag: "Initial" }
+  | { readonly _tag: "Hydrated"; readonly model: Model }
+  | { readonly _tag: "Rejected"; readonly error: Schema.SchemaError };
 
-export interface StateRuntimeInstanceOptions<Model, Message extends StateTaggedMessage, E, R, ER> {
-  readonly definition: StateDefinition<Model, Message, E, R>;
+export interface StateRuntimeInstanceOptions<Model, Message, R, ER> {
+  readonly definition: StateDefinition<Model, Message, R>;
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly scope:
     | {
         addFinalizer(finalizer: () => Effect.Effect<void>): void;
       }
     | undefined;
+  readonly start?: StateStartModel<Model>;
 }
 
-const completeAck = <Message, E>(
-  queued: QueuedMessage<Message, E>,
-  failure?: StateFailure<Message, E>,
-): Effect.Effect<void> => {
-  if (!queued.ack) {
-    return Effect.void;
-  }
+let instanceSequence = 0;
 
-  return failure
-    ? Deferred.fail(queued.ack, failure).pipe(Effect.asVoid)
-    : Deferred.succeed(queued.ack, undefined).pipe(Effect.asVoid);
-};
+const persistKey = (definition: StateDefinition<any, any, any>): string | undefined =>
+  definition.persist === undefined
+    ? undefined
+    : `arc/states/v${definition.persist.version ?? 1}/${definition.persist.key}`;
 
+/**
+ * Runs a State's machine as an effect-machine actor and makes Arc the owner
+ * of what it commits: every processed message lands on the model signal in
+ * one Timeline entry named by the message (through the actor's durability
+ * hook, which runs inside the actor's transition before `call` settles), so
+ * Timeline travel, Action optimistic overlays, the fine-grained Solid view,
+ * and devtools all read one cell. Persistence and SSR hydration use the
+ * actor's own `recovery` and `hydrate` seams.
+ */
 export const makeStateRuntimeInstance = <
-  Model,
-  Message extends StateTaggedMessage,
-  E = never,
+  Model extends StateTagged,
+  Message extends StateTagged,
   R = never,
   ER = never,
 >(
-  options: StateRuntimeInstanceOptions<Model, Message, E, R, ER>,
-): StateInstance<Model, Message, StateRuntimeError<E, ER>, StateDispatchError<E, ER>> => {
+  options: StateRuntimeInstanceOptions<Model, Message, R, ER>,
+): StateInstance<Model, Message, ER> => {
   const { definition, runtime, scope } = options;
-  const initialModel = validateStateModelSync("State.initial", definition.initial);
-  const model = SignalWrites.make(initialModel as Model, { name: definition.name });
-  const failures = SignalWrites.make<
-    ReadonlyArray<StateFailure<Message, StateRuntimeError<E, ER>>>
-  >([], { name: `${definition.name}.failures` });
-  const queue = Effect.runSync(
-    Queue.unbounded<QueuedMessage<Message, StateDispatchError<E, ER>>>(),
-  );
+  const { machine } = definition;
+  const instance = ++instanceSequence;
+  const start = options.start ?? { _tag: "Initial" };
+  const initial = machine.initial as Model;
+  const startModel = start._tag === "Hydrated" ? start.model : initial;
+  const model = SignalWrites.make<Model>(startModel, { name: definition.name });
+  const failures = SignalWrites.make<ReadonlyArray<StateFailure<Message, StateError<ER>>>>([], {
+    name: `${definition.name}.failures`,
+  });
+  const key = persistKey(definition);
+  const disposedSignal = Effect.runSync(Deferred.make<void>());
   let disposed = false;
-  let processorFiber: Fiber.Fiber<void, unknown> | undefined;
-  let subscriptionFiber: Fiber.Fiber<void, unknown> | undefined;
-  let subscriptionGeneration = 0;
-  const pendingDispatches = new Set<QueuedMessage<Message, StateDispatchError<E, ER>>>();
-  const committedDispatches = new Set<QueuedMessage<Message, StateDispatchError<E, ER>>>();
 
-  type RuntimeFailure = StateRuntimeError<E, ER>;
-  type DispatchFailure = StateDispatchError<E, ER>;
+  type RuntimeFailure = StateError<ER>;
+  type DispatchFailure = StateDispatchError<ER>;
 
-  const scheduler = makeStateRuntimeScheduler(runtime);
-
-  /** Timeline cause for this State's commits. */
+  /** Timeline cause for this instance's entries. */
   const cause = (
     event: TimelineStateCause["event"],
-    message: Message | undefined,
+    fields: { readonly message?: Message; readonly model?: Model } = {},
   ): TimelineStateCause => ({
     _tag: "State",
     state: definition.name,
+    instance,
     event,
-    ...(message === undefined ? {} : { message }),
+    ...fields,
   });
 
-  const recordFailure = (failure: StateFailure<Message, StateRuntimeError<E, ER>>): void =>
-    batchSignalWrites(
-      () => failures.update((current) => [...current, failure]),
-      cause("failure", failure.message),
-    );
-
-  const disposedFailure = (
-    message: StateMessageValue<Message>,
-  ): StateFailure<Message, DispatchFailure> =>
-    makeStateFailure(
-      "Update",
-      new StateDisposed({
-        reason: "State was disposed before the message update was applied.",
-      }),
-      message as Message,
-    );
-
-  const enqueue = (message: StateMessageValue<Message>): Effect.Effect<void> =>
-    disposed ? Effect.void : Queue.offer(queue, { message }).pipe(Effect.asVoid);
-
-  const completePendingDispatches = (): Effect.Effect<void> => {
-    const pending = Array.from(pendingDispatches);
-    pendingDispatches.clear();
-    return Effect.forEach(
-      pending,
-      (queued) =>
-        committedDispatches.has(queued)
-          ? completeAck(queued)
-          : completeAck(queued, disposedFailure(queued.message)),
-      { discard: true },
-    ).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          committedDispatches.clear();
-        }),
-      ),
-      Effect.asVoid,
-    );
-  };
-
-  const runWithStateRuntime = <A, E2, R2>(
-    effect: Effect.Effect<A, E2, R2>,
-  ): Effect.Effect<A, E2 | ER> => runtime.provide(effect) as Effect.Effect<A, E2 | ER>;
-
-  const runCommands = (
-    commands: ReadonlyArray<StateCommand<Message, E, R>>,
-    source: StateMessageValue<Message>,
-  ): Effect.Effect<void, never, R | Scope.Scope> =>
-    Effect.forEach(
-      commands,
-      (command) =>
-        command.effect.pipe(
-          Effect.matchEffect({
-            onFailure: (error: RuntimeFailure) =>
-              Effect.sync(() =>
-                recordFailure(
-                  makeStateFailure<Message, RuntimeFailure>("Command", error, source as Message),
-                ),
-              ),
-            onSuccess: (message) =>
-              message === undefined
-                ? Effect.void
-                : validateStateMessage<Message>("State.emit", message as Message).pipe(
-                    Effect.matchEffect({
-                      onFailure: (error) =>
-                        Effect.sync(() =>
-                          recordFailure(
-                            makeStateFailure<Message, RuntimeFailure>(
-                              "Command",
-                              error as RuntimeFailure,
-                              source as Message,
-                            ),
-                          ),
-                        ),
-                      onSuccess: (emitted) => enqueue(emitted),
-                    }),
-                  ),
-          }),
-          Effect.forkScoped({ startImmediately: true }),
-        ),
-      { discard: true },
-    );
-
-  const processMessage = (
-    queued: QueuedMessage<Message, DispatchFailure>,
-  ): Effect.Effect<void, never, R | Scope.Scope> =>
-    // Messages apply to the base model; in-flight optimistic patches re-apply over it.
-    stateStep(definition, readSignalOptimisticBase(model), queued.message).pipe(
-      Effect.matchEffect({
-        onFailure: (error) => failQueuedMessage(queued, error),
-        onSuccess: (step) =>
-          Effect.gen(function* () {
-            const before = readSignalOptimisticBase(model);
-            const committed = yield* Effect.sync(() => {
-              if (disposed) {
-                return false;
-              }
-              batchSignalWrites(
-                () => {
-                  committedDispatches.add(queued);
-                  writeSignalOptimisticBase(model, step.model as Model);
-                },
-                cause("message", queued.message as Message),
-              );
-              if (!Object.is(before, step.model)) {
-                restartSubscriptions(step.model as Model);
-              }
-              return true;
-            });
-
-            if (!committed) {
-              yield* completeAck(queued, disposedFailure(queued.message));
-              return;
-            }
-
-            if (disposed) {
-              yield* completeAck(queued);
-              return;
-            }
-
-            yield* runCommands(step.commands, queued.message);
-            yield* completeAck(queued);
-          }),
-      }),
-    );
-
-  const failQueuedMessage = (
-    queued: QueuedMessage<Message, DispatchFailure>,
-    error: RuntimeFailure,
-  ): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const failure = makeStateFailure<Message, RuntimeFailure>(
-        "Update",
-        error,
-        queued.message as Message,
-      );
-      const reportFailure = yield* Effect.sync(() => {
-        if (disposed) {
-          return false;
-        }
-        recordFailure(failure);
-        return true;
-      });
-      yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
-    });
-
-  const processor = Effect.scoped(
-    Effect.forever(
-      Queue.take(queue).pipe(
-        Effect.flatMap((queued) =>
-          runWithStateRuntime(processMessage(queued)).pipe(
-            Effect.catch((error: StateRuntimeError<E, ER>) => failQueuedMessage(queued, error)),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  const restartSubscriptions = (nextModel: Model): void => {
-    const generation = ++subscriptionGeneration;
-
-    if (subscriptionFiber) {
-      const fiber = subscriptionFiber;
-      subscriptionFiber = undefined;
-      void scheduler.forkRuntime(Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)));
-    }
-
-    const subscriptionsForModel = definition.subscriptions;
-    if (!subscriptionsForModel || disposed) {
-      return;
-    }
-
-    const runSubscriptions = Effect.gen(function* () {
-      const input = yield* invokeEffectInput(
-        "State.subscriptions",
-        subscriptionsForModel,
-        nextModel,
-      );
-      const subscriptions = normalizeStateSubscriptions(input);
-      yield* Effect.all(
-        subscriptions.map((entry) =>
-          entry.stream.pipe(
-            Stream.runForEach((message) =>
-              validateStateMessage<Message>("State.subscription", message as Message).pipe(
-                Effect.matchEffect({
-                  onFailure: (error) => {
-                    const failure = makeStateFailure<Message, RuntimeFailure>(
-                      "Subscription",
-                      error as RuntimeFailure,
-                    );
-                    return Effect.sync(() => {
-                      if (disposed || generation !== subscriptionGeneration) {
-                        return;
-                      }
-                      recordFailure(failure);
-                    });
-                  },
-                  onSuccess: (emitted) =>
-                    Effect.gen(function* () {
-                      const current = yield* Effect.sync(
-                        () => !disposed && generation === subscriptionGeneration,
-                      );
-                      if (current) {
-                        yield* enqueue(emitted);
-                      }
-                    }),
-                }),
-              ),
-            ),
-            Effect.catch((error: RuntimeFailure) => {
-              const failure = makeStateFailure<Message, RuntimeFailure>("Subscription", error);
-              return Effect.sync(() => {
-                if (disposed || generation !== subscriptionGeneration) {
-                  return;
-                }
-                recordFailure(failure);
-              });
-            }),
-          ),
-        ),
-        { concurrency: "unbounded" },
-      );
-    }).pipe(Effect.asVoid);
-
-    subscriptionFiber = scheduler.forkProvided(
-      runWithStateRuntime(Effect.scoped(runSubscriptions)).pipe(
-        Effect.catch((error: RuntimeFailure) => {
-          const failure = makeStateFailure<Message, RuntimeFailure>("Subscription", error);
-          return Effect.sync(() => {
-            if (disposed || generation !== subscriptionGeneration) {
-              return;
-            }
-            recordFailure(failure);
-          });
-        }),
-      ),
-    );
-  };
-
-  processorFiber = scheduler.forkProvided(processor);
-  restartSubscriptions(Signal.peek(model));
-
-  const disposeEffect = Effect.gen(function* () {
+  const recordFailure = (failure: StateFailure<Message, RuntimeFailure>): void => {
     if (disposed) {
       return;
     }
+    batchSignalWrites(
+      () => failures.update((current) => [...current, failure]),
+      cause("failure", failure.message === undefined ? {} : { message: failure.message }),
+    );
+  };
 
+  /** Commits what the machine committed: one entry, named by the message. */
+  const commit = (next: Model, message: Message): void => {
+    if (disposed) {
+      return;
+    }
+    if (Object.is(readSignalOptimisticBase(model), next)) {
+      recordSignalEvent(cause("message", { message }));
+      return;
+    }
+    // Messages land on the base; in-flight optimistic patches re-apply over it.
+    batchSignalWrites(() => writeSignalOptimisticBase(model, next), cause("message", { message }));
+  };
+
+  const save = (next: Model): Effect.Effect<void> =>
+    key === undefined
+      ? Effect.void
+      : Effect.gen(function* () {
+          const store = yield* Effect.serviceOption(KeyValueStore.KeyValueStore);
+          if (Option.isNone(store)) {
+            return;
+          }
+          const encoded = yield* Schema.encodeUnknownEffect(machine.stateSchema)(next);
+          yield* store.value.set(key, JSON.stringify(encoded));
+        }).pipe(
+          Effect.catchCause((failure) =>
+            Effect.logWarning(`State "${definition.name}": could not persist its model.`, failure),
+          ),
+        );
+
+  const durability: Durability<Model, Message> = {
+    save: (committed) =>
+      Effect.sync(() => commit(committed.nextState, committed.event)).pipe(
+        Effect.andThen(save(committed.nextState)),
+      ),
+  };
+
+  const recovery: Recovery<Model> | undefined =
+    key === undefined
+      ? undefined
+      : {
+          resolve: () =>
+            Effect.gen(function* () {
+              const store = yield* Effect.serviceOption(KeyValueStore.KeyValueStore);
+              if (Option.isNone(store)) {
+                return Option.none<Model>();
+              }
+              const stored = yield* store.value.get(key);
+              if (typeof stored !== "string") {
+                return Option.none<Model>();
+              }
+              const parsed = yield* Effect.try(() => JSON.parse(stored) as unknown);
+              const restored = yield* Schema.decodeUnknownEffect(machine.stateSchema)(parsed);
+              return Option.some(restored as Model);
+            }).pipe(
+              Effect.catchCause((failure) =>
+                Effect.as(
+                  Effect.logWarning(
+                    `State "${definition.name}": ignoring an unreadable persisted model.`,
+                    failure,
+                  ),
+                  Option.none<Model>(),
+                ),
+              ),
+            ),
+        };
+
+  const inspect: Inspector<Model, Message> = {
+    onInspect: (event) => {
+      if (event.type === "@machine.error") {
+        recordFailure(
+          makeStateFailure<Message, RuntimeFailure>(
+            event.phase === "spawn" ? "Work" : "Update",
+            new StateDefect({ phase: event.phase, description: event.error }),
+            event.event,
+          ),
+        );
+      } else if (event.type === "@machine.task" && event.phase === "defect") {
+        recordFailure(
+          makeStateFailure<Message, RuntimeFailure>(
+            "Work",
+            new StateDefect({ phase: "spawn", description: event.error ?? "task defect" }),
+          ),
+        );
+      }
+    },
+  };
+
+  const startupFailure = (phase: StatePhase, failure: Cause.Cause<unknown>): void =>
+    recordFailure(
+      makeStateFailure<Message, RuntimeFailure>(
+        phase,
+        Cause.hasFails(failure)
+          ? (Cause.squash(failure) as RuntimeFailure)
+          : new EffectInputCallbackError({
+              operation: "State.start",
+              cause: Cause.squash(failure),
+              guidance: "The State's machine could not start on this runtime.",
+            }),
+      ),
+    );
+
+  recordSignalEvent(cause("start", { model: startModel }));
+  if (start._tag === "Rejected") {
+    recordFailure(makeStateFailure<Message, RuntimeFailure>("Hydrate", start.error));
+  }
+
+  // The actor captures the runtime's services when it is spawned: its
+  // transitions, work, and persistence run with them.
+  const spawned = Effect.runSyncExit(
+    runtime.provide(
+      Machine.spawn(machine, {
+        id: `${definition.name}#${instance}`,
+        ...(start._tag === "Hydrated" ? { hydrate: start.model } : {}),
+        lifecycle: { durability, ...(recovery === undefined ? {} : { recovery }) },
+        inspect,
+      }) as Effect.Effect<ActorRef<Model, Message>>,
+    ),
+  );
+  const actor = Exit.isSuccess(spawned) ? spawned.value : undefined;
+  if (Exit.isFailure(spawned)) {
+    startupFailure("Update", spawned.cause);
+  }
+
+  if (actor !== undefined) {
+    Effect.runFork(
+      actor.start.pipe(
+        Effect.andThen(
+          Effect.sync(() => {
+            // A restored model: the actor recovered it before processing any message.
+            const restored = actor.sync.snapshot();
+            if (!disposed && !Object.is(restored, readSignalOptimisticBase(model))) {
+              batchSignalWrites(
+                () => writeSignalOptimisticBase(model, restored),
+                cause("restore", { model: restored }),
+              );
+            }
+          }),
+        ),
+        Effect.catchCause((failure) => Effect.sync(() => startupFailure("Update", failure))),
+      ),
+    );
+  }
+
+  const disposedFailure = (message: Message): StateFailure<Message, DispatchFailure> =>
+    makeStateFailure(
+      "Update",
+      new StateDisposed({ reason: "State was disposed before the message was processed." }),
+      message,
+    );
+
+  const dispatch = (
+    message: Message,
+  ): Effect.Effect<void, StateFailure<Message, DispatchFailure>> =>
+    Effect.suspend(() => {
+      if (disposed || actor === undefined) {
+        return Effect.fail(disposedFailure(message));
+      }
+      const invalid = validateStateMessage(definition, message);
+      if (invalid !== undefined) {
+        const failure = makeStateFailure<Message, RuntimeFailure>("Update", invalid, message);
+        recordFailure(failure);
+        return Effect.fail(failure);
+      }
+      return actor.call(message).pipe(
+        Effect.raceFirst(Deferred.await(disposedSignal).pipe(Effect.as(undefined))),
+        Effect.exit,
+        Effect.flatMap((exit) => {
+          if (Exit.isFailure(exit)) {
+            const failure = makeStateFailure<Message, RuntimeFailure>(
+              "Update",
+              new StateDefect({
+                phase: "transition",
+                description: String(Cause.squash(exit.cause)),
+              }),
+              message,
+            );
+            recordFailure(failure);
+            return Effect.fail(failure);
+          }
+          if (exit.value === undefined) {
+            return Effect.fail(disposedFailure(message));
+          }
+          if (!exit.value.transitioned && !disposed) {
+            recordSignalEvent(cause("ignored", { message }));
+          }
+          return Effect.void;
+        }),
+      );
+    });
+
+  const dispose = Effect.suspend(() => {
+    if (disposed) {
+      return Effect.void;
+    }
     disposed = true;
-    subscriptionGeneration++;
-    yield* completePendingDispatches();
-    const currentSubscriptionFiber = subscriptionFiber;
-    const currentProcessorFiber = processorFiber;
-    subscriptionFiber = undefined;
-    processorFiber = undefined;
-
-    if (currentSubscriptionFiber) {
-      yield* Fiber.interrupt(currentSubscriptionFiber).pipe(Effect.catchCause(() => Effect.void));
-    }
-    if (currentProcessorFiber) {
-      yield* Fiber.interrupt(currentProcessorFiber).pipe(Effect.catchCause(() => Effect.void));
-    }
-    yield* Queue.shutdown(queue).pipe(Effect.catchCause(() => Effect.void));
+    return Deferred.succeed(disposedSignal, undefined).pipe(
+      Effect.andThen(actor === undefined ? Effect.void : actor.stop),
+      Effect.catchCause(() => Effect.void),
+      Effect.asVoid,
+    );
   });
 
-  scope?.addFinalizer(() => disposeEffect);
+  scope?.addFinalizer(() => dispose);
 
   return {
     [StateRefTypeId]: model,
     model,
     failures,
-    dispatch: instanceDispatchEffect,
-    clearFailures: () =>
-      batchSignalWrites(() => failures.set([]), cause("clearFailures", undefined)),
-    dispose: disposeEffect,
+    dispatch,
+    can: (message) => {
+      // Read the model so the answer is reactive.
+      model.get();
+      return actor !== undefined && !disposed && actor.sync.can(message);
+    },
+    clearFailures: () => batchSignalWrites(() => failures.set([]), cause("clearFailures")),
+    dispose,
   };
-
-  function instanceDispatchEffect(
-    message: StateMessageValue<Message>,
-  ): Effect.Effect<void, StateFailure<Message, DispatchFailure>> {
-    if (disposed) {
-      return Effect.fail(disposedFailure(message));
-    }
-
-    return validateStateMessage<Message>("State.emit", message as Message).pipe(
-      Effect.matchEffect({
-        onFailure: (error) =>
-          Effect.gen(function* () {
-            const failure = makeStateFailure<Message, RuntimeFailure>(
-              "Update",
-              error as RuntimeFailure,
-              message as Message,
-            );
-            yield* Effect.sync(() => {
-              if (disposed) {
-                return;
-              }
-              recordFailure(failure);
-            });
-            yield* Effect.fail(failure);
-          }),
-        onSuccess: (validMessage) =>
-          Effect.gen(function* () {
-            const ack = yield* Deferred.make<void, StateFailure<Message, DispatchFailure>>();
-            const queued = { message: validMessage, ack };
-            const registered = yield* Effect.sync(() => {
-              if (disposed) {
-                return false;
-              }
-              pendingDispatches.add(queued);
-              return true;
-            });
-
-            if (!registered) {
-              return yield* Effect.fail(disposedFailure(validMessage));
-            }
-
-            yield* Queue.offer(queue, queued).pipe(
-              Effect.flatMap((offered) =>
-                offered ? Deferred.await(ack) : Effect.fail(disposedFailure(validMessage)),
-              ),
-              Effect.ensuring(
-                Effect.sync(() => {
-                  pendingDispatches.delete(queued);
-                  committedDispatches.delete(queued);
-                }),
-              ),
-            );
-          }),
-      }),
-    );
-  }
 };

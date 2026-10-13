@@ -1,4 +1,4 @@
-import { Resource, Route, State, StateRefTypeId } from "@sunfall/arc-core";
+import { Machine, Message, Model, Resource, Route, State, StateRefTypeId } from "@sunfall/arc-core";
 import { Component, RouterOutlet, RouterProvider } from "@sunfall/arc-solid";
 import { Effect, Schema, Stream } from "effect";
 import { App } from "../src/index.js";
@@ -33,11 +33,17 @@ export const Cards = Resource.define({
   load: () => Effect.succeed([{ id: "a", title: "Alpha" }]),
 });
 
+const ToastModel = Model({ Toast: { text: Schema.String } });
+const ToastMessage = Message({ Notified: { text: Schema.String } });
+
 export const Toast = State.define({
   name: "ServerRender.toast",
   scope: "app",
-  initial: { text: "" },
-  on: { Show: (_model, message: { readonly text: string }) => ({ text: message.text }) },
+  machine: Machine.make({
+    state: ToastModel,
+    event: ToastMessage,
+    initial: ToastModel.Toast({ text: "" }),
+  }).onAny(ToastMessage.Notified, ({ event }) => ToastModel.Toast({ text: event.text })),
 });
 
 const BoardRoute = Route.define("/board", {

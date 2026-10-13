@@ -10,21 +10,9 @@ import {
   makeRuntime,
   ActionTransportError,
   Signal,
-  State,
   Timeline,
 } from "../src/index.js";
-import { defaultRuntime } from "../src/internal.js";
-
-/** A running State holding one value: the optimistic target these tests patch. */
-const stateCell = <A>(initial: A, options: { readonly name: string }) =>
-  State.start(
-    {
-      name: options.name,
-      initial,
-      on: { Set: (_current, message) => message.value },
-    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
-    { runtime: defaultRuntime },
-  );
+import { setCell, stateCell } from "./state-cell.js";
 
 /** A `KeyValueStore` over a Map the test can inspect, shared across "reloads". */
 const memoryStorage = () => {
@@ -109,7 +97,7 @@ const defineApp = (name: string, maxAge: string = "1 hour", initial = 0) => {
     name,
     input: Advance,
     durable: { maxAge: maxAge as "1 hour" },
-    optimistic: (input, transaction) => transaction.set(total, (value) => value + input.by),
+    optimistic: (input, transaction) => setCell(transaction, total, (value) => value + input.by),
     run: (input) => Effect.succeed(input.by),
   });
   return { total, AdvanceAction };
@@ -138,7 +126,8 @@ describe("Action outbox (durable submissions)", () => {
         expect(sent!.stored).toEqual([sent!.id]);
         expect(sent!.id).toMatch(/[0-9a-f-]{32,}/);
         expect(storedIds(values)).toEqual([]);
-        expect(Signal.peek(total.model)).toBe(8);
+        // Settled: the State overlay is gone (a State changes only through its messages).
+        expect(Signal.peek(total.model).value).toBe(0);
         const outbox = yield* runtime.provide(Action.outbox);
         expect(Signal.peek(outbox.pending)).toEqual([]);
         yield* runtime.dispose;
@@ -165,7 +154,7 @@ describe("Action outbox (durable submissions)", () => {
         yield* Effect.flip(advance.submit({ id: "atlas", by: 2 }));
         yield* Effect.flip(advance.submit({ id: "atlas", by: 4 }));
 
-        expect(Signal.peek(total.model)).toBe(7);
+        expect(Signal.peek(total.model).value).toBe(7);
         const outbox = yield* runtime.provide(Action.outbox);
         expect(Signal.peek(outbox.pending).map((entry) => entry.input)).toEqual([
           { id: "atlas", by: 1 },
@@ -186,7 +175,7 @@ describe("Action outbox (durable submissions)", () => {
         expect(replayed.map((sent) => (sent.input as { by: number }).by)).toEqual([1, 2, 4]);
         // Each attempt carries the submission's id, its idempotency key.
         expect(replayed.map((sent) => sent.id)).toEqual(pendingIds);
-        expect(Signal.peek(total.model)).toBe(7);
+        expect(Signal.peek(total.model).value).toBe(0);
         expect(storedIds(values)).toEqual([]);
         yield* runtime.dispose;
       }),
@@ -209,13 +198,13 @@ describe("Action outbox (durable submissions)", () => {
         );
 
         yield* Effect.flip(Action.use(AdvanceAction, { runtime }).submit({ id: "atlas", by: 8 }));
-        expect(Signal.peek(total.model)).toBe(8);
+        expect(Signal.peek(total.model).value).toBe(8);
 
         server.state.online = true;
         const outbox = yield* runtime.provide(Action.outbox);
         yield* waitFor(() => Signal.peek(outbox.pending).length === 0);
         // The change did not happen: the patch rolled back instead of folding in.
-        expect(Signal.peek(total.model)).toBe(0);
+        expect(Signal.peek(total.model).value).toBe(0);
         expect(Signal.peek(outbox.failures)).toEqual([]);
         yield* runtime.dispose;
       }),
@@ -252,7 +241,7 @@ describe("Action outbox (durable submissions)", () => {
           );
           const recording = yield* Timeline.record();
           yield* second.provide(Action.restoreOutbox());
-          expect(Signal.peek(after.total.model)).toBe(18);
+          expect(Signal.peek(after.total.model).value).toBe(18);
           const outbox = yield* second.provide(Action.outbox);
           expect(Signal.peek(outbox.pending).map((entry) => entry.id)).toEqual(ids);
 
@@ -260,7 +249,8 @@ describe("Action outbox (durable submissions)", () => {
           server.state.online = true;
           yield* waitFor(() => Signal.peek(outbox.pending).length === 0);
           expect(server.state.sent.slice(sentBefore).map((sent) => sent.id)).toEqual(ids);
-          expect(Signal.peek(after.total.model)).toBe(18);
+          // Settled: both overlays are gone.
+          expect(Signal.peek(after.total.model).value).toBe(10);
           expect(Signal.peek(outbox.failures)).toEqual([]);
 
           const causes = Signal.peek(recording.entries).map((entry) => entry.cause);
@@ -313,7 +303,7 @@ describe("Action outbox (durable submissions)", () => {
           ),
         );
         yield* second.provide(Action.restoreOutbox({ settled: [ids[0]!] }));
-        expect(Signal.peek(after.total.model)).toBe(18);
+        expect(Signal.peek(after.total.model).value).toBe(18);
         const outbox = yield* second.provide(Action.outbox);
         expect(Signal.peek(outbox.pending).map((entry) => entry.id)).toEqual(ids);
 
@@ -322,7 +312,7 @@ describe("Action outbox (durable submissions)", () => {
         server.state.online = true;
         yield* waitFor(() => Signal.peek(outbox.pending).length === 0);
         expect(server.state.sent.slice(sentBefore).map((sent) => sent.id)).toEqual(ids);
-        expect(Signal.peek(after.total.model)).toBe(18);
+        expect(Signal.peek(after.total.model).value).toBe(13);
         expect(Signal.peek(outbox.failures)).toEqual([]);
         yield* second.dispose;
       }),
@@ -342,14 +332,14 @@ describe("Action outbox (durable submissions)", () => {
         );
         const advance = Action.use(AdvanceAction, { runtime });
         yield* Effect.flip(advance.submit({ id: "atlas", by: 2 }));
-        expect(Signal.peek(total.model)).toBe(2);
+        expect(Signal.peek(total.model).value).toBe(2);
 
         server.state.respond = () => Exit.fail("Rejected");
         server.state.online = true;
         const outbox = yield* runtime.provide(Action.outbox);
         yield* waitFor(() => Signal.peek(outbox.failures).length === 1);
 
-        expect(Signal.peek(total.model)).toBe(0);
+        expect(Signal.peek(total.model).value).toBe(0);
         expect(Signal.peek(outbox.pending)).toEqual([]);
         const [failure] = Signal.peek(outbox.failures);
         expect(failure!.action).toBe("Outbox.final");
@@ -380,7 +370,7 @@ describe("Action outbox (durable submissions)", () => {
         const advance = Action.use(AdvanceAction, { runtime });
 
         expect(yield* Effect.flip(advance.submit({ id: "atlas", by: 2 }))).toBe("Rejected");
-        expect(Signal.peek(total.model)).toBe(0);
+        expect(Signal.peek(total.model).value).toBe(0);
         const outbox = yield* runtime.provide(Action.outbox);
         expect(Signal.peek(outbox.failures)).toEqual([]);
         expect(storedIds(values)).toEqual([]);
@@ -418,7 +408,7 @@ describe("Action outbox (durable submissions)", () => {
         yield* second.provide(Action.restoreOutbox());
         const outbox = yield* second.provide(Action.outbox);
 
-        expect(Signal.peek(after.total.model)).toBe(0);
+        expect(Signal.peek(after.total.model).value).toBe(0);
         expect(Signal.peek(outbox.pending)).toEqual([]);
         const [failure] = Signal.peek(outbox.failures);
         expect(Cause.findErrorOption(failure!.cause).pipe(Option.getOrUndefined)).toBeInstanceOf(

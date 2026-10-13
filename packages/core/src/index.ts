@@ -119,11 +119,11 @@ export {
   ServerFunctionTypeId,
 } from "./server.js";
 export { isSignal, Signal, SignalTypeId, trackDependency } from "./signal.js";
-export {
-  State,
-  StateCommandTypeId,
-  StateRefTypeId,
-  StateStepTypeId,
-  StateSubscriptionTypeId,
-} from "./state.js";
+export { State, StateRefTypeId } from "./state.js";
+/**
+ * The machine builders a State runs, from effect-machine: `Model({...})`
+ * declares the model's variants, `Message({...})` its messages, and
+ * `Machine.make({ state, event, initial })` its transitions and work.
+ */
+export { Event as Message, Machine, State as Model } from "effect-machine";
 export { Timeline, TimelineAlreadyRecording, TimelineEntryUnavailable } from "./timeline.js";

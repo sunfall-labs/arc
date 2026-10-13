@@ -1,7 +1,10 @@
 import {
   Action,
+  Machine,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
+  Message,
+  Model,
   State,
   Resource,
   ResourceFailure,
@@ -412,30 +415,21 @@ describe("Component bindings", () => {
           let dispose: (() => void) | undefined;
           const loaded = yield* Deferred.make<void>();
           const runtime = makeRuntime(ProjectApiLive);
-          type Message =
-            | { readonly _tag: "Load" }
-            | { readonly _tag: "Loaded"; readonly project: Project };
-          const definition = State.define<{ readonly name: string }, Message>()({
+          const NameModel = Model({ Named: { name: Schema.String } });
+          const NameMessage = Message({ ClickedLoad: {} });
+          const definition = State.define({
             name: "definition",
-            initial: { name: "idle" },
-            on: {
-              Load: (model) =>
-                State.next(
-                  model,
-                  State.emit(
-                    ProjectApi.use((api) =>
-                      api
-                        .get("atlas")
-                        .pipe(Effect.map((project) => ({ _tag: "Loaded", project }) as const)),
-                    ),
-                  ),
-                ),
-              Loaded: (_model, message) =>
-                State.next(
-                  { name: message.project.name },
-                  State.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
-                ),
-            },
+            machine: Machine.make({
+              state: NameModel,
+              event: NameMessage,
+              initial: NameModel.Named({ name: "idle" }),
+            }).onAny(NameMessage.ClickedLoad, () =>
+              ProjectApi.use((api) => api.get("atlas")).pipe(
+                Effect.map((project) => NameModel.Named({ name: project.name })),
+                Effect.tap(() => Deferred.succeed(loaded, undefined)),
+                Effect.orDie,
+              ),
+            ),
           });
 
           const handle = createRoot((rootDispose) => {
@@ -443,15 +437,15 @@ describe("Component bindings", () => {
             return bindInInstance(runtime, Component.state(definition));
           });
 
-          expect(handle.model()).toEqual({ name: "idle" });
-          yield* handle.dispatch({ _tag: "Load" });
+          expect(handle.model()).toMatchObject({ name: "idle" });
+          yield* handle.dispatch(NameMessage.ClickedLoad);
           yield* Deferred.await(loaded);
           flush();
-          expect(handle.model()).toEqual({ name: "Atlas" });
+          expect(handle.model()).toMatchObject({ name: "Atlas" });
 
           dispose?.();
           yield* Effect.sleep(0);
-          const exit = yield* Effect.exit(handle.dispatch({ _tag: "Load" }));
+          const exit = yield* Effect.exit(handle.dispatch(NameMessage.ClickedLoad));
           expect(Exit.isFailure(exit)).toBe(true);
           yield* runtime.dispose;
         }),

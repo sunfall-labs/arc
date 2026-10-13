@@ -23,6 +23,8 @@ import {
   resourceRowsIndex,
   SignalWrites,
   appStateOnRuntime,
+  makeStateMessage,
+  stateMessageTags,
   startStateOnRuntime,
   withSignalTransition,
   PostedActions,
@@ -503,24 +505,17 @@ type StateModelLeaf =
 
 /**
  * Projects a State model signal into a fine-grained Solid view owned by the
- * current owner (see `projectView`).
- *
- * A State whose initial model is a primitive (a toggle, a search string)
- * reads the signal directly: there is nothing to reconcile, so it skips the
- * store projection. Either path renders every value correctly; only the
- * granularity differs.
+ * current owner (see `projectView`): a model is a tagged variant, so a reader
+ * re-runs only when the fields it reads change.
  */
 const projectModel = <Model>(
   model: Signal.Readable<Model>,
-  initial: unknown,
   key: Component.StateOptions["key"],
 ): Accessor<Component.StateView<Model>> =>
-  typeof initial !== "object" || initial === null
-    ? () => model.get() as Component.StateView<Model>
-    : projectView(
-        () => ({ value: model.get() as Component.StateView<Model> }),
-        key === undefined ? "id" : key,
-      );
+  projectView(
+    () => ({ value: model.get() as Component.StateView<Model> }),
+    key === undefined ? "id" : key,
+  );
 
 /**
  * True for a message's fields. A DOM event is not: a sender bound straight to
@@ -796,22 +791,30 @@ export namespace Component {
   /**
    * One DOM-ready sender per message tag. A message without fields takes no
    * argument and ignores one it is given, so it binds straight to an event
-   * (`onClick={menu.send.Toggle}`); a message with fields takes them
-   * (`send.Search({ query })`).
+   * (`onClick={menu.send.ClickedMenu}`); a message with fields takes them
+   * (`send.TypedQuery({ text })`).
    */
-  export type StateSend<Message extends State.TaggedMessage> = {
-    readonly [Tag in Message["_tag"]]: [
-      keyof Omit<Extract<Message, { readonly _tag: Tag }>, "_tag">,
-    ] extends [never]
+  export type StateSend<Message extends State.Tagged> = {
+    readonly [Tag in Message["_tag"]]: [keyof State.MessageFields<Message, Tag>] extends [never]
       ? (event?: unknown) => void
-      : (fields: Omit<Extract<Message, { readonly _tag: Tag }>, "_tag">) => void;
+      : (fields: State.MessageFields<Message, Tag>) => void;
+  };
+
+  /**
+   * One reactive check per message tag: true when the current variant has a
+   * transition for the message whose guard passes. Enable a control by the
+   * same table that applies its message (`disabled={!wizard.can.ClickedNext()}`).
+   */
+  export type StateCan<Message extends State.Tagged> = {
+    readonly [Tag in Message["_tag"]]: [keyof State.MessageFields<Message, Tag>] extends [never]
+      ? () => boolean
+      : (fields: State.MessageFields<Message, Tag>) => boolean;
   };
 
   /** Instance-bound State handle from `Component.state`. */
   export interface StateHandle<
-    Model,
-    Message extends State.TaggedMessage,
-    E,
+    Model extends State.Tagged,
+    Message extends State.Tagged,
   > extends State.Ref<Model> {
     /**
      * Current model as a read-only Solid view. Object models are
@@ -824,19 +827,22 @@ export namespace Component {
     readonly committed: Signal.Readable<Model>;
     /**
      * Sends a message from a DOM event: it is queued right away and applied
-     * by the State loop, and a failure lands in `failures()`.
+     * by the State loop (or ignored, when the current state does not handle
+     * it), and a failure lands in `failures()`.
      */
     readonly send: StateSend<Message>;
+    /** Whether each message would change the State now (reactive). */
+    readonly can: StateCan<Message>;
     /**
-     * Queues `message` and completes once its update commits (failing if the
-     * update fails or disposal drops it). For Effect code that must wait for
-     * the update; event handlers use `send`.
+     * Queues `message` and completes once it has been applied or ignored
+     * (failing if its handler fails or disposal drops it). For Effect code
+     * that must wait for the update; event handlers use `send`.
      */
     readonly dispatch: (
       message: Message,
-    ) => Effect.Effect<void, State.Failure<Message, State.DispatchError<E>>>;
-    /** Typed update, command, and subscription failures reported by the State loop. */
-    readonly failures: Accessor<ReadonlyArray<State.Failure<Message, State.RuntimeError<E>>>>;
+    ) => Effect.Effect<void, State.Failure<Message, State.DispatchError>>;
+    /** Failures the State loop reported: a throwing handler, a rejected value, a defect. */
+    readonly failures: Accessor<ReadonlyArray<State.Failure<Message, State.Error>>>;
     /** Clears accumulated failures. */
     readonly clearFailures: () => void;
   }
@@ -971,56 +977,64 @@ export namespace Component {
    *
    * @example
    * ```tsx
-   * const MenuOpen = State.define({ name: "Menu.open", initial: false, on: { Toggle: (open) => !open } });
+   * const MenuOpen = State.define({
+   *   name: "Menu",
+   *   model: Schema.Boolean,
+   *   initial: false,
+   *   messages: { ClickedMenu: {} },
+   *   on: { ClickedMenu: (open) => !open },
+   * });
    *
    * const Menu = Component.define("Menu", function* () {
    *   const menu = yield* Component.state(MenuOpen);
-   *   return () => <button aria-expanded={menu.model()} onClick={menu.send.Toggle}>Menu</button>;
+   *   return () => <button aria-expanded={menu.model()} onClick={menu.send.ClickedMenu}>Menu</button>;
    * });
    * ```
    */
-  export const state = <Model, Message extends State.TaggedMessage, E, R>(
-    definition: State.Definition<Model, Message, E, R>,
+  export const state = <Model extends State.Tagged, Message extends State.Tagged, R>(
+    definition: State.Definition<Model, Message, R>,
     options?: StateOptions,
-  ): Effect.Effect<StateHandle<Model, Message, E>, never, R> =>
+  ): Effect.Effect<StateHandle<Model, Message>, never, R> =>
     Effect.gen(function* () {
       const current = yield* instance;
       const started =
         definition.scope === "app"
-          ? appStateOnRuntime<Model, Message, E, R, never>(definition, yield* appStateRuntime)
+          ? appStateOnRuntime<Model, Message, R, never>(definition, yield* appStateRuntime)
           : current.run(() =>
-              startStateOnRuntime<Model, Message, E, R, never>(definition, current.runtime),
+              startStateOnRuntime<Model, Message, R, never>(definition, current.runtime),
             );
       if (definition.scope !== "app") {
         yield* Effect.addFinalizer(() => started.dispose);
       }
-      const model = current.run(() =>
-        projectModel(started.model, definition.initial, options?.key),
-      );
-      const dispatch = started.dispatch as StateHandle<Model, Message, E>["dispatch"];
+      const model = current.run(() => projectModel(started.model, options?.key));
+      const dispatch = started.dispatch as StateHandle<Model, Message>["dispatch"];
+      const messageOf = (tag: string, fields: unknown): Message =>
+        makeStateMessage(definition, tag, isPayload(fields) ? fields : undefined);
       const send: Record<string, (fields?: unknown) => void> = {};
-      for (const tag of Object.keys(definition.on)) {
+      const can: Record<string, (fields?: unknown) => boolean> = {};
+      for (const tag of stateMessageTags(definition)) {
         send[tag] = (fields) => {
-          const message = (isPayload(fields) ? { ...fields, _tag: tag } : { _tag: tag }) as Message;
           // Started immediately, so the message is queued within the DOM event.
           current.runtime.runSync(
-            Effect.forkIn(Effect.ignore(dispatch(message)), current.scope, {
+            Effect.forkIn(Effect.ignore(dispatch(messageOf(tag, fields))), current.scope, {
               startImmediately: true,
             }),
           );
         };
+        can[tag] = (fields) => started.can(messageOf(tag, fields));
       }
-      const handle: StateHandle<Model, Message, E> = {
+      const handle: StateHandle<Model, Message> = {
         [StateRefTypeId]: started[StateRefTypeId],
         model,
         committed: started.model,
         send: send as StateSend<Message>,
+        can: can as StateCan<Message>,
         dispatch,
         failures: () => started.failures.get(),
         clearFailures: started.clearFailures,
       };
       return handle;
-    }) as Effect.Effect<StateHandle<Model, Message, E>, never, R>;
+    }) as Effect.Effect<StateHandle<Model, Message>, never, R>;
 
   /**
    * Runs a Stream for this instance and returns its latest value as a

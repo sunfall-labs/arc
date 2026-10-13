@@ -1,60 +1,41 @@
-import { Data, type Effect, type Stream } from "effect";
-import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect-like.js";
+import { Data, type Effect, type Schema } from "effect";
+import type { Machine } from "effect-machine";
+import type { EffectInputCallbackError } from "./effect-like.js";
 import type { ReadableSignal, WritableSignal } from "./signal.js";
 
-/** Runtime marker for values created by `State.next(...)` or `State.commands(...)`. */
-export const StateStepTypeId: unique symbol = Symbol.for(
-  "@sunfall/arc-core/StateStep",
-) as typeof StateStepTypeId;
-/** Runtime marker for Effect-backed State commands. */
-export const StateCommandTypeId: unique symbol = Symbol.for(
-  "@sunfall/arc-core/StateCommand",
-) as typeof StateCommandTypeId;
-/** Runtime marker for Stream-backed State subscriptions. */
-export const StateSubscriptionTypeId: unique symbol = Symbol.for(
-  "@sunfall/arc-core/StateSubscription",
-) as typeof StateSubscriptionTypeId;
 /** Runtime marker carrying a running State's model cell (`State.Ref`). */
 export const StateRefTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/StateRef",
 ) as typeof StateRefTypeId;
 
-/** Runtime phase that produced a State failure. */
-export type StatePhase = "Update" | "Command" | "Subscription";
+/**
+ * Runtime phase that produced a State failure: a message the event schema
+ * rejects or a defect in a transition (`Update`), a defect in state-owned
+ * work (`Work`), or a server snapshot the state schema rejects (`Hydrate`).
+ */
+export type StatePhase = "Update" | "Work" | "Hydrate";
 
-type IsAny<T> = 0 extends 1 & T ? true : false;
-type StateUnknownMessageValue = Exclude<PlainValue<unknown>, undefined>;
-type NonUndefinedStateMessage<Message> =
-  IsAny<Message> extends true
-    ? StateUnknownMessageValue
-    : [unknown] extends [Message]
-      ? StateUnknownMessageValue
-      : [Message] extends [void]
-        ? never
-        : undefined extends Message
-          ? never
-          : PlainValue<Message>;
+/** Tagged shape every model variant and message has. */
+export interface StateTagged {
+  readonly _tag: string;
+}
 
 /**
- * Plain State message value.
- *
- * Promise-shaped messages must be adapted through Effects first. State
- * messages cannot be `undefined` or `void`; command Effects reserve
- * `undefined`/`void` as the no-message sentinel. Direct Effect values are
- * executable work, not messages.
+ * An effect-machine `Machine` a State runs: schema-first model variants and
+ * messages (`Model({...})`, `Event({...})`), transitions keyed by (variant,
+ * message), and state-owned work. Arc runs machines built without `Input`.
  */
-export type StateMessageValue<Message> = NonUndefinedStateMessage<Message>;
+export type StateMachine<Model, Message, R = never> = Machine.Machine<
+  Model,
+  Message,
+  R,
+  any,
+  any,
+  void,
+  any
+>;
 
-/**
- * Plain State model value.
- *
- * Promise-shaped models must be resolved inside Effects first. Direct Effect
- * values are executable work, not model data; wrap Effect-valued domain data in
- * `Effect.succeed(effectValue)` before returning it from an update.
- */
-export type StateModelValue<Model> = PlainValue<Model>;
-
-/** Failure reported by a running State without tearing down the UI loop. */
+/** Failure reported by a running State without tearing down its loop. */
 export interface StateFailure<Message, E> {
   readonly _tag: "StateFailure";
   readonly phase: StatePhase;
@@ -62,103 +43,66 @@ export interface StateFailure<Message, E> {
   readonly error: E;
 }
 
-/** Effect command that may emit one follow-up message. */
-export interface StateCommand<Message, E = never, R = never> {
-  readonly [StateCommandTypeId]: typeof StateCommandTypeId;
-  readonly effect: Effect.Effect<StateMessageValue<Message> | void, E, R>;
-}
-
-/** Accepted command input: none, one command, several commands, or no-op sentinels. */
-export type StateCommandInput<Message, E = never, R = never> =
-  | StateCommand<Message, E, R>
-  | ReadonlyArray<StateCommand<Message, E, R>>
-  | false
-  | null
-  | undefined;
-
-/** State transition plus optional commands to run after the model is written. */
-export interface StateStep<Model, Message, E = never, R = never> {
-  readonly [StateStepTypeId]: typeof StateStepTypeId;
-  readonly model: Model;
-  readonly commands: ReadonlyArray<StateCommand<Message, E, R>>;
-}
-
-/** Value a message handler returns: the next model, or the next model plus commands. */
-export type StateUpdate<Model, Message, E = never, R = never> =
-  | StateModelValue<Model>
-  | StateStep<Model, Message, E, R>;
-
-/** Tagged message shape every State message has. */
-export interface StateTaggedMessage {
-  readonly _tag: string;
-}
-
 /**
- * Exhaustive message handlers keyed by each message `_tag`.
- *
- * Handlers are pure and synchronous: they return the next model, optionally
- * with commands. Effect work goes in commands (`State.emit(effect)`), so a
- * transition can be tested by calling `State.step(...)` with no runtime.
+ * A defect in a transition or in state-owned work, as the machine's
+ * inspector reported it. Expected failures are messages (`task`'s
+ * `onFailure`), so this is always a bug.
  */
-export type StateHandlerMap<Model, Message extends StateTaggedMessage, E = never, R = never> = {
-  readonly [Tag in Message["_tag"]]: (
-    model: Model,
-    message: StateMessageValue<Extract<Message, { readonly _tag: Tag }>>,
-  ) => StateUpdate<Model, Message, E, R>;
-};
-
-/** Stream subscription that emits messages into a State. */
-export interface StateSubscription<Message, E = never, R = never> {
-  readonly [StateSubscriptionTypeId]: typeof StateSubscriptionTypeId;
-  readonly stream: Stream.Stream<StateMessageValue<Message>, E, R>;
-}
-
-/** Accepted subscription input: none, one stream/subscription, or nested groups. */
-export type StateSubscriptionInput<Message, E = never, R = never> =
-  | Stream.Stream<StateMessageValue<Message>, E, R>
-  | StateSubscription<Message, E, R>
-  | ReadonlyArray<StateSubscriptionInput<Message, E, R>>
-  | false
-  | null
-  | undefined;
+export class StateDefect extends Data.TaggedError("StateDefect")<{
+  readonly phase: "transition" | "spawn";
+  readonly description: string;
+}> {}
 
 /**
  * Who owns the instance a renderer binding (`Component.state`) returns:
  * `"component"` (the default) gives each binding Component instance its own;
  * `"app"` gives the runtime one, shared by every binding (one per request
- * during a server render).
+ * during a server render, hydrated in the browser from the server's model).
  */
 export type StateScope = "component" | "app";
 
-/** Definition for a headless model/message loop with Effect-owned work. */
-export interface StateDefinition<Model, Message extends StateTaggedMessage, E = never, R = never> {
-  /** Stable name: labels the model on the `Timeline` and names its `State` causes. */
-  readonly name: string;
+/**
+ * Where a State's model persists in the runtime's `KeyValueStore`
+ * (`effect/persistence`): `arc/states/v<version>/<key>`.
+ */
+export interface StatePersistOptions {
+  /** Store key for the model. */
+  readonly key: string;
   /**
-   * Who owns the instance `Component.state` returns: each Component instance
-   * (`"component"`, the default) or the runtime (`"app"`). An app State
-   * starts on its first binding, with that binding's services, and runs until
-   * the runtime is disposed; every binding shares its model. `State.start`
-   * always starts a new instance its caller owns.
+   * Format version folded into the key; defaults to `1`. Bump it when the
+   * model changes shape: a model under the old key is never read.
    */
-  readonly scope?: StateScope;
-  readonly initial: StateModelValue<Model>;
-  /** Exhaustive pure message handlers keyed by each message `_tag`. */
-  readonly on: StateHandlerMap<Model, Message, E, R>;
-  readonly subscriptions?: (
-    model: Model,
-  ) => EffectInput<StateSubscriptionInput<Message, E, R>, E, R>;
+  readonly version?: number;
 }
 
-/** State error channel plus callback and Runtime Spine startup/provision errors. */
-export type StateRuntimeError<E, ER = never> = E | EffectInputCallbackError | ER;
+/** A State definition: a named machine Arc runs, records, hydrates, and binds. */
+export interface StateDefinition<Model, Message, R = never> {
+  /** Stable name: labels the model on the `Timeline` and names its `State` causes. */
+  readonly name: string;
+  /** Who owns the instance `Component.state` returns. */
+  readonly scope: StateScope;
+  /**
+   * The machine: its model and message schemas, transitions, and work. `R`
+   * is what its transitions and work need, plus the `KeyValueStore` a
+   * persisted State needs.
+   */
+  readonly machine: StateMachine<Model, Message, R>;
+  readonly persist: StatePersistOptions | undefined;
+}
+
+/** State failures: a rejected value, a defect, or a runtime startup failure. */
+export type StateError<ER = never> =
+  | EffectInputCallbackError
+  | Schema.SchemaError
+  | StateDefect
+  | ER;
 
 /** Error channel for live `dispatch(...)`, including disposal drops. */
-export type StateDispatchError<E, ER = never> = StateRuntimeError<E, ER> | StateDisposed;
+export type StateDispatchError<ER = never> = StateError<ER> | StateDisposed;
 
 /**
  * Error reported when `dispatch(...)` cannot apply because the State
- * was disposed before the message update committed.
+ * was disposed before the message was processed.
  */
 export class StateDisposed extends Data.TaggedError("StateDisposed")<{
   readonly reason: string;
@@ -170,27 +114,53 @@ export class StateDisposed extends Data.TaggedError("StateDisposed")<{
  * `Component.state` handle is one.
  */
 export interface StateRef<Model> {
-  /** The model cell; written only by the State loop and optimistic layers. */
+  /** The model cell; written only by the State's machine and optimistic layers. */
   readonly [StateRefTypeId]: WritableSignal<Model>;
 }
 
 /** Running State handle with model state, dispatch, failure, and disposal APIs. */
-export interface StateInstance<Model, Message, E = never, DispatchE = E> extends StateRef<Model> {
-  /** Centralized model signal for adapter-neutral reads and derived state. */
+export interface StateInstance<Model, Message, ER = never> extends StateRef<Model> {
+  /** The model: the machine's state, committed on Arc's Timeline. */
   readonly model: ReadableSignal<Model>;
-  /** Accumulated typed failures from updates, commands, and subscriptions. */
-  readonly failures: ReadableSignal<ReadonlyArray<StateFailure<Message, E>>>;
+  /** Accumulated failures: rejected values, defects, startup failures. */
+  readonly failures: ReadableSignal<ReadonlyArray<StateFailure<Message, StateError<ER>>>>;
   /**
-   * Effect dispatch that completes after the message update has committed.
+   * Effect dispatch that completes once the machine has processed the
+   * message: applied (one Timeline entry with the model change) or ignored
+   * (no transition for it in the current variant; one `ignored` entry).
    *
-   * If disposal happens before the update commits, the Effect fails with a
-   * `StateFailure` whose error is `StateDisposed`.
+   * If disposal happens first, the Effect fails with a `StateFailure` whose
+   * error is `StateDisposed`.
    */
-  dispatch(
-    message: StateMessageValue<Message>,
-  ): Effect.Effect<void, StateFailure<Message, DispatchE>>;
+  dispatch(message: Message): Effect.Effect<void, StateFailure<Message, StateDispatchError<ER>>>;
+  /**
+   * True when the current variant has a transition for `message` whose guard
+   * passes. Reads the model, so it is reactive.
+   */
+  can(message: Message): boolean;
   /** Clears accumulated failures. */
   clearFailures(): void;
-  /** Stops the message loop and interrupts active subscriptions/commands. */
+  /** Stops the machine, interrupting its work. */
   dispose: Effect.Effect<void>;
+}
+
+/** One instance's recorded messages, as `State.history` reads them from a Timeline. */
+export interface StateHistory<Model, Message> {
+  /** The instance's Timeline id (`Timeline.StateCause["instance"]`). */
+  readonly instance: number;
+  /** The model the instance started from: initial, hydrated, or restored. */
+  readonly from: Model;
+  /** Every message it processed, oldest first: replay them with `Machine.replay`. */
+  readonly messages: ReadonlyArray<{
+    readonly sequence: number;
+    readonly message: Message;
+    readonly ignored: boolean;
+  }>;
+}
+
+/** Encoded model of an app State, carried from a server render to the browser. */
+export interface StateSnapshot {
+  readonly name: string;
+  /** The model encoded through the machine's state schema. */
+  readonly model: unknown;
 }

@@ -1,5 +1,6 @@
 import { type EffectInputCallbackError, Resource, Route } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, type Schema } from "effect";
+import { hydrateAppStates, isStateSnapshots, type StateSnapshot } from "@sunfall/arc-core/internal";
 import type { StartPostedAction } from "./start-action-form-post.js";
 import {
   hydrationScriptId,
@@ -111,6 +112,14 @@ export interface StartHydrationPayload extends Resource.HydrationPayload {
    * the Action's bindings from it while the page hydrates.
    */
   readonly postedAction?: StartPostedAction;
+  /**
+   * Models of the request's app States that moved off their initial state
+   * while rendering, encoded through each machine's state schema. The
+   * browser decodes each when its State starts; a snapshot the schema
+   * rejects is a `Hydrate` failure and the State starts from its initial
+   * state.
+   */
+  readonly states?: ReadonlyArray<StateSnapshot>;
 }
 
 /** One ordered hydration payload emitted after the app root. */
@@ -251,7 +260,8 @@ const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload
     (isRecord(value.postedAction) &&
       typeof value.postedAction.action === "string" &&
       isRecord(value.postedAction.values) &&
-      isRecord(value.postedAction.outcome)));
+      isRecord(value.postedAction.outcome))) &&
+  (value.states === undefined || isStateSnapshots(value.states));
 
 /** Narrow an unknown value to the current hydration chunk wire format. */
 export const isStartHydrationChunk = (value: unknown): value is StartHydrationChunk =>
@@ -402,9 +412,11 @@ export const mergeStartHydrationPayloads = (
   let routeFailure: Route.PreloadFailureSnapshot | undefined;
   let notFound = false;
   let postedAction: StartPostedAction | undefined;
+  const states: Array<StateSnapshot> = [];
 
   for (const payload of payloads) {
     resources.push(...payload.resources);
+    states.push(...(payload.states ?? []));
     routeFailure = payload.routeFailure ?? routeFailure;
     notFound ||= payload.notFound === true;
     postedAction = payload.postedAction ?? postedAction;
@@ -419,6 +431,7 @@ export const mergeStartHydrationPayloads = (
     ...(notFound ? { notFound: true } : {}),
     ...(settledSubmissions.size > 0 ? { settledSubmissions: [...settledSubmissions] } : {}),
     ...(postedAction === undefined ? {} : { postedAction }),
+    ...(states.length > 0 ? { states } : {}),
   };
 };
 
@@ -535,6 +548,9 @@ export const hydrateStartPayload = (
     }
     if (payload.notFound === true) {
       yield* Route.hydrateNotFound();
+    }
+    if (payload.states !== undefined) {
+      yield* hydrateAppStates(payload.states);
     }
   });
 

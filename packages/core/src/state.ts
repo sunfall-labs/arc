@@ -1,53 +1,37 @@
 import {
-  type StateCommand,
-  type StateCommandInput,
   type StateDefinition,
   type StateDispatchError,
+  type StateError,
   type StateFailure,
-  type StateHandlerMap,
+  type StateHistory,
   type StateInstance,
+  type StateMachine,
+  type StatePersistOptions,
   type StatePhase,
   type StateScope,
   type StateRef,
+  StateDefect,
   StateDisposed,
-  type StateRuntimeError,
-  type StateStep,
-  type StateSubscription,
-  type StateSubscriptionInput,
-  type StateTaggedMessage,
-  type StateUpdate,
+  type StateTagged,
 } from "./state-contract.js";
 export {
+  StateDefect,
   StateDisposed,
-  StateCommandTypeId,
-  StateStepTypeId,
-  StateSubscriptionTypeId,
   StateRefTypeId,
-  type StateCommand,
-  type StateCommandInput,
   type StateDefinition,
   type StateDispatchError,
+  type StateError,
   type StateFailure,
-  type StateHandlerMap,
+  type StateHistory,
   type StateInstance,
+  type StateMachine,
+  type StatePersistOptions,
   type StatePhase,
   type StateScope,
   type StateRef,
-  type StateRuntimeError,
-  type StateStep,
-  type StateSubscription,
-  type StateSubscriptionInput,
-  type StateTaggedMessage,
-  type StateUpdate,
+  type StateTagged,
 } from "./state-contract.js";
-import {
-  defineState,
-  stateCommands,
-  stateEmit,
-  stateNext,
-  stateStepSync,
-  stateSubscription,
-} from "./state-primitives.js";
+import { defineState, stateHistory } from "./state-primitives.js";
 import { startStateOnRuntime } from "./state-start.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import type { AnySunfallArcRuntime, SunfallArcRuntime } from "./runtime.js";
@@ -65,13 +49,14 @@ type StateRuntimeSatisfied<RIn, RProvided> = [
 
 /** Options for starting a State on an explicit typed Runtime Spine. */
 export interface StateStartOptions<RRuntime = never, ER = never> {
-  /** Runtime whose services satisfy the State's update, command, and subscription requirements. */
+  /** Runtime whose services satisfy the machine's transition, work, and persistence requirements. */
   readonly runtime: SunfallArcRuntime<RRuntime, ER>;
 }
 
 type StateRuntimeBoundStartOptions<R, RRuntime, ER> = {
   readonly runtime: SunfallArcRuntime<RRuntime, ER> & StateRuntimeSatisfied<R, RRuntime>;
 };
+
 /**
  * Starts a State on an explicit typed Runtime Spine.
  *
@@ -81,59 +66,74 @@ type StateRuntimeBoundStartOptions<R, RRuntime, ER> = {
  * (Solid's `Component.state(...)`), which supplies the runtime.
  */
 function startState<
-  Model,
-  Message extends StateTaggedMessage,
-  E = never,
+  Model extends StateTagged,
+  Message extends StateTagged,
   R = never,
   ER = never,
   RRuntime = R,
 >(
-  definition: StateDefinition<Model, Message, E, R>,
+  definition: StateDefinition<Model, Message, R>,
   options: StateRuntimeBoundStartOptions<R, RRuntime, ER>,
-): StateInstance<Model, Message, StateRuntimeError<E, ER>, StateDispatchError<E, ER>> {
+): StateInstance<Model, Message, ER> {
   return startStateOnRuntime(definition, options.runtime as AnySunfallArcRuntime<ER>);
 }
 
-/** Public namespace facade for defining, starting, testing, and typing States. */
+/**
+ * Arc's binding for client state machines. A State is a named
+ * effect-machine `Machine` (re-exported as `Machine`, `Model`, and `Event`):
+ * Arc runs it as an actor on the runtime, commits each message it processes
+ * on the Timeline, hydrates app States from the server render, persists
+ * models, lets Actions overlay them optimistically, and binds them to
+ * Components.
+ */
 export namespace State {
-  /** Definition for a headless model/message loop with Effect-owned work. */
-  export type Definition<
-    Model,
-    Message extends StateTaggedMessage,
-    E = never,
-    R = never,
-  > = StateDefinition<Model, Message, E, R>;
+  /** A State definition: a named machine Arc runs, records, hydrates, and binds. */
+  export type Definition<Model, Message, R = never> = StateDefinition<Model, Message, R>;
+  /** Tagged shape every model variant and message has. */
+  export type Tagged = StateTagged;
+  /**
+   * The fields of the message tagged `Tag`, as a sender takes them: without
+   * its tag and the machine's type brands.
+   */
+  export type MessageFields<Message, Tag> = {
+    readonly [K in keyof Extract<Message, { readonly _tag: Tag }> as K extends
+      | "_tag"
+      | "~effect/Brand"
+      | "_ReplyType"
+      ? never
+      : K]: Extract<Message, { readonly _tag: Tag }>[K];
+  };
+  /** The machine a State runs. */
+  export type Machine<Model, Message, R = never> = StateMachine<Model, Message, R>;
+  /** A definition's model type. */
+  export type Model<D> = D extends StateDefinition<infer Model, any, any> ? Model : never;
+  /** A definition's message union. */
+  export type Message<D> = D extends StateDefinition<any, infer Message, any> ? Message : never;
   /**
    * A running State's model as an Action's `optimistic` transaction patches it:
    * a `State.Instance` or a `Component.state` handle.
    */
   export type Ref<Model> = StateRef<Model>;
   /** Running State handle with model, dispatch, failures, and disposal state. */
-  export type Instance<Model, Message, E = never, DispatchE = E> = StateInstance<
-    Model,
-    Message,
-    E,
-    DispatchE
-  >;
-  /** Captured update, command, or subscription failure with triggering message context. */
+  export type Instance<Model, Message, ER = never> = StateInstance<Model, Message, ER>;
+  /** Captured failure with the phase and triggering message. */
   export type Failure<Message, E> = StateFailure<Message, E>;
-  /** State failure channel plus Runtime Spine provision/startup failures. */
-  export type RuntimeError<E, ER = never> = StateRuntimeError<E, ER>;
+  /**
+   * What a State can fail with: a message its schema rejects, a defect in a
+   * transition or in work, a server snapshot its schema rejects, or a runtime
+   * startup failure (`ER`). Expected failures are messages, never errors.
+   */
+  export type Error<ER = never> = StateError<ER>;
   /** Live dispatch failure channel, including disposal drops. */
-  export type DispatchError<E, ER = never> = StateDispatchError<E, ER>;
+  export type DispatchError<ER = never> = StateDispatchError<ER>;
+  /** A defect in a transition or in state-owned work. */
+  export type Defect = StateDefect;
+  /** A defect in a transition or in state-owned work. */
+  export const Defect = StateDefect;
   /** Error reported when an Effect dispatch cannot apply because the State was disposed. */
   export type Disposed = StateDisposed;
   /** Error reported when an Effect dispatch cannot apply because the State was disposed. */
   export const Disposed = StateDisposed;
-  /** Tagged message shape every State message has. */
-  export type TaggedMessage = StateTaggedMessage;
-  /** Exhaustive pure handlers keyed by each message `_tag`. */
-  export type HandlerMap<
-    Model,
-    Message extends StateTaggedMessage,
-    E = never,
-    R = never,
-  > = StateHandlerMap<Model, Message, E, R>;
   /** Options for starting a State on an explicit typed Runtime Spine. */
   export type StartOptions<RRuntime = never, ER = never> = StateStartOptions<RRuntime, ER>;
   /** Services still required after applying a typed Runtime Spine to a State. */
@@ -141,7 +141,7 @@ export namespace State {
     RIn,
     RProvided
   >;
-  /** Visible runtime phase for a started State. */
+  /** Runtime phase that produced a failure. */
   export type Phase = StatePhase;
   /**
    * Who owns the instance `Component.state` binds: each Component instance
@@ -149,91 +149,53 @@ export namespace State {
    * per runtime, so one per request during a server render).
    */
   export type Scope = StateScope;
-  /** Value a message handler returns: the next model, or the next model plus commands. */
-  export type Update<Model, Message, E = never, R = never> = StateUpdate<Model, Message, E, R>;
-  /** Next model plus the commands a transition returned, unrun. */
-  export type Step<Model, Message, E = never, R = never> = StateStep<Model, Message, E, R>;
-  /** Effect-backed unit of State work that may emit a message. */
-  export type Command<Message, E = never, R = never> = StateCommand<Message, E, R>;
-  /** Accepted command input: no command, one command, many commands, or Effect command work. */
-  export type CommandInput<Message, E = never, R = never> = StateCommandInput<Message, E, R>;
-  /** Stream-backed external input attached to a State model generation. */
-  export type Subscription<Message, E = never, R = never> = StateSubscription<Message, E, R>;
-  /** Accepted subscription input: none, one subscription, or many subscriptions. */
-  export type SubscriptionInput<Message, E = never, R = never> = StateSubscriptionInput<
-    Message,
-    E,
-    R
-  >;
+  /** Where a persisted State's model is kept in the runtime's `KeyValueStore`. */
+  export type PersistOptions = StatePersistOptions;
+  /** One instance's recorded messages, from `State.history`. */
+  export type History<Model, Message> = StateHistory<Model, Message>;
+
   /**
-   * Defines a State: a named model that changes only through its messages.
+   * Defines a State: a name for a machine, and who owns its instance.
    *
-   * `on` holds one pure handler per message `_tag`: it returns the next model,
-   * or `State.next(model, commands)`. Effect work goes in commands, never in
-   * handlers; Promise-shaped models and messages are rejected so async work
-   * stays in the Effect runtime.
-   *
-   * The message union is inferred from `on`: each key is a tag, and a
-   * handler's second parameter types that message's fields. When commands
-   * emit the State's own messages, name the union up front with
-   * `State.define<Model, Message>()({ ... })`.
+   * The machine is schema-first: `Model({...})` lists the model's variants
+   * and `Event({...})` its messages, each an Effect Schema, so a model is
+   * validated, serializable data. Transitions are keyed by (variant,
+   * message): a message the current variant does not handle is ignored and
+   * recorded as such. Work a variant owns (`task`, `spawn`) starts on entry
+   * and is interrupted on exit, and its failures become messages: its error
+   * channel is `never`. Name messages for what happened (`ClickedSave`,
+   * `ReceivedProject`, `TypedQuery`).
    *
    * `scope: "app"` makes every `Component.state` binding share the runtime's
-   * one instance (a toast, a cart): it outlives the Components that bind it,
-   * and a server render gets one per request. The default gives each
-   * Component instance its own.
+   * one instance (a toast); a server render gets one per request and the
+   * browser starts it from the server's model. `persist` keeps the model in
+   * the runtime's `KeyValueStore` and restores it when the State starts.
    *
    * @example
    * ```ts
-   * const MenuOpen = State.define({ name: "Menu.open", initial: false, on: { Toggle: (open) => !open } });
+   * const MenuModel = Model({ Closed: {}, Open: {} });
+   * const MenuEvent = Event({ ClickedMenu: {} });
+   *
+   * const Menu = State.define({
+   *   name: "Menu",
+   *   machine: Machine.make({ state: MenuModel, event: MenuEvent, initial: MenuModel.Closed })
+   *     .on(MenuModel.Closed, MenuEvent.ClickedMenu, () => MenuModel.Open)
+   *     .on(MenuModel.Open, MenuEvent.ClickedMenu, () => MenuModel.Closed),
+   * });
    * ```
    */
   export const define = defineState;
   /**
-   * Applies one message to a model: a pure, synchronous call that returns the
-   * next model and the commands the transition returned, without running
-   * them. Run a command's `effect` to get the message it emits. This is how
-   * State transitions are tested; no runtime, DOM, or timers are involved.
-   *
-   * @example
-   * ```ts
-   * const loading = State.step(Counter, Counter.initial, { _tag: "Load" });
-   * expect(loading.commands).toHaveLength(1);
-   * expect(Effect.runSync(loading.commands[0].effect)).toEqual({ _tag: "Loaded", count: 3 });
-   * ```
+   * Reads each instance of a State from Timeline entries: the model it
+   * started from (initial, the server's, or a restored one) and every message
+   * it processed. `Machine.replay(definition.machine, messages, { from })`
+   * re-applies them without a runtime.
    */
-  export const step = stateStepSync;
+  export const history = stateHistory;
   /**
    * Starts a new State instance on an explicit Runtime Spine (and the current
    * UI scope, when there is one) for headless code and tests, whatever the
    * definition's `scope`: the caller owns it.
    */
   export const start = startState;
-  /**
-   * Returns a pure model update step, optionally with commands.
-   *
-   * The model must be plain. Promise-shaped models are rejected; move host
-   * Promise work into `State.emit(Effect.tryPromise(...))` and emit a
-   * follow-up message with the resolved value.
-   */
-  export const next = stateNext;
-  /**
-   * The one command constructor: emits a message, or runs an Effect after the
-   * model commits and emits the message it produces. An Effect that completes
-   * with `void` emits nothing, so background work is `State.emit(effect)`
-   * too. Failures go to the State's error channel.
-   *
-   * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
-   * the Effect for host Promise work before mapping to a resolved message.
-   */
-  export const emit = stateEmit;
-  /** Batches several commands (skipping `false`/`null`/`undefined`) for `State.next(model, ...)`. */
-  export const commands = stateCommands;
-  /**
-   * Creates a Stream-backed subscription for model-driven external input.
-   *
-   * Stream emissions must be plain messages. Adapt host Promise sources with
-   * `Effect.tryPromise(...)` before emitting into the State loop.
-   */
-  export const subscription = stateSubscription;
 }

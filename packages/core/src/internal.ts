@@ -130,7 +130,15 @@ export {
 } from "./action-posted.js";
 export { decodeFormValuesEffect, formValuesForSchema } from "./form.js";
 export { SignalWrites, type WritableSignal } from "./signal.js";
-export { appStateOnRuntime, startStateOnRuntime } from "./state-start.js";
+export {
+  appStateOnRuntime,
+  dehydrateAppStates,
+  hydrateAppStates,
+  isStateSnapshots,
+  startStateOnRuntime,
+} from "./state-start.js";
+export { makeStateMessage, stateMessageTags } from "./state-primitives.js";
+export type { StateSnapshot } from "./state-contract.js";
 export {
   currentOrDefaultRuntime,
   defaultRuntime,

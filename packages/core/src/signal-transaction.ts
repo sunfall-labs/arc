@@ -318,6 +318,24 @@ const commitRecordedSignalWrites = (
   }
 };
 
+/**
+ * Records an entry that changes no signal (a State message that left its
+ * model unchanged, or was ignored), so the Timeline keeps every message.
+ * Without a recorder it does nothing.
+ */
+export const recordSignalEvent = (cause: TimelineCause): void => {
+  const active = recorder;
+  if (active === undefined) {
+    return;
+  }
+  recorder = undefined;
+  try {
+    active.commit([], cause);
+  } finally {
+    recorder = installedRecorder;
+  }
+};
+
 const commitSignalWrites = (
   writes: ReadonlyMap<SignalTransactionWritable, unknown>,
   cause: TimelineCause | undefined,

@@ -3,6 +3,7 @@ import { Data, Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import { State, Signal, Timeline } from "../src/index.js";
 import { defaultRuntime, withSignalTransition, SignalWrites } from "../src/internal.js";
+import { counterState, Incremented } from "./state-cell.js";
 
 class Boom extends Data.TaggedError("Boom")<{}> {}
 
@@ -324,23 +325,11 @@ describe("State and Action commits", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        type Message = { readonly _tag: "Increment" } | { readonly _tag: "Fail" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Counter",
-            initial: 0,
-            on: {
-              Increment: (model) => model + 1,
-              Fail: () => {
-                throw new Error("boom");
-              },
-            },
-          }),
-          { runtime: defaultRuntime },
-        );
+        const instance = State.start(counterState("Counter"), { runtime: defaultRuntime });
 
-        yield* instance.dispatch({ _tag: "Increment" });
-        yield* Effect.flip(instance.dispatch({ _tag: "Fail" }));
+        yield* instance.dispatch(Incremented);
+        // A message its schema rejects is a failure.
+        yield* Effect.flip(instance.dispatch({ _tag: "Fail" } as never));
 
         expect(
           Signal.peek(recording.entries).map((entry) => ({
@@ -348,7 +337,8 @@ describe("State and Action commits", () => {
             changed: entry.changes.map((change) => change.name),
           })),
         ).toEqual([
-          { cause: 'State "Counter" Increment', changed: ["Counter"] },
+          { cause: 'State "Counter" start', changed: [] },
+          { cause: 'State "Counter" Incremented', changed: ["Counter"] },
           { cause: 'State "Counter" failure', changed: ["Counter.failures"] },
         ]);
         yield* instance.dispose;

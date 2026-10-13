@@ -6,7 +6,10 @@ import { describe, expect, it } from "vitest";
 import {
   Action,
   ActionQueued,
+  Machine,
   makeRuntime,
+  Message,
+  Model,
   Route,
   Signal,
   State,
@@ -25,14 +28,19 @@ import {
 } from "../src/start-action-workflow.js";
 import { defaultRuntime } from "@sunfall/arc-core/internal";
 
-/** A running State holding one value: the optimistic target these tests patch. */
-const stateCell = <A>(initial: A, options: { readonly name: string }) =>
+const CellModel = Model({ Cell: { value: Schema.Finite } });
+
+/** A running State holding one number: the optimistic target these tests patch. */
+const stateCell = (initial: number, options: { readonly name: string }) =>
   State.start(
-    {
+    State.define({
       name: options.name,
-      initial,
-      on: { Set: (_current, message) => message.value },
-    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
+      machine: Machine.make({
+        state: CellModel,
+        event: Message({ ChangedValue: { value: Schema.Finite } }),
+        initial: CellModel.Cell({ value: initial }),
+      }),
+    }),
     { runtime: defaultRuntime },
   );
 
@@ -51,7 +59,8 @@ const defineAdvance = (name: string) => {
     input: AdvanceInput,
     output: AdvanceOutput,
     durable: { maxAge: "1 hour" },
-    optimistic: (_input, transaction) => transaction.set(progress, (value) => value + 8),
+    optimistic: (_input, transaction) =>
+      transaction.set(progress, (cell) => ({ ...cell, value: cell.value + 8 })),
   });
   const serverAdvance = Action.implement(Advance, ({ id }) =>
     Effect.sync(() => ({ id, progress: ++runs.count * 8 })),
@@ -316,7 +325,7 @@ describe("durable Action submissions over Start", () => {
         const queued = yield* Effect.flip(advance.submit({ id: "atlas" }));
         expect(queued).toBeInstanceOf(ActionQueued);
         expect(runs.count).toBe(1);
-        expect(Signal.peek(progress.model)).toBe(8);
+        expect(Signal.peek(progress.model).value).toBe(8);
 
         network.loseResponses = false;
         const outbox = yield* runtime.provide(Action.outbox);
@@ -326,7 +335,8 @@ describe("durable Action submissions over Start", () => {
         expect(Signal.peek(outbox.pending)).toEqual([]);
         expect(Signal.peek(outbox.failures)).toEqual([]);
         expect(runs.count).toBe(1);
-        expect(Signal.peek(progress.model)).toBe(8);
+        // Settled: the State overlay is gone (a State changes only through its messages).
+        expect(Signal.peek(progress.model).value).toBe(0);
         yield* runtime.dispose;
       }),
     ));
