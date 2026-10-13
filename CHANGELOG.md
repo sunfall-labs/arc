@@ -258,6 +258,15 @@ props?)` or load as their own chunk with `Route.lazyComponent(importer)`;
   page's prerendered payload.
 - Each request is a `sunfall-arc.start.request` Effect span whose attributes
   carry the route plan, failure kind, status, and runtime teardown.
+- Server defects stay on the server. A served Resource load, server
+  function, or Action that throws, dies, fails outside its declared `error`
+  schema, or returns an output its schema cannot encode answers with an
+  opaque defect (`StartServerDefect`, "The server failed to handle the
+  request."), never the message, stack, or `Cause`; the full cause is logged
+  at Error level with the request's `sunfall-arc.request.id`, which the
+  response's `x-sunfall-arc-request-id` header carries. Action protocol
+  errors no longer include stacks. The Node adapter's default error handler
+  logs the cause behind its opaque `500 Internal Server Error`.
 - File-route manifests are plain validated data from one generator,
   `generateFileRouteManifest`. Failed Vite dev SSR requests name the
   operation and the wrapped failure.

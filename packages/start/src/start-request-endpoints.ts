@@ -59,6 +59,7 @@ import {
   type StartActionSource,
 } from "./start-action-request-codec.js";
 import { runStartTransportEndpoint } from "./start-transport-endpoint-runner.js";
+import { logStartDefect, makeStartServerDefect } from "./start-defect.js";
 
 type AnyServerFunction = Server.Fn<any, any, any, any>;
 
@@ -74,6 +75,29 @@ const rpcFailureKind = (
     return Schema.is(fn.rpc.errorSchema)(failure.error) ? "domain" : "defect";
   }
   return exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect";
+};
+
+/**
+ * What a failed server function sends: a failure its `error` schema declares
+ * crosses as itself, an interruption as an interruption; anything else (a
+ * throw, `Effect.die`, an undeclared failure) is logged with its full cause
+ * and crosses as an opaque defect, so no message, stack, or SQL reaches the
+ * browser. The span around the handler still records the original cause.
+ */
+const opaqueRpcFailure = (
+  fn: AnyServerFunction,
+  cause: Cause.Cause<unknown>,
+): Effect.Effect<never, unknown> => {
+  const failure = cause.reasons.find(Cause.isFailReason);
+  if (failure !== undefined && Schema.is(fn.rpc.errorSchema)(failure.error)) {
+    return Effect.fail(failure.error);
+  }
+  if (Cause.hasInterruptsOnly(cause)) {
+    return Effect.failCause(cause);
+  }
+  return logStartDefect(`Server function "${fn.name}"`, cause).pipe(
+    Effect.andThen(Effect.die(makeStartServerDefect())),
+  );
 };
 
 /**
@@ -98,6 +122,7 @@ const serveServerFunctions = (
           (payload: unknown) => {
             handled = true;
             return withStartRpcObservability(fn.name, fn.local(payload)).pipe(
+              Effect.catchCause((cause) => opaqueRpcFailure(fn, cause)),
               Effect.onExit((exit) =>
                 Effect.sync(() => {
                   const kind = rpcFailureKind(fn, exit);
@@ -279,10 +304,14 @@ export const createServerActionResponseEffectWithRuntime = <
             catch: (error) => error,
           }).pipe(
             Effect.catch((error) =>
-              Effect.sync(() => {
-                recordStartRequestFailure(facts, "defect");
-                return actionRuntimeFailureResponse(error);
-              }),
+              logStartDefect("Start action registry", Cause.die(error)).pipe(
+                Effect.andThen(
+                  Effect.sync(() => {
+                    recordStartRequestFailure(facts, "defect");
+                    return actionRuntimeFailureResponse();
+                  }),
+                ),
+              ),
             ),
           );
           if (actionMap instanceof Response) {
@@ -340,7 +369,11 @@ export const createServerActionResponseEffectWithRuntime = <
               if (metaInterrupted) {
                 return yield* Effect.failCause(metaExit.cause);
               }
-              return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
+              yield* logStartDefect(
+                `Start action "${action.name}" response metadata`,
+                metaExit.cause,
+              );
+              return actionRuntimeFailureResponse();
             }
             const response = yield* actionExitResponse(action, exit, metaExit.value);
             const responseFailureKind =

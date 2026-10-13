@@ -1,8 +1,9 @@
-import { Cause, Effect, Exit, Layer, Schema, Tracer } from "effect";
+import { Cause, Effect, Exit, Layer, Logger, Schema, Tracer } from "effect";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import { describe, expect, it } from "vitest";
 import {
+  Action,
   ActionTransportError,
   makeRuntime,
   RequestContext,
@@ -32,8 +33,14 @@ class EchoRejected extends Schema.TaggedError<EchoRejected>()("EchoRejected", {
 }) {}
 
 const Echo = Server.contract("Start.rpc.echo", {
-  input: Schema.Struct({ value: Schema.String, at: Schema.DateTimeUtcFromString }),
-  output: Schema.Struct({ value: Schema.String, at: Schema.DateTimeUtcFromString }),
+  input: Schema.Struct({
+    value: Schema.String,
+    at: Schema.DateTimeUtcFromString,
+  }),
+  output: Schema.Struct({
+    value: Schema.String,
+    at: Schema.DateTimeUtcFromString,
+  }),
   error: EchoRejected,
 });
 const echo = Server.client(Echo);
@@ -79,7 +86,10 @@ describe("Start server functions over effect/rpc", () => {
   it("round-trips input and output through the contract schemas", () =>
     Effect.runPromise(
       overHttp(
-        echo({ value: "atlas", at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at) }),
+        echo({
+          value: "atlas",
+          at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at),
+        }),
       ).pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
@@ -93,7 +103,12 @@ describe("Start server functions over effect/rpc", () => {
   it("carries typed errors across the wire as schema-decoded values", () =>
     Effect.runPromise(
       Effect.exit(
-        overHttp(echo({ value: "reject", at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at) })),
+        overHttp(
+          echo({
+            value: "reject",
+            at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at),
+          }),
+        ),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -108,7 +123,12 @@ describe("Start server functions over effect/rpc", () => {
   it("reports handler defects as defects", () =>
     Effect.runPromise(
       Effect.exit(
-        overHttp(echo({ value: "die", at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at) })),
+        overHttp(
+          echo({
+            value: "die",
+            at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at),
+          }),
+        ),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -123,7 +143,10 @@ describe("Start server functions over effect/rpc", () => {
       overHttp(whoAmI(), (input, init) =>
         rpcFetch(input, {
           ...init,
-          headers: { ...Object.fromEntries(new Headers(init.headers)), "x-user": "ada" },
+          headers: {
+            ...Object.fromEntries(new Headers(init.headers)),
+            "x-user": "ada",
+          },
         }),
       ).pipe(Effect.tap((user) => Effect.sync(() => expect(user).toBe("ada")))),
     ));
@@ -162,9 +185,10 @@ describe("Start server functions over effect/rpc", () => {
 
     return Effect.runPromise(
       overHttp(
-        echo({ value: "trace", at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at) }).pipe(
-          Effect.withSpan("caller"),
-        ),
+        echo({
+          value: "trace",
+          at: Schema.decodeSync(Schema.DateTimeUtcFromDate)(at),
+        }).pipe(Effect.withSpan("caller")),
         (input, init) => {
           traceparent = new Headers(init.headers).get("traceparent");
           return rpcFetch(input, init);
@@ -261,7 +285,10 @@ describe("Start action transport", () => {
       Effect.exit(
         parseStartActionResponse(
           clientResponse(
-            new Response("not json", { status: 200, headers: { "content-type": "text/plain" } }),
+            new Response("not json", {
+              status: 200,
+              headers: { "content-type": "text/plain" },
+            }),
           ),
         ),
       ).pipe(
@@ -365,7 +392,10 @@ describe("Start action transport", () => {
             app,
             new Request(`https://example.com${serverActionPath}`, {
               method: "POST",
-              headers: { accept: startJsonMediaType, "content-type": startJsonMediaType },
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": startJsonMediaType,
+              },
               body: JSON.stringify({ input: { value: "missing action name" } }),
             }),
             [],
@@ -374,7 +404,10 @@ describe("Start action transport", () => {
             app,
             new Request(`https://example.com${serverActionPath}`, {
               method: "POST",
-              headers: { accept: startJsonMediaType, "content-type": startJsonMediaType },
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": startJsonMediaType,
+              },
               body: "{",
             }),
             [],
@@ -489,4 +522,148 @@ describe("served Resources", () => {
         expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : "succeeded").toBeUndefined();
       }),
     ));
+});
+
+describe("server defects stay on the server", () => {
+  const secret = "SELECT password FROM users /srv/app/db.ts";
+
+  const capturedLogs = () => {
+    const logs: Array<{ readonly cause: Cause.Cause<unknown> }> = [];
+    const layer = Logger.layer([
+      Logger.make(({ cause }) => {
+        logs.push({ cause });
+      }),
+    ]);
+    return { logs, layer };
+  };
+
+  const Leaky = Server.contract("Start.rpc.defect.leaky", {
+    input: Schema.Struct({ mode: Schema.String }),
+    output: Schema.String,
+    error: EchoRejected,
+  });
+  const leakyServer = Server.implement(Leaky, ({ mode }) =>
+    mode === "die"
+      ? Effect.die(new Error(secret))
+      : mode === "throw"
+        ? Effect.sync((): string => {
+            throw new Error(secret);
+          })
+        : mode === "undeclared"
+          ? (Effect.fail({ detail: secret }) as unknown as Effect.Effect<string, EchoRejected>)
+          : Effect.fail(new EchoRejected({ value: mode })),
+  );
+  const LeakyAction = Action.define<{ readonly mode: string }, string, EchoRejected>({
+    name: "Start.action.defect.leaky",
+    input: Schema.Struct({ mode: Schema.String }),
+    output: Schema.String,
+    error: EchoRejected,
+    run: ({ mode }) =>
+      mode === "die"
+        ? Effect.die(new Error(secret))
+        : mode === "throw"
+          ? Effect.sync((): string => {
+              throw new Error(secret);
+            })
+          : mode === "undeclared"
+            ? (Effect.fail({ detail: secret }) as unknown as Effect.Effect<string, EchoRejected>)
+            : mode === "output"
+              ? (Effect.succeed({
+                  detail: secret,
+                }) as unknown as Effect.Effect<string>)
+              : Effect.fail(new EchoRejected({ value: mode })),
+  });
+  const leakyApp = makeStartServerApp({
+    routes: [Route.define("/", {})] as const,
+    registry: { serverFunctions: [leakyServer] },
+  });
+  const handler = createStartRequestHandler(leakyApp, {
+    actions: [LeakyAction],
+  });
+
+  const post = (path: string, body: string) =>
+    new Request(`https://example.com${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": startJsonMediaType,
+        accept: startJsonMediaType,
+      },
+      body,
+    });
+
+  const rpcBody = (mode: string) =>
+    JSON.stringify({
+      _tag: "Request",
+      id: "1",
+      tag: "Start.rpc.defect.leaky",
+      payload: { mode },
+      headers: [],
+    });
+
+  const send = (request: Request, layer: Layer.Layer<never>) =>
+    Effect.runPromise(
+      Effect.scoped(handler(request)).pipe(
+        Effect.flatMap((response) =>
+          Effect.promise(async () => ({
+            status: response.status,
+            text: await response.text(),
+          })),
+        ),
+        Effect.provide(layer),
+      ),
+    );
+
+  it.each(["die", "throw", "undeclared"])(
+    "answers a server function %s with an opaque defect and logs the cause",
+    async (mode) => {
+      const { logs, layer } = capturedLogs();
+      const { text } = await send(post(serverRpcPath, rpcBody(mode)), layer);
+      expect(text).not.toContain("password");
+      expect(text).not.toContain("/srv/");
+      expect(text).toContain("StartServerDefect");
+      expect(logs.some((log) => Cause.pretty(log.cause).includes("password"))).toBe(true);
+    },
+  );
+
+  it("still carries declared server function failures, unlogged", async () => {
+    const { logs, layer } = capturedLogs();
+    const { text } = await send(post(serverRpcPath, rpcBody("rejected")), layer);
+    expect(text).toContain("EchoRejected");
+    expect(logs).toEqual([]);
+  });
+
+  it.each(["die", "throw", "undeclared", "output"])(
+    "answers an action %s with an opaque defect and logs the cause",
+    async (mode) => {
+      const { logs, layer } = capturedLogs();
+      const { status, text } = await send(
+        post(serverActionPath, JSON.stringify({ name: LeakyAction.name, input: { mode } })),
+        layer,
+      );
+      expect(status).toBe(500);
+      expect(JSON.parse(text)).toEqual({
+        _tag: "Defect",
+        defect: {
+          _tag: "StartServerDefect",
+          message: "The server failed to handle the request.",
+        },
+      });
+      // An output that does not encode logs the schema issue; the others log the secret.
+      expect(
+        logs.some(
+          (log) =>
+            log.cause.reasons.length > 0 &&
+            (mode === "output" || Cause.pretty(log.cause).includes("password")),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("sends no stack with action protocol errors", async () => {
+    const { layer } = capturedLogs();
+    const { status, text } = await send(post(serverActionPath, "{not json"), layer);
+    expect(status).toBe(400);
+    expect(text).not.toContain("stack");
+    expect(text).not.toContain("node:internal");
+  });
 });

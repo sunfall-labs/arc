@@ -1,6 +1,6 @@
 import type { SunfallArcRuntime, ResponseContext } from "@sunfall/arc-core";
 import type { AppDefinitionRegistry } from "@sunfall/arc-core/internal";
-import { Effect, type Scope } from "effect";
+import { Cause, Effect, type Scope } from "effect";
 import {
   startRequestIdHeader,
   startTransportKindHeader,
@@ -15,13 +15,15 @@ import {
   type RequestRuntimeRemainingRequirements,
 } from "./request-runtime.js";
 import { recordStartRequestFailure, type StartRequestFacts } from "./request-trace.js";
+import { logStartDefect } from "./start-defect.js";
 
 interface StartTransportEndpointRunnerAdapter<Requirements> {
   readonly kind: "rpc" | "action";
   readonly validateRequest: (request: Request) => Effect.Effect<void, StartTransportRequestError>;
   readonly transportFailureResponse: (error: StartTransportRequestError) => Response;
   readonly run: () => Effect.Effect<Response, unknown, Requirements>;
-  readonly runtimeFailureResponse: (error: unknown) => Response;
+  /** The opaque response for a failure of `run`; the runner logs the failure. */
+  readonly runtimeFailureResponse: () => Response;
 }
 
 const setResponseContextTransportDiagnosticsEffect = (
@@ -80,10 +82,14 @@ export const runStartTransportEndpoint = <RuntimeServices, RuntimeError, Require
         ),
       ),
       Effect.catch((error) =>
-        Effect.sync(() => {
-          recordStartRequestFailure(options.facts, "defect");
-          return options.adapter.runtimeFailureResponse(error);
-        }),
+        logStartDefect(`Start ${options.adapter.kind} endpoint`, Cause.fail(error)).pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              recordStartRequestFailure(options.facts, "defect");
+              return options.adapter.runtimeFailureResponse();
+            }),
+          ),
+        ),
       ),
     );
 

@@ -9,7 +9,7 @@ import {
 import { Socket, type AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect, Option, Tracer } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { makeRuntime, Route } from "@sunfall/arc-core";
 import { createFetchHandler, toFetchHandler } from "../src/fetch.js";
 import {
@@ -63,7 +63,9 @@ describe("Start deployment adapters", () => {
       "x-sunfall-arc-test": ["first", "second"],
     };
 
-    const request = nodeRequestToWebRequest(nodeRequest, { trustForwardedHeaders: true });
+    const request = nodeRequestToWebRequest(nodeRequest, {
+      trustForwardedHeaders: true,
+    });
 
     expect(request.method).toBe("POST");
     expect(request.url).toBe("https://app.example.com/submit?tab=overview");
@@ -137,6 +139,37 @@ describe("Start deployment adapters", () => {
       expect(response.status).toBe(201);
       expect(response.headers.get("x-sunfall-arc-adapter")).toBe("node");
     } finally {
+      await close(server);
+    }
+  });
+
+  it("answers Node handler defects with an opaque 500 and logs the cause", async () => {
+    const lines: unknown[] = [];
+    const spies = (["log", "error", "warn"] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        lines.push(...args);
+      }),
+    );
+    const nodeHandler = createNodeServerHandler((request) =>
+      new URL(request.url).pathname === "/ok"
+        ? Effect.succeed(new Response("ok"))
+        : Effect.die(new Error("password=hunter2 in /srv/app/db.ts")),
+    );
+    const server = createServer(nodeHandler);
+    const port = await listen(server);
+
+    try {
+      const failed = await fetch(`http://127.0.0.1:${port}/defect`);
+      expect(failed.status).toBe(500);
+      await expect(failed.text()).resolves.toBe("Internal Server Error");
+      // One bad request leaves the server serving others.
+      const ok = await fetch(`http://127.0.0.1:${port}/ok`);
+      await expect(ok.text()).resolves.toBe("ok");
+      expect(lines.map(String).join("\n")).toContain("password=hunter2");
+    } finally {
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
       await close(server);
     }
   });
