@@ -49,9 +49,7 @@ Action.implement(RenameProject, () =>
   // @ts-expect-error a run may not fail with something other than `error`
   Effect.fail("nope" as const),
 );
-Action.implement(RenameProject, (input) =>
-  ProjectStore.use((store) => store.rename(input)).pipe(Effect.orDie),
-);
+Action.implement(RenameProject, (input) => ProjectStore.use((store) => store.rename(input)));
 
 declare const root: HTMLElement;
 

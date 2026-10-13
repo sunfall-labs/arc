@@ -254,10 +254,16 @@ the front door to Arc's Effect runtime, resources, actions, SSR, tests, and
 devtools:
 
 ```ts
-const ProjectModel = Model({ Idle: {}, Loading: { id: ProjectId }, Ready: { project: Project } });
+const ProjectModel = Model({
+  Idle: {},
+  Loading: { id: ProjectId },
+  Ready: { project: Project },
+  Missing: { id: ProjectId },
+});
 const ProjectMessage = Message({
   ClickedOpen: { id: ProjectId },
   ReceivedProject: { project: Project },
+  FoundNoProject: { id: ProjectId },
 });
 
 const ProjectState = State.define({
@@ -266,15 +272,16 @@ const ProjectState = State.define({
     .on(ProjectModel.Idle, ProjectMessage.ClickedOpen, ({ event }) =>
       ProjectModel.Loading({ id: event.id }),
     )
-    .task(
-      ProjectModel.Loading,
-      ({ state }) => ProjectApi.use((api) => api.get(state.id)).pipe(Effect.orDie),
-      {
-        onSuccess: (project) => ProjectMessage.ReceivedProject({ project }),
-      },
-    )
+    .task(ProjectModel.Loading, ({ state }) => ProjectApi.use((api) => api.get(state.id)), {
+      onSuccess: (project) => ProjectMessage.ReceivedProject({ project }),
+      // The typed failure becomes a message and a state, never a crash.
+      onFailure: (error) => ProjectMessage.FoundNoProject({ id: error.id }),
+    })
     .on(ProjectModel.Loading, ProjectMessage.ReceivedProject, ({ event }) =>
       ProjectModel.Ready({ project: event.project }),
+    )
+    .on(ProjectModel.Loading, ProjectMessage.FoundNoProject, ({ event }) =>
+      ProjectModel.Missing({ id: event.id }),
     ),
 });
 ```
@@ -295,7 +302,8 @@ const OpenProject = Component.define("OpenProject", function* (props: { readonly
 
 So the public shape is Foldkit-compact, but work can require app services,
 belongs to the variant that started it (leaving `Loading` interrupts the
-load), comes back as typed messages, and follows the active UI scope/runtime
+load), comes back as typed messages (failures included: a task's `onFailure` turns a
+typed error into a message, so it can never crash the machine), and follows the active UI scope/runtime
 rather than becoming a separate frontend runtime.
 
 The test shape follows the same model:

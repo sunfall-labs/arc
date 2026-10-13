@@ -805,7 +805,7 @@ loads the project list; the load is a task its `Loading` variant owns:
 
 ```ts
 import { Machine, Message, Model, Resource, State } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
+import { Schema } from "effect";
 import { Project, ProjectsRef } from "./projects.js";
 
 export const LoaderModel = Model({
@@ -824,7 +824,7 @@ export const ProjectLoader = State.define({
   name: "ProjectLoader",
   machine: Machine.make({ state: LoaderModel, event: LoaderMessage, initial: LoaderModel.Idle })
     .on(LoaderModel.Idle, LoaderMessage.ClickedLoad, () => LoaderModel.Loading)
-    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef).pipe(Effect.orDie), {
+    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef), {
       onSuccess: (projects) => LoaderMessage.ReceivedProjects({ projects }),
     })
     .on(LoaderModel.Loading, LoaderMessage.ReceivedProjects, ({ event }) =>
@@ -911,6 +911,11 @@ To test what the screen shows, render the Component (see
   the Component; `catchTags` or `catchAll` removes them;
   `launch` refuses what is left. Work you start (`submit`, `dispatch`,
   `preload`) returns its failures, and callbacks must handle them.
+- **Never `orDie` an expected failure.** `Effect.orDie` turns a failure you
+  could handle into a crash. In a State, a task's `onFailure` turns the typed
+  error into a message (and a state such as `Missing`); in a server
+  implementation, declare the failure in the definition's `error`. Reserve
+  defects for bugs.
 - **Declare `error` where failures render.** A Resource read or route preload
   that fails during SSR crosses to the page only as its `error` schema encodes
   it. Without a schema it renders as `ResourceUntypedFailure` /
