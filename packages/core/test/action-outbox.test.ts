@@ -52,6 +52,8 @@ interface Sent {
 const fakeServer = (values: ReadonlyMap<string, string>) => {
   const state = {
     online: false,
+    /** Answers the next request with an interrupt-only exit (an aborted request). */
+    interruptNext: false,
     sent: [] as Array<Sent>,
     respond: (input: unknown): Exit.Exit<unknown, unknown> => Exit.succeed(input),
   };
@@ -65,6 +67,10 @@ const fakeServer = (values: ReadonlyMap<string, string>) => {
             id: submission?.id,
             stored: storedIds(values),
           });
+          if (state.interruptNext) {
+            state.interruptNext = false;
+            return Effect.interrupt;
+          }
           if (!state.online) {
             return Effect.fail(new ActionTransportError({ reason: "Network", message: "offline" }));
           }
@@ -206,6 +212,38 @@ describe("Action outbox (durable submissions)", () => {
         // The change did not happen: the patch rolled back instead of folding in.
         expect(Signal.peek(total.model).value).toBe(0);
         expect(Signal.peek(outbox.failures)).toEqual([]);
+        yield* runtime.dispose;
+      }),
+    ));
+
+  it("keeps replaying after an interrupt-only transport exit", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { values, storage } = memoryStorage();
+        const server = fakeServer(values);
+        server.state.online = true;
+        server.state.interruptNext = true;
+        const { AdvanceAction } = defineApp("Outbox.interrupted");
+        const runtime = makeRuntime(
+          Layer.mergeAll(
+            server.layer,
+            Action.outboxLayer({ retry: fastRetry }).pipe(Layer.provide(storage)),
+          ),
+        );
+        const advance = Action.use(AdvanceAction, { runtime });
+
+        // The aborted request leaves the submission queued, not lost.
+        expect(yield* Effect.flip(advance.submit({ id: "atlas", by: 1 }))).toBeInstanceOf(
+          ActionQueued,
+        );
+        const outbox = yield* runtime.provide(Action.outbox);
+        yield* waitFor(() => Signal.peek(outbox.pending).length === 0);
+
+        // The replay worker is still alive: a later submission is sent and settles.
+        expect(yield* advance.submit({ id: "atlas", by: 2 })).toEqual({ id: "atlas", by: 2 });
+        expect(server.state.sent.map((sent) => (sent.input as { by: number }).by)).toEqual([
+          1, 1, 2,
+        ]);
         yield* runtime.dispose;
       }),
     ));

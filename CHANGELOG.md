@@ -113,7 +113,9 @@ initial })` built from schema-first `Model({...})` variants and
   `reader.index(input, name, value)`, reloads diffed by key, and
   `rows.changes(input, rows)` streaming `Upsert` / `Update` / `Delete`
   batches into the synced rows. The browser starts a feed when it loads or
-  hydrates the entry; server renders never start feeds.
+  hydrates the entry; server renders never start feeds. A feed that fails is
+  logged and restarts from the rows it holds, with backoff; a defect, or
+  failures past the retries, stop it and publish `ResourceRowsChangesFailure`.
 - `policy.persist: { key, version }` persists settled values in the runtime's
   `effect/persistence` `KeyValueStore`; a never-loaded entry shows the
   persisted value at once and reloads in the background. Start provides a
@@ -151,7 +153,9 @@ initial })` built from schema-first `Model({...})` variants and
   it, and `Server.implement(contract, handler)` implements it.
   `Server.mockLayer(...)` takes `Server.mock(...)` handlers and
   implementations (`Resource.implement(Board, () => Effect.succeed(rows))`).
-  `Server.Client` is nominal; build one with `Server.makeClient(call)`.
+  `Server.Client` is nominal; build one with `Server.makeClient(call)`. A
+  call whose HTTP response carries no answer for its request id fails with
+  an `RpcClientError` instead of staying pending.
 - `App.launch` provides the action transport: it submits exactly the served
   Actions over `POST /__sunfall-arc/action` (JSON only) through the client
   Layer's `HttpClient` (else `FetchHttpClient`), and an Action with `run`
@@ -163,8 +167,9 @@ initial })` built from schema-first `Model({...})` variants and
   Action Outbox (`KeyValueStore`) before it is sent, keeps its optimistic
   patch across reloads, and replays in order on launch, on `online`, and
   with backoff; `submit` fails with `ActionQueued` while a retryable failure
-  leaves it pending, and `Action.outbox` exposes `pending`, `failures`, and
-  `dismiss`. Start runs submissions with an id as `effect/workflow`
+  leaves it pending (an aborted request counts as retryable, and a failed
+  replay pass is logged without stopping later replays), and
+  `Action.outbox` exposes `pending`, `failures`, and `dismiss`. Start runs submissions with an id as `effect/workflow`
   Workflows scoped to the submitting browser (an HttpOnly submitter cookie),
   so a replayed POST returns the original response, and reports the ones it
   already settled in the hydration payload.
@@ -260,13 +265,16 @@ props?)` or load as their own chunk with `Route.lazyComponent(importer)`;
   carry the route plan, failure kind, status, and runtime teardown.
 - Server defects stay on the server. A served Resource load, server
   function, or Action that throws, dies, fails outside its declared `error`
-  schema, or returns an output its schema cannot encode answers with an
+  schema (a `SchemaError` from an Action's own decoding included: only a
+  submission whose input does not decode is a protocol failure), or returns
+  an output its schema cannot encode answers with an
   opaque defect (`StartServerDefect`, "The server failed to handle the
   request."), never the message, stack, or `Cause`; the full cause is logged
   at Error level with the request's `sunfall-arc.request.id`, which the
   response's `x-sunfall-arc-request-id` header carries. Action protocol
   errors no longer include stacks. The Node adapter's default error handler
-  logs the cause behind its opaque `500 Internal Server Error`.
+  and `createFetchHandler` log the cause behind an opaque
+  `500 Internal Server Error`.
 - File-route manifests are plain validated data from one generator,
   `generateFileRouteManifest`. Failed Vite dev SSR requests name the
   operation and the wrapped failure.

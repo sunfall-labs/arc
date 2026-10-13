@@ -308,17 +308,10 @@ export const actionExitResponse = <ActionError>(
 
   const failure = exit.cause.reasons.find(Cause.isFailReason);
   if (failure !== undefined) {
-    if (Schema.isSchemaError(failure.error)) {
-      return Effect.succeed(
-        actionProtocolFailureResponse(
-          new ActionProtocolError({
-            message: failure.error.message,
-            payload: serializeDefect(failure.error),
-          }),
-        ),
-      );
-    }
-    // A failure the `error` schema does not encode is undeclared: a defect.
+    // The endpoint decodes the submission's input before the Action runs, so
+    // a `SchemaError` here comes from the Action's own code (decoding rows, a
+    // response): like any failure the `error` schema does not encode, it is
+    // an undeclared defect, logged and opaque on the wire.
     return Effect.flatMap(Effect.exit(encodeActionWire(action.error, failure.error)), (encoded) =>
       Exit.isSuccess(encoded)
         ? Effect.succeed(actionJson({ _tag: "Failure", error: encoded.value, ...meta }))
@@ -633,10 +626,6 @@ export const actionFailureKind = <ActionError>(
 
   const failure = exit.cause.reasons.find(Cause.isFailReason);
   if (failure !== undefined) {
-    if (Schema.isSchemaError(failure.error)) {
-      return Effect.succeed("validation");
-    }
-
     return Effect.map(Effect.exit(encodeActionWire(action.error, failure.error)), (encoded) =>
       Exit.isSuccess(encoded) ? "domain" : "defect",
     );
