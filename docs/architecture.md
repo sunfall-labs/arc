@@ -219,7 +219,7 @@ export const ProjectLoader = State.define({
   name: "ProjectLoader",
   machine: Machine.make({ state: LoaderModel, event: LoaderMessage, initial: LoaderModel.Idle })
     .on(LoaderModel.Idle, LoaderMessage.ClickedLoad, () => LoaderModel.Loading)
-    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef).pipe(Effect.orDie), {
+    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef), {
       onSuccess: (projects) => LoaderMessage.ReceivedProjects({ projects }),
     })
     .on(LoaderModel.Loading, LoaderMessage.ReceivedProjects, ({ event }) =>
