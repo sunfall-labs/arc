@@ -164,11 +164,16 @@ page's origin.
 
 A defect on either path (a throw, `Effect.die`, a failure outside the
 declared `error` schema, an output that does not encode) never reaches the
-browser: the response carries an opaque `StartServerDefect` ("The server
-failed to handle the request."), and the server logs the full `Cause` at
+browser: the response carries an opaque `StartServerDefect` shaped as RFC
+9457 Problem Details (`type: "about:blank"`, `title: "Internal Server
+Error"`, `status: 500`, `detail: "The server failed to handle the
+request."`), and the server logs the full `Cause` at
 Error level, annotated with `sunfall-arc.request.id`. The response's
 `x-sunfall-arc-request-id` header carries the same id, so a browser report
-correlates with the log line and the request span. The Node adapter answers
+correlates with the log line and the request span. The browser keeps that id
+on the failure (an Action's `ActionTransportError.requestId`, a server
+function's `(reference <id>)`), and the default defect view shows it:
+"Something went wrong. Reference: <id>". The Node adapter answers
 a failed request with a plain `500 Internal Server Error` and, unless the
 host passes its own `onError`, logs the cause. `createFetchHandler` does the
 same: it never rejects with the cause, and logs it (with the request's

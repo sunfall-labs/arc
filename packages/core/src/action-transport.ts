@@ -9,6 +9,8 @@ export class ActionTransportError extends Data.TaggedError("ActionTransportError
   readonly status?: number;
   readonly cause?: unknown;
   readonly payload?: unknown;
+  /** The server's request id (`x-sunfall-arc-request-id`), for support and logs. */
+  readonly requestId?: string;
 }> {}
 
 /** The Action endpoint rejected a submission as malformed. */

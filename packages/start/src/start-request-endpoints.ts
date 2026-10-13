@@ -87,6 +87,7 @@ const rpcFailureKind = (
 const opaqueRpcFailure = (
   fn: AnyServerFunction,
   cause: Cause.Cause<unknown>,
+  requestId: string | undefined,
 ): Effect.Effect<never, unknown> => {
   const failure = cause.reasons.find(Cause.isFailReason);
   if (failure !== undefined && Schema.is(fn.rpc.errorSchema)(failure.error)) {
@@ -96,7 +97,7 @@ const opaqueRpcFailure = (
     return Effect.failCause(cause);
   }
   return logStartDefect(`Server function "${fn.name}"`, cause).pipe(
-    Effect.andThen(Effect.die(makeStartServerDefect())),
+    Effect.andThen(Effect.die(makeStartServerDefect(requestId))),
   );
 };
 
@@ -122,7 +123,7 @@ const serveServerFunctions = (
           (payload: unknown) => {
             handled = true;
             return withStartRpcObservability(fn.name, fn.local(payload)).pipe(
-              Effect.catchCause((cause) => opaqueRpcFailure(fn, cause)),
+              Effect.catchCause((cause) => opaqueRpcFailure(fn, cause, facts?.requestId)),
               Effect.onExit((exit) =>
                 Effect.sync(() => {
                   const kind = rpcFailureKind(fn, exit);

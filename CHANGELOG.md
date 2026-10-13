@@ -289,11 +289,13 @@ props?)` or load as their own chunk with `Route.lazyComponent(importer)`;
   schema (a `SchemaError` from an Action's own decoding included: only a
   submission whose input does not decode is a protocol failure), or returns
   an output its schema cannot encode answers with an
-  opaque defect (`StartServerDefect`, "The server failed to handle the
-  request."), never the message, stack, or `Cause`; the full cause is logged
+  opaque defect (`StartServerDefect`, RFC 9457 Problem Details fields
+  `type`, `title`, `status`, `detail`), never the message, stack, or `Cause`; the full cause is logged
   at Error level with the request's `sunfall-arc.request.id`, which the
   response's `x-sunfall-arc-request-id` header carries. Action protocol
-  errors no longer include stacks. The Node adapter's default error handler
+  errors no longer include stacks. The request id is the one detail that
+  crosses: `ActionTransportError.requestId`, a server function defect's
+  `(reference <id>)`, and the default defect view's "Reference: <id>". The Node adapter's default error handler
   and `createFetchHandler` log the cause behind an opaque
   `500 Internal Server Error`.
 - `App.launch` logs the failure that stops it (a missing root, a client
