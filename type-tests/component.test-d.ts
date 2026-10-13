@@ -13,6 +13,9 @@ import {
   type ResourceUntypedFailure,
   type Server,
   type SunfallArcRuntime,
+  Machine,
+  Message,
+  Model,
 } from "@sunfall/arc-core";
 import type { JSX } from "@solidjs/web";
 
@@ -264,18 +267,28 @@ const renameSubmit: Effect.Effect<
 > = renameHandle.submit({ id: "atlas", name: "Atlas" });
 void renameSubmit;
 
-// States: the definition's services join R.
-const Counter = State.define<number, { readonly _tag: "Load" }>()<never, ProjectApi>({
+// States: the machine's services join R.
+const CounterModel = Model({ Counting: { count: Schema.Finite } });
+const CounterMessage = Message({ ClickedLoad: {} });
+const Counter = State.define({
   name: "Counter",
-  initial: 0,
-  on: { Load: (model) => model + 1 },
+  machine: Machine.make({
+    state: CounterModel,
+    event: CounterMessage,
+    initial: CounterModel.Counting({ count: 0 }),
+  }).onAny(CounterMessage.ClickedLoad, ({ state }) =>
+    ProjectApi.use((api) => api.get("atlas")).pipe(
+      Effect.orDie,
+      Effect.as(CounterModel.Counting({ count: state.count + 1 })),
+    ),
+  ),
 });
 const counterBinding = Component.state(Counter);
 type _counterBinding = Assert<
   Eq<
     typeof counterBinding,
     Effect.Effect<
-      Component.StateHandle<number, { readonly _tag: "Load" }, never>,
+      Component.StateHandle<State.Model<typeof Counter>, State.Message<typeof Counter>>,
       never,
       ProjectApi
     >

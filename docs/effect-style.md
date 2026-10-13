@@ -11,7 +11,7 @@ edge.
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
 - `async` framework callbacks are a type error for states, resources, actions, route preloads, Start renderers, server implementations, query callbacks, and form validators; an Effect service's `use` callback must return an Effect.
-- State is the one writable client state. Its `on` handlers are pure and return plain models or `State.next(...)`; Effect work goes in commands. `State.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message. Public Signals are read-only.
+- State is the one writable client state: an effect-machine `Machine` named by `State.define({ name, machine })`. Transitions are pure and keyed by (variant, message); async work is a `task` or `spawn` owned by a variant, interrupted when the State leaves it, whose outcomes come back as messages (its error channel is `never`). Public Signals are read-only.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
 - Signals are latest-value cells. Use `Signal.values` / `Signal.changes` when temporal semantics matter.

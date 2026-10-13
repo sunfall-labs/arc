@@ -1,8 +1,8 @@
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { LiveQuery } from "@sunfall/arc-solid/live-query";
-import { ActionResult, Route, State } from "@sunfall/arc-core";
+import { ActionResult, Machine, Message, Model, Route, State } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
-import { Cause, Effect } from "effect";
+import { Cause, Effect, Schema } from "effect";
 import { For, Loading, Show, untrack } from "solid-js";
 import {
   ProjectById,
@@ -214,23 +214,57 @@ function WorkQueueRow(props: { readonly item: ProjectWorkQueueItem; readonly onM
   );
 }
 
-interface ProjectActionsModel {
-  readonly renamePending: boolean;
-  readonly advancePending: boolean;
-  readonly validation?: string;
-  readonly error?: unknown;
-}
+/**
+ * The rename form: Saving owns the submission (started on entry, so a
+ * second submit while saving has no transition), and its outcome comes back
+ * as a message. The form's fields travel as data, so the message is
+ * serializable and replayable.
+ */
+const RenameModel = Model({
+  Editing: { validation: Schema.NullOr(Schema.String), error: Schema.NullOr(Schema.String) },
+  Saving: { fields: Schema.Record(Schema.String, Schema.String) },
+});
+const RenameMessage = Message({
+  SubmittedRename: { fields: Schema.Record(Schema.String, Schema.String) },
+  ReceivedRenameResult: {
+    validation: Schema.NullOr(Schema.String),
+    redirect: Schema.NullOr(
+      Schema.Struct({ location: Schema.String, replace: Schema.optional(Schema.Boolean) }),
+    ),
+  },
+  RenameFailed: { error: Schema.String },
+});
 
-type ProjectActionsMessage =
-  | { readonly _tag: "SubmitRename"; readonly formData: FormData }
-  | { readonly _tag: "RenameFinished"; readonly result: ProjectNameSubmissionResult }
-  | { readonly _tag: "RenameFailed"; readonly error: unknown }
-  | { readonly _tag: "Advance" }
-  | { readonly _tag: "AdvanceFinished" }
-  | { readonly _tag: "AdvanceQueued" }
-  | { readonly _tag: "AdvanceFailed"; readonly error: unknown };
+/** The advance button: Advancing owns the durable submission. */
+const AdvanceModel = Model({
+  Ready: { error: Schema.NullOr(Schema.String) },
+  Advancing: {},
+});
+const AdvanceMessage = Message({
+  ClickedAdvance: {},
+  AdvanceSettled: {},
+  AdvanceFailed: { error: Schema.String },
+});
 
-const projectActionsIdle: ProjectActionsModel = { renamePending: false, advancePending: false };
+/** A form's fields as data. */
+const formFields = (form: HTMLFormElement): Record<string, string> => {
+  const fields: Record<string, string> = {};
+  new FormData(form).forEach((value, name) => {
+    if (typeof value === "string") {
+      fields[name] = value;
+    }
+  });
+  return fields;
+};
+
+/** The fields back as the FormData the Action's form codec reads. */
+const toFormData = (fields: Readonly<Record<string, string>>): FormData => {
+  const data = new FormData();
+  for (const [name, value] of Object.entries(fields)) {
+    data.append(name, value);
+  }
+  return data;
+};
 
 const renameValidationMessage = (result: ProjectNameSubmissionResult): string | undefined =>
   ActionResult.is(result) && ActionResult.isValidationFailure(result)
@@ -240,11 +274,12 @@ const renameValidationMessage = (result: ProjectNameSubmissionResult): string | 
 /**
  * Rename and advance controls for one project. The page keys this component
  * on the project id, so each project gets its own instance, and so its own
- * Actions and State. Both Actions submit the same way: the client runtime's
+ * Actions and States. Both Actions submit the same way: the client runtime's
  * ActionTransport serves the rename on the server (the same Action the no-JS
  * form posts), and the durable advance goes through the Action Outbox. The
  * project itself is read from props: the rename's optimistic patch and
- * invalidations keep it current, so the State holds only the form's status.
+ * invalidations keep it current, so the States hold only each control's
+ * status, and each submission is work its pending state owns.
  */
 const ProjectActions = Component.define(
   "ProjectActions",
@@ -257,94 +292,100 @@ const ProjectActions = Component.define(
     // and its invalidations reload both before the redirect lands.
     const rename = yield* Component.action(SubmitProjectName);
     const advance = yield* Component.action(AdvanceProject);
-    const actions = yield* Component.state(
-      State.define<ProjectActionsModel, ProjectActionsMessage>()({
-        name: "ProjectActions",
-        initial: projectActionsIdle,
-        on: {
-          SubmitRename: (model, message) =>
-            model.renamePending
-              ? model
-              : State.next(
-                  { advancePending: model.advancePending, renamePending: true },
-                  State.emit(
-                    StartAction.decodeFormData(SubmitProjectName, message.formData).pipe(
-                      Effect.flatMap((input) => rename.submit(input)),
-                      Effect.match({
-                        onFailure: (error): ProjectActionsMessage => ({
-                          _tag: "RenameFailed",
-                          error,
-                        }),
-                        onSuccess: (result): ProjectActionsMessage => ({
-                          _tag: "RenameFinished",
-                          result,
-                        }),
-                      }),
-                    ),
+    const renameState = yield* Component.state(
+      State.define({
+        name: "ProjectActions.rename",
+        machine: Machine.make({
+          state: RenameModel,
+          event: RenameMessage,
+          initial: RenameModel.Editing({ validation: null, error: null }),
+        })
+          .on(RenameModel.Editing, RenameMessage.SubmittedRename, ({ event }) =>
+            RenameModel.Saving({ fields: event.fields }),
+          )
+          .task(
+            RenameModel.Saving,
+            ({ state }) =>
+              StartAction.decodeFormData(SubmitProjectName, toFormData(state.fields)).pipe(
+                Effect.flatMap((input) => rename.submit(input)),
+              ),
+            {
+              onSuccess: (result) =>
+                RenameMessage.ReceivedRenameResult({
+                  validation: ActionResult.is(result)
+                    ? (renameValidationMessage(result) ?? null)
+                    : null,
+                  redirect:
+                    ActionResult.is(result) && ActionResult.isRedirect(result)
+                      ? {
+                          location: result.location,
+                          ...(result.replace === undefined ? {} : { replace: result.replace }),
+                        }
+                      : null,
+                }),
+              onFailure: (error) =>
+                RenameMessage.RenameFailed({ error: formatProjectError(error) }),
+            },
+          )
+          .on(RenameModel.Saving, RenameMessage.ReceivedRenameResult, ({ event }) => {
+            const editing = RenameModel.Editing({ validation: event.validation, error: null });
+            const redirect = event.redirect;
+            return redirect === null
+              ? editing
+              : Effect.sync(() =>
+                  router.navigateHref(
+                    redirect.location,
+                    redirect.replace === undefined ? undefined : { replace: redirect.replace },
                   ),
-                ),
-          RenameFinished: (model, message) => {
-            const result = message.result;
-            const settled = { advancePending: model.advancePending, renamePending: false };
-            if (!ActionResult.is(result)) {
-              return settled;
-            }
-            if (ActionResult.isRedirect(result)) {
-              return State.next(
-                settled,
-                State.emit(
-                  Effect.sync(() =>
-                    router.navigateHref(
-                      result.location,
-                      result.replace === undefined ? undefined : { replace: result.replace },
-                    ),
-                  ),
-                ),
-              );
-            }
-            const validation = renameValidationMessage(result);
-            return validation === undefined ? settled : { ...settled, validation };
-          },
-          RenameFailed: (model, message) => ({
-            advancePending: model.advancePending,
-            renamePending: false,
-            error: message.error,
-          }),
-          Advance: (model) =>
-            model.advancePending
-              ? model
-              : State.next(
-                  { renamePending: model.renamePending, advancePending: true },
-                  State.emit(
-                    advance.submit({ id }).pipe(
-                      Effect.match({
-                        // Offline, the advance waits in the Action Outbox (the
-                        // top bar counts it) and replays when the browser is back.
-                        onFailure: (error): ProjectActionsMessage =>
-                          error._tag === "ActionQueued"
-                            ? { _tag: "AdvanceQueued" }
-                            : { _tag: "AdvanceFailed", error },
-                        onSuccess: (): ProjectActionsMessage => ({ _tag: "AdvanceFinished" }),
-                      }),
-                    ),
-                  ),
-                ),
-          AdvanceFinished: (model) => ({
-            renamePending: model.renamePending,
-            advancePending: false,
-          }),
-          AdvanceQueued: (model) => ({ renamePending: model.renamePending, advancePending: false }),
-          AdvanceFailed: (model, message) => ({
-            renamePending: model.renamePending,
-            advancePending: false,
-            error: message.error,
-          }),
-        },
+                ).pipe(Effect.as(editing));
+          })
+          .on(RenameModel.Saving, RenameMessage.RenameFailed, ({ event }) =>
+            RenameModel.Editing({ validation: null, error: event.error }),
+          ),
+      }),
+    );
+    const advanceState = yield* Component.state(
+      State.define({
+        name: "ProjectActions.advance",
+        machine: Machine.make({
+          state: AdvanceModel,
+          event: AdvanceMessage,
+          initial: AdvanceModel.Ready({ error: null }),
+        })
+          .on(AdvanceModel.Ready, AdvanceMessage.ClickedAdvance, () => AdvanceModel.Advancing)
+          .task(AdvanceModel.Advancing, () => advance.submit({ id }), {
+            onSuccess: () => AdvanceMessage.AdvanceSettled,
+            // Offline, the advance waits in the Action Outbox (the top bar
+            // counts it) and replays when the browser is back.
+            onFailure: (error) =>
+              error._tag === "ActionQueued"
+                ? AdvanceMessage.AdvanceSettled
+                : AdvanceMessage.AdvanceFailed({ error: formatProjectError(error) }),
+          })
+          .on(AdvanceModel.Advancing, AdvanceMessage.AdvanceSettled, () =>
+            AdvanceModel.Ready({ error: null }),
+          )
+          .on(AdvanceModel.Advancing, AdvanceMessage.AdvanceFailed, ({ event }) =>
+            AdvanceModel.Ready({ error: event.error }),
+          ),
       }),
     );
 
-    // State failures land in `actions.failures()`; `send` needs no handling.
-    const model = actions.model;
+    const renaming = () => renameState.model()._tag === "Saving";
+    const advancing = () => advanceState.model()._tag === "Advancing";
+    const validation = () => {
+      const current = renameState.model();
+      return current._tag === "Editing" ? (current.validation ?? undefined) : undefined;
+    };
+    const error = () => {
+      const rename = renameState.model();
+      const advanceModel = advanceState.model();
+      return (
+        (rename._tag === "Editing" ? rename.error : null) ??
+        (advanceModel._tag === "Ready" ? advanceModel.error : null) ??
+        undefined
+      );
+    };
     const renameForm = () =>
       projectNameActionTarget({
         id,
@@ -358,7 +399,7 @@ const ProjectActions = Component.define(
           method={renameForm().method}
           onSubmit={(event) => {
             event.preventDefault();
-            actions.send.SubmitRename({ formData: new FormData(event.currentTarget) });
+            renameState.send.SubmittedRename({ fields: formFields(event.currentTarget) });
           }}
         >
           <For each={renameForm().hiddenFields}>
@@ -369,27 +410,27 @@ const ProjectActions = Component.define(
             <input
               name="name"
               value={props.project.name}
-              aria-invalid={model().validation === undefined ? "false" : "true"}
-              aria-describedby={model().validation === undefined ? undefined : "project-name-error"}
+              aria-invalid={validation() === undefined ? "false" : "true"}
+              aria-describedby={validation() === undefined ? undefined : "project-name-error"}
             />
           </label>
-          <button class="commandButton" type="submit" disabled={model().renamePending}>
+          <button class="commandButton" type="submit" disabled={renaming()}>
             <SaveIcon />
-            {model().renamePending ? "Saving" : "Rename"}
+            {renaming() ? "Saving" : "Rename"}
           </button>
         </form>
 
         <button
           class="commandButton secondary"
           type="button"
-          disabled={model().advancePending}
-          onClick={actions.send.Advance}
+          disabled={!advanceState.can.ClickedAdvance()}
+          onClick={advanceState.send.ClickedAdvance}
         >
           <ArrowIcon />
-          {model().advancePending ? "Advancing" : "Advance"}
+          {advancing() ? "Advancing" : "Advance"}
         </button>
 
-        <ActionMessage validation={model().validation} error={model().error} />
+        <ActionMessage validation={validation()} error={error()} />
       </div>
     );
   },
@@ -500,7 +541,7 @@ export const ProjectPage = Component.define(
 
 function ActionMessage(props: {
   readonly validation: string | undefined;
-  readonly error: unknown;
+  readonly error: string | undefined;
 }) {
   return (
     <>
@@ -511,9 +552,7 @@ function ActionMessage(props: {
           </p>
         )}
       </Show>
-      <Show when={props.error}>
-        {(error) => <p class="formError">{formatProjectError(error())}</p>}
-      </Show>
+      <Show when={props.error}>{(error) => <p class="formError">{error()}</p>}</Show>
     </>
   );
 }

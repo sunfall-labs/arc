@@ -1,0 +1,9 @@
+diff --git a/dist/internal/utils.d.ts b/dist/internal/utils.d.ts
+index 5f5af81ea8f782c31095d236bcfe8eb6ac2290fe..45e4c79380601333d70b4d655e9bf853be9476a0 100644
+--- a/dist/internal/utils.d.ts
++++ b/dist/internal/utils.d.ts
+@@ -1,3 +1,4 @@
++import { Effect } from "effect";
+ //#region src/internal/utils.d.ts
+ declare const ReplyResultSymbol: unique symbol;
+ type ReplyResultSymbol = typeof ReplyResultSymbol;

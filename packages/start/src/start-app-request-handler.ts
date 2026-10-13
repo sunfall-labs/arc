@@ -9,6 +9,7 @@ import {
   type Server,
 } from "@sunfall/arc-core";
 import {
+  dehydrateAppStates,
   settledRouteHead,
   storeResourceRefs,
   type ActionDefinitionRequirements,
@@ -170,9 +171,9 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
 
 /**
  * The Resources the render itself loaded (reads the route did not preload
- * that settled while rendering), as one more hydration chunk, so the
- * hydrating client starts from the values the server rendered instead of
- * loading them again over different markup.
+ * that settled while rendering) and the app States it moved, as one more
+ * hydration chunk, so the hydrating client starts from the values the server
+ * rendered instead of loading them again over different markup.
  */
 const renderedResourcesChunk = <Routes extends readonly AnyRoute[], ServerServices, ServerError>(
   context: StartRenderContext<Routes, ServerServices, ServerError, any>,
@@ -183,15 +184,26 @@ const renderedResourcesChunk = <Routes extends readonly AnyRoute[], ServerServic
   const rendered = storeResourceRefs(context.resourceStore).filter(
     (ref) => !preloaded.has(`${ref.family.options.name}\u0000${ref.key}`),
   );
-  return rendered.length === 0
-    ? Effect.succeed(undefined)
-    : context.runtime.provide(Resource.hydrationPayload(rendered)).pipe(
-        Effect.map((payload) =>
-          payload.resources.length === 0 ? undefined : createStartHydrationPayload(payload),
-        ),
-        // A value that does not encode stays unhydrated: the client loads it.
-        Effect.orElseSucceed(() => undefined),
-      );
+  const resources: Effect.Effect<Resource.HydrationPayload> =
+    rendered.length === 0
+      ? Effect.succeed({ resources: [] })
+      : context.runtime.provide(Resource.hydrationPayload(rendered)).pipe(
+          // A value that does not encode stays unhydrated: the client loads it.
+          Effect.orElseSucceed(() => ({ resources: [] })),
+        );
+  // The app States the render moved, so the browser starts them where the
+  // server's markup shows them.
+  const states = context.runtime.provide(dehydrateAppStates).pipe(Effect.orElseSucceed(() => []));
+  return Effect.all([resources, states]).pipe(
+    Effect.map(([payload, snapshots]) =>
+      payload.resources.length === 0 && snapshots.length === 0
+        ? undefined
+        : {
+            ...createStartHydrationPayload(payload),
+            ...(snapshots.length === 0 ? {} : { states: snapshots }),
+          },
+    ),
+  );
 };
 
 /** The handler `createRequestHandler` returns for an app and its server options. */

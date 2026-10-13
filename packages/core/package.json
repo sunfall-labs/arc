@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@solidjs/signals": "2.0.0-rc.14",
-    "effect": "4.0.3"
+    "effect": "4.0.3",
+    "effect-machine": "0.29.0"
   }
 }

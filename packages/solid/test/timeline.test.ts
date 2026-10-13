@@ -1,25 +1,33 @@
-import { makeRuntime, State, Signal, Timeline } from "@sunfall/arc-core";
+import { Machine, makeRuntime, Message, Model, State, Signal, Timeline } from "@sunfall/arc-core";
 import { createComponent, render } from "@solidjs/web";
 import { flush } from "solid-js";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { Component } from "../src/index.js";
 import { reactive } from "./component-ssr-fixture.js";
 
-type CounterMessage = { readonly _tag: "Increment" };
-
-const CounterState = State.define<{ readonly count: number }, CounterMessage>()({
+const CounterModel = Model({ Counting: { count: Schema.Finite } });
+const CounterMessage = Message({ Incremented: {} });
+const CounterState = State.define({
   name: "Counter",
-  initial: { count: 0 },
-  on: {
-    Increment: (model) => ({ count: model.count + 1 }),
-  },
+  machine: Machine.make({
+    state: CounterModel,
+    event: CounterMessage,
+    initial: CounterModel.Counting({ count: 0 }),
+  }).onAny(CounterMessage.Incremented, ({ state }) =>
+    CounterModel.Counting({ count: state.count + 1 }),
+  ),
 });
 
+const TitleModel = Model({ Titled: { title: Schema.String } });
+const TitleMessage = Message({ RenamedTitle: { title: Schema.String } });
 const TitleState = State.define({
   name: "Title",
-  initial: "Draft",
-  on: { Rename: (_title, message: { readonly title: string }) => message.title },
+  machine: Machine.make({
+    state: TitleModel,
+    event: TitleMessage,
+    initial: TitleModel.Titled({ title: "Draft" }),
+  }).onAny(TitleMessage.RenamedTitle, ({ event }) => TitleModel.Titled({ title: event.title })),
 });
 
 describe("Timeline in the Solid DOM", () => {
@@ -32,13 +40,15 @@ describe("Timeline in the Solid DOM", () => {
           const recording = yield* Timeline.record();
           const container = document.createElement("div");
           let instance:
-            | Component.StateHandle<{ readonly count: number }, CounterMessage, never>
+            | Component.StateHandle<
+                State.Model<typeof CounterState>,
+                State.Message<typeof CounterState>
+              >
             | undefined;
           let title:
             | Component.StateHandle<
-                string,
-                { readonly _tag: "Rename"; readonly title: string },
-                never
+                State.Model<typeof TitleState>,
+                State.Message<typeof TitleState>
               >
             | undefined;
 
@@ -47,7 +57,7 @@ describe("Timeline in the Solid DOM", () => {
             instance = counter;
             const named = yield* Component.state(TitleState);
             title = named;
-            return () => reactive(() => `${named.model()}:${counter.model().count}`);
+            return () => reactive(() => `${named.model().title}:${counter.model().count}`);
           });
           const dispose = render(
             () => createComponent(Component.embed(View, runtime), {}),
@@ -57,30 +67,32 @@ describe("Timeline in the Solid DOM", () => {
           flush();
           expect(container.textContent).toBe("Draft:0");
 
-          yield* instance!.dispatch({ _tag: "Increment" });
-          yield* title!.dispatch({ _tag: "Rename", title: "Published" });
-          yield* instance!.dispatch({ _tag: "Increment" });
+          yield* instance!.dispatch(CounterMessage.Incremented);
+          yield* title!.dispatch(TitleMessage.RenamedTitle({ title: "Published" }));
+          yield* instance!.dispatch(CounterMessage.Incremented);
           flush();
           expect(container.textContent).toBe("Published:2");
           // Every commit reads as a named message.
           expect(
             Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause)),
           ).toEqual([
-            'State "Counter" Increment',
-            'State "Title" Rename',
-            'State "Counter" Increment',
+            'State "Counter" start',
+            'State "Title" start',
+            'State "Counter" Incremented',
+            'State "Title" RenamedTitle',
+            'State "Counter" Incremented',
           ]);
 
-          const [firstIncrement] = Signal.peek(recording.entries);
+          const firstIncrement = Signal.peek(recording.entries)[2];
           yield* recording.travel(firstIncrement!.sequence);
           flush();
           expect(container.textContent).toBe("Draft:1");
 
           // Live dispatches keep committing to the head while the DOM stays travelled.
-          yield* instance!.dispatch({ _tag: "Increment" });
+          yield* instance!.dispatch(CounterMessage.Incremented);
           flush();
           expect(container.textContent).toBe("Draft:1");
-          expect(Signal.peek(instance!.committed)).toEqual({ count: 3 });
+          expect(Signal.peek(instance!.committed)).toMatchObject({ count: 3 });
 
           yield* recording.resume();
           flush();

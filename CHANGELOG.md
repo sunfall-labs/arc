@@ -48,19 +48,24 @@ its replacement.
   `Component.instance` as the seam for writing more. `Component.launch`,
   `mount`, and `embed` check `R` against their runtime. There are no hooks
   and no runtime context.
-- `State` is the one writable client state.
-  `State.define({ name, initial, on })` infers the message union from its
-  pure, synchronous handlers (`State.define<Model, Message>()({ ... })` names
-  it up front); `State.next(model, commands)`, `State.emit(...)` (a message,
-  the message an Effect produces, or nothing), `State.commands`, and
-  `State.subscription` describe follow-up work; `State.step(definition,
-model, message)` is a pure function returning the next model and the unrun
-  commands, so transitions test without a runtime. `Component.state(State)`
-  returns a handle with `model()`, `dispatch`, and one DOM-ready sender per
-  tag (`onClick={menu.send.Toggle}`). `scope: "app"` gives the runtime one
-  shared instance (each Start request runtime gets its own); the default
-  `scope: "component"` starts one per binding. `State.start(definition,
-{ runtime })` starts an instance its caller owns.
+- `State` is the one writable client state: a named
+  [effect-machine](https://github.com/cevr/effect-machine) machine.
+  `State.define({ name, machine })` takes a `Machine.make({ state, event,
+initial })` built from schema-first `Model({...})` variants and
+  `Message({...})` messages (`Model`, `Message`, and `Machine` are exported
+  from `@sunfall/arc-core`). Transitions are typed by (variant, message), and
+  a message the current variant does not handle is ignored and recorded.
+  Async work is state-owned (`task`, `spawn`): it starts on entering a
+  variant, is interrupted on leaving it, and reports outcomes as messages.
+  `Machine.replay(definition.machine, messages)` tests transitions without a
+  runtime, and `State.history(entries)` reads an instance's messages back out
+  of a Timeline. `Component.state(State)` returns a handle with `model()`,
+  `dispatch`, one DOM-ready sender per tag (`onClick={menu.send.ClickedMenu}`),
+  and `can.<Tag>(...)`. `scope: "app"` gives the runtime one shared instance
+  (each Start request runtime gets its own, and the browser starts from the
+  server's model); the default `scope: "component"` starts one per binding.
+  `persist` restores a model from the runtime's `KeyValueStore`.
+  `State.start(definition, { runtime })` starts an instance its caller owns.
 - `Signal` is read-only in the public API (`Signal.Readable`, `derive`,
   `peek`, `untracked`, `changes`, `values`). Every state change commits under
   a name: a State message, an Action, a Resource or router event, or

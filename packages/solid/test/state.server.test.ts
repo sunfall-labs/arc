@@ -1,30 +1,38 @@
-import { makeRuntime, State } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import { Machine, makeRuntime, Message, Model, State } from "@sunfall/arc-core";
+import { Effect, Schema } from "effect";
 import { createComponent, renderToString } from "@solidjs/web";
 import { describe, expect, it } from "vitest";
 import { Component } from "../src/index.js";
 
-interface Board {
-  readonly title: string;
-  readonly items: ReadonlyArray<{ readonly id: number; readonly label: string }>;
-}
-
-const BoardState = State.define<Board, { readonly _tag: "Noop" }>()({
-  name: "BoardState",
-  initial: {
-    title: "Roadmap",
-    items: [
-      { id: 1, label: "Plan" },
-      { id: 2, label: "Ship" },
-    ],
+const BoardModel = Model({
+  Board: {
+    title: Schema.String,
+    items: Schema.Array(Schema.Struct({ id: Schema.Finite, label: Schema.String })),
   },
-  on: { Noop: (model) => model },
+});
+const BoardState = State.define({
+  name: "BoardState",
+  machine: Machine.make({
+    state: BoardModel,
+    event: Message({ Renamed: { title: Schema.String } }),
+    initial: BoardModel.Board({
+      title: "Roadmap",
+      items: [
+        { id: 1, label: "Plan" },
+        { id: 2, label: "Ship" },
+      ],
+    }),
+  }),
 });
 
-const Counter = State.define<number, { readonly _tag: "Noop" }>()({
+const CounterModel = Model({ Counting: { count: Schema.Finite } });
+const Counter = State.define({
   name: "Counter",
-  initial: 7,
-  on: { Noop: (model) => model },
+  machine: Machine.make({
+    state: CounterModel,
+    event: Message({ Incremented: {} }),
+    initial: CounterModel.Counting({ count: 7 }),
+  }),
 });
 
 describe("Component.state on the server", () => {
@@ -38,7 +46,7 @@ describe("Component.state on the server", () => {
           .model()
           .items.map((item) => `[${item.label}]`)
           .join("");
-        return `${board.model().title}:${rows}#${counter.model()}`;
+        return `${board.model().title}:${rows}#${counter.model().count}`;
       };
     });
 

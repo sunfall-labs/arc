@@ -1,11 +1,13 @@
-import { State } from "@sunfall/arc-core";
+import { Machine, Message, Model, State } from "@sunfall/arc-core";
+import { Schema } from "effect";
 import { Component, RouterLink } from "@sunfall/arc-solid";
 import { homeSnippets } from "./snippets.js";
 import { BlogPostRoute, CookbookRoute, DocsPageRoute } from "./site-routes.js";
 import { ArrowIcon, CodeBlock, GitHubIcon, githubUrl } from "./ui.js";
 import { RecipeIndexGrid } from "./recipes.js";
 
-type SampleKey = "resource" | "action" | "component";
+const SampleKey = Schema.Literals(["resource", "action", "component"]);
+type SampleKey = typeof SampleKey.Type;
 
 interface Sample {
   readonly key: SampleKey;
@@ -40,11 +42,16 @@ const samples: ReadonlyArray<Sample> = [
 ];
 
 // The tab on the model sample: client state, so it lives in a State, and the
-// Timeline reads each switch as `State "Home.sample" Show`.
+// Timeline reads each switch as `State "Home.sample" ClickedSample`.
+const SampleModel = Model({ Showing: { key: SampleKey } });
+const SampleMessage = Message({ ClickedSample: { key: SampleKey } });
 const SampleTab = State.define({
   name: "Home.sample",
-  initial: "resource" as SampleKey,
-  on: { Show: (_current, message: { readonly key: SampleKey }) => message.key },
+  machine: Machine.make({
+    state: SampleModel,
+    event: SampleMessage,
+    initial: SampleModel.Showing({ key: "resource" }),
+  }).onAny(SampleMessage.ClickedSample, ({ event }) => SampleModel.Showing({ key: event.key })),
 });
 
 const concepts: ReadonlyArray<{ readonly name: string; readonly line: string }> = [
@@ -97,7 +104,7 @@ const installCommand = "pnpm add @sunfall/arc-core @sunfall/arc-solid @sunfall/a
 export const HomeView = Component.define("HomeView", function* () {
   const Recipes = yield* RecipeIndexGrid;
   const tab = yield* Component.state(SampleTab);
-  const selected = () => samples.find((sample) => sample.key === tab.model()) ?? samples[0]!;
+  const selected = () => samples.find((sample) => sample.key === tab.model().key) ?? samples[0]!;
 
   return () => (
     <article class="home">
@@ -150,10 +157,10 @@ export const HomeView = Component.define("HomeView", function* () {
                 role="tab"
                 id={`model-tab-${sample.key}`}
                 aria-controls="model-panel"
-                aria-selected={tab.model() === sample.key ? "true" : "false"}
-                tabindex={tab.model() === sample.key ? 0 : -1}
+                aria-selected={tab.model().key === sample.key ? "true" : "false"}
+                tabindex={tab.model().key === sample.key ? 0 : -1}
                 class="modelTab"
-                onClick={() => tab.send.Show({ key: sample.key })}
+                onClick={() => tab.send.ClickedSample({ key: sample.key })}
               >
                 <span class="modelTabConcept">{sample.concept}</span>
                 <span class="modelTabSummary">{sample.summary}</span>

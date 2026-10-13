@@ -62,9 +62,12 @@ export type ActionOptimisticRowUpdate<Row> = Partial<Row> | ((row: Row) => Row);
 /**
  * Optimistic patch transaction passed to `Action.define({ optimistic })`.
  *
- * Every patch lives exactly as long as the submission: a success folds the
- * patches into their base values, and a failure or interruption removes them,
- * rebasing patches from other in-flight submissions. Patches must be plain
+ * Every patch lives exactly as long as the submission. A success folds
+ * Resource patches into their loaded values; a State patch is an overlay
+ * only, removed when the submission settles either way, because a State
+ * changes only through its messages (send it the message for what happened).
+ * A failure or interruption removes every patch, rebasing patches from other
+ * in-flight submissions. Patches must be plain
  * synchronous values or pure synchronous updaters: a throwing updater, a
  * Promise-shaped value, or a row the collection rejects is a defect.
  */
@@ -107,10 +110,6 @@ export interface ActionOptimisticTransactionRuntime {
 }
 
 type AnyWritableSignal = WritableSignal<any>;
-
-type SignalPatchDecision<A> =
-  | { readonly _tag: "Commit"; readonly base: A }
-  | { readonly _tag: "Rollback" };
 
 interface PlannedSignalPatchFinish<A> {
   readonly signal: WritableSignal<A>;
@@ -166,36 +165,24 @@ const recomputeSignalValueEffect = <A>(
     return value;
   });
 
+/**
+ * Removes one transaction's patches from a State model and recomputes the
+ * visible value from the base and the patches other submissions still hold.
+ */
 const planSignalPatches = <A>(
   actionName: string,
   signal: WritableSignal<A>,
   transaction: symbol,
-  onPatch: (
-    base: A,
-    patch: SignalPatch<A>,
-  ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
 ): Effect.Effect<PlannedSignalPatchFinish<A> | undefined, EffectInputCallbackError> =>
   Effect.gen(function* () {
     const state = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;
     if (!state) {
       return;
     }
-
-    const patches: Array<SignalPatch<A>> = [];
-    let base = state.base;
-
-    for (const patch of state.patches) {
-      if (patch.transaction === transaction) {
-        const decision = yield* onPatch(base, patch);
-        if (decision._tag === "Commit") {
-          base = decision.base;
-        }
-      } else {
-        patches.push(patch);
-      }
-    }
-
-    const nextState: SignalPatchState<A> = { base, patches };
+    const nextState: SignalPatchState<A> = {
+      base: state.base,
+      patches: state.patches.filter((patch) => patch.transaction !== transaction),
+    };
     const value = yield* recomputeSignalValueEffect(actionName, nextState);
     return { signal, value, state: nextState };
   });
@@ -236,9 +223,9 @@ const rowPatchUpdater =
  * Creates one optimistic transaction for an Action submission.
  *
  * The transaction owns every State patch and Resource entry patch (whole
- * values and rows) it touches. Commit folds them into their base values, while rollback
- * removes them and recomputes any later optimistic patches from other
- * submissions.
+ * values and rows) it touches. Commit folds Resource patches into their
+ * loaded values and removes State patches; rollback removes both. Either
+ * recomputes later optimistic patches from other submissions.
  */
 export const makeActionOptimisticTransactionRuntime = (
   actionName: string,
@@ -291,17 +278,11 @@ export const makeActionOptimisticTransactionRuntime = (
       setResource(target, rowPatchUpdater(actionName, target, { _tag: "Delete", key })),
   };
 
-  const finish = (
-    onPatch: <A>(
-      base: A,
-      patch: SignalPatch<A>,
-    ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
-    event: "success" | "failure",
-  ): ActionOptimisticSettle =>
+  const finish = (event: "success" | "failure"): ActionOptimisticSettle =>
     Effect.gen(function* () {
       const plans: Array<PlannedSignalPatchFinish<any>> = [];
       for (const signal of touched) {
-        const plan = yield* planSignalPatches(actionName, signal, transaction, onPatch);
+        const plan = yield* planSignalPatches(actionName, signal, transaction);
         if (plan) {
           plans.push(plan);
         }
@@ -334,15 +315,11 @@ export const makeActionOptimisticTransactionRuntime = (
 
   return {
     api,
-    commit: finish(
-      (base, patch) =>
-        Effect.map(applySignalPatchEffect(actionName, patch, base), (nextBase) => ({
-          _tag: "Commit",
-          base: nextBase,
-        })),
-      "success",
-    ),
-    rollback: finish(() => Effect.succeed({ _tag: "Rollback" }), "failure"),
+    // A State changes only through its messages, so a settled submission
+    // drops its State patches either way: success never writes the
+    // machine's state behind its back. Resource patches fold on success.
+    commit: finish("success"),
+    rollback: finish("failure"),
   };
 };
 

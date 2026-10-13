@@ -1,6 +1,14 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { bench, describe } from "vitest";
-import { makeRuntime, State, Resource, runWithRuntime } from "@sunfall/arc-core";
+import {
+  Machine,
+  makeRuntime,
+  Message,
+  Model,
+  State,
+  Resource,
+  runWithRuntime,
+} from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { For, createComponent, createSignal, flush, insert, render } from "./solid-client-shim.js";
 import { SignalWrites } from "@sunfall/arc-core/internal";
@@ -214,23 +222,36 @@ describe("Sunfall Arc client render", () => {
   bench(
     "state: 1k dispatched messages processed and rendered",
     async () => {
-      const Counter = State.define<number, { readonly _tag: "Increment" }>()({
+      const CounterModel = Model({ Counting: { count: Schema.Finite } });
+      const CounterMessage = Message({ Incremented: {} });
+      const Counter = State.define({
         name: "Counter",
-        initial: 0,
-        on: { Increment: (model) => model + 1 },
+        machine: Machine.make({
+          state: CounterModel,
+          event: CounterMessage,
+          initial: CounterModel.Counting({ count: 0 }),
+        }).onAny(CounterMessage.Incremented, ({ state }) =>
+          CounterModel.Counting({ count: state.count + 1 }),
+        ),
       });
-      let counter: Component.StateHandle<number, { readonly _tag: "Increment" }, never> | undefined;
+      let counter:
+        | Component.StateHandle<State.Model<typeof Counter>, State.Message<typeof Counter>>
+        | undefined;
       const View = Component.define("CounterView", function* () {
         const handle = yield* Component.state(Counter);
         counter = handle;
-        return () => textCell(() => String(handle.model()));
+        return () => textCell(() => String(handle.model().count));
       });
       const view = mount(() => createComponent(Component.embed(View, runtime) as never, {}));
       const dispatchEffect = counter!.dispatch;
       await Effect.runPromise(
-        Effect.forEach(Array.from({ length: 1000 }), () => dispatchEffect({ _tag: "Increment" }), {
-          discard: true,
-        }),
+        Effect.forEach(
+          Array.from({ length: 1000 }),
+          () => dispatchEffect(CounterMessage.Incremented),
+          {
+            discard: true,
+          },
+        ),
       );
       flush();
       expectText(view.container, "1000");
@@ -239,20 +260,20 @@ describe("Sunfall Arc client render", () => {
     clientBenchOptions,
   );
 
-  interface Board {
-    readonly rows: ReadonlyArray<Row>;
-  }
-  type BoardMessage = { readonly _tag: "Relabel"; readonly id: number; readonly label: string };
-  const Board = State.define<Board, BoardMessage>()({
+  const BoardRow = Schema.Struct({ id: Schema.Finite, label: Schema.String });
+  const BoardModel = Model({ Board: { rows: Schema.Array(BoardRow) } });
+  const BoardMessage = Message({ RelabeledRow: { id: Schema.Finite, label: Schema.String } });
+  const Board = State.define({
     name: "Board",
-    initial: { rows: makeRows(1000) },
-    on: {
-      Relabel: (model, message) => ({
-        rows: model.rows.map((row) =>
-          row.id === message.id ? { ...row, label: message.label } : row,
-        ),
+    machine: Machine.make({
+      state: BoardModel,
+      event: BoardMessage,
+      initial: BoardModel.Board({ rows: makeRows(1000) }),
+    }).onAny(BoardMessage.RelabeledRow, ({ state, event }) =>
+      BoardModel.Board({
+        rows: state.rows.map((row) => (row.id === event.id ? { ...row, label: event.label } : row)),
       }),
-    },
+    ),
   });
   const relabelRounds = 20;
   const expectedBoardText = (): string =>
@@ -262,7 +283,7 @@ describe("Sunfall Arc client render", () => {
       )
       .join("");
 
-  type BoardHandle = Component.StateHandle<Board, BoardMessage, never>;
+  type BoardHandle = Component.StateHandle<State.Model<typeof Board>, State.Message<typeof Board>>;
 
   const mountBoard = (
     view: (board: BoardHandle) => unknown,
@@ -284,7 +305,9 @@ describe("Sunfall Arc client render", () => {
   const relabelOneRowPerRound = async (board: BoardHandle): Promise<void> => {
     for (let round = 0; round < relabelRounds; round++) {
       const id = round * 50;
-      await Effect.runPromise(board.dispatch({ _tag: "Relabel", id, label: `edit ${id}` }));
+      await Effect.runPromise(
+        board.dispatch(BoardMessage.RelabeledRow({ id, label: `edit ${id}` })),
+      );
       flush();
     }
   };

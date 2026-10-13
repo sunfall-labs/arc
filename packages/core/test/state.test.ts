@@ -1,13 +1,14 @@
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Queue, Stream } from "effect";
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { describe, expect, it } from "vitest";
+import { Machine, Message, makeRuntime, Model, State, Timeline } from "../src/index.js";
 import {
-  EffectInputCallbackError,
-  EffectInputPromiseRejected,
-  makeRuntime,
-  State,
-  Timeline,
-} from "../src/index.js";
-import { defaultRuntime } from "../src/internal.js";
+  appStateOnRuntime,
+  defaultRuntime,
+  dehydrateAppStates,
+  eraseRuntime,
+  hydrateAppStates,
+} from "../src/internal.js";
 
 interface CounterApi {
   readonly load: Effect.Effect<number>;
@@ -15,983 +16,475 @@ interface CounterApi {
 
 const CounterApi = Context.Service<CounterApi>("@sunfall/arc-core/test/CounterApi");
 
-type Increment = { readonly _tag: "Increment" };
-const increment: Increment = { _tag: "Increment" };
+/** The degenerate case: one variant, plain field updates. */
+const SearchModel = Model({ Editing: { query: Schema.String } });
+const SearchEvent = Message({ TypedQuery: { text: Schema.String }, ClearedQuery: {} });
+const Search = State.define({
+  name: "Search",
+  machine: Machine.make({
+    state: SearchModel,
+    event: SearchEvent,
+    initial: SearchModel.Editing({ query: "" }),
+  })
+    .onAny(SearchEvent.TypedQuery, ({ event }) => SearchModel.Editing({ query: event.text }))
+    .onAny(SearchEvent.ClearedQuery, () => SearchModel.Editing({ query: "" })),
+});
 
-describe("State", () => {
-  it("infers the message union from `on` and steps it purely", () => {
-    const MenuOpen = State.define({
-      name: "Menu.open",
-      initial: false,
-      on: { Toggle: (open) => !open },
-    });
-    expect(State.step(MenuOpen, false, { _tag: "Toggle" })).toMatchObject({
-      model: true,
-      commands: [],
-    });
+const MenuModel = Model({ Closed: {}, Open: {} });
+const MenuEvent = Message({ ClickedMenu: {}, PressedEscape: {} });
+const Menu = State.define({
+  name: "Menu",
+  machine: Machine.make({ state: MenuModel, event: MenuEvent, initial: MenuModel.Closed })
+    .on(MenuModel.Closed, MenuEvent.ClickedMenu, () => MenuModel.Open)
+    .on(MenuModel.Open, MenuEvent.ClickedMenu, () => MenuModel.Closed)
+    .on(MenuModel.Open, MenuEvent.PressedEscape, () => MenuModel.Closed),
+});
 
-    const Search = State.define({
-      name: "Search",
-      initial: "",
-      on: {
-        Search: (_query, message: { readonly query: string }) => message.query,
-        Log: (query) => State.next(query, State.emit(Effect.log(query))),
-      },
-    });
-    expect(State.step(Search, "", { _tag: "Search", query: "atlas" }).model).toBe("atlas");
-    const logged = State.step(Search, "atlas", { _tag: "Log" });
-    expect(logged.model).toBe("atlas");
-    expect(logged.commands).toHaveLength(1);
-    expect(() => State.step(Search, "", { _tag: "Missing" } as never)).toThrow(TypeError);
-  });
+const DownloadModel = Model({
+  Idle: {},
+  Downloading: { url: Schema.String, received: Schema.Finite },
+  Done: { url: Schema.String, bytes: Schema.Finite },
+  Failed: { url: Schema.String, reason: Schema.String },
+});
+const DownloadEvent = Message({
+  ClickedDownload: { url: Schema.String },
+  ClickedCancel: {},
+  ReceivedChunk: { bytes: Schema.Finite },
+  FinishedDownload: {},
+  FailedDownload: { reason: Schema.String },
+});
 
-  it("steps tagged message handlers purely and runs returned commands explicitly", () => {
-    type Model = { readonly count: number; readonly loading: boolean };
-    type Message =
-      | { readonly _tag: "Increment" }
-      | { readonly _tag: "QueueIncrement" }
-      | { readonly _tag: "Load" }
-      | { readonly _tag: "Loaded"; readonly amount: number };
-
-    const Counter = State.define<Model, Message>()({
-      name: "Counter",
-      initial: { count: 0, loading: false },
-      on: {
-        Increment: (model) => ({ ...model, count: model.count + 1 }),
-        QueueIncrement: (model) => State.next(model, State.emit({ _tag: "Increment" } as const)),
-        Load: (model) =>
-          State.next(
-            { ...model, loading: true },
-            State.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
-          ),
-        Loaded: (model, message) => ({
-          count: model.count + message.amount,
-          loading: false,
-        }),
-      },
-    });
-
-    const incremented = State.step(Counter, Counter.initial, { _tag: "Increment" });
-    expect(incremented.model).toEqual({ count: 1, loading: false });
-    expect(incremented.commands).toEqual([]);
-
-    const queued = State.step(Counter, incremented.model, { _tag: "QueueIncrement" });
-    expect(queued.model).toBe(incremented.model);
-    expect(queued.commands).toHaveLength(1);
-    expect(Effect.runSync(queued.commands[0]!.effect)).toEqual({ _tag: "Increment" });
-
-    const load = State.step(Counter, queued.model, { _tag: "Load" });
-    expect(load.model).toEqual({ count: 1, loading: true });
-    expect(load.commands).toHaveLength(1);
-
-    const loaded = Effect.runSync(load.commands[0]!.effect);
-    expect(loaded).toEqual({ _tag: "Loaded", amount: 2 });
-    expect(State.step(Counter, load.model, { _tag: "Loaded", amount: 2 }).model).toEqual({
-      count: 3,
-      loading: false,
-    });
-  });
-
-  it("throws from State.step when a handler throws or returns a Promise-shaped model", () => {
-    type Message = { readonly _tag: "Throw" } | { readonly _tag: "Promise" };
-    const Broken = State.define<number, Message>()({
-      name: "Broken",
-      initial: 0,
-      on: {
-        Throw: () => {
-          throw new Error("boom");
+/** A statechart whose Downloading variant owns the download. */
+const makeDownload = (download: (url: string) => Stream.Stream<number, string>) =>
+  State.define({
+    name: "Download",
+    machine: Machine.make({
+      state: DownloadModel,
+      event: DownloadEvent,
+      initial: DownloadModel.Idle,
+    })
+      .when(
+        [DownloadModel.Idle, DownloadModel.Done, DownloadModel.Failed],
+        DownloadEvent.ClickedDownload,
+        function hasUrl({ event }) {
+          return event.url !== "";
         },
-        Promise: () => Promise.resolve(1) as never,
-      },
-    });
-
-    expect(() => State.step(Broken, 0, { _tag: "Throw" })).toThrow("boom");
-    expect(() => State.step(Broken, 0, { _tag: "Promise" })).toThrow(EffectInputCallbackError);
+        ({ event }) => DownloadModel.Downloading({ url: event.url, received: 0 }),
+      )
+      .on(DownloadModel.Downloading, DownloadEvent.ReceivedChunk, ({ state, event }) =>
+        DownloadModel.Downloading({ url: state.url, received: state.received + event.bytes }),
+      )
+      .on(DownloadModel.Downloading, DownloadEvent.FinishedDownload, ({ state }) =>
+        DownloadModel.Done.with(state, { bytes: state.received }),
+      )
+      .on(DownloadModel.Downloading, DownloadEvent.FailedDownload, ({ state, event }) =>
+        DownloadModel.Failed.with(state, { reason: event.reason }),
+      )
+      .on(DownloadModel.Downloading, DownloadEvent.ClickedCancel, () => DownloadModel.Idle)
+      .spawn(DownloadModel.Downloading, ({ state, self }) =>
+        download(state.url).pipe(
+          Stream.runForEach((bytes) => self.send(DownloadEvent.ReceivedChunk({ bytes }))),
+          Effect.andThen(self.send(DownloadEvent.FinishedDownload)),
+          Effect.catch((reason) => self.send(DownloadEvent.FailedDownload({ reason }))),
+        ),
+      ),
   });
 
-  it("updates centralized model state and runs Effect commands with services", () =>
+const waitFor = (condition: () => boolean): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    for (let attempt = 0; attempt < 250; attempt++) {
+      if (condition()) {
+        return;
+      }
+      yield* Effect.sleep("2 millis");
+    }
+    throw new Error("Timed out waiting for the condition.");
+  });
+
+const describeState = (entries: ReadonlyArray<Timeline.Entry>, name: string) =>
+  entries
+    .filter((entry) => entry.cause._tag === "State" && entry.cause.state === name)
+    .map((entry) => Timeline.describe(entry.cause));
+
+describe("State machines without a runtime", () => {
+  it("replays transitions purely, as tests do", () => {
+    expect(
+      Effect.runSync(
+        Machine.replay(Search.machine, [
+          SearchEvent.TypedQuery({ text: "arc" }),
+          SearchEvent.ClearedQuery,
+        ]),
+      ),
+    ).toMatchObject({ _tag: "Editing", query: "" });
+    expect(
+      Effect.runSync(Machine.replay(Menu.machine, [MenuEvent.ClickedMenu, MenuEvent.PressedEscape]))
+        ._tag,
+    ).toBe("Closed");
+    // Not valid in Closed: the message changes nothing.
+    expect(Effect.runSync(Machine.replay(Menu.machine, [MenuEvent.PressedEscape]))._tag).toBe(
+      "Closed",
+    );
+  });
+});
+
+describe("State runtime", () => {
+  it("commits each message on the model, one Timeline entry per message", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const loaded = yield* Deferred.make<void>();
-        const runtime = makeRuntime(
-          Layer.succeed(CounterApi)({
-            load: Effect.succeed(3),
-          }),
-        );
-        type Model = { readonly count: number; readonly loading: boolean };
-        type Message =
-          | { readonly _tag: "Increment" }
-          | { readonly _tag: "Load" }
-          | { readonly _tag: "Loaded"; readonly amount: number };
+        const recording = yield* Timeline.record();
+        const menu = State.start(Menu, { runtime: defaultRuntime });
+        yield* menu.dispatch(MenuEvent.ClickedMenu);
+        expect(menu.model.get()._tag).toBe("Open");
+        yield* menu.dispatch(MenuEvent.PressedEscape);
+        // Not valid in Closed: ignored, and recorded as such.
+        yield* menu.dispatch(MenuEvent.PressedEscape);
+        expect(menu.model.get()._tag).toBe("Closed");
+        expect(describeState(recording.entries.get(), "Menu")).toEqual([
+          'State "Menu" start',
+          'State "Menu" ClickedMenu',
+          'State "Menu" PressedEscape',
+          'State "Menu" PressedEscape (ignored)',
+        ]);
+        yield* menu.dispose;
+      }).pipe(Effect.scoped),
+    ));
 
-        const instance = State.start(
-          State.define<Model, Message>()({
-            name: "Test",
-            initial: { count: 0, loading: false },
-            on: {
-              Increment: (model) => ({ ...model, count: model.count + 1 }),
-              Load: (model) =>
-                State.next(
-                  { ...model, loading: true },
-                  State.emit(
-                    CounterApi.use((api) =>
-                      api.load.pipe(Effect.map((amount) => ({ _tag: "Loaded", amount }) as const)),
-                    ),
-                  ),
-                ),
-              Loaded: (model, message) =>
-                State.next(
-                  {
-                    count: model.count + message.amount,
-                    loading: false,
-                  },
-                  State.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
-                ),
-            },
-          }),
-          { runtime },
-        );
-
-        yield* instance.dispatch({ _tag: "Increment" });
-        expect(instance.model.get()).toEqual({ count: 1, loading: false });
-
-        yield* instance.dispatch({ _tag: "Load" });
-        yield* Deferred.await(loaded);
-
-        expect(instance.model.get()).toEqual({ count: 4, loading: false });
-        yield* instance.dispose;
+  it("runs transitions with the runtime's services", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const runtime = makeRuntime(Layer.succeed(CounterApi)({ load: Effect.succeed(3) }));
+        const CounterModel = Model({ Ready: { count: Schema.Finite } });
+        const CounterEvent = Message({ ClickedLoad: {} });
+        const Counter = State.define({
+          name: "Counter",
+          machine: Machine.make({
+            state: CounterModel,
+            event: CounterEvent,
+            initial: CounterModel.Ready({ count: 0 }),
+          }).onAny(CounterEvent.ClickedLoad, ({ state }) =>
+            CounterApi.use((api) => api.load).pipe(
+              Effect.map((amount) => CounterModel.Ready({ count: state.count + amount })),
+            ),
+          ),
+        });
+        const counter = State.start(Counter, { runtime });
+        yield* counter.dispatch(CounterEvent.ClickedLoad);
+        expect(counter.model.get()).toMatchObject({ count: 3 });
+        yield* counter.dispose;
         yield* runtime.dispose;
       }),
     ));
 
-  it("reports throwing handlers as Update failures without replacing the current model", () =>
+  it("starts a variant's work on entry and interrupts it on exit", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        type Message = { readonly _tag: "Increment" } | { readonly _tag: "Fail" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Test",
-            initial: 0,
-            on: {
-              Increment: (model) => model + 1,
-              Fail: () => {
-                throw new Error("boom");
-              },
-            },
-          }),
-          { runtime: defaultRuntime },
+        const started = yield* Deferred.make<string>();
+        const interrupted = yield* Deferred.make<string>();
+        const Download = makeDownload((url) =>
+          Stream.fromEffect(
+            Deferred.succeed(started, url).pipe(
+              Effect.andThen(Effect.never),
+              Effect.onInterrupt(() => Deferred.succeed(interrupted, url)),
+            ),
+          ),
         );
-
-        yield* instance.dispatch({ _tag: "Increment" });
-        const failure = yield* Effect.flip(instance.dispatch({ _tag: "Fail" }));
-
-        expect(instance.model.get()).toBe(1);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          message: { _tag: "Fail" },
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect(((failure.error as EffectInputCallbackError).cause as Error).message).toBe("boom");
-        expect(instance.failures.get()).toEqual([failure]);
-        instance.clearFailures();
-        expect(instance.failures.get()).toEqual([]);
-
-        yield* instance.dispose;
+        const download = State.start(Download, { runtime: defaultRuntime });
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/report.pdf" }));
+        expect(yield* Deferred.await(started)).toBe("/report.pdf");
+        yield* download.dispatch(DownloadEvent.ClickedCancel);
+        expect(yield* Deferred.await(interrupted).pipe(Effect.timeout("1 second"))).toBe(
+          "/report.pdf",
+        );
+        expect(download.model.get()._tag).toBe("Idle");
+        yield* download.dispose;
       }),
     ));
 
-  it("reports messages without a handler as Update failures", () =>
+  it("turns work output and work failures into messages", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-          }),
-          { runtime: defaultRuntime },
+        const Download = makeDownload((url) =>
+          url === "/missing" ? Stream.fail("not found") : Stream.make(3, 4),
         );
-
-        const failure = yield* Effect.flip(instance.dispatch({ _tag: "Unknown" } as never));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
-
-        yield* instance.dispose;
+        const download = State.start(Download, { runtime: defaultRuntime });
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" }));
+        yield* waitFor(() => download.model.get()._tag === "Done");
+        expect(download.model.get()).toMatchObject({ _tag: "Done", url: "/a", bytes: 7 });
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/missing" }));
+        yield* waitFor(() => download.model.get()._tag === "Failed");
+        expect(download.model.get()).toMatchObject({ reason: "not found" });
+        expect(download.failures.get()).toEqual([]);
+        yield* download.dispose;
       }),
     ));
 
-  it("reports erased Promise-shaped handler returns as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: () => Promise.resolve(1) as never },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(increment));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          message: increment,
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
-          EffectInputPromiseRejected,
-        );
-        expect(instance.failures.get()).toEqual([failure]);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("reports erased Effect-shaped handler returns as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => Effect.succeed(model + 1) as never },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(increment));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          message: increment,
-          error: expect.any(EffectInputCallbackError),
-        });
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("reports erased Promise-shaped State.next models as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: () => State.next(Promise.resolve(1) as never) },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(increment));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          message: increment,
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
-          EffectInputPromiseRejected,
-        );
-        expect(instance.failures.get()).toEqual([failure]);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("reports erased Effect-shaped State.next models as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: () => State.next(Effect.succeed(1) as never) },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(increment));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          message: increment,
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("rejects erased Promise-shaped initial models before starting a State", () => {
-    expect(() =>
-      State.start(
-        State.define<number, Increment>()({
-          name: "Test",
-          initial: Promise.resolve(0) as never,
-          on: { Increment: (model) => model },
-        }),
-        { runtime: defaultRuntime },
-      ),
-    ).toThrow(EffectInputCallbackError);
-  });
-
-  it("rejects erased Effect-shaped initial models before starting a State", () => {
-    expect(() =>
-      State.start(
-        State.define<number, Increment>()({
-          name: "Test",
-          initial: Effect.succeed(0) as never,
-          on: { Increment: (model) => model },
-        }),
-        { runtime: defaultRuntime },
-      ),
-    ).toThrow(EffectInputCallbackError);
-  });
-
-  it("reports erased Promise-shaped dispatch messages as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(Promise.resolve(increment) as never));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
-          EffectInputPromiseRejected,
-        );
-        expect(instance.failures.get()).toEqual([failure]);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("reports erased undefined dispatch messages as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(undefined as never));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
-        expect(instance.failures.get()).toEqual([failure]);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("reports erased Effect-shaped dispatch messages as typed failures", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(Effect.succeed(increment) as never));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  type LoadMessage = { readonly _tag: "Load" } | { readonly _tag: "Loaded" };
-  const load: LoadMessage = { _tag: "Load" };
-
-  it("reports erased Promise-shaped command messages without enqueueing them", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, LoadMessage>()({
-            name: "Test",
-            initial: 0,
-            on: {
-              Load: (model) =>
-                State.next(
-                  model,
-                  State.emit<LoadMessage>(
-                    Effect.succeed(Promise.resolve({ _tag: "Loaded" }) as never),
-                  ),
-                ),
-              Loaded: (model) => model + 1,
-            },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* instance.dispatch(load);
-        yield* Effect.sleep("0 millis");
-
-        expect(instance.model.get()).toBe(0);
-        const [failure] = instance.failures.get();
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Command",
-          message: load,
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(
-          EffectInputPromiseRejected,
-        );
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("reports erased Effect-shaped command messages without enqueueing them", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, LoadMessage>()({
-            name: "Test",
-            initial: 0,
-            on: {
-              Load: (model) =>
-                State.next(
-                  model,
-                  State.emit<LoadMessage>(
-                    Effect.succeed(Effect.succeed({ _tag: "Loaded" }) as never),
-                  ),
-                ),
-              Loaded: (model) => model + 1,
-            },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* instance.dispatch(load);
-        yield* Effect.sleep("0 millis");
-
-        expect(instance.model.get()).toBe(0);
-        const [failure] = instance.failures.get();
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Command",
-          message: load,
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
-
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("records command failure source messages in failures and on the Timeline", () =>
+  it("guards a transition, and can() answers from the same table", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        type Message = { readonly _tag: "Load" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Test",
-            initial: 0,
-            on: {
-              Load: (model) =>
-                State.next(model, State.emit<Message, string>(Effect.fail("offline"))),
-            },
-          }),
+        const download = State.start(
+          makeDownload(() => Stream.never),
           { runtime: defaultRuntime },
         );
-
-        yield* instance.dispatch({ _tag: "Load" });
-        yield* Effect.sleep("0 millis");
-
-        const [failure] = instance.failures.get();
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Command",
-          message: { _tag: "Load" },
-          error: "offline",
-        });
-        const failureCommit = recording.entries
-          .get()
-          .find((entry) => entry.changes.some((change) => change.signal === instance.failures));
-        expect(failureCommit?.cause).toEqual({
-          _tag: "State",
-          state: "Test",
-          event: "failure",
-          message: { _tag: "Load" },
-        });
-
-        yield* instance.dispose;
+        expect(download.can(DownloadEvent.ClickedDownload({ url: "" }))).toBe(false);
+        expect(download.can(DownloadEvent.ClickedDownload({ url: "/a" }))).toBe(true);
+        expect(download.can(DownloadEvent.ClickedCancel)).toBe(false);
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "" }));
+        expect(download.model.get()._tag).toBe("Idle");
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" }));
+        expect(download.can(DownloadEvent.ClickedCancel)).toBe(true);
+        expect(describeState(recording.entries.get(), "Download")).toEqual([
+          'State "Download" start',
+          'State "Download" ClickedDownload (ignored)',
+          'State "Download" ClickedDownload',
+        ]);
+        yield* download.dispose;
       }).pipe(Effect.scoped),
     ));
 
-  it("reports erased Promise-shaped subscription messages without enqueueing them", () =>
+  it("rejects a message its schema rejects", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-            subscriptions: () =>
-              State.subscription<Increment>(Stream.succeed(Promise.resolve(increment) as never)),
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* Effect.sleep("0 millis");
-
-        expect(instance.model.get()).toBe(0);
-        const [failure] = instance.failures.get();
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Subscription",
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(
-          EffectInputPromiseRejected,
-        );
-
-        yield* instance.dispose;
+        const menu = State.start(Menu, { runtime: defaultRuntime });
+        const rejected = yield* Effect.flip(menu.dispatch({ _tag: "Nope" } as never));
+        expect(rejected).toMatchObject({ _tag: "StateFailure", phase: "Update" });
+        expect(rejected.error).toBeInstanceOf(Schema.SchemaError);
+        expect(menu.failures.get()).toHaveLength(1);
+        menu.clearFailures();
+        expect(menu.failures.get()).toEqual([]);
+        yield* menu.dispose;
       }),
     ));
 
-  it("reports erased Effect-shaped subscription messages without enqueueing them", () =>
+  it("reports a defect in work as a Work failure", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const instance = State.start(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-            subscriptions: () =>
-              State.subscription<Increment>(Stream.succeed(Effect.succeed(increment) as never)),
-          }),
+        const download = State.start(
+          makeDownload(() => Stream.die("boom")),
           { runtime: defaultRuntime },
         );
-
-        yield* Effect.sleep("0 millis");
-
-        expect(instance.model.get()).toBe(0);
-        const [failure] = instance.failures.get();
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Subscription",
-          error: expect.any(EffectInputCallbackError),
-        });
-        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
-
-        yield* instance.dispose;
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" }));
+        yield* waitFor(() => download.failures.get().length > 0);
+        expect(download.failures.get()[0]).toMatchObject({ phase: "Work" });
+        expect(download.failures.get()[0]?.error).toBeInstanceOf(State.Defect);
+        yield* download.dispose;
       }),
     ));
 
-  it("reports runtime provision failures as typed dispatch failures", () =>
+  it("fails dispatches after disposal with StateDisposed", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        interface RuntimeUnavailable {
-          readonly _tag: "RuntimeUnavailable";
-        }
-
-        const runtime = makeRuntime<never, RuntimeUnavailable>(
-          Layer.effectDiscard(Effect.fail({ _tag: "RuntimeUnavailable" } as const)),
-        );
-        const instance = State.start<number, Increment, never, never, RuntimeUnavailable>(
-          State.define<number, Increment>()({
-            name: "Test",
-            initial: 0,
-            on: { Increment: (model) => model + 1 },
-          }),
-          { runtime },
-        );
-
-        const failure = yield* Effect.flip(instance.dispatch(increment));
-
-        expect(instance.model.get()).toBe(0);
-        expect(failure).toMatchObject({
-          _tag: "StateFailure",
-          phase: "Update",
-          message: increment,
-          error: { _tag: "RuntimeUnavailable" },
-        });
-        expect(instance.failures.get()).toEqual([failure]);
-
-        yield* instance.dispose;
-        yield* Effect.ignore(runtime.dispose);
-      }),
-    ));
-
-  it("records State messages on the app Timeline as model commits", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const recording = yield* Timeline.record();
-        const loaded = yield* Deferred.make<void>();
-        type Model = { readonly count: number; readonly loading: boolean };
-        type Message =
-          | { readonly _tag: "Load" }
-          | { readonly _tag: "Loaded"; readonly amount: number };
-
-        const instance = State.start(
-          State.define<Model, Message>()({
-            name: "Counter",
-            initial: { count: 0, loading: false },
-            on: {
-              Load: (model) =>
-                State.next(
-                  { ...model, loading: true },
-                  State.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
-                ),
-              Loaded: (model, message) =>
-                State.next(
-                  { count: model.count + message.amount, loading: false },
-                  State.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
-                ),
-            },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* instance.dispatch({ _tag: "Load" });
-        yield* Deferred.await(loaded);
-        yield* Effect.sleep("10 millis");
-
-        // A State's history is the app Timeline filtered to its model signal.
-        const history = recording.entries
-          .get()
-          .filter((entry) => entry.changes.some((change) => change.signal === instance.model));
-        expect(history.map((entry) => Timeline.describe(entry.cause))).toEqual([
-          'State "Counter" Load',
-          'State "Counter" Loaded',
-        ]);
-        expect(history[1]?.changes).toEqual([
-          {
-            signal: instance.model,
-            name: "Counter",
-            previous: { count: 0, loading: true },
-            next: { count: 2, loading: false },
-          },
-        ]);
-        yield* instance.dispose;
-      }).pipe(Effect.scoped),
-    ));
-
-  it("feeds subscriptions into the message loop and interrupts stale subscriptions on model changes", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const ticked = yield* Deferred.make<void>();
-        const interrupted = yield* Deferred.make<void>();
-        type Model = { readonly ticks: number };
-        type Message = { readonly _tag: "Tick" };
-
-        const instance = State.start(
-          State.define<Model, Message>()({
-            name: "Test",
-            initial: { ticks: 0 },
-            on: {
-              Tick: (model) =>
-                State.next(
-                  { ticks: model.ticks + 1 },
-                  State.emit(Deferred.succeed(ticked, undefined).pipe(Effect.asVoid)),
-                ),
-            },
-            subscriptions: (model) =>
-              model.ticks === 0
-                ? [
-                    Stream.succeed<Message>({ _tag: "Tick" }),
-                    State.subscription<Message>(
-                      Stream.fromEffect(
-                        Effect.never.pipe(
-                          Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-                        ),
-                      ),
-                    ),
-                  ]
-                : undefined,
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* Deferred.await(ticked);
-        yield* Deferred.await(interrupted);
-
-        expect(instance.model.get()).toEqual({ ticks: 1 });
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("swallows subscription finalizer defects during disposal", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const started = yield* Deferred.make<void>();
-        type Message = { readonly _tag: "Never" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Test",
-            initial: 0,
-            on: { Never: (model) => model },
-            subscriptions: () =>
-              State.subscription<Message>(
-                Stream.fromEffect(
-                  Deferred.succeed(started, undefined).pipe(
-                    Effect.flatMap(() => Effect.never),
-                    Effect.onInterrupt(() => Effect.die("subscription finalizer defect")),
-                  ),
-                ),
-              ),
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* Deferred.await(started);
-        yield* instance.dispose;
-      }),
-    ));
-
-  it("interrupts in-flight commands on disposal", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const started = yield* Deferred.make<void>();
-        const interrupted = yield* Deferred.make<void>();
-        type Message = { readonly _tag: "Start" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Test",
-            initial: 0,
-            on: {
-              Start: (model) =>
-                State.next(
-                  model + 1,
-                  State.emit(
-                    Deferred.succeed(started, undefined).pipe(
-                      Effect.flatMap(() => Effect.never),
-                      Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-                      Effect.asVoid,
-                    ),
-                  ),
-                ),
-            },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* instance.dispatch({ _tag: "Start" });
-        yield* Deferred.await(started);
-        yield* instance.dispose;
-        yield* Deferred.await(interrupted).pipe(Effect.timeout("1 second"));
-
-        expect(instance.model.get()).toBe(1);
-      }),
-    ));
-
-  it("fails queued dispatches with StateDisposed when disposal happens before they apply", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        type Message = { readonly _tag: "First" } | { readonly _tag: "Second" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Test",
-            initial: 0,
-            on: {
-              First: (model) => model + 1,
-              Second: (model) => model + 100,
-            },
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        // Both dispatches register and enqueue synchronously; disposal runs
-        // before the message loop takes them.
-        const first = yield* Effect.forkChild(instance.dispatch({ _tag: "First" }), {
-          startImmediately: true,
-        });
-        const second = yield* Effect.forkChild(instance.dispatch({ _tag: "Second" }), {
-          startImmediately: true,
-        });
-        yield* instance.dispose;
-
-        for (const fiber of [first, second]) {
-          const exit = yield* Fiber.await(fiber).pipe(Effect.timeout("1 second"));
-          expect(Exit.isFailure(exit)).toBe(true);
-          if (Exit.isFailure(exit)) {
-            const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
-            expect(failure).toMatchObject({ _tag: "StateFailure", phase: "Update" });
-            expect(failure?.error).toBeInstanceOf(State.Disposed);
-          }
-        }
-        expect(instance.model.get()).toBe(0);
-
-        const afterDispose = yield* Effect.flip(instance.dispatch({ _tag: "First" }));
+        const menu = State.start(Menu, { runtime: defaultRuntime });
+        yield* menu.dispose;
+        const afterDispose = yield* Effect.flip(menu.dispatch(MenuEvent.ClickedMenu));
         expect(afterDispose.error).toBeInstanceOf(State.Disposed);
       }),
     ));
 
-  it("acknowledges dispatch when disposal happens from a model subscriber after commit", () =>
+  it("interrupts a variant's work on disposal", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        type Message = { readonly _tag: "Commit" };
-        const instance = State.start(
-          State.define<number, Message>()({
-            name: "Test",
-            initial: 0,
-            on: { Commit: (model) => model + 1 },
-          }),
+        const started = yield* Deferred.make<void>();
+        const interrupted = yield* Deferred.make<void>();
+        const download = State.start(
+          makeDownload(() =>
+            Stream.fromEffect(
+              Deferred.succeed(started, undefined).pipe(
+                Effect.andThen(Effect.never),
+                Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
+              ),
+            ),
+          ),
           { runtime: defaultRuntime },
         );
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" }));
+        yield* Deferred.await(started);
+        yield* download.dispose;
+        yield* Deferred.await(interrupted).pipe(Effect.timeout("1 second"));
+      }),
+    ));
 
-        const unsubscribe = instance.model.subscribe(() => {
-          if (instance.model.get() === 1) {
-            Effect.runSync(instance.dispose.pipe(Effect.catchCause(() => Effect.void)));
-          }
+  it("settles a pending dispatch when disposal drops it", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const menu = State.start(Menu, { runtime: defaultRuntime });
+        const pending = yield* Effect.forkChild(menu.dispatch(MenuEvent.ClickedMenu), {
+          startImmediately: true,
         });
+        yield* menu.dispose;
+        const exit = yield* Fiber.await(pending).pipe(Effect.timeout("1 second"));
+        // Processed before disposal, or failed with StateDisposed: never left hanging.
+        if (Exit.isFailure(exit)) {
+          expect(String(exit.cause)).toContain("StateDisposed");
+        }
+      }),
+    ));
+});
 
-        const exit = yield* instance.dispatch({ _tag: "Commit" }).pipe(Effect.exit);
-        unsubscribe();
+describe("State on the Timeline", () => {
+  it("records messages as data and replays them from the start", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const recording = yield* Timeline.record();
+        const Download = makeDownload(() => Stream.make(2, 3));
+        const download = State.start(Download, { runtime: defaultRuntime });
+        yield* download.dispatch(DownloadEvent.ClickedCancel);
+        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" }));
+        yield* waitFor(() => download.model.get()._tag === "Done");
 
-        expect(Exit.isSuccess(exit)).toBe(true);
-        expect(instance.model.get()).toBe(1);
+        expect(describeState(recording.entries.get(), "Download")).toEqual([
+          'State "Download" start',
+          'State "Download" ClickedCancel (ignored)',
+          'State "Download" ClickedDownload',
+          'State "Download" ReceivedChunk',
+          'State "Download" ReceivedChunk',
+          'State "Download" FinishedDownload',
+        ]);
+
+        // Message-level replay: the recorded messages, re-applied without a
+        // runtime from the recorded start, reach the recorded model.
+        const [history] = State.history(Download, recording.entries.get());
+        expect(history?.from._tag).toBe("Idle");
+        const replayed = Effect.runSync(
+          Machine.replay(
+            Download.machine,
+            history!.messages.map((entry) => entry.message),
+            { from: history!.from },
+          ),
+        );
+        expect(replayed).toEqual(download.model.get());
+
+        // Value-level travel renders the model as it was after any message.
+        const started = recording.entries
+          .get()
+          .find((entry) => Timeline.describe(entry.cause) === 'State "Download" ClickedDownload')!;
+        yield* recording.travel(started.sequence);
+        expect(recording.position.get()).toBe(started.sequence);
+        yield* recording.resume();
+        yield* download.dispose;
+      }).pipe(Effect.scoped),
+    ));
+});
+
+describe("State persistence", () => {
+  const DraftModel = Model({ Drafting: { text: Schema.String } });
+  const DraftEvent = Message({ TypedDraft: { text: Schema.String } });
+  const Draft = State.define({
+    name: "Draft",
+    machine: Machine.make({
+      state: DraftModel,
+      event: DraftEvent,
+      initial: DraftModel.Drafting({ text: "" }),
+    }).onAny(DraftEvent.TypedDraft, ({ event }) => DraftModel.Drafting({ text: event.text })),
+    persist: { key: "draft" },
+  });
+
+  const memoryRuntime = () => makeRuntime(KeyValueStore.layerMemory);
+  const storeOf = (runtime: ReturnType<typeof memoryRuntime>) =>
+    runtime.provide(
+      Effect.gen(function* () {
+        return yield* KeyValueStore.KeyValueStore;
+      }),
+    );
+
+  it("restores the persisted model before messages, and saves each change", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const runtime = memoryRuntime();
+        const store = yield* storeOf(runtime);
+        yield* store.set("arc/states/v1/draft", JSON.stringify({ _tag: "Drafting", text: "kept" }));
+        const recording = yield* Timeline.record();
+        const draft = State.start(Draft, { runtime });
+        yield* waitFor(() => draft.model.get().text === "kept");
+        yield* draft.dispatch(DraftEvent.TypedDraft({ text: "kept and more" }));
+        expect(JSON.parse((yield* store.get("arc/states/v1/draft")) as string)).toEqual({
+          _tag: "Drafting",
+          text: "kept and more",
+        });
+        expect(describeState(recording.entries.get(), "Draft")).toEqual([
+          'State "Draft" start',
+          'State "Draft" restore',
+          'State "Draft" TypedDraft',
+        ]);
+        yield* draft.dispose;
+        yield* runtime.dispose;
+      }).pipe(Effect.scoped),
+    ));
+
+  it("ignores a persisted model its schema rejects", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const runtime = memoryRuntime();
+        const store = yield* storeOf(runtime);
+        yield* store.set("arc/states/v1/draft", JSON.stringify({ _tag: "Drafting", text: 42 }));
+        const draft = State.start(Draft, { runtime });
+        yield* draft.dispatch(DraftEvent.TypedDraft({ text: "fresh" }));
+        expect(draft.model.get().text).toBe("fresh");
+        expect(draft.failures.get()).toEqual([]);
+        yield* draft.dispose;
+        yield* runtime.dispose;
+      }),
+    ));
+});
+
+describe("App State hydration", () => {
+  const ToastModel = Model({ Hidden: {}, Showing: { text: Schema.String } });
+  const ToastEvent = Message({ Notified: { text: Schema.String } });
+  const Toast = State.define({
+    name: "Hydrated.toast",
+    scope: "app",
+    machine: Machine.make({
+      state: ToastModel,
+      event: ToastEvent,
+      initial: ToastModel.Hidden,
+    }).onAny(ToastEvent.Notified, ({ event }) => ToastModel.Showing({ text: event.text })),
+  });
+
+  it("carries a server model to the browser, decoded by the state schema", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const server = eraseRuntime(makeRuntime(Layer.empty));
+        const onServer = appStateOnRuntime(Toast, server);
+        yield* onServer.dispatch(ToastEvent.Notified({ text: "Saved" }));
+        const snapshots = yield* server.provide(dehydrateAppStates);
+        expect(snapshots).toEqual([
+          { name: "Hydrated.toast", model: { _tag: "Showing", text: "Saved" } },
+        ]);
+        const wire = JSON.parse(JSON.stringify(snapshots));
+        yield* server.dispose;
+
+        const browser = eraseRuntime(makeRuntime(Layer.empty));
+        yield* browser.provide(hydrateAppStates(wire));
+        const onBrowser = appStateOnRuntime(Toast, browser);
+        expect(onBrowser.model.get()).toEqual({ _tag: "Showing", text: "Saved" });
+        expect(onBrowser.failures.get()).toEqual([]);
+        yield* browser.dispose;
       }),
     ));
 
-  it("restarts subscriptions only from committed model changes", () =>
+  it("rejects a tampered snapshot: the State starts from initial and reports a Hydrate failure", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const initialStarted = yield* Deferred.make<void>();
-        const changedStarted = yield* Deferred.make<void>();
-        const startedModels: Array<number> = [];
-        type Model = { readonly count: number };
-        type Message = { readonly _tag: "Same" } | { readonly _tag: "Change" };
-
-        const instance = State.start(
-          State.define<Model, Message>()({
-            name: "Test",
-            initial: { count: 0 },
-            on: {
-              Same: (model) => model,
-              Change: (model) => ({ count: model.count + 1 }),
-            },
-            subscriptions: (model) =>
-              Effect.gen(function* () {
-                startedModels.push(model.count);
-                if (startedModels.length === 1) {
-                  yield* Deferred.succeed(initialStarted, undefined);
-                }
-                if (startedModels.length === 2) {
-                  yield* Deferred.succeed(changedStarted, undefined);
-                }
-                return Stream.never;
-              }),
-          }),
-          { runtime: defaultRuntime },
+        const browser = eraseRuntime(makeRuntime(Layer.empty));
+        yield* browser.provide(
+          hydrateAppStates([{ name: "Hydrated.toast", model: { _tag: "Showing", text: 7 } }]),
         );
-
-        yield* Deferred.await(initialStarted);
-        yield* instance.dispatch({ _tag: "Same" });
-        yield* Effect.sleep("10 millis");
-
-        expect(startedModels).toEqual([0]);
-
-        yield* instance.dispatch({ _tag: "Change" });
-        yield* Deferred.await(changedStarted);
-
-        expect(startedModels).toEqual([0, 1]);
-        yield* instance.dispose;
+        const onBrowser = appStateOnRuntime(Toast, browser);
+        expect(onBrowser.model.get()._tag).toBe("Hidden");
+        expect(onBrowser.failures.get()).toHaveLength(1);
+        expect(onBrowser.failures.get()[0]).toMatchObject({ phase: "Hydrate" });
+        expect(onBrowser.failures.get()[0]?.error).toBeInstanceOf(Schema.SchemaError);
+        yield* browser.dispose;
       }),
     ));
 
-  it("drops stale subscription emissions after restart", () =>
+  it("leaves a model still at initial out of the payload", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const oldSubscriptionReady = yield* Deferred.make<void>();
-        const releaseOldSubscription = yield* Deferred.make<void>();
-        const newSubscriptionReady = yield* Deferred.make<void>();
-        let emitOldMessage: (() => boolean) | undefined;
-        type Model = { readonly version: number };
-        type Message = { readonly _tag: "Advance" } | { readonly _tag: "Stale" };
-
-        const instance = State.start(
-          State.define<Model, Message>()({
-            name: "Test",
-            initial: { version: 0 },
-            on: {
-              Advance: (model) => ({ version: model.version + 1 }),
-              Stale: (model) => ({ version: model.version + 100 }),
-            },
-            subscriptions: (model) =>
-              model.version === 0
-                ? Stream.callback<Message>((queue) =>
-                    Effect.uninterruptible(
-                      Effect.gen(function* () {
-                        yield* Effect.sync(() => {
-                          emitOldMessage = () => Queue.offerUnsafe(queue, { _tag: "Stale" });
-                        });
-                        yield* Deferred.succeed(oldSubscriptionReady, undefined);
-                        yield* Deferred.await(releaseOldSubscription);
-                      }),
-                    ),
-                  )
-                : Effect.gen(function* () {
-                    yield* Deferred.succeed(newSubscriptionReady, undefined);
-                    return Stream.never;
-                  }),
-          }),
-          { runtime: defaultRuntime },
-        );
-
-        yield* Deferred.await(oldSubscriptionReady);
-        yield* instance.dispatch({ _tag: "Advance" });
-        yield* Deferred.await(newSubscriptionReady);
-
-        expect(emitOldMessage?.()).toBe(true);
-        yield* Effect.sleep("10 millis");
-
-        expect(instance.model.get()).toEqual({ version: 1 });
-
-        yield* Deferred.succeed(releaseOldSubscription, undefined).pipe(Effect.ignore);
-        yield* instance.dispose;
+        const server = eraseRuntime(makeRuntime(Layer.empty));
+        appStateOnRuntime(Toast, server);
+        expect(yield* server.provide(dehydrateAppStates)).toEqual([]);
+        yield* server.dispose;
       }),
     ));
 });

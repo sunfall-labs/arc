@@ -1,17 +1,22 @@
-import { State, type Route } from "@sunfall/arc-core";
+import { Machine, Message, Model, State, type Route } from "@sunfall/arc-core";
 import { Component, RouterLink } from "@sunfall/arc-solid";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { createMemo, For, Loading } from "solid-js";
 import { countLabel, formatPrice, matchesQuery, statusLabel } from "../../../shared/model";
 import { ItemList, ToggleItem } from "../items.js";
 import type { route } from "./index.js";
 import { route as ItemRoute } from "./items/$id.js";
 
-// Client-only UI state: the filter text, changed only by its Search message.
+// Client-only UI state: the filter text, changed only by its TypedFilter message.
+const FilterModel = Model({ Filtering: { query: Schema.String } });
+const FilterMessage = Message({ TypedFilter: { query: Schema.String } });
 const ItemFilter = State.define({
   name: "Items.filter",
-  initial: "",
-  on: { Search: (_query, message: { readonly query: string }) => message.query },
+  machine: Machine.make({
+    state: FilterModel,
+    event: FilterMessage,
+    initial: FilterModel.Filtering({ query: "" }),
+  }).onAny(FilterMessage.TypedFilter, ({ event }) => FilterModel.Filtering({ query: event.query })),
 });
 
 /** The `/` route component: the server-rendered list, a filter, and a toggle per row. */
@@ -25,7 +30,7 @@ export default Component.define("ItemsPage", function* (_props: Route.Props<type
 
   return () => {
     const visible = createMemo(() =>
-      items("all").filter((item) => matchesQuery(item, filter.model())),
+      items("all").filter((item) => matchesQuery(item, filter.model().query)),
     );
     return (
       <Loading fallback={<p>Loading items</p>}>
@@ -38,8 +43,8 @@ export default Component.define("ItemsPage", function* (_props: Route.Props<type
               placeholder="Filter by name"
               aria-label="Filter by name"
               data-testid="filter"
-              value={filter.model()}
-              onInput={(event) => filter.send.Search({ query: event.currentTarget.value })}
+              value={filter.model().query}
+              onInput={(event) => filter.send.TypedFilter({ query: event.currentTarget.value })}
             />
             <p class="count" data-testid="count">
               {countLabel(visible().length, items("all").length)}

@@ -204,8 +204,14 @@ const devtoolsSpan: Devtools.Span = {
 };
 const devtoolsTimelineCommit: Devtools.TimelineCommit = {
   sequence: 1,
-  label: 'State "ProjectState" Refresh',
-  cause: { _tag: "State", state: "ProjectState", event: "message", message: "Refresh" },
+  label: 'State "ProjectState" ClickedRefresh',
+  cause: {
+    _tag: "State",
+    state: "ProjectState",
+    instance: 1,
+    event: "message",
+    message: { _tag: "ClickedRefresh" },
+  },
   changes: [{ signal: "ProjectState", previous: { loading: true }, next: {} }],
 };
 const devtoolsTimelineCommitWithSignal: Devtools.TimelineCommit = {

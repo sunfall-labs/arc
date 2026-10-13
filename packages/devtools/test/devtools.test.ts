@@ -1,6 +1,16 @@
 import { Cause, Context, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Tracer } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, State, Resource, Route, Timeline } from "@sunfall/arc-core";
+import {
+  Action,
+  Machine,
+  makeRuntime,
+  Message,
+  Model,
+  State,
+  Resource,
+  Route,
+  Timeline,
+} from "@sunfall/arc-core";
 import { Devtools, DevtoolsActionInvalidationPlanConflict } from "../src/index.js";
 import {
   DevtoolsUnknownInvalidationTarget,
@@ -530,6 +540,7 @@ describe("devtools invalidation plans", () => {
         cause: {
           _tag: "State",
           state: "Counter.state-devtools",
+          instance: 1,
           event: "message",
           message: { _tag: "Increment", accessToken: "secret-token" },
         },
@@ -553,6 +564,7 @@ describe("devtools invalidation plans", () => {
         cause: {
           _tag: "State",
           state: "Counter.state-devtools",
+          instance: 1,
           event: "failure",
           message: { _tag: "Fail" },
         },
@@ -637,11 +649,18 @@ describe("devtools invalidation plans", () => {
 
   it("tracks a running Timeline recording with scoped cleanup", async () => {
     const store = Devtools.makeStore();
+    const CounterModel = Model({ Counting: { count: Schema.Finite } });
+    const CounterMessage = Message({ Incremented: {} });
     const state = State.start(
-      State.define<{ readonly count: number }, { readonly _tag: "Increment" }>()({
+      State.define({
         name: "Counter.state-track",
-        initial: { count: 0 },
-        on: { Increment: (model) => ({ count: model.count + 1 }) },
+        machine: Machine.make({
+          state: CounterModel,
+          event: CounterMessage,
+          initial: CounterModel.Counting({ count: 0 }),
+        }).onAny(CounterMessage.Incremented, ({ state }) =>
+          CounterModel.Counting({ count: state.count + 1 }),
+        ),
       }),
       { runtime: defaultRuntime },
     );
@@ -651,9 +670,9 @@ describe("devtools invalidation plans", () => {
         Effect.scoped(
           Effect.gen(function* () {
             const recording = yield* Timeline.record();
-            yield* state.dispatch({ _tag: "Increment" });
+            yield* state.dispatch(CounterMessage.Incremented);
             yield* store.trackTimeline(recording);
-            yield* state.dispatch({ _tag: "Increment" });
+            yield* state.dispatch(CounterMessage.Incremented);
           }),
         ),
       );
@@ -662,10 +681,11 @@ describe("devtools invalidation plans", () => {
         Effect.runSync(store.getSnapshot()).events?.filter(
           (event) => event._tag === "TimelineCommit",
         ) ?? [];
-      expect(state.model.get()).toEqual({ count: 2 });
+      expect(state.model.get()).toMatchObject({ count: 2 });
+      // The State started before the recording, so its start entry is not retained.
       expect(tracked.map((event) => event.commit.label)).toEqual([
-        'State "Counter.state-track" Increment',
-        'State "Counter.state-track" Increment',
+        'State "Counter.state-track" Incremented',
+        'State "Counter.state-track" Incremented',
       ]);
       expect(
         Effect.runSync(store.getSummary()).runtime.events.map((event) => event.target),
@@ -674,7 +694,7 @@ describe("devtools invalidation plans", () => {
         { kind: "State", id: "state:Counter.state-track" },
       ]);
 
-      await Effect.runPromise(state.dispatch({ _tag: "Increment" }));
+      await Effect.runPromise(state.dispatch(CounterMessage.Incremented));
       expect(
         Effect.runSync(store.getSnapshot()).events?.filter(
           (event) => event._tag === "TimelineCommit",

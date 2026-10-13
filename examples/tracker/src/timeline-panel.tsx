@@ -1,11 +1,26 @@
 import { Timeline } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Effect } from "effect";
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 
 /**
- * Development aid: every commit the app makes, newest first, by name. Click
- * one to render the app as it was then; "Back to live" returns.
+ * A State message's fields, as data (`{"text":"atl"}`): messages are
+ * schema-checked plain values, so the Timeline can show what each one said.
+ */
+const messageFields = (cause: Timeline.Cause): string | undefined => {
+  if (cause._tag !== "State" || typeof cause.message !== "object" || cause.message === null) {
+    return undefined;
+  }
+  const fields = Object.entries(cause.message).filter(
+    ([key, value]) => key !== "_tag" && typeof value !== "function",
+  );
+  return fields.length === 0 ? undefined : JSON.stringify(Object.fromEntries(fields));
+};
+
+/**
+ * Development aid: every commit the app makes, newest first, by name, with
+ * each State message's fields. Click one to render the app as it was then;
+ * "Back to live" returns.
  */
 export const TimelinePanel = Component.define("TimelinePanel", function* () {
   const recording = yield* Timeline.record({ limit: 300 });
@@ -35,6 +50,9 @@ export const TimelinePanel = Component.define("TimelinePanel", function* () {
             <li class={{ current: recording.position.get() === entry().sequence }}>
               <button type="button" onClick={() => travel(entry().sequence)}>
                 <span class="timelineCause">{Timeline.describe(entry().cause)}</span>
+                <Show when={messageFields(entry().cause)}>
+                  {(fields) => <code class="timelineMessage">{fields()}</code>}
+                </Show>
                 <span class="timelineChanges">
                   {entry()
                     .changes.map((change) => change.name)

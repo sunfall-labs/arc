@@ -2,19 +2,9 @@ import { createEffect, createRoot, flush } from "@solidjs/signals";
 import { Deferred, Effect, Exit, Fiber, Option, Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, Resource, Signal, State, Timeline } from "../src/index.js";
+import { Action, ActionResult, Resource, Signal, Timeline } from "../src/index.js";
 import { defaultRuntime } from "../src/internal.js";
-
-/** A running State holding one value: the optimistic target these tests patch. */
-const stateCell = <A>(initial: A, options: { readonly name: string }) =>
-  State.start(
-    {
-      name: options.name,
-      initial,
-      on: { Set: (_current, message) => message.value },
-    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
-    { runtime: defaultRuntime },
-  );
+import { setCell, stateCell } from "./state-cell.js";
 
 interface Project {
   readonly id: string;
@@ -297,7 +287,7 @@ describe("Action optimistic patches and rejected ActionResults", () => {
       name: `RejectedResult.${suffix}`,
       optimistic: (name: string, transaction) =>
         Effect.all([
-          transaction.set(draft, name),
+          setCell(transaction, draft, name),
           transaction.update(rowsRef, "atlas", { name }),
           transaction.set(ProjectById("atlas"), (project) => ({ ...project, name })),
         ]),
@@ -321,7 +311,7 @@ describe("Action optimistic patches and rejected ActionResults", () => {
         const result = yield* Action.use(Save, { runtime: defaultRuntime }).submit("At");
 
         expect(result._tag).toBe("ValidationFailure");
-        expect(Signal.peek(draft.model)).toBe("Atlas");
+        expect(Signal.peek(draft.model).value).toBe("Atlas");
         expect(rowName()).toBe("Atlas");
         expect(yield* Resource.read(ref)).toMatchObject({ name: "Atlas" });
         // Each patch committed on submit; one failure commit undid them all,
@@ -347,26 +337,27 @@ describe("Action optimistic patches and rejected ActionResults", () => {
       }).pipe(Effect.scoped),
     ));
 
-  it("rolls back on a Failure result and commits on Success and Redirect results", () =>
+  it("rolls back on a Failure result and folds Resource patches on Success and Redirect results", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const failed = defineSave("failure", () => ActionResult.failure("taken"));
         yield* failed.preload;
         yield* Action.use(failed.Save, { runtime: defaultRuntime }).submit("Atlas 2");
-        expect(Signal.peek(failed.draft.model)).toBe("Atlas");
+        expect(Signal.peek(failed.draft.model).value).toBe("Atlas");
         expect(failed.rowName()).toBe("Atlas");
 
         const saved = defineSave("success", (name) => ActionResult.success(name));
         yield* saved.preload;
         yield* Action.use(saved.Save, { runtime: defaultRuntime }).submit("Atlas 2");
-        expect(Signal.peek(saved.draft.model)).toBe("Atlas 2");
+        // A State patch is an overlay: settling drops it, while the row folds.
+        expect(Signal.peek(saved.draft.model).value).toBe("Atlas");
         expect(saved.rowName()).toBe("Atlas 2");
         expect(yield* Resource.read(saved.ref)).toMatchObject({ name: "Atlas 2" });
 
         const redirected = defineSave("redirect", () => ActionResult.redirect("/projects"));
         yield* redirected.preload;
         yield* Action.use(redirected.Save, { runtime: defaultRuntime }).submit("Atlas 2");
-        expect(Signal.peek(redirected.draft.model)).toBe("Atlas 2");
+        expect(Signal.peek(redirected.draft.model).value).toBe("Atlas");
         expect(redirected.rowName()).toBe("Atlas 2");
       }),
     ));

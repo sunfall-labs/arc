@@ -268,25 +268,35 @@ reads it, and `send` has one DOM-ready sender per message tag:
 
 <!-- prettier-ignore -->
 ```tsx
-const MenuOpen = State.define({ name: "Menu.open", initial: false, on: { Toggle: (open) => !open } });
+const MenuModel = Model({ Closed: {}, Open: {} });
+const MenuMessage = Message({ ClickedMenu: {} });
+const MenuState = State.define({
+  name: "Menu",
+  machine: Machine.make({ state: MenuModel, event: MenuMessage, initial: MenuModel.Closed })
+    .on(MenuModel.Closed, MenuMessage.ClickedMenu, () => MenuModel.Open)
+    .on(MenuModel.Open, MenuMessage.ClickedMenu, () => MenuModel.Closed),
+});
 
 const Menu = Component.define("Menu", function* () {
-  const menu = yield* Component.state(MenuOpen);
-  return () => <button aria-expanded={menu.model()} onClick={menu.send.Toggle}>Menu</button>;
+  const menu = yield* Component.state(MenuState);
+  return () => <button aria-expanded={menu.model()._tag === "Open"} onClick={menu.send.ClickedMenu}>Menu</button>;
 });
 ```
 
 - **`send.<Tag>` is DOM-ready.** It queues the message within the event (it
-  forks like `Component.callback`) and the State loop applies it; a failure
-  lands in `failures()`. A message without fields takes no argument and
-  ignores one it is given, so `onClick={menu.send.Toggle}` needs no wrapper; a
-  message with fields takes them: `search.send.Search({ query })`.
+  forks like `Component.callback`) and the State's machine processes it; a
+  failure lands in `failures()`. A message without fields takes no argument
+  and ignores one it is given, so `onClick={menu.send.ClickedMenu}` needs no
+  wrapper; a message with fields takes them: `search.send.TypedQuery({ query })`.
 - **Tags are PascalCase**, Effect's `_tag` convention: the tag is spelled the
-  same in `on`, `send.Toggle`, `dispatch({ _tag: "Toggle" })`, `State.step`,
-  and the Timeline (`State "Menu.open" Toggle`), with no second spelling to
+  same in `Message({...})`, `send.ClickedMenu`, `dispatch(MenuMessage.ClickedMenu)`,
+  and the Timeline (`State "Menu" ClickedMenu`), with no second spelling to
   map.
-- **`dispatch(message)`** is the Effect form, completing once the update
-  commits, for Effect code that must wait for it.
+- **`dispatch(message)`** is the Effect form, completing once the machine has
+  processed the message (applied, or ignored because the current variant does
+  not handle it), for Effect code that must wait for it. `can.<Tag>(...)`
+  (`menu.can.ClickedMenu()`) reactively says whether it would change the
+  State now.
 - **Keying gives a fresh State.** Each instance owns its State, so a
   Component keyed on an entity (`<Show when={project.id} keyed>`) gets a
   fresh State per entity and needs no prop-sync message.
@@ -294,20 +304,28 @@ const Menu = Component.define("Menu", function* () {
   pages update (an undo toast) declares `scope: "app"`; every
   `Component.state(UndoToast)` binding then returns a handle on the runtime's
   one instance. The first binding starts it with its services (minus its own
-  Scope, so commands outlive it), unmounting a binder never stops it, and
+  Scope, so its work outlives it), unmounting a binder never stops it, and
   disposing the runtime does. A server render's request runtime has its own,
-  so requests never share one; the browser starts its own from `initial`.
+  so requests never share one; the browser starts from the server's model
+  when it moved away from `initial`.
 
 <!-- prettier-ignore -->
 ```tsx
-const UndoToast = State.define({ name: "Shell.undoToast", scope: "app", initial: { text: "" }, on: { Show: (_model, message: { readonly text: string }) => ({ text: message.text }) } });
+const UndoToast = State.define({
+  name: "Shell.undoToast",
+  scope: "app",
+  machine: Machine.make({ state: ToastModel, event: ToastMessage, initial: ToastModel.Hidden })
+    .reenter([ToastModel.Hidden, ToastModel.Showing], ToastMessage.DeletedIssue, ({ event }) => ToastModel.Showing({ issue: event.issue }))
+    .on(ToastModel.Showing, ToastMessage.ClickedDismiss, () => ToastModel.Hidden)
+    .on(ToastModel.Showing, ToastMessage.ToastExpired, () => ToastModel.Hidden)
+    .timeout(ToastModel.Showing, { duration: "8 seconds", event: ToastMessage.ToastExpired }),
+});
 
-// The board: `toast.send.Show({ text: "Deleted TRK-12" })`; the shell renders `toast.model().text`.
+// The board: `toast.send.DeletedIssue({ issue })`; the shell renders the `Showing` variant.
 const toast = yield* Component.state(UndoToast);
 ```
 
-A primitive model (a toggle, a search string) is read straight from the
-State's signal. An object model is reconciled into a fine-grained read-only
+The model is reconciled into a fine-grained read-only
 Solid projection owned by the instance, so Solid readers do not all re-run
 whenever any part of it changes:
 
@@ -355,12 +373,11 @@ item object is replaced, an O(rows) diff that renders nothing). The rules:
   projection.
 
 Because setup runs per instance, a State defined in setup can close over the
-instance's other bindings: a form State that submits `rename.submit(...)` from
-a command gets its own Action and State per mounted form (such a State emits
-its own messages, so it names its union with `State.define<Model, Message>()`).
+instance's other bindings: a form State whose `Saving` variant owns a task that submits
+`rename.submit(...)` gets its own Action and State per mounted form.
 
-None of this is needed to test the logic. State handlers are pure, so a
-transition is tested with `State.step(definition, model, message)` and an
+None of this is needed to test the logic. A State's transitions are tested
+with `Machine.replay(definition.machine, messages)` and an
 Action's `optimistic` patch with `Action.planOptimistic(definition, input)`:
 no Solid root, DOM, runtime, or timers (see
 [Testing](golden-path.md#testing)).

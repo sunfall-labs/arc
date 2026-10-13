@@ -1,38 +1,51 @@
-import { State, type Route } from "@sunfall/arc-core";
+import { Machine, Message, Model, State, type Route } from "@sunfall/arc-core";
 import { Component, RouterLink } from "@sunfall/arc-solid";
-import { Cause, Effect } from "effect";
+import { Cause, Effect, Schema } from "effect";
 import { For, Show } from "solid-js";
 import { DeleteIssue, MoveIssue } from "../../../actions.js";
 import {
   describeError,
+  IssueStatus,
   issueStatuses,
   statusLabel,
   type IssueId,
   type IssueRow,
-  type IssueStatus,
   type Label,
   type ProjectKey,
   type User,
 } from "../../../model.js";
 import { ProjectHeader } from "../../../project-header.js";
 import { Board, CurrentUser, Labels, Projects, Team } from "../../../resources.js";
-import { UndoToast } from "../../../shell.js";
+import { ToastMessage, UndoToast } from "../../../shell.js";
 import { Avatar, Icon, LabelChips, PriorityIcon } from "../../../ui.js";
 import { route as IssueRoute } from "../../issues/$id.js";
 import { route as NewIssueRoute } from "./new.js";
 import type { route } from "./index.js";
 
-type BoardUiModel = { readonly onlyMine: boolean; readonly dragOver: IssueStatus | null };
+const BoardUiModel = Model({
+  Board: { onlyMine: Schema.Boolean, dragOver: Schema.NullOr(IssueStatus) },
+});
+const BoardUiMessage = Message({
+  ClickedOnlyMine: {},
+  DraggedOver: { status: Schema.NullOr(IssueStatus) },
+});
 
 /** The board's own UI state: the "only mine" filter and the column a card is dragged over. */
 const BoardUi = State.define({
   name: "Board.ui",
-  initial: { onlyMine: false, dragOver: null } as BoardUiModel,
-  on: {
-    ToggleMine: (model) => ({ ...model, onlyMine: !model.onlyMine }),
-    DragOver: (model, message: { readonly status: IssueStatus | null }) =>
-      model.dragOver === message.status ? model : { ...model, dragOver: message.status },
-  },
+  machine: Machine.make({
+    state: BoardUiModel,
+    event: BoardUiMessage,
+    initial: BoardUiModel.Board({ onlyMine: false, dragOver: null }),
+  })
+    .onAny(BoardUiMessage.ClickedOnlyMine, ({ state }) =>
+      BoardUiModel.Board({ ...state, onlyMine: !state.onlyMine }),
+    )
+    .onAny(BoardUiMessage.DraggedOver, ({ state, event }) =>
+      state.dragOver === event.status
+        ? state
+        : BoardUiModel.Board({ ...state, dragOver: event.status }),
+    ),
 });
 
 const neighbour = (status: IssueStatus, step: -1 | 1): IssueStatus | undefined =>
@@ -77,7 +90,9 @@ const BoardView = Component.define(
     const deleteIssue = yield* Component.callback("delete", (issue: IssueRow) =>
       remove.submit({ id: issue.id }).pipe(
         Effect.tap(() =>
-          toast.dispatch({ _tag: "Deleted", issue: { id: issue.id, title: issue.title } }),
+          toast.dispatch(
+            ToastMessage.DeletedIssue({ issue: { id: issue.id, title: issue.title } }),
+          ),
         ),
         Effect.ignore,
       ),
@@ -94,7 +109,7 @@ const BoardView = Component.define(
             type="button"
             class={["ghostButton", { active: ui.model().onlyMine }]}
             aria-pressed={ui.model().onlyMine ? "true" : "false"}
-            onClick={ui.send.ToggleMine}
+            onClick={ui.send.ClickedOnlyMine}
           >
             Only mine
           </button>
@@ -117,16 +132,16 @@ const BoardView = Component.define(
                 aria-label={statusLabel(status)}
                 onDragOver={(event) => {
                   event.preventDefault();
-                  ui.send.DragOver({ status });
+                  ui.send.DraggedOver({ status });
                 }}
                 onDragLeave={(event) => {
                   if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                    ui.send.DragOver({ status: null });
+                    ui.send.DraggedOver({ status: null });
                   }
                 }}
                 onDrop={(event) => {
                   event.preventDefault();
-                  ui.send.DragOver({ status: null });
+                  ui.send.DraggedOver({ status: null });
                   const id = event.dataTransfer?.getData("text/x-issue-id");
                   const card = column(status).find((issue) => issue.id === id);
                   if (id && card === undefined) {

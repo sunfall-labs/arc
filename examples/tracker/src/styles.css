@@ -1426,6 +1426,13 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.timelineMessage {
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
 .timelineChanges {
   color: var(--text-subtle);
   overflow: hidden;

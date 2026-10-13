@@ -1,6 +1,6 @@
 import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
-import { Action, Resource, Route, State } from "@sunfall/arc-core";
-import { Cause, Effect } from "effect";
+import { Action, Machine, Message, Model, Resource, Route, State } from "@sunfall/arc-core";
+import { Cause, Effect, Schema } from "effect";
 import { For, Loading, Show, onSettled } from "solid-js";
 import {
   ProjectById,
@@ -128,11 +128,16 @@ const ProjectRows = Component.define(
 ).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
 // Client-only UI state: the project filter. The Timeline reads each keystroke
-// as `State "AppShell.search" Search`.
+// as `State "AppShell.search" TypedFilter`.
+const SearchModel = Model({ Filtering: { query: Schema.String } });
+const SearchMessage = Message({ TypedFilter: { query: Schema.String } });
 const ProjectSearch = State.define({
   name: "AppShell.search",
-  initial: "",
-  on: { Search: (_query, message: { readonly query: string }) => message.query },
+  machine: Machine.make({
+    state: SearchModel,
+    event: SearchMessage,
+    initial: SearchModel.Filtering({ query: "" }),
+  }).onAny(SearchMessage.TypedFilter, ({ event }) => SearchModel.Filtering({ query: event.query })),
 });
 
 const AppShell = Component.define("AppShell", function* () {
@@ -167,12 +172,12 @@ const AppShell = Component.define("AppShell", function* () {
               <input
                 type="search"
                 placeholder="Filter projects"
-                value={search.model()}
-                onInput={(event) => search.send.Search({ query: event.currentTarget.value })}
+                value={search.model().query}
+                onInput={(event) => search.send.TypedFilter({ query: event.currentTarget.value })}
               />
             </label>
 
-            <Rows selectedId={selectedId()} search={search.model()} />
+            <Rows selectedId={selectedId()} search={search.model().query} />
           </section>
         </aside>
 

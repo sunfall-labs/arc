@@ -3,6 +3,9 @@ import {
   ActionTransport,
   makeRuntime,
   ActionTransportError,
+  Machine,
+  Message,
+  Model,
   State,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Layer, Option, Schedule, Schema } from "effect";
@@ -12,14 +15,19 @@ import { describe, expect, it, vi } from "vitest";
 import { Component } from "../src/index.js";
 import { defaultRuntime } from "@sunfall/arc-core/internal";
 
-/** A running State holding one value: the optimistic target these tests patch. */
-const stateCell = <A>(initial: A, options: { readonly name: string }) =>
+const CellModel = Model({ Cell: { value: Schema.Finite } });
+
+/** A running State holding one number: the optimistic target these tests patch. */
+const stateCell = (initial: number, options: { readonly name: string }) =>
   State.start(
-    {
+    State.define({
       name: options.name,
-      initial,
-      on: { Set: (_current, message) => message.value },
-    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
+      machine: Machine.make({
+        state: CellModel,
+        event: Message({ ChangedValue: { value: Schema.Finite } }),
+        initial: CellModel.Cell({ value: initial }),
+      }),
+    }),
     { runtime: defaultRuntime },
   );
 
@@ -50,7 +58,8 @@ describe("durable Actions in Components", () => {
             name: "SolidDurable.advance",
             input: Schema.Struct({ id: Schema.String }),
             durable: { maxAge: "1 hour" },
-            optimistic: (_input, transaction) => transaction.set(progress, (value) => value + 8),
+            optimistic: (_input, transaction) =>
+              transaction.set(progress, (cell) => ({ ...cell, value: cell.value + 8 })),
             run: ({ id }) => Effect.succeed(id),
           });
           const runtime = makeRuntime(
@@ -78,7 +87,7 @@ describe("durable Actions in Components", () => {
                 Cause.findErrorOption(failure).pipe(
                   Option.exists((error) => (error as { _tag?: string })._tag === "ActionQueued"),
                 );
-              return `${progress.model.get()}|${outbox.pending.get().length} waiting|${queued ? "queued" : "-"}`;
+              return `${progress.model.get().value}|${outbox.pending.get().length} waiting|${queued ? "queued" : "-"}`;
             };
             return () => text as unknown as JSX.Element;
           });
@@ -90,8 +99,9 @@ describe("durable Actions in Components", () => {
           submit!();
           yield* waitForText(container, "8|1 waiting|queued");
 
+          // Settled: the State overlay is gone (a State changes only through its messages).
           network.online = true;
-          yield* waitForText(container, "8|0 waiting|queued");
+          yield* waitForText(container, "0|0 waiting|queued");
           yield* runtime.dispose;
         }),
       ),

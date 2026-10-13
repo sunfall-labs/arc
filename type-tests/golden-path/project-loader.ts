@@ -1,30 +1,27 @@
-import { Resource, State } from "@sunfall/arc-core";
-import { Effect } from "effect";
-import { ProjectsRef, type Project } from "./projects.js";
+import { Machine, Message, Model, Resource, State } from "@sunfall/arc-core";
+import { Effect, Schema } from "effect";
+import { Project, ProjectsRef } from "./projects.js";
 
-type Model = {
-  readonly status: "idle" | "loading" | "ready";
-  readonly projects: ReadonlyArray<Project>;
-};
-type Message =
-  | { readonly _tag: "Load" }
-  | { readonly _tag: "Loaded"; readonly projects: ReadonlyArray<Project> };
+export const LoaderModel = Model({
+  Idle: {},
+  Loading: {},
+  Ready: { projects: Schema.Array(Project) },
+});
+export const LoaderMessage = Message({
+  ClickedLoad: {},
+  ReceivedProjects: { projects: Schema.Array(Project) },
+});
 
-// Handlers are pure: they return the next model, and Effect work leaves them
-// as commands that run after the model commits.
-export const ProjectLoader = State.define<Model, Message>()({
+// The load is work the Loading state owns: it starts on entry, stops if the
+// state is left, and its outcome comes back as a message.
+export const ProjectLoader = State.define({
   name: "ProjectLoader",
-  initial: { status: "idle", projects: [] },
-  on: {
-    Load: (model) =>
-      State.next(
-        { ...model, status: "loading" },
-        State.emit(
-          Resource.preload(ProjectsRef).pipe(
-            Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
-          ),
-        ),
-      ),
-    Loaded: (_model, message) => ({ status: "ready", projects: message.projects }),
-  },
+  machine: Machine.make({ state: LoaderModel, event: LoaderMessage, initial: LoaderModel.Idle })
+    .on(LoaderModel.Idle, LoaderMessage.ClickedLoad, () => LoaderModel.Loading)
+    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef).pipe(Effect.orDie), {
+      onSuccess: (projects) => LoaderMessage.ReceivedProjects({ projects }),
+    })
+    .on(LoaderModel.Loading, LoaderMessage.ReceivedProjects, ({ event }) =>
+      LoaderModel.Ready({ projects: event.projects }),
+    ),
 });

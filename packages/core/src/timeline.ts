@@ -42,14 +42,31 @@ export interface TimelineActionCause {
     | "dismiss";
 }
 
-/** Commit made by a running State: a message update, a failure, or a failure reset. */
+/**
+ * Entry made by a running State. Every message it processes makes exactly one
+ * entry, `message` (applied, with the model change when it changed the model)
+ * or `ignored` (no handler in the current state, the handler returned
+ * `State.ignore`, or it came from work of a state since exited), so the
+ * entries are the State's message log: `State.history` reads it back and
+ * `State.replay` re-applies it.
+ */
 export interface TimelineStateCause {
   readonly _tag: "State";
   /** The State definition's `name`. */
   readonly state: string;
-  readonly event: "message" | "failure" | "clearFailures";
-  /** The message applied (`message`) or the message that failed (`failure`), when known. */
+  /** Which running instance, unique per process: one name can have several instances. */
+  readonly instance: number;
+  /**
+   * `start`: the instance started (no change; `model` is its starting model,
+   * initial or hydrated). `restore`: its persisted model was restored.
+   * `message`/`ignored`: a message was applied or ignored. `failure`: a
+   * failure was recorded. `clearFailures`: they were cleared.
+   */
+  readonly event: "start" | "restore" | "message" | "ignored" | "failure" | "clearFailures";
+  /** The message applied, ignored, or failed, when known. */
   readonly message?: unknown;
+  /** The model a `start` or `restore` entry starts from. */
+  readonly model?: unknown;
 }
 
 /** Commit made by the Resource store for one cached entry. */
@@ -167,8 +184,10 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
     cause: TimelineCause | undefined,
   ): void => {
     const recorded = changes.filter((change) => !own.has(change.signal));
-    // Only a recording's own bookkeeping commits without a cause.
-    if (recorded.length === 0 || cause === undefined) {
+    // Only a recording's own bookkeeping commits without a cause or changes
+    // nothing but its own signals. An empty change set is an event entry (a
+    // State message that changed nothing).
+    if (cause === undefined || (recorded.length === 0 && changes.length > 0)) {
       return;
     }
     if (view !== undefined) {
@@ -270,7 +289,7 @@ export namespace Timeline {
   export type TransitionCause = TimelineTransitionCause;
   /** Commit made by an Action submission. */
   export type ActionCause = TimelineActionCause;
-  /** Commit made by a State message, failure, or failure reset. */
+  /** Entry made by a State: its start, a restore, a message applied or ignored, a failure. */
   export type StateCause = TimelineStateCause;
   /** Commit made by a Resource load or invalidation. */
   export type ResourceCause = TimelineResourceCause;
@@ -319,7 +338,7 @@ export namespace Timeline {
 
   /**
    * Human-readable label for a cause: a transition's name (`ProjectPage.rename`)
-   * or a framework event (`State "Board" Relabel`).
+   * or a framework event (`State "Board" ClickedRelabel`).
    */
   export const describe = (cause: TimelineCause): string => {
     switch (cause._tag) {
@@ -330,7 +349,9 @@ export namespace Timeline {
       case "State":
         return cause.event === "message"
           ? `State "${cause.state}" ${messageLabel(cause.message)}`
-          : `State "${cause.state}" ${cause.event}`;
+          : cause.event === "ignored"
+            ? `State "${cause.state}" ${messageLabel(cause.message)} (ignored)`
+            : `State "${cause.state}" ${cause.event}`;
       case "Resource":
         return `Resource "${cause.resource}" ${cause.event} ${cause.key}`;
       case "Router":

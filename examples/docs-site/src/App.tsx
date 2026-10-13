@@ -1,5 +1,5 @@
 import { Component, RouterLink, RouterProvider, useRouter } from "@sunfall/arc-solid";
-import { Route, State } from "@sunfall/arc-core";
+import { Machine, Message, Model, Route, State } from "@sunfall/arc-core";
 import { onSettled } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
@@ -362,13 +362,14 @@ const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
 
 // The phone navigation drawer. Client UI state, so it is a State: the
 // Timeline reads `State "Site.menu" Toggle` and `Close`.
+const MenuModel = Model({ Closed: {}, Open: {} });
+const MenuMessage = Message({ ClickedMenu: {}, DismissedMenu: {} });
 const SiteMenu = State.define({
   name: "Site.menu",
-  initial: false,
-  on: {
-    Toggle: (open) => !open,
-    Close: () => false,
-  },
+  machine: Machine.make({ state: MenuModel, event: MenuMessage, initial: MenuModel.Closed })
+    .on(MenuModel.Closed, MenuMessage.ClickedMenu, () => MenuModel.Open)
+    .on(MenuModel.Open, MenuMessage.ClickedMenu, () => MenuModel.Closed)
+    .on(MenuModel.Open, MenuMessage.DismissedMenu, () => MenuModel.Closed),
 });
 
 /**
@@ -386,7 +387,15 @@ const DocsSite = Component.define("DocsSite", function* (props: { readonly href:
 
   return () => (
     <RouterProvider router={router}>
-      <DocsShell Outlet={Outlet} RecipeLinks={RecipeLinks} menu={menu} />
+      <DocsShell
+        Outlet={Outlet}
+        RecipeLinks={RecipeLinks}
+        menu={{
+          open: () => menu.model()._tag === "Open",
+          toggle: menu.send.ClickedMenu,
+          dismiss: menu.send.DismissedMenu,
+        }}
+      />
     </RouterProvider>
   );
 });
@@ -399,8 +408,9 @@ function DocsShell(props: {
   readonly Outlet: Component.Solid<{}>;
   readonly RecipeLinks: Component.Solid<{ readonly activeSlug: string | undefined }>;
   readonly menu: {
-    readonly model: () => boolean;
-    readonly send: { readonly Toggle: () => void; readonly Close: () => void };
+    readonly open: () => boolean;
+    readonly toggle: () => void;
+    readonly dismiss: () => void;
   };
 }) {
   const { Outlet, RecipeLinks, menu } = props;
@@ -431,8 +441,9 @@ function DocsShell(props: {
 
   onSettled(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && menu.model()) {
-        menu.send.Close();
+      // A closed menu has nothing to dismiss: the message is ignored.
+      if (event.key === "Escape") {
+        menu.dismiss();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -442,13 +453,13 @@ function DocsShell(props: {
   // A link inside the drawer navigates, and the drawer closes behind it.
   const closeOnLink = (event: MouseEvent) => {
     if (event.target instanceof Element && event.target.closest("a") !== null) {
-      menu.send.Close();
+      menu.dismiss();
     }
   };
 
   return (
     <div
-      class={["siteShell", { hasSidebar: hasSidebar(), menuOpen: menu.model() }]}
+      class={["siteShell", { hasSidebar: hasSidebar(), menuOpen: menu.open() }]}
       data-section={section()}
     >
       <script innerHTML={themeBootScript} />
@@ -460,12 +471,12 @@ function DocsShell(props: {
           <button
             type="button"
             class="iconButton menuButton"
-            aria-expanded={menu.model() ? "true" : "false"}
+            aria-expanded={menu.open() ? "true" : "false"}
             aria-controls="site-navigation"
-            onClick={menu.send.Toggle}
+            onClick={() => menu.toggle()}
           >
-            <span class="srOnly">{menu.model() ? "Close navigation" : "Open navigation"}</span>
-            {menu.model() ? <CloseIcon /> : <MenuIcon />}
+            <span class="srOnly">{menu.open() ? "Close navigation" : "Open navigation"}</span>
+            {menu.open() ? <CloseIcon /> : <MenuIcon />}
           </button>
           <RouterLink route={HomeRoute} class="brand" aria-label="Sunfall Arc home">
             <ArcMark />
@@ -510,7 +521,7 @@ function DocsShell(props: {
       </header>
 
       <div class="siteBody">
-        <div class="drawerBackdrop" aria-hidden="true" onClick={menu.send.Close} />
+        <div class="drawerBackdrop" aria-hidden="true" onClick={() => menu.dismiss()} />
         <aside class="sidebar" id="site-navigation" aria-label="Site" onClick={closeOnLink}>
           <nav class="sidebarGroup mobileOnly" aria-label="Primary">
             <ul class="navList">

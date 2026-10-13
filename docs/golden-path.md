@@ -46,7 +46,7 @@ Four defaults settle most arguments:
   is a State message, an Action, or a framework event (Resource load,
   navigation, a callback or stream transition). Signals are read-only in the
   public API, so there is no unnamed write to make, and the Timeline reads
-  like a message log: `State "ProjectSidebar.status" Filter`,
+  like a message log: `State "ProjectSidebar.status" ChoseStatus`,
   `Action "Projects.rename" submit`.
 
 ## How The Pieces Fit
@@ -536,26 +536,30 @@ same load, cache, tags, and hydration.
 
 The reader of a Resource with `rows` adds `get(input, key)` and
 `index(input, name, value)`. `src/project-list.tsx` reads the status index
-and keeps the filter in a State, changed only by its `Filter` message:
+and keeps the filter in a State, changed only by its `ChoseStatus` message:
 
 <!-- snippet: type-tests/golden-path/project-list.step-3.tsx -> type-tests/golden-path/project-list.tsx -->
 
 ```diff
-@@ -1,2 +1,3 @@
-+import { State } from "@sunfall/arc-core";
+@@ -1,14 +1,44 @@
++import { Machine, Message, Model, State } from "@sunfall/arc-core";
  import { Component, RouterLink } from "@sunfall/arc-solid";
  import { For, Loading } from "solid-js";
-@@ -4,11 +5,30 @@
+-import { ProjectList } from "./projects.js";
++import { Project, ProjectList } from "./projects.js";
  import { ProjectRoute } from "./routes.js";
 
-+type Status = "active" | "archived";
-+
 +// Client-only UI state: a State, changed only by its named messages. The
-+// Timeline reads each change as `State "ProjectSidebar.status" Filter`.
++// Timeline reads each change as `State "ProjectSidebar.status" ChoseStatus`.
++const StatusModel = Model({ Showing: { status: Project.fields.status } });
++const StatusMessage = Message({ ChoseStatus: { status: Project.fields.status } });
 +const SidebarStatus = State.define({
 +  name: "ProjectSidebar.status",
-+  initial: "active" as Status,
-+  on: { Filter: (_status, message: { readonly status: Status }) => message.status },
++  machine: Machine.make({
++    state: StatusModel,
++    event: StatusMessage,
++    initial: StatusModel.Showing({ status: "active" }),
++  }).onAny(StatusMessage.ChoseStatus, ({ event }) => StatusModel.Showing({ status: event.status })),
 +});
 +
  export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
@@ -568,20 +572,27 @@ and keeps the filter in a State, changed only by its `Filter` message:
        <nav class={{ refreshing: projects.waiting("all") }}>
 -        <For each={projects("all")} keyed={(project) => project.id}>
 +        <select
-+          value={status.model()}
-+          onChange={(event) => status.send.Filter({ status: event.currentTarget.value as Status })}
++          value={status.model().status}
++          onChange={(event) =>
++            status.send.ChoseStatus({
++              status: event.currentTarget.value === "archived" ? "archived" : "active",
++            })
++          }
 +        >
 +          <option value="active">Active</option>
 +          <option value="archived">Archived</option>
 +        </select>
-+        <For each={projects.index("all", "status", status.model())} keyed={(project) => project.id}>
++        <For
++          each={projects.index("all", "status", status.model().status)}
++          keyed={(project) => project.id}
++        >
            {(project) => (
              <RouterLink route={ProjectRoute} options={{ params: { id: project().id } }}>
 ```
 
-- `projects.index("all", "status", status.model())` suspends like
+- `projects.index("all", "status", status.model().status)` suspends like
   `projects("all")` on the first load, then follows the rows: a reload, a
-  patch, and a `Filter` message all re-run it. Index names and values are
+  patch, and a `ChoseStatus` message all re-run it. Index names and values are
   checked against `rows.indexes`.
 - The routes did not change: their `preload` already loads (and server
   renders) the rows.
@@ -720,7 +731,7 @@ Effect.runFork(App.launch(app));
 `Timeline.record` records every committed change, whatever owns it: State
 models, Resource entries, Action state, and the router. Every entry has a
 name by construction: a State commit names its State and message
-(`State "ProjectSidebar.status" Filter`), Actions, Resources, and the router
+(`State "ProjectSidebar.status" ChoseStatus`), Actions, Resources, and the router
 label their own commits, and work a Component's callback starts commits as
 `<Component>.<name>`. `travel`
 re-renders the UI as it was after any entry while Effects keep running against
@@ -776,7 +787,7 @@ Mount it beside the app in development with
 `Effect.runFork(launchTimelinePanel(panelElement))`. Rename a project and the
 panel reads like a message log: `RenameForm.save`, the Action's submit and
 success, and the Resource reloads that follow; changing the sidebar filter
-shows `State "ProjectSidebar.status" Filter` changing `ProjectSidebar.status`. In tests,
+shows `State "ProjectSidebar.status" ChoseStatus` changing `ProjectSidebar.status`. In tests,
 record inside the test's Scope and assert on the DOM after `travel`
 ([example](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
 
@@ -784,45 +795,41 @@ record inside the test's Scope and assert on the DOM after `travel`
 
 UI logic is tested as plain functions: no runtime, DOM, or timers.
 
-A State's handlers are pure, so `State.step(definition, model, message)` is
-the whole test harness. It returns `{ model, commands }` without running the
-commands; each command is a description whose `effect` you run, with test
-services, to get the message it emits. Here is a State that loads the
-project list (its commands emit its own messages, so it names the message
-union up front with `State.define<Model, Message>()`):
+A State's transitions are data on its machine, so
+`Machine.replay(definition.machine, messages)` is the whole test harness: it
+re-applies the messages from the initial model and returns the model they
+reach, with the machine's services provided as layers. Here is a State that
+loads the project list; the load is a task its `Loading` variant owns:
 
 <!-- snippet: type-tests/golden-path/project-loader.ts -->
 
 ```ts
-import { Resource, State } from "@sunfall/arc-core";
-import { Effect } from "effect";
-import { ProjectsRef, type Project } from "./projects.js";
+import { Machine, Message, Model, Resource, State } from "@sunfall/arc-core";
+import { Effect, Schema } from "effect";
+import { Project, ProjectsRef } from "./projects.js";
 
-type Model = {
-  readonly status: "idle" | "loading" | "ready";
-  readonly projects: ReadonlyArray<Project>;
-};
-type Message =
-  | { readonly _tag: "Load" }
-  | { readonly _tag: "Loaded"; readonly projects: ReadonlyArray<Project> };
+export const LoaderModel = Model({
+  Idle: {},
+  Loading: {},
+  Ready: { projects: Schema.Array(Project) },
+});
+export const LoaderMessage = Message({
+  ClickedLoad: {},
+  ReceivedProjects: { projects: Schema.Array(Project) },
+});
 
-// Handlers are pure: they return the next model, and Effect work leaves them
-// as commands that run after the model commits.
-export const ProjectLoader = State.define<Model, Message>()({
+// The load is work the Loading state owns: it starts on entry, stops if the
+// state is left, and its outcome comes back as a message.
+export const ProjectLoader = State.define({
   name: "ProjectLoader",
-  initial: { status: "idle", projects: [] },
-  on: {
-    Load: (model) =>
-      State.next(
-        { ...model, status: "loading" },
-        State.emit(
-          Resource.preload(ProjectsRef).pipe(
-            Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
-          ),
-        ),
-      ),
-    Loaded: (_model, message) => ({ status: "ready", projects: message.projects }),
-  },
+  machine: Machine.make({ state: LoaderModel, event: LoaderMessage, initial: LoaderModel.Idle })
+    .on(LoaderModel.Idle, LoaderMessage.ClickedLoad, () => LoaderModel.Loading)
+    .task(LoaderModel.Loading, () => Resource.preload(ProjectsRef).pipe(Effect.orDie), {
+      onSuccess: (projects) => LoaderMessage.ReceivedProjects({ projects }),
+    })
+    .on(LoaderModel.Loading, LoaderMessage.ReceivedProjects, ({ event }) =>
+      LoaderModel.Ready({ projects: event.projects }),
+    ),
 });
 ```
 
@@ -831,34 +838,27 @@ and its tests:
 <!-- snippet: type-tests/golden-path/project-loader.test.ts -->
 
 ```ts
-import { State } from "@sunfall/arc-core";
+import { Machine } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
-import { ProjectLoader } from "./project-loader.js";
+import { LoaderMessage, ProjectLoader } from "./project-loader.js";
 import { ProjectId, type Project } from "./projects.js";
 import { ProjectsServerMemory } from "./projects.memory.js";
 
 const atlas: Project = { id: ProjectId.make("atlas"), name: "Atlas", status: "active" };
 
-test("Load starts loading and fetches the projects", () => {
-  // One transition is one function call: no runtime, DOM, or timers.
-  const loading = State.step(ProjectLoader, ProjectLoader.initial, { _tag: "Load" });
-  expect(loading.model.status).toBe("loading");
-  expect(loading.commands).toHaveLength(1);
-
-  // A command is a description: run its Effect with test services to get the
-  // message it emits.
-  const emitted = Effect.runSync(
-    loading.commands[0]!.effect.pipe(Effect.provide(ProjectsServerMemory)),
-  );
-  expect(emitted).toMatchObject({ _tag: "Loaded", projects: [atlas, expect.anything()] });
-});
-
-test("Loaded shows the projects", () => {
-  const loading = { status: "loading", projects: [] } as const;
-  const ready = State.step(ProjectLoader, loading, { _tag: "Loaded", projects: [atlas] });
-  expect(ready.model).toEqual({ status: "ready", projects: [atlas] });
-  expect(ready.commands).toEqual([]);
+test("ClickedLoad enters Loading, and the received projects show", () => {
+  // Transitions replay without a runtime, DOM, or timers.
+  const replay = (messages: Parameters<typeof Machine.replay<any, any, any>>[1]) =>
+    Effect.runSync(
+      Machine.replay(ProjectLoader.machine, messages).pipe(Effect.provide(ProjectsServerMemory)),
+    );
+  expect(replay([LoaderMessage.ClickedLoad])._tag).toBe("Loading");
+  expect(
+    replay([LoaderMessage.ClickedLoad, LoaderMessage.ReceivedProjects({ projects: [atlas] })]),
+  ).toMatchObject({ _tag: "Ready", projects: [atlas] });
+  // Not valid while idle: the message changes nothing.
+  expect(replay([LoaderMessage.ReceivedProjects({ projects: [atlas] })])._tag).toBe("Idle");
 });
 ```
 
@@ -956,7 +956,7 @@ implementations })`. Declare `output` and `error` schemas: they type the
   by `rows.key`.
 - **Hold client state in a State.** It is the one writable client state:
   `State.define` names it and its messages, and Signals are its read side.
-  Test transitions with `State.step`.
+  Test transitions with `Machine.replay`.
 - **Bind a State per instance.** `Component.state(Definition)` starts one
   State per Component instance and stops it on unmount; key the Component on
   an entity to get a fresh State per entity.

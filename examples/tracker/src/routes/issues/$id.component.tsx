@@ -1,6 +1,6 @@
-import { State, type Route } from "@sunfall/arc-core";
+import { Machine, Message, Model, State, type Route } from "@sunfall/arc-core";
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
-import { Cause, Effect } from "effect";
+import { Cause, Effect, Schema } from "effect";
 import { For, Show, untrack } from "solid-js";
 import { AddComment, DeleteIssue, MoveIssue, UpdateIssue } from "../../actions.js";
 import { boardHref } from "../../hrefs.js";
@@ -31,30 +31,67 @@ import {
   Projects,
   Team,
 } from "../../resources.js";
-import { UndoToast } from "../../shell.js";
+import { ToastMessage, UndoToast } from "../../shell.js";
 import { Avatar, PriorityIcon, StatusIcon, formatDate, formatDateTime } from "../../ui.js";
 import { route as BoardRoute } from "../projects/$key/index.js";
 import type { route } from "./$id.js";
 
-type EditorModel = {
-  readonly editing: "title" | "description" | null;
-  readonly comment: string;
-};
+const EditorModel = Model({ Viewing: {}, EditingTitle: {}, EditingDescription: {} });
+const EditorMessage = Message({
+  ClickedEditTitle: {},
+  ClickedEditDescription: {},
+  ClickedCancelEdit: {},
+  SavedEdit: {},
+});
 
-/** The page's own UI state: which field is being edited, and the comment draft. */
+/** Which field of the page is being edited: one at a time, by construction. */
 const IssueEditor = State.define({
   name: "Issue.editor",
-  initial: { editing: null, comment: "" } as EditorModel,
-  on: {
-    Edit: (model, message: { readonly field: "title" | "description" }) => ({
-      ...model,
-      editing: message.field,
-    }),
-    StopEditing: (model) => ({ ...model, editing: null }),
-    Draft: (model, message: { readonly text: string }) => ({ ...model, comment: message.text }),
-    ClearDraft: (model) => ({ ...model, comment: "" }),
-  },
+  machine: Machine.make({ state: EditorModel, event: EditorMessage, initial: EditorModel.Viewing })
+    .onAny(EditorMessage.ClickedEditTitle, () => EditorModel.EditingTitle)
+    .onAny(EditorMessage.ClickedEditDescription, () => EditorModel.EditingDescription)
+    .on(
+      [EditorModel.EditingTitle, EditorModel.EditingDescription],
+      EditorMessage.ClickedCancelEdit,
+      () => EditorModel.Viewing,
+    )
+    .on(
+      [EditorModel.EditingTitle, EditorModel.EditingDescription],
+      EditorMessage.SavedEdit,
+      () => EditorModel.Viewing,
+    ),
 });
+
+const ComposerModel = Model({ Drafting: { text: Schema.String } });
+const ComposerMessage = Message({ TypedComment: { text: Schema.String }, SubmittedComment: {} });
+
+/**
+ * The comment box. Its draft persists per issue (the runtime's
+ * `KeyValueStore`: localStorage in the browser), so a reload keeps it, and
+ * submitting is guarded: an empty draft has no transition, which is also
+ * what disables the button.
+ */
+const commentComposer = (id: IssueId) =>
+  State.define({
+    name: "Issue.composer",
+    persist: { key: `issue-comment/${id}` },
+    machine: Machine.make({
+      state: ComposerModel,
+      event: ComposerMessage,
+      initial: ComposerModel.Drafting({ text: "" }),
+    })
+      .onAny(ComposerMessage.TypedComment, ({ event }) =>
+        ComposerModel.Drafting({ text: event.text }),
+      )
+      .when(
+        ComposerModel.Drafting,
+        ComposerMessage.SubmittedComment,
+        function hasText({ state }) {
+          return state.text.trim() !== "";
+        },
+        () => ComposerModel.Drafting({ text: "" }),
+      ),
+  });
 
 const newCommentId = (): CommentId => `c_${crypto.randomUUID().replaceAll("-", "")}` as CommentId;
 
@@ -71,6 +108,7 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
   const projects = yield* Component.resource(Projects);
   const user = yield* Component.resource(CurrentUser);
   const editor = yield* Component.state(IssueEditor);
+  const composer = yield* Component.state(commentComposer(untrack(() => props.id)));
   const update = yield* Component.action(UpdateIssue);
   const move = yield* Component.action(MoveIssue);
   const comment = yield* Component.action(AddComment);
@@ -93,27 +131,30 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
       readonly assigneeId?: UserId | null;
       readonly labelIds?: ReadonlyArray<LabelId>;
     }) =>
-      editor
-        .dispatch({ _tag: "StopEditing" })
-        .pipe(Effect.andThen(update.submit({ id, ...fields })), Effect.ignore),
+      (fields.title !== undefined || fields.description !== undefined
+        ? editor.dispatch(EditorMessage.SavedEdit)
+        : Effect.void
+      ).pipe(Effect.andThen(update.submit({ id, ...fields })), Effect.ignore),
   );
   const setStatus = yield* Component.callback("status", (status: IssueStatus) =>
     move.submit({ id, status, position: issue(id).position }).pipe(Effect.ignore),
   );
-  const postComment = yield* Component.callback("comment", (body: string) =>
-    body.trim() === ""
-      ? Effect.void
-      : editor
-          .dispatch({ _tag: "ClearDraft" })
+  const postComment = yield* Component.callback("comment", () => {
+    const body = composer.committed.get().text;
+    // The guard turns an empty draft away; only a real one clears and posts.
+    return composer.can.SubmittedComment()
+      ? composer
+          .dispatch(ComposerMessage.SubmittedComment)
           .pipe(
             Effect.andThen(comment.submit({ id: newCommentId(), issueId: id, body })),
             Effect.ignore,
-          ),
-  );
+          )
+      : Effect.void;
+  });
   const deleteIssue = yield* Component.callback("delete", () => {
     const title = issue(id).title;
     return remove.submit({ id }).pipe(
-      Effect.tap(() => toast.dispatch({ _tag: "Deleted", issue: { id, title } })),
+      Effect.tap(() => toast.dispatch(ToastMessage.DeletedIssue({ issue: { id, title } }))),
       Effect.tap(() => Effect.sync(() => router.navigateHref(boardHref(projectKey)))),
       Effect.ignore,
     );
@@ -154,14 +195,14 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
         </nav>
 
         <Show
-          when={editor.model().editing === "title"}
+          when={editor.model()._tag === "EditingTitle"}
           fallback={
             <h1 class="issueHeading">
               <button
                 type="button"
                 class="editable"
                 title="Edit title"
-                onClick={() => editor.send.Edit({ field: "title" })}
+                onClick={editor.send.ClickedEditTitle}
               >
                 {issue(id).title}
               </button>
@@ -179,7 +220,7 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
             <button type="submit" class="primaryButton small">
               Save
             </button>
-            <button type="button" class="ghostButton small" onClick={editor.send.StopEditing}>
+            <button type="button" class="ghostButton small" onClick={editor.send.ClickedCancelEdit}>
               Cancel
             </button>
           </form>
@@ -187,7 +228,7 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
 
         <section class="description" aria-label="Description">
           <Show
-            when={editor.model().editing === "description"}
+            when={editor.model()._tag === "EditingDescription"}
             fallback={
               <>
                 <Show
@@ -199,7 +240,7 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
                 <button
                   type="button"
                   class="linkButton"
-                  onClick={() => editor.send.Edit({ field: "description" })}
+                  onClick={editor.send.ClickedEditDescription}
                 >
                   Edit description
                 </button>
@@ -219,7 +260,11 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
                 {issue(id).description}
               </textarea>
               <div class="formActions">
-                <button type="button" class="ghostButton small" onClick={editor.send.StopEditing}>
+                <button
+                  type="button"
+                  class="ghostButton small"
+                  onClick={editor.send.ClickedCancelEdit}
+                >
                   Cancel
                 </button>
                 <button type="submit" class="primaryButton small">
@@ -255,7 +300,7 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
             class="composer"
             onSubmit={(event) => {
               event.preventDefault();
-              postComment(editor.model().comment);
+              postComment();
             }}
           >
             <Avatar user={user("current") ?? undefined} />
@@ -264,19 +309,19 @@ const IssueView = Component.define("IssueView", function* (props: { readonly id:
               rows={3}
               placeholder="Leave a comment. Markdown works."
               aria-label="Comment"
-              value={editor.model().comment}
-              onInput={(event) => editor.send.Draft({ text: event.currentTarget.value })}
+              value={composer.model().text}
+              onInput={(event) => composer.send.TypedComment({ text: event.currentTarget.value })}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
-                  postComment(editor.model().comment);
+                  postComment();
                 }
               }}
             />
             <button
               type="submit"
               class="primaryButton small"
-              disabled={editor.model().comment.trim() === ""}
+              disabled={!composer.can.SubmittedComment()}
             >
               Comment
             </button>

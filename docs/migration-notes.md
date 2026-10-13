@@ -156,39 +156,60 @@ Mocks keep their shape: `Server.mock(contract, handler)` provided through
 `Server.mockLayer(...)` still validates through the contract schemas (now the
 Rpc's JSON codecs, the wire's). SSR keeps calling implementations in-process.
 
+## From State Handler Maps
+
+A State is now a named [effect-machine](https://github.com/cevr/effect-machine)
+machine. `Model`, `Message`, and `Machine` are exported from
+`@sunfall/arc-core`.
+
+| Before                                                                   | After                                                                                                          |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `State.define({ name, initial, on })`, `State.define<Model, Message>()`  | `State.define({ name, machine: Machine.make({ state, event, initial }).on(...) })`                             |
+| a plain model value                                                      | `Model({...})` variants (Effect Schemas); the model is always one tagged variant                               |
+| a message union inferred from `on`                                       | `Message({...})` (Effect Schemas); senders build messages with its constructors                                |
+| an `on` handler per `_tag`                                               | `.on(variant, message, handler)`, keyed by the current variant; unhandled messages are ignored and recorded    |
+| `State.next(model, commands)`, `State.emit(...)`, `State.commands(...)`  | `.task(variant, run, { onSuccess, onFailure })` / `spawn`: work the variant owns, interrupted when it is left  |
+| `State.subscription(stream)`, `subscriptions`                            | a `spawn` (or `task`) owned by the variants that need the Stream                                               |
+| `State.step(definition, model, message)` plus running a command's effect | `Machine.replay(definition.machine, messages, { from? })`                                                      |
+| update / command / subscription failure phases                           | `State.Phase`: `Update`, `Work`, `Hydrate`; work's error channel is `never`, so expected failures are messages |
+
+App States (`scope: "app"`) now carry their server model to the browser, and
+`persist: { key, version? }` restores a model from the runtime's
+`KeyValueStore`. `State.history(entries)` reads an instance's starting model and
+messages back out of a Timeline for `Machine.replay`.
+
 ## From Program And Writable Signals
 
 State is now the one way to hold writable client state. `Program` is renamed
-`State` (same loop and `step` semantics), and the public `Signal` API is
-read-only, so client state that was a writable Signal becomes a State.
+`State` (now a machine; see [From State Handler Maps](#from-state-handler-maps)),
+and the public `Signal` API is read-only, so client state that was a writable
+Signal becomes a State.
 
-| Before                                                                            | After                                                                                                               |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `Program.define<Model, Message>({ initial, on })`                                 | `State.define<Model, Message>()({ name, initial, on })`, or `State.define({ name, initial, on })` to infer messages |
-| `Program.next` / `emit` / `commands` / `subscription` / `step` / `start`          | `State.next` / `emit` / `commands` / `subscription` / `step` / `start`                                              |
-| `Program.Definition`, `Instance`, `Failure`, `Disposed`, ...                      | `State.Definition`, `State.Instance`, `State.Failure`, `State.Disposed`, ...                                        |
-| `ProgramFailure` / `ProgramDisposed` tags                                         | `StateFailure` / `StateDisposed`                                                                                    |
-| `ProgramStepTypeId`, `ProgramCommandTypeId`, `ProgramSubscriptionTypeId`          | `StateStepTypeId`, `StateCommandTypeId`, `StateSubscriptionTypeId` (plus `StateRefTypeId`)                          |
-| an unnamed Program                                                                | `name` is required                                                                                                  |
-| `Component.program(Definition, options?)`                                         | `Component.state(Definition, options?)`                                                                             |
-| `Component.ProgramHandle` / `ProgramOptions` / `ProgramModelView`                 | `Component.StateHandle` / `StateOptions` / `StateView`                                                              |
-| `Component.callback("send", (m) => program.dispatch(m).pipe(Effect.ignore))`      | `state.send.Tag()` / `state.send.Tag({ ...fields })`, DOM-ready                                                     |
-| `Signal.make(initial, { name })` written in a named `Component.callback`          | a State: `State.define({ name, initial, on: { Set: (_, message: { readonly value: A }) => message.value } })`       |
-| `Signal.batch` / `transaction` / `fromStream` / `updateAndGet`, `Signal.Writable` | no public form; client changes are State messages (internal: `SignalWrites` in `@sunfall/arc-core/internal`)        |
-| `SignalWriteOutsideTransition`                                                    | an internal assertion: application code cannot make an unnamed write                                                |
-| `transaction.set(writableSignal, update)` in an Action's `optimistic`             | `transaction.set(state, update)` on a `State.Ref` (a `State.Instance` or `Component.state` handle)                  |
-| `Timeline.ProgramCause` `{ _tag: "Program", program, event, message }`            | `Timeline.StateCause` `{ _tag: "State", state, event, message }`                                                    |
-| label `Program "Board" message Relabel`                                           | `State "Board" Relabel`                                                                                             |
-| model signal `Board.model`                                                        | `Board` (the State's `name`); failures stay `Board.failures`                                                        |
-| devtools `programs` panel, `program:<name>` nodes                                 | `states` panel, `state:<name>` nodes                                                                                |
+| Before                                                                            | After                                                                                                        |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Program.define<Model, Message>({ initial, on })`                                 | `State.define({ name, machine })` (see [From State Handler Maps](#from-state-handler-maps))                  |
+| `Program.next` / `emit` / `commands` / `subscription` / `step` / `start`          | machine transitions and state-owned `task` / `spawn`, `Machine.replay`, `State.start`                        |
+| `Program.Definition`, `Instance`, `Failure`, `Disposed`, ...                      | `State.Definition`, `State.Instance`, `State.Failure`, `State.Disposed`, ...                                 |
+| `ProgramFailure` / `ProgramDisposed` tags                                         | `StateFailure` / `StateDisposed`                                                                             |
+| `ProgramStepTypeId`, `ProgramCommandTypeId`, `ProgramSubscriptionTypeId`          | removed (`StateRefTypeId` marks a running State)                                                             |
+| an unnamed Program                                                                | `name` is required                                                                                           |
+| `Component.program(Definition, options?)`                                         | `Component.state(Definition, options?)`                                                                      |
+| `Component.ProgramHandle` / `ProgramOptions` / `ProgramModelView`                 | `Component.StateHandle` / `StateOptions` / `StateView`                                                       |
+| `Component.callback("send", (m) => program.dispatch(m).pipe(Effect.ignore))`      | `state.send.Tag()` / `state.send.Tag({ ...fields })`, DOM-ready                                              |
+| `Signal.make(initial, { name })` written in a named `Component.callback`          | a State whose machine handles a `Set`-style message                                                          |
+| `Signal.batch` / `transaction` / `fromStream` / `updateAndGet`, `Signal.Writable` | no public form; client changes are State messages (internal: `SignalWrites` in `@sunfall/arc-core/internal`) |
+| `SignalWriteOutsideTransition`                                                    | an internal assertion: application code cannot make an unnamed write                                         |
+| `transaction.set(writableSignal, update)` in an Action's `optimistic`             | `transaction.set(state, update)` on a `State.Ref` (a `State.Instance` or `Component.state` handle)           |
+| `Timeline.ProgramCause` `{ _tag: "Program", program, event, message }`            | `Timeline.StateCause` `{ _tag: "State", state, event, message }`                                             |
+| label `Program "Board" message Relabel`                                           | `State "Board" Relabel`                                                                                      |
+| model signal `Board.model`                                                        | `Board` (the State's `name`); failures stay `Board.failures`                                                 |
+| devtools `programs` panel, `program:<name>` nodes                                 | `states` panel, `state:<name>` nodes                                                                         |
 
-Tags stay PascalCase (`send.Toggle`): one spelling in `on`, `send`,
-`dispatch({ _tag })`, `State.step`, and the Timeline, matching Effect's
-`_tag` convention. A message without fields binds straight to an event
-(`onClick={menu.send.Toggle}`); a message with fields takes them
-(`search.send.Search({ query })`). Inferred-form commands may only emit
-nothing; a State whose commands emit its own messages names the union with
-`State.define<Model, Message>()`. A prop-sync message (`ProjectChanged`) is
+Tags stay PascalCase (`send.ClickedMenu`): one spelling in `Message({...})`,
+`send`, `dispatch`, and the Timeline, matching Effect's `_tag` convention. A
+message without fields binds straight to an event
+(`onClick={menu.send.ClickedMenu}`); a message with fields takes them
+(`search.send.TypedQuery({ query })`). A prop-sync message (`ProjectChanged`) is
 usually better replaced by keying the Component on the entity, so each entity
 gets a fresh State. `Component.callback` stays for Effect work that is not a
 State change (submitting Actions, invalidating Resources), and
@@ -438,7 +459,7 @@ Effect.runFork(App.launch(app));
 | `runtime.disposeEffect`, `disposeResourceStoreEffect`, `ResourceStoreModule.disposeEffect`                                                | `runtime.dispose`, `disposeResourceStore`, `ResourceStoreModule.dispose`                                                                      |
 | `ResourceStore` `eventBus.publishEffect` / `subscribeEffect` / `shutdownEffect` / `isShutdownEffect` + `isShutdownUnsafe()`               | `publish` / `subscribe` / `shutdown` / `isShutdown`                                                                                           |
 | `ResourceStore` registries `size()` + `sizeEffect`, diagnostics `*CountEffect` / `snapshotEffect` + `snapshotUnsafe()`                    | `size`, `*Count`, `snapshot` (Effects)                                                                                                        |
-| `Program.command(effect)` / `Program.effect(effect)` / `Program.dispatch(message)`                                                        | `State.emit(effect)` / `State.emit(effect)` / `State.emit(message)`                                                                           |
+| `Program.command(effect)` / `Program.effect(effect)` / `Program.dispatch(message)`                                                        | a `task` / `spawn` owned by a variant, or `dispatch(message)`                                                                                 |
 | Program instance and Solid handle `dispatch(message)` (sync) + `dispatchEffect(message)`                                                  | State instance and `Component.state` handle `dispatch(message)` (Effect), or `send.Tag(...)`                                                  |
 | Program instance `disposeEffect`                                                                                                          | State instance `dispose`                                                                                                                      |
 | Solid `ActionHandle` `submit(input)` (sync) + `submitEffect(input)`, sync `reset()`                                                       | `submit(input)`, `reset()` (Effects)                                                                                                          |
@@ -518,34 +539,28 @@ failure kind, response, stream state, and runtime teardown.
 ## From Reducers And Effect Queues
 
 Reducer loops often split model transitions, async work queues, and component
-effects across several files. In Sunfall Arc, move that loop into a State:
+effects across several files. In Sunfall Arc, move that loop into a State
+machine:
 
-- The reducer state becomes `initial`.
-- The action union becomes a State message union tagged with `_tag`
-  (`"increment"` becomes `{ _tag: "Increment" }`).
-- The reducer switch becomes the `on` map of `State.define({ name, initial, on })`,
-  one pure handler per `_tag`. There is no `update(model, message)` callback,
-  and a handler never returns an Effect.
-- A handler returns the next model directly, or `State.next(model, commands)`
-  when work should run after the model commits.
-- Follow-up work is a command from `State.emit(...)`: `State.emit(message)`,
-  `State.emit(Effect.tryPromise(...).pipe(Effect.map(...)))`, or an Effect
-  that completes with `void` when the work emits no message. Commands that
-  emit the State's own messages need the explicit form,
-  `State.define<Model, Message>()({ ... })`.
-- Long-lived external inputs become `Stream` subscriptions attached to the
-  State definition.
+- The reducer state becomes `Model({...})` variants, one per mode the UI can
+  be in (`Idle`, `Loading`, `Ready`), and the initial state becomes
+  `initial`.
+- The action union becomes `Message({...})`, named for what happened
+  (`"increment"` becomes `ClickedIncrement`).
+- The reducer switch becomes `.on(variant, message, handler)` transitions on
+  `Machine.make({ state, event, initial })`, passed to
+  `State.define({ name, machine })`. A message the current variant does not
+  handle changes nothing, so "not valid now" needs no guard code.
+- Queued async work becomes a `.task(variant, run, { onSuccess, onFailure })`
+  or `spawn` owned by the variant that needs it: it starts on entry, is
+  interrupted on exit, and reports its outcome as a message. Promise work is
+  wrapped with `Effect.tryPromise` inside it.
+- Long-lived external inputs become a `spawn` that runs a Stream while the
+  variants that need it are active.
 
-The migration is done when models and messages are plain values, Promise work is
-wrapped at the Effect edge before a follow-up message is emitted, and
-`State.step(definition, model, message)` tests each transition as a pure
-function call without mounting a UI.
-
-Earlier alphas accepted an `update` callback (which could return an Effect),
-`Program.update(handlers)`, and the `Program.story(...)` harness. Move every
-`update` into `on`, move Effect work in handlers into `State.emit(effect)`
-commands, and replace stories with `State.step(...)` plus running a
-command's `effect`.
+The migration is done when every model is a schema variant, every async
+outcome is a message, and `Machine.replay(definition.machine, messages)` tests
+the transitions without mounting a UI.
 
 ## From Solid Hooks To Components
 
