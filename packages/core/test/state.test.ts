@@ -263,11 +263,44 @@ describe("State runtime", () => {
           makeDownload(() => Stream.die("boom")),
           { runtime: defaultRuntime },
         );
-        yield* download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" }));
+        // The work dies at once, so the message that started it fails with its defect.
+        const died = yield* Effect.flip(
+          download.dispatch(DownloadEvent.ClickedDownload({ url: "/a" })),
+        );
+        expect(died.error).toMatchObject({ _tag: "StateDefect", phase: "spawn" });
         yield* waitFor(() => download.failures.get().length > 0);
         expect(download.failures.get()[0]).toMatchObject({ phase: "Work" });
         expect(download.failures.get()[0]?.error).toBeInstanceOf(State.Defect);
+        // The defect stops the State: recorded once, and it takes no more messages.
+        yield* Effect.sleep("10 millis");
+        expect(download.failures.get()).toHaveLength(1);
+        expect(download.can(DownloadEvent.ClickedCancel)).toBe(false);
+        const refused = yield* Effect.flip(download.dispatch(DownloadEvent.ClickedCancel));
+        expect(refused.error).toMatchObject({ _tag: "StateDefect", phase: "stopped" });
         yield* download.dispose;
+      }),
+    ));
+
+  it("stops on a throwing transition: one failure, refused dispatches, can() false", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Broken = State.define({
+          name: "Broken",
+          machine: Machine.make({ state: MenuModel, event: MenuEvent, initial: MenuModel.Closed })
+            .on(MenuModel.Closed, MenuEvent.ClickedMenu, (): typeof MenuModel.Type => {
+              throw new Error("kaboom");
+            })
+            .on(MenuModel.Closed, MenuEvent.PressedEscape, () => MenuModel.Closed),
+        });
+        const broken = State.start(Broken, { runtime: defaultRuntime });
+        const first = yield* Effect.flip(broken.dispatch(MenuEvent.ClickedMenu));
+        expect(first.error).toMatchObject({ _tag: "StateDefect", phase: "transition" });
+        expect(broken.failures.get()).toHaveLength(1);
+        expect(broken.can(MenuEvent.PressedEscape)).toBe(false);
+        const refused = yield* Effect.flip(broken.dispatch(MenuEvent.PressedEscape));
+        expect(refused.error).toMatchObject({ _tag: "StateDefect", phase: "stopped" });
+        expect(broken.failures.get()).toHaveLength(1);
+        yield* broken.dispose;
       }),
     ));
 

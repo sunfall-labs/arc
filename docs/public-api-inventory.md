@@ -815,7 +815,7 @@ The root export includes:
   `Component.define` (per-instance setup receiving props, returning the render
   function), setup-time bindings (`resource`, `action`, `state`, `stream`,
   `callback`, `router`, and the expert `instance` seam for binding authors),
-  boundaries (`catchTags`, `catchAll`, `loading`), `provide`, and the entry
+  boundaries (`catchTags`, `catchAll`, `catchDefect`, `loading`), `provide`, and the entry
   points `launch` (the app entry), `mount` (its composable scoped primitive),
   and `embed` (the server render path, on an explicit runtime);
 - router APIs: `RouterProvider` (renders a router from `Component.router`),

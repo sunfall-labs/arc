@@ -97,6 +97,8 @@ export const makeStateRuntimeInstance = <
   const key = persistKey(definition);
   const disposedSignal = Effect.runSync(Deferred.make<void>());
   let disposed = false;
+  /** The defect the actor died on, once it has: it processes no more messages. */
+  let stoppedBy: StateFailure<Message, StateError<ER>> | undefined;
 
   type RuntimeFailure = StateError<ER>;
   type DispatchFailure = StateDispatchError<ER>;
@@ -121,6 +123,15 @@ export const makeStateRuntimeInstance = <
       () => failures.update((current) => [...current, failure]),
       cause("failure", failure.message === undefined ? {} : { message: failure.message }),
     );
+  };
+
+  /** Marks the actor dead on `defect` and records it, once. */
+  const stop = (
+    defect: StateFailure<Message, RuntimeFailure>,
+  ): StateFailure<Message, RuntimeFailure> => {
+    stoppedBy = defect;
+    recordFailure(defect);
+    return defect;
   };
 
   /** Commits what the machine committed: one entry, named by the message. */
@@ -189,24 +200,21 @@ export const makeStateRuntimeInstance = <
             ),
         };
 
+  // A defect in a transition or in a variant's work stops the actor (a task's
+  // defect surfaces here as its spawn's error): record it once and refuse
+  // further messages, so views stop offering what the State can no longer do.
   const inspect: Inspector<Model, Message> = {
     onInspect: (event) => {
-      if (event.type === "@machine.error") {
-        recordFailure(
-          makeStateFailure<Message, RuntimeFailure>(
-            event.phase === "spawn" ? "Work" : "Update",
-            new StateDefect({ phase: event.phase, description: event.error }),
-            event.event,
-          ),
-        );
-      } else if (event.type === "@machine.task" && event.phase === "defect") {
-        recordFailure(
-          makeStateFailure<Message, RuntimeFailure>(
-            "Work",
-            new StateDefect({ phase: "spawn", description: event.error ?? "task defect" }),
-          ),
-        );
+      if (event.type !== "@machine.error" || stoppedBy !== undefined) {
+        return;
       }
+      stop(
+        makeStateFailure<Message, RuntimeFailure>(
+          event.phase === "spawn" ? "Work" : "Update",
+          new StateDefect({ phase: event.phase, description: event.error }),
+          event.event,
+        ),
+      );
     },
   };
 
@@ -276,12 +284,25 @@ export const makeStateRuntimeInstance = <
       message,
     );
 
+  const stoppedFailure = (message: Message): StateFailure<Message, DispatchFailure> =>
+    makeStateFailure(
+      "Update",
+      new StateDefect({
+        phase: "stopped",
+        description: `State "${definition.name}" stopped after a defect and processes no more messages.`,
+      }),
+      message,
+    );
+
   const dispatch = (
     message: Message,
   ): Effect.Effect<void, StateFailure<Message, DispatchFailure>> =>
     Effect.suspend(() => {
       if (disposed || actor === undefined) {
         return Effect.fail(disposedFailure(message));
+      }
+      if (stoppedBy !== undefined) {
+        return Effect.fail(stoppedFailure(message));
       }
       const invalid = validateStateMessage(definition, message);
       if (invalid !== undefined) {
@@ -294,19 +315,27 @@ export const makeStateRuntimeInstance = <
         Effect.exit,
         Effect.flatMap((exit) => {
           if (Exit.isFailure(exit)) {
-            const failure = makeStateFailure<Message, RuntimeFailure>(
-              "Update",
-              new StateDefect({
-                phase: "transition",
-                description: String(Cause.squash(exit.cause)),
-              }),
-              message,
+            // The inspector usually recorded the defect that stopped the actor first.
+            return Effect.fail(
+              stoppedBy ??
+                stop(
+                  makeStateFailure<Message, RuntimeFailure>(
+                    "Update",
+                    new StateDefect({
+                      phase: "transition",
+                      description: String(Cause.squash(exit.cause)),
+                    }),
+                    message,
+                  ),
+                ),
             );
-            recordFailure(failure);
-            return Effect.fail(failure);
           }
           if (exit.value === undefined) {
             return Effect.fail(disposedFailure(message));
+          }
+          if (stoppedBy !== undefined) {
+            // The actor died on a defect while processing this message.
+            return Effect.fail(stoppedBy);
           }
           if (!exit.value.transitioned && !disposed) {
             recordSignalEvent(cause("ignored", { message }));
@@ -336,9 +365,11 @@ export const makeStateRuntimeInstance = <
     failures,
     dispatch,
     can: (message) => {
-      // Read the model so the answer is reactive.
+      // Read the model and failures so the answer is reactive (the defect
+      // that stops the actor lands on failures).
       model.get();
-      return actor !== undefined && !disposed && actor.sync.can(message);
+      failures.get();
+      return actor !== undefined && !disposed && stoppedBy === undefined && actor.sync.can(message);
     },
     clearFailures: () => batchSignalWrites(() => failures.set([]), cause("clearFailures")),
     dispose,

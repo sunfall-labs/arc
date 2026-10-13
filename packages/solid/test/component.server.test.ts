@@ -2,8 +2,8 @@ import { Resource, Route } from "@sunfall/arc-core";
 import { App, createRequestHandler } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { createComponent, isServer } from "@solidjs/web";
-import { describe, expect, it } from "vitest";
-import { Component } from "../src/index.js";
+import { describe, expect, it, vi } from "vitest";
+import { Component, RouterOutlet } from "../src/index.js";
 import { ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
 describe("Component (server)", () => {
@@ -41,6 +41,53 @@ describe("Component (server)", () => {
         expect(yield* request()).toContain(`<div id="root">${ssrMarkup}</div>`);
         expect(events).toMatchObject({ layerBuilds: 2, setups: 2, loads: 2, fallbacks: 0 });
         expect(events.released).toBe(2);
+      }),
+    ));
+
+  it("renders and logs a defect under catchTags instead of a blank region, sending nothing of it", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const logged: Array<string> = [];
+        const spies = (["log", "error", "warn"] as const).map((method) =>
+          vi.spyOn(console, method).mockImplementation((...args: Array<unknown>) => {
+            logged.push(args.map(String).join(" "));
+          }),
+        );
+        try {
+          class Missing extends Schema.TaggedError<Missing>()("Missing", {}) {}
+          const Broken = Component.define("Broken", function* () {
+            yield* Effect.die(new Error("server-secret defect")) as Effect.Effect<never, Missing>;
+            return (): string => "never";
+          }).pipe(Component.catchTags({ Missing: () => "missing" }));
+          const Root = Component.define("Root", function* (_props: App.RootProps) {
+            const View = yield* Broken;
+            return () => ["shell|", createComponent(View, {})];
+          });
+          const handler = createRequestHandler(App.define({ root: Root, routes: [] as const }));
+          const response = yield* Effect.scoped(handler(new Request("https://arc.test/")));
+          const html = yield* Effect.promise(() => response.text());
+          expect(html).toContain('<div id="root">shell|Something went wrong.');
+          expect(html).not.toContain("server-secret defect");
+          // The server log keeps the original defect.
+          expect(logged.join("\n")).toContain("server-secret defect");
+        } finally {
+          spies.forEach((spy) => spy.mockRestore());
+        }
+      }),
+    ));
+
+  it("renders the default not-found view when no notFound renderer is given", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Home = Route.define("/");
+        const Root = Component.define("Root", function* (props: App.RootProps) {
+          const router = yield* Component.router([Home] as const, { initialHref: props.href });
+          return () => createComponent(RouterOutlet, { router });
+        });
+        const handler = createRequestHandler(App.define({ root: Root, routes: [Home] as const }));
+        const response = yield* Effect.scoped(handler(new Request("https://arc.test/nowhere")));
+        expect(response.status).toBe(404);
+        expect(yield* Effect.promise(() => response.text())).toContain('<div id="root">Not found');
       }),
     ));
 });

@@ -24,7 +24,7 @@ import {
   Stream,
 } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { createComponent, Errored, Loading, render } from "@solidjs/web";
+import { createComponent, Loading, render } from "@solidjs/web";
 import { createContext, createRoot, flush, NotReadyError, useContext } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { Component, RouterProvider } from "../src/index.js";
@@ -624,7 +624,7 @@ describe("Component bindings", () => {
         ),
       ));
 
-    it("handles every typed failure with catchAll and rethrows defects", () =>
+    it("handles every typed failure with catchAll and passes defects on", () =>
       Effect.runPromise(
         Effect.scoped(
           Effect.gen(function* () {
@@ -636,19 +636,14 @@ describe("Component bindings", () => {
             const Defect = Component.define("Defect", function* () {
               yield* Effect.die(new Error("bug"));
               return () => "never";
-            }).pipe(Component.catchAll(() => "typed"));
+            }).pipe(
+              Component.catchAll(() => "typed"),
+              Component.catchDefect(() => " defect"),
+            );
             const App = Component.define("App", function* () {
               const TypedView = yield* Typed;
               const DefectView = yield* Defect;
-              return () => [
-                TypedView({}),
-                createComponent(Errored, {
-                  fallback: () => " defect",
-                  get children() {
-                    return DefectView({});
-                  },
-                }),
-              ];
+              return () => [TypedView({}), DefectView({})];
             });
 
             const container = document.createElement("div");

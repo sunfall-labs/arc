@@ -1,12 +1,13 @@
 import { Action, ActionResult, makeRuntime, Resource, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
-import { Effect, Layer, Schema, Context } from "effect";
+import { Effect, Layer, Option, Schema, Context } from "effect";
 import { describe, expect, it } from "vitest";
 import { App, createRequestHandler, StartAction } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
 import { StartDevServerError } from "../src/start-vite-dev-ssr.js";
 import { StartRequestHandlerError } from "../src/start-request-handler-error.js";
 import { actionTransportLayer } from "../src/start-action-transport.js";
+import { postedActionSubmission } from "../src/start-action-form-post.js";
 import { rpcClientLayer } from "../src/start-rpc-client.js";
 import { handlerFetch, testHttpClientLayer } from "./test-http-client.js";
 
@@ -247,6 +248,18 @@ describe("no-JavaScript form posts to a page", () => {
       input: { id: "atlas", name: "At" },
       outcome: { _tag: "ValidationFailure" },
     });
+  });
+
+  it("starts the hydrating binding without an input when the posted input was tampered with", async () => {
+    const { html } = await post({ name: "At" });
+    const root = html.match(
+      new RegExp(`<script[^>]*id="${hydrationScriptId}"[^>]*>([\\s\\S]*?)</script>`),
+    )?.[1];
+    const posted = JSON.parse(root ?? "{}").postedAction;
+    const state = await Effect.runPromise(
+      postedActionSubmission({ ...posted, input: { id: 42 } }).state(Rename),
+    );
+    expect(Option.isNone(state.input)).toBe(true);
   });
 
   it("answers a form whose fields fail the input schema as its validation failure", async () => {

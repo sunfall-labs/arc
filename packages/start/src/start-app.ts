@@ -10,7 +10,7 @@ import {
 } from "@sunfall/arc-core";
 import { PostedActions, settledRouteHead } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
-import { Data, Effect, Layer, Option } from "effect";
+import { Cause, Data, Effect, Layer, Option } from "effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 import { KeyValueStore } from "effect/persistence";
@@ -390,5 +390,12 @@ export namespace App {
         );
         return yield* Effect.never;
       }),
+    ).pipe(
+      // `Effect.runFork(App.launch(app))` observes nothing: log why the app
+      // did not start (a missing root, a client Layer failure, a hydration
+      // payload that does not decode) instead of leaving a dead page silent.
+      Effect.tapCause((cause) =>
+        Cause.hasInterruptsOnly(cause) ? Effect.void : Effect.logError("App.launch failed", cause),
+      ),
     );
 }

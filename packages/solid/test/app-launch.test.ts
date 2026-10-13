@@ -310,8 +310,14 @@ describe("App.launch", () => {
       ),
     ));
 
-  it("fails with StartRootMissing when the document has no app root", () =>
+  it("fails with StartRootMissing when the document has no app root, and logs it", () =>
     Effect.gen(function* () {
+      const logged: Array<string> = [];
+      const spies = (["log", "error", "warn"] as const).map((method) =>
+        vi.spyOn(console, method).mockImplementation((...args: Array<unknown>) => {
+          logged.push(args.map(String).join(" "));
+        }),
+      );
       const Root = Component.define("Root", function* () {
         yield* Effect.void;
         return () => "root";
@@ -319,9 +325,12 @@ describe("App.launch", () => {
       const exit = yield* Effect.exit(
         App.launch(App.define({ root: Root, routes: [] as const }), { href: "/" }),
       );
+      spies.forEach((spy) => spy.mockRestore());
       expect(Exit.isFailure(exit) && Exit.findErrorOption(exit)).toMatchObject({
         _tag: "Some",
         value: expect.any(StartRootMissing),
       });
+      // `Effect.runFork(App.launch(app))` observes nothing, so the failure is logged.
+      expect(logged.join("\n")).toContain("App.launch failed");
     }).pipe(Effect.runPromise));
 });
